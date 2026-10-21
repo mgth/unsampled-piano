@@ -79,6 +79,98 @@ impl LossLaw {
     }
 }
 
+/// Strings per key and their mistuning.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct UnisonLaw {
+    /// First bichord and first trichord key.
+    pub bichord_from: u8,
+    pub trichord_from: u8,
+    /// Spread between the extreme strings (cents) up to C4, and at C8
+    /// (quadratic in between).
+    pub width_mid: f64,
+    pub width_treble: f64,
+}
+
+impl UnisonLaw {
+    /// Generic grand layout; widths calibrated on the ESPRIT statistics of
+    /// Salamander (tools/unison_grid.py).
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0 };
+    /// Never let strings coincide exactly (degenerate coupled subspace).
+    const MIN_SPREAD: f64 = 0.02;
+
+    pub fn strings(&self, note: u8) -> usize {
+        if note >= self.trichord_from {
+            3
+        } else if note >= self.bichord_from {
+            2
+        } else {
+            1
+        }
+    }
+
+    pub fn width(&self, note: u8) -> f64 {
+        let t = ((note as f64 - 60.0) / 48.0).max(0.0);
+        (self.width_mid + (self.width_treble - self.width_mid) * t * t).max(Self::MIN_SPREAD)
+    }
+
+    /// Detuning of each string (cents), deterministic but irregular per key.
+    pub fn detune(&self, note: u8) -> [f64; 3] {
+        let w = self.width(note);
+        let h = ((note as f64 * 12.9898).sin() * 43_758.545_3).rem_euclid(1.0);
+        match self.strings(note) {
+            1 => [0.0; 3],
+            2 => [-0.5 * w * (0.7 + 0.6 * h), 0.5 * w, 0.0],
+            _ => [-0.5 * w, (h - 0.5) * 0.6 * w, 0.5 * w],
+        }
+    }
+}
+
+/// Bridge admittance seen by the strings: G(f) = g_1k·(f/1 kHz)^slope (s/kg),
+/// Im Y = b_over_g·G. Measured on Salamander from the ESPRIT prompt/aftersound
+/// decay difference (tools/bridge_conductance.py): G ≈ 4–6e-4 s/kg, nearly
+/// flat, with ±2.5× modal scatter left to the soundboard model (Phase 4).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BridgeLaw {
+    pub g_1k: f64,
+    pub slope: f64,
+    pub b_over_g: f64,
+}
+
+impl BridgeLaw {
+    /// b_over_g calibrated on the ESPRIT statistics (tools/unison_grid.py).
+    pub const SALAMANDER_C5: Self = Self { g_1k: 4.6e-4, slope: 0.109, b_over_g: 1.5 };
+
+    pub fn admittance(&self, f: f64) -> crate::complex::C64 {
+        let g = self.g_1k * (f / 1000.0).powf(self.slope);
+        crate::complex::C64::new(g, self.b_over_g * g)
+    }
+}
+
+/// Horizontal polarisation of the strings, relative to the vertical one.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PolarizationLaw {
+    pub enabled: bool,
+    /// ε_H / ε_V: the bridge is much stiffer sideways.
+    pub h_coupling: f64,
+    /// ε_X / ε_V: transfer between polarisations (bridge rocking).
+    pub cross: f64,
+    /// Horizontal minus vertical frequency (cents), from the terminations.
+    pub detune_cents: f64,
+    /// Share of the horizontal bridge force reaching the output.
+    pub radiation: f64,
+    /// Share of the hammer force acting horizontally.
+    pub hammer_tilt: f64,
+}
+
+impl PolarizationLaw {
+    pub const OFF: Self =
+        Self { enabled: false, h_coupling: 0.0, cross: 0.0, detune_cents: 0.0, radiation: 0.0, hammer_tilt: 0.0 };
+    /// Calibrated on the ESPRIT statistics of Salamander (tools/pol_grid.py):
+    /// gives single strings their measured aftersound (≈ −27 dB, slow).
+    pub const DEFAULT: Self =
+        Self { enabled: true, h_coupling: 0.1, cross: 0.5, detune_cents: 0.3, radiation: 0.1, hammer_tilt: 0.05 };
+}
+
 /// Partial frequency of a stiff string: f_k = k·f0·sqrt(1 + B·k²).
 pub fn partial_freq(f0: f64, b: f64, k: u32) -> f64 {
     let k = k as f64;
@@ -128,6 +220,17 @@ pub struct NoteParams {
     /// Width of the felt contact patch (m).
     pub contact_width: f64,
     pub hammer: HammerParams,
+    pub strings: usize,
+    /// Detuning of each string in cents (first `strings` entries).
+    pub detune: [f64; 3],
+}
+
+impl NoteParams {
+    /// Rate (1/s) coupling the strings through the bridge at frequency f:
+    /// ε = (T/L)·Y(f). Re ε is one string's bridge loss.
+    pub fn coupling(&self, bridge: &BridgeLaw, f: f64) -> crate::complex::C64 {
+        bridge.admittance(f).scale(self.tension / self.length)
+    }
 }
 
 /// The whole instrument description: laws evaluated per key.
@@ -136,8 +239,12 @@ pub struct PianoModel {
     pub a4: f64,
     pub inharmonicity: InharmonicityLaw,
     pub stretch: StretchLaw,
+    /// Intrinsic string losses (the bridge adds its own through coupling).
     pub losses: LossLaw,
     pub scale: StringScale,
+    pub unison: UnisonLaw,
+    pub bridge: BridgeLaw,
+    pub polarization: PolarizationLaw,
     /// Multiplies Stulov's Q0 (felt hardness / voicing).
     pub hardness: f64,
     /// Added to Stulov's exponent p (Russell: 2–4, Stulov: 3.7–5).
@@ -152,8 +259,11 @@ impl Default for PianoModel {
             a4: 440.0,
             inharmonicity: InharmonicityLaw::SALAMANDER_C5,
             stretch: StretchLaw::SALAMANDER_C5,
-            losses: LossLaw::SALAMANDER_EARLY,
+            losses: LossLaw::SALAMANDER_STRING,
             scale: StringScale::GRAND_2M,
+            unison: UnisonLaw::GRAND,
+            bridge: BridgeLaw::SALAMANDER_C5,
+            polarization: PolarizationLaw::DEFAULT,
             // Calibrated on Salamander (tools/grid_hammer.py): a less
             // nonlinear felt than Stulov's fit (p ≈ 2.7–4, Russell's range)
             // matches the brightness-vs-velocity curve 2.6× better.
@@ -178,7 +288,18 @@ impl PianoModel {
         hammer.q0 *= self.hardness;
         hammer.p += self.p_offset;
         hammer.alpha *= self.hysteresis;
-        NoteParams { f0, b: self.inharmonicity.b(note), length, tension, mu, strike_pos, contact_width, hammer }
+        NoteParams {
+            f0,
+            b: self.inharmonicity.b(note),
+            length,
+            tension,
+            mu,
+            strike_pos,
+            contact_width,
+            hammer,
+            strings: self.unison.strings(note),
+            detune: self.unison.detune(note),
+        }
     }
 }
 

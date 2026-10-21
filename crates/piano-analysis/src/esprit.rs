@@ -13,6 +13,9 @@ use rustfft::FftPlanner;
 
 pub type C = Complex<f64>;
 
+/// Maximum baseband samples given to ESPRIT.
+pub const MAX_SAMPLES: usize = 360;
+
 /// One damped component of a partial.
 #[derive(Clone, Copy, Debug)]
 pub struct Mode {
@@ -161,7 +164,9 @@ pub fn analyse_partial(
     // The band filter smears the abrupt segment start over ~1/hb.
     let skip = skip.max(1.5 / hb);
     let i0 = (skip * sb.fs).ceil() as usize;
-    let i1 = ((skip + dur) * sb.fs) as usize;
+    // The Hankel SVD is O(N³): beyond a few hundred baseband samples the
+    // resolution gain is nil and the cost explodes.
+    let i1 = (((skip + dur) * sb.fs) as usize).min(i0 + MAX_SAMPLES);
     if i1 > sb.y.len() || i1 <= i0 {
         return Vec::new();
     }

@@ -110,7 +110,8 @@ pub fn estimate(x: &[f32], sr: f64, f0_nominal: f64, opt: Options) -> Option<Inh
             .collect();
         let mut abs: Vec<f64> = res.iter().map(|r| r.abs()).collect();
         abs.sort_by(f64::total_cmp);
-        let mad = abs[abs.len() / 2].max(0.05);
+        // Bridge coupling shifts partials by a few cents: do not reject that.
+        let mad = abs[abs.len() / 2].max(0.5);
         let keep: Vec<TrackedPartial> =
             found.iter().zip(&res).filter(|(_, r)| r.abs() <= 4.0 * mad).map(|(p, _)| p.clone()).collect();
         if keep.len() >= 2 {

@@ -76,3 +76,5 @@ python3 -I tools/eval_compare.py out/salamander/eval_phase1.csv
 python3 -I tools/grid_hammer.py
 cargo run --release -p piano-render -- sweep out/sweep.wav --velocity 100
 ```
+
+> Note (phase 2) : la métrique de profil a été corrigée. L'ancienne était sensible à la perte du partiel le plus fort par le suivi de partiels. Avec la métrique robuste, cette configuration de phase 1 donne 5,8 dB, et non 8,5 dB. Voir [phase2.md](phase2.md).

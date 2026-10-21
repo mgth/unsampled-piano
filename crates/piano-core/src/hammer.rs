@@ -1,8 +1,8 @@
 //! Hammer–string contact, explicit and provably passive.
 //!
-//! While the hammer touches the string, the string modes are advanced by
-//! this solver instead of the [`ModalBank`]; afterwards their state is handed
-//! back to the bank. Each mode uses the exact (impulse-invariant) recursion
+//! While the hammer touches the strings, their modes are advanced by this
+//! solver instead of the modal bank; afterwards their complex amplitudes are
+//! handed back (see [`crate::voice`]). Each mode uses the exact (impulse-invariant) recursion
 //!
 //! ```text
 //! q[n+1] − 2c·q[n] + e·q[n−1] = φ_k·γ_k·F[n],   c = r·cosθ, e = r²
@@ -27,8 +27,21 @@
 //! The two guards below (no pulling force, ψ reset when out of contact) only
 //! remove energy.
 
-use crate::modal::ModalBank;
+use crate::complex::C64;
 use crate::params::NoteParams;
+
+/// One string mode as seen by the contact solver.
+#[derive(Clone, Copy, Debug)]
+pub struct PhysMode {
+    /// Partial number (mode shape sin(kπx/L)).
+    pub k: u32,
+    pub freq: f64,
+    pub sigma: f64,
+    /// Current complex amplitude ζ (displacement q = Re ζ, metres).
+    pub state: C64,
+    /// Fraction of the hammer seen by this string (1, or 0 when shifted away).
+    pub hit: f64,
+}
 
 /// Separation time after which the hammer is considered gone (re-contacts
 /// before that are simulated: they happen in the treble and the bass).
@@ -39,6 +52,7 @@ const MAX_CONTACT_S: f64 = 0.03;
 pub struct ContactSolver {
     // Per mode.
     c: Vec<f64>,
+    ps: Vec<f64>,
     e: Vec<f64>,
     gphi: Vec<f64>,
     phi: Vec<f64>,
@@ -76,6 +90,7 @@ impl ContactSolver {
         let v = || vec![0.0; max_modes];
         Self {
             c: v(),
+            ps: v(),
             e: v(),
             gphi: v(),
             phi: v(),
@@ -119,14 +134,14 @@ impl ContactSolver {
         self.contact_samples as f64 * self.dt
     }
 
-    /// Starts a strike at velocity `v` (m/s) on the modes held by `bank`,
-    /// whose current state (possibly ringing) is taken over. The contact is
+    /// Starts a strike at velocity `v` (m/s) on the given string modes
+    /// (all strings of the unison, possibly already ringing). The contact is
     /// integrated `oversample` times faster than the bank (short treble
-    /// contacts); the modes themselves stay below the bank's Nyquist, so the
-    /// output is simply taken every `oversample` steps. Real-time safe.
-    pub fn strike(&mut self, bank: &ModalBank, note: &NoteParams, v: f64, oversample: usize) {
-        let n = bank.len().min(self.c.len());
-        self.n = n;
+    /// contacts); the modes stay below the bank's Nyquist, so the output is
+    /// simply taken every `oversample` steps. During the few milliseconds of
+    /// contact the strings are treated as uncoupled (bridge coupling acts on
+    /// a time scale 1/|ε| of 0.1–1 s). Real-time safe.
+    pub fn strike(&mut self, note: &NoteParams, v: f64, oversample: usize, modes: impl IntoIterator<Item = PhysMode>) {
         self.oversample = oversample.max(1);
         self.dt = self.base_dt / self.oversample as f64;
         let dt = self.dt;
@@ -135,17 +150,22 @@ impl ContactSolver {
         let mut lambda = 0.0;
         let mut w0 = 0.0;
         let mut w1 = 0.0;
-        for i in 0..n {
-            let spec = bank.spec(i);
-            let k = (i + 1) as f64;
-            let r = (-spec.sigma * dt).exp();
-            let th = std::f64::consts::TAU * spec.freq_hz * dt;
+        let mut n = 0;
+        for m in modes.into_iter().take(self.c.len()) {
+            let i = n;
+            n += 1;
+            let k = m.k as f64;
+            let r = (-m.sigma * dt).exp();
+            let th = std::f64::consts::TAU * m.freq * dt;
             let (sn, cs) = th.sin_cos();
-            let gamma = dt * r * sn / (modal_mass * std::f64::consts::TAU * spec.freq_hz);
+            let gamma = dt * r * sn / (modal_mass * std::f64::consts::TAU * m.freq);
             // Mode shape at the strike point, averaged over the felt width.
             let x = k * half_w;
-            let phi = (k * std::f64::consts::PI * note.strike_pos).sin() * if x > 1e-9 { x.sin() / x } else { 1.0 };
+            let phi = m.hit
+                * (k * std::f64::consts::PI * note.strike_pos).sin()
+                * if x > 1e-9 { x.sin() / x } else { 1.0 };
             self.c[i] = r * cs;
+            self.ps[i] = r * sn;
             self.e[i] = r * r;
             self.phi[i] = phi;
             self.gphi[i] = gamma * phi;
@@ -153,13 +173,14 @@ impl ContactSolver {
             // Bridge force T·∂y/∂x(0) = T·Σ (kπ/L)·q_k.
             self.out_w[i] = note.tension * k * std::f64::consts::PI / note.length;
             lambda += phi * phi * gamma;
-            // Current string state from the bank.
-            let (qn, qn1) = bank.displacement_state(i, self.out_w[i], r, th);
-            self.q0[i] = qn;
-            self.q1[i] = qn1;
-            w0 += phi * qn;
-            w1 += phi * qn1;
+            // Displacements now and one sub-step earlier from the complex amplitude.
+            let pole = C64::new(r * cs, r * sn);
+            self.q0[i] = m.state.re;
+            self.q1[i] = (m.state / pole).re;
+            w0 += phi * self.q0[i];
+            w1 += phi * self.q1[i];
         }
+        self.n = n;
         let h = note.hammer;
         self.mass = h.mass_kg;
         self.q_si = h.q_si();
@@ -178,6 +199,23 @@ impl ContactSolver {
         self.separated = 0;
         self.max_force = 0.0;
         self.contact_samples = 0;
+    }
+
+    /// Number of modes handled by the current episode.
+    pub fn len(&self) -> usize {
+        self.n
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.n == 0
+    }
+
+    /// Complex amplitude ζ of mode `i` now (q = Re ζ), independent of the
+    /// sampling rate: this is what is handed back to the coupled modes.
+    pub fn complex_state(&self, i: usize) -> C64 {
+        let (pr, pi, r2) = (self.c[i], self.ps[i], self.e[i]);
+        let a = self.q0[i];
+        C64::new(a, (r2 * self.q1[i] - a * pr) / pi)
     }
 
     /// Advances up to `out.len()` samples, *adding* the bridge force to
@@ -275,43 +313,50 @@ impl ContactSolver {
         let v = self.x0 - self.x1;
         h + self.mass / (self.dt * self.dt) * v * v + self.psi * self.psi
     }
-
-    /// Writes the string state back into the bank (same modes, same order).
-    /// The complex amplitude of a mode does not depend on the sampling rate,
-    /// so converting with the solver's pole is exact.
-    pub fn hand_over(&self, bank: &mut ModalBank) {
-        for i in 0..self.n {
-            let spec = bank.spec(i);
-            let r = (-spec.sigma * self.dt).exp();
-            let th = std::f64::consts::TAU * spec.freq_hz * self.dt;
-            bank.set_displacement_state(i, self.out_w[i], r, th, self.q0[i], self.q1[i]);
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modal::ModeSpec;
     use crate::params::PianoModel;
 
-    fn setup(note: u8, sigma_scale: f64) -> (ModalBank, NoteParams) {
+    fn setup(note: u8, sigma_scale: f64) -> (Vec<PhysMode>, NoteParams) {
         let sr = 48_000.0;
         let np = PianoModel::default().note(note);
-        let mut bank = ModalBank::new(sr, 512, 128);
-        bank.set_modes((1..=512u32).map_while(|k| {
-            let f = crate::params::partial_freq(np.f0, np.b, k);
-            (f < 0.45 * sr).then(|| ModeSpec { freq_hz: f, sigma: sigma_scale * (1.0 + 1e-6 * f * f), ..Default::default() })
-        }));
-        (bank, np)
+        let modes = (1..=512u32)
+            .map_while(|k| {
+                let f = crate::params::partial_freq(np.f0, np.b, k);
+                (f < 0.45 * sr).then_some(PhysMode {
+                    k,
+                    freq: f,
+                    sigma: sigma_scale * (1.0 + 1e-6 * f * f),
+                    state: C64::ZERO,
+                    hit: 1.0,
+                })
+            })
+            .collect();
+        (modes, np)
+    }
+
+    #[test]
+    fn complex_state_round_trips() {
+        let (mut modes, np) = setup(48, 1.0);
+        for (i, m) in modes.iter_mut().enumerate() {
+            m.state = C64::new(1e-4 / (i + 1) as f64, -3e-5 * (i % 3) as f64);
+        }
+        let mut s = ContactSolver::new(512, 48_000.0);
+        s.strike(&np, 1.0, 3, modes.iter().copied());
+        for (i, m) in modes.iter().enumerate() {
+            assert!((s.complex_state(i) - m.state).norm() < 1e-12 * (1.0 + m.state.norm()) + 1e-18);
+        }
     }
 
     #[test]
     fn lossless_contact_conserves_energy() {
-        let (bank, mut np) = setup(60, 0.0);
+        let (modes, mut np) = setup(60, 0.0);
         np.hammer.alpha = 0.0;
         let mut s = ContactSolver::new(512, 48_000.0);
-        s.strike(&bank, &np, 3.0, 1);
+        s.strike(&np, 3.0, 1, modes.iter().copied());
         let mut out = [0.0f32; 1];
         s.run(&mut out);
         let h0 = s.energy();
@@ -335,9 +380,9 @@ mod tests {
     fn lossy_contact_energy_never_grows() {
         for note in [21u8, 45, 60, 84, 100, 108] {
             for v in [0.3, 1.0, 3.0, 7.0] {
-                let (bank, np) = setup(note, 1.0);
+                let (modes, np) = setup(note, 1.0);
                 let mut s = ContactSolver::new(512, 48_000.0);
-                s.strike(&bank, &np, v, 1);
+                s.strike(&np, v, 1, modes.iter().copied());
                 let mut out = [0.0f32; 1];
                 s.run(&mut out);
                 let mut prev = s.energy();
@@ -355,12 +400,12 @@ mod tests {
     #[test]
     fn heavy_string_matches_rigid_surface_contact() {
         // A very heavy string behaves like a rigid wall: Stulov's closed form.
-        let (bank, mut np) = setup(60, 0.0);
+        let (modes, mut np) = setup(60, 0.0);
         np.mu *= 1e6;
         np.hammer.alpha = 0.0;
         for v in [1.0, 4.0] {
             let mut s = ContactSolver::new(512, 48_000.0);
-            s.strike(&bank, &np, v, 1);
+            s.strike(&np, v, 1, modes.iter().copied());
             let mut out = [0.0f32; 64];
             while s.is_active() {
                 s.run(&mut out);
@@ -373,11 +418,11 @@ mod tests {
 
     #[test]
     fn contact_shortens_and_force_grows_with_velocity() {
-        let (bank, np) = setup(60, 1.0);
+        let (modes, np) = setup(60, 1.0);
         let mut last: Option<(f64, f64)> = None;
         for v in [0.5, 1.0, 2.0, 4.0] {
             let mut s = ContactSolver::new(512, 48_000.0);
-            s.strike(&bank, &np, v, 1);
+            s.strike(&np, v, 1, modes.iter().copied());
             let mut out = [0.0f32; 64];
             while s.is_active() {
                 s.run(&mut out);

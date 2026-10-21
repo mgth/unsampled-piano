@@ -37,8 +37,11 @@ cent = rel_to_layer("centroid_hz", 8, False)
 # Partial profiles: level relative to the strongest of k=1..12.
 p = d[d.k <= 12].copy()
 p["rel"] = p.level_db - p.groupby(["source", "midi", "layer"]).level_db.transform("max")
-w = p.pivot_table(index=["midi", "layer", "k"], columns="source", values="rel").dropna()
-w["err"] = (w.model - w.reference).abs()
+# Shape error: level differences on the partials found in both, up to a
+# constant offset per (note, layer) — robust to a missing strongest partial.
+w = p.pivot_table(index=["midi", "layer", "k"], columns="source", values="level_db").dropna()
+diff = w.model - w.reference
+w["err"] = (diff - diff.groupby(level=["midi", "layer"]).transform("median")).abs()
 prof_err = w.groupby(["midi"]).err.median()
 prof_err_layer = w.groupby(["layer"]).err.median()
 

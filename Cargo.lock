@@ -562,6 +562,7 @@ name = "piano-eval"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "hound",
  "piano-analysis",
  "piano-core",
 ]

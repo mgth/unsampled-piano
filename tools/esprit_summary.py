@@ -51,7 +51,8 @@ p["sig_p"] = LN1000 / p.t60_prompt
 p["sig_a"] = LN1000 / p.t60_after
 p["dsig"] = p.sig_p - p.sig_a
 
-loud = p[(p.layer >= 8) & (p.k <= 6)]
+KMAX = int(sys.argv[2]) if len(sys.argv) > 2 else 6
+loud = p[(p.layer >= 8) & (p.k <= KMAX)]
 note = loud.groupby("midi").agg(
     t60_prompt_k1=("t60_prompt", lambda s: s[loud.loc[s.index, "k"] == 1].median()),
     t60_after_k1=("t60_after", lambda s: s[loud.loc[s.index, "k"] == 1].median()),

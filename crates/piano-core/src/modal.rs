@@ -1,11 +1,12 @@
 //! Bank of damped modes, the computational core of the engine.
 //!
 //! Each mode is a complex one-pole recursion `z[n] = p·z[n-1] + b·x[n]` with
-//! `p = exp(-σT)·exp(iωT)` and the mode's contribution is `Re(z)`. This is the
-//! impulse-invariant discretisation of a driven damped oscillator, as in
-//! Bank, Zambon & Fontana (IEEE TASLP 2010). The complex ("rotation") form is
-//! used rather than a real biquad because its frequency stays accurate in f32
-//! down to A0 (see `piano-bench precision`).
+//! `p = exp(-σT)·exp(iωT)`, and the mode's contribution is `Re(w·z)` with a
+//! complex output weight w. This is the impulse-invariant discretisation of
+//! a driven damped oscillator, as in Bank, Zambon & Fontana (IEEE TASLP
+//! 2010). The complex ("rotation") form is used rather than a real biquad
+//! because its frequency stays accurate in f32 down to A0 (see
+//! `piano-bench precision`).
 //!
 //! Layout is AoSoA: modes are packed in chunks of [`LANES`] so the inner loop
 //! vectorises across modes while the time recursion stays sequential. Several
@@ -16,7 +17,7 @@
 pub const LANES: usize = 16;
 
 /// Parameters of one mode, in physical units.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ModeSpec {
     pub freq_hz: f64,
     /// Amplitude decay rate σ in 1/s (T60 = ln(1000)/σ).
@@ -24,12 +25,21 @@ pub struct ModeSpec {
     /// Complex input gain `b` (already scaled by the sample period).
     pub gain_re: f64,
     pub gain_im: f64,
+    /// Complex output weight `w`: the mode contributes Re(w·z).
+    pub out_re: f64,
+    pub out_im: f64,
+}
+
+impl Default for ModeSpec {
+    fn default() -> Self {
+        Self { freq_hz: 0.0, sigma: 0.0, gain_re: 0.0, gain_im: 0.0, out_re: 1.0, out_im: 0.0 }
+    }
 }
 
 impl ModeSpec {
     /// Mode driven by a force: its impulse response is `amp·e^{-σt}·sin(ωt)`.
     pub fn driven(freq_hz: f64, sigma: f64, amp: f64) -> Self {
-        Self { freq_hz, sigma, gain_re: 0.0, gain_im: -amp }
+        Self { freq_hz, sigma, gain_im: -amp, ..Default::default() }
     }
 }
 
@@ -82,6 +92,8 @@ struct Chunk {
     pi: [f32; LANES],
     br: [f32; LANES],
     bi: [f32; LANES],
+    or: [f32; LANES],
+    oi: [f32; LANES],
     zr: [f32; LANES],
     zi: [f32; LANES],
 }
@@ -173,11 +185,15 @@ impl ModalBank {
                 c.pi[l] = (r * s) as f32;
                 c.br[l] = m.gain_re as f32;
                 c.bi[l] = m.gain_im as f32;
+                c.or[l] = m.out_re as f32;
+                c.oi[l] = m.out_im as f32;
             } else {
                 c.pr[l] = 0.0;
                 c.pi[l] = 0.0;
                 c.br[l] = 0.0;
                 c.bi[l] = 0.0;
+                c.or[l] = 0.0;
+                c.oi[l] = 0.0;
             }
         }
     }
@@ -186,23 +202,16 @@ impl ModalBank {
         self.specs[i]
     }
 
-    /// Reads mode `i` as a displacement pair (q[n], q[n−1]), given that the
-    /// bank stores `Re(z) = w·q` and that the mode's pole is r·e^{iθ}.
-    pub fn displacement_state(&self, i: usize, w: f64, r: f64, th: f64) -> (f64, f64) {
+    /// Complex state z of mode `i`.
+    pub fn state(&self, i: usize) -> (f64, f64) {
         let c = &self.chunks[i / LANES];
-        let (a, b) = (c.zr[i % LANES] as f64, c.zi[i % LANES] as f64);
-        let (pr, pi) = (r * th.cos(), r * th.sin());
-        (a / w, (a * pr + b * pi) / (r * r) / w)
+        (c.zr[i % LANES] as f64, c.zi[i % LANES] as f64)
     }
 
-    /// Inverse of [`Self::displacement_state`].
-    pub fn set_displacement_state(&mut self, i: usize, w: f64, r: f64, th: f64, qn: f64, qn1: f64) {
-        let (pr, pi) = (r * th.cos(), r * th.sin());
-        let a = w * qn;
-        let b = (r * r * w * qn1 - a * pr) / pi;
+    pub fn set_state(&mut self, i: usize, re: f64, im: f64) {
         let c = &mut self.chunks[i / LANES];
-        c.zr[i % LANES] = a as f32;
-        c.zi[i % LANES] = b as f32;
+        c.zr[i % LANES] = re as f32;
+        c.zi[i % LANES] = im as f32;
     }
 
     pub fn reset(&mut self) {
@@ -212,12 +221,14 @@ impl ModalBank {
         }
     }
 
-    /// Sum of |z|² over modes, a cheap energy proxy for voice management.
+    /// Sum of |w·z|² over modes (output-weighted), a cheap loudness proxy
+    /// for voice management.
     pub fn energy(&self) -> f32 {
         let mut e = [0.0f32; LANES];
         for c in &self.chunks[..self.n_modes.div_ceil(LANES)] {
             for (l, el) in e.iter_mut().enumerate() {
-                *el += c.zr[l] * c.zr[l] + c.zi[l] * c.zi[l];
+                let w2 = c.or[l] * c.or[l] + c.oi[l] * c.oi[l];
+                *el += w2 * (c.zr[l] * c.zr[l] + c.zi[l] * c.zi[l]);
             }
         }
         e.iter().sum()
@@ -296,6 +307,8 @@ fn group<const G: usize, const IN: bool>(grp: &mut [Chunk; G], x: &[f32], acc: &
     let pi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].pi);
     let br: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].br);
     let bi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].bi);
+    let or: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].or);
+    let oi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].oi);
     let mut zr: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].zr);
     let mut zi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].zi);
 
@@ -311,7 +324,7 @@ fn group<const G: usize, const IN: bool>(grp: &mut [Chunk; G], x: &[f32], acc: &
                 }
                 zr[g][l] = r;
                 zi[g][l] = i;
-                s[l] += r;
+                s[l] += or[g][l] * r - oi[g][l] * i;
             }
         }
         *a = s;

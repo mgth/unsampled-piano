@@ -32,9 +32,38 @@ struct Args {
     vmin: Option<f64>,
     #[arg(long)]
     vmax: Option<f64>,
+    #[arg(long)]
+    unison_mid: Option<f64>,
+    #[arg(long)]
+    unison_treble: Option<f64>,
+    #[arg(long)]
+    bridge_g: Option<f64>,
+    #[arg(long)]
+    bridge_b_over_g: Option<f64>,
+    /// One string per key everywhere (isolates the unison).
+    #[arg(long)]
+    single_string: bool,
+    #[arg(long)]
+    pol_enabled: Option<bool>,
+    #[arg(long)]
+    pol_h_coupling: Option<f64>,
+    #[arg(long)]
+    pol_cross: Option<f64>,
+    #[arg(long)]
+    pol_detune: Option<f64>,
+    #[arg(long)]
+    pol_radiation: Option<f64>,
+    #[arg(long)]
+    pol_tilt: Option<f64>,
     /// Skip the reference measurements (faster parameter sweeps).
     #[arg(long)]
     model_only: bool,
+    /// Only these velocity layers (default: all).
+    #[arg(long, value_delimiter = ',')]
+    layers: Vec<usize>,
+    /// Also write each model render as <dir>/<note>v<layer>.wav.
+    #[arg(long)]
+    write_wav: Option<PathBuf>,
 }
 
 struct Measure {
@@ -71,6 +100,15 @@ fn render(cfg: EngineConfig, note: u8, velocity: u8, seconds: f64) -> Vec<f32> {
     out
 }
 
+fn write_wav(path: &std::path::Path, x: &[f32], sr: u32) {
+    let spec = hound::WavSpec { channels: 1, sample_rate: sr, bits_per_sample: 32, sample_format: hound::SampleFormat::Float };
+    let mut w = hound::WavWriter::create(path, spec).expect("create wav");
+    for &s in x {
+        w.write_sample(s).expect("write wav");
+    }
+    w.finalize().expect("finalize wav");
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let a = Args::parse();
     let mut cfg = EngineConfig::default();
@@ -86,13 +124,51 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(v) = a.vmax {
         cfg.hammer_vmax = v;
     }
+    if let Some(v) = a.unison_mid {
+        cfg.model.unison.width_mid = v;
+    }
+    if let Some(v) = a.unison_treble {
+        cfg.model.unison.width_treble = v;
+    }
+    if let Some(v) = a.bridge_g {
+        cfg.model.bridge.g_1k = v;
+    }
+    if let Some(v) = a.bridge_b_over_g {
+        cfg.model.bridge.b_over_g = v;
+    }
+    if a.single_string {
+        cfg.model.unison.bichord_from = 200;
+        cfg.model.unison.trichord_from = 200;
+    }
+    let pol = &mut cfg.model.polarization;
+    if let Some(v) = a.pol_enabled {
+        pol.enabled = v;
+    }
+    if let Some(v) = a.pol_h_coupling {
+        pol.h_coupling = v;
+    }
+    if let Some(v) = a.pol_cross {
+        pol.cross = v;
+    }
+    if let Some(v) = a.pol_detune {
+        pol.detune_cents = v;
+    }
+    if let Some(v) = a.pol_radiation {
+        pol.radiation = v;
+    }
+    if let Some(v) = a.pol_tilt {
+        pol.hammer_tilt = v;
+    }
+    if let Some(d) = &a.write_wav {
+        std::fs::create_dir_all(d)?;
+    }
     let mut jobs = Vec::new();
     for e in std::fs::read_dir(&a.reference)? {
         let path = e?.path();
         let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
         let Some((n, v)) = stem.rsplit_once('v') else { continue };
         let (Some(note), Ok(layer)) = (io::parse_note_name(n), v.parse::<usize>()) else { continue };
-        if (1..=a.velocities.len()).contains(&layer) {
+        if (1..=a.velocities.len()).contains(&layer) && (a.layers.is_empty() || a.layers.contains(&layer)) {
             jobs.push((path, note, layer));
         }
     }
@@ -111,6 +187,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let mut rows = Vec::new();
                         let (ct, fmax) = piano_core::engine::strike_stats(&cfg, *note, vel, None);
                         let model = render(cfg, *note, vel, a.seconds);
+                        if let Some(dir) = &a.write_wav {
+                            let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("x");
+                            write_wav(&dir.join(format!("{name}.wav")), &model, cfg.sample_rate as u32);
+                        }
                         let reference = if a.model_only { None } else { io::read_mono(path, None).ok() };
                         let srcs = [("model", Some((model, cfg.sample_rate))), ("reference", reference)];
                         for (src, sig) in srcs {
