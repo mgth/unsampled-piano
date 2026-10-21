@@ -1,0 +1,11 @@
+[package]
+name = "piano-eval"
+description = "Objective comparison of the model with a reference sample set."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+piano-core.workspace = true
+piano-analysis.workspace = true
+clap.workspace = true

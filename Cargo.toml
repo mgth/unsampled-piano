@@ -10,6 +10,7 @@ publish = false
 [workspace.dependencies]
 piano-core = { path = "crates/piano-core" }
 piano-analysis = { path = "crates/piano-analysis" }
+piano-eval = { path = "crates/piano-eval" }
 hound = "3.5"
 midly = "0.5"
 realfft = "3.5"

@@ -182,6 +182,29 @@ impl ModalBank {
         }
     }
 
+    pub fn spec(&self, i: usize) -> ModeSpec {
+        self.specs[i]
+    }
+
+    /// Reads mode `i` as a displacement pair (q[n], q[n−1]), given that the
+    /// bank stores `Re(z) = w·q` and that the mode's pole is r·e^{iθ}.
+    pub fn displacement_state(&self, i: usize, w: f64, r: f64, th: f64) -> (f64, f64) {
+        let c = &self.chunks[i / LANES];
+        let (a, b) = (c.zr[i % LANES] as f64, c.zi[i % LANES] as f64);
+        let (pr, pi) = (r * th.cos(), r * th.sin());
+        (a / w, (a * pr + b * pi) / (r * r) / w)
+    }
+
+    /// Inverse of [`Self::displacement_state`].
+    pub fn set_displacement_state(&mut self, i: usize, w: f64, r: f64, th: f64, qn: f64, qn1: f64) {
+        let (pr, pi) = (r * th.cos(), r * th.sin());
+        let a = w * qn;
+        let b = (r * r * w * qn1 - a * pr) / pi;
+        let c = &mut self.chunks[i / LANES];
+        c.zr[i % LANES] = a as f32;
+        c.zi[i % LANES] = b as f32;
+    }
+
     pub fn reset(&mut self) {
         for c in &mut self.chunks {
             c.zr = [0.0; LANES];

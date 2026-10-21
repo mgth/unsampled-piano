@@ -37,3 +37,34 @@ fn no_allocation_bounded_and_deterministic() {
     let peak = a.iter().fold(0.0f32, |m, v| m.max(v.abs()));
     assert!(peak.is_finite() && peak < 50.0, "peak {peak}");
 }
+
+/// Every key at several velocities, with re-strikes during contact and while
+/// ringing: output stays finite and bounded.
+#[test]
+fn whole_keyboard_restrikes_stay_bounded() {
+    let mut engine = Engine::new(EngineConfig { polyphony: 96, ..Default::default() });
+    let bs = engine.config().max_block;
+    let mut out = vec![0.0f32; bs];
+    let mut peak = 0.0f32;
+    for note in 21u8..=108 {
+        for (j, &velocity) in [1u8, 40, 80, 127].iter().enumerate() {
+            // Two strikes 1 ms apart (second one lands during contact), then
+            // one 20 ms later on the ringing string.
+            let ev = [
+                TimedEvent { frame: 0, event: Event::NoteOn { note, velocity } },
+                TimedEvent { frame: 48, event: Event::NoteOn { note, velocity: 127 - velocity / 2 } },
+            ];
+            engine.process(&ev, &mut out);
+            for _ in 0..8 {
+                engine.process(&[], &mut out);
+                peak = out.iter().fold(peak, |m, v| m.max(v.abs()));
+            }
+            engine.process(&[TimedEvent { frame: 5, event: Event::NoteOn { note, velocity } }], &mut out);
+            if j == 3 {
+                engine.process(&[TimedEvent { frame: 0, event: Event::NoteOff { note, velocity: 64 } }], &mut out);
+            }
+            assert!(out.iter().all(|v| v.is_finite()), "note {note} vel {velocity}");
+        }
+    }
+    assert!(peak < 50.0, "peak {peak}");
+}

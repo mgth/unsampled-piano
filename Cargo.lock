@@ -558,6 +558,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "piano-eval"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "piano-analysis",
+ "piano-core",
+]
+
+[[package]]
 name = "piano-render"
 version = "0.1.0"
 dependencies = [

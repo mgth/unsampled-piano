@@ -3,6 +3,7 @@
 
 pub mod denormal;
 pub mod engine;
+pub mod hammer;
 pub mod modal;
 pub mod params;
 

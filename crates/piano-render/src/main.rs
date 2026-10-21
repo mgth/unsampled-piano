@@ -40,6 +40,9 @@ enum Cmd {
         velocity: u8,
         #[arg(long, default_value_t = 0.5)]
         step: f64,
+        /// Hold the sustain pedal down for the whole sweep (all strings ring).
+        #[arg(long)]
+        sustain: bool,
     },
 }
 
@@ -123,8 +126,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Cmd::Note { output, note, velocity, hold } => {
             (vec![(0.0, Event::NoteOn { note, velocity }), (hold, Event::NoteOff { note, velocity: 64 })], output)
         }
-        Cmd::Sweep { output, velocity, step } => {
+        Cmd::Sweep { output, velocity, step, sustain } => {
             let mut tl = Vec::new();
+            if sustain {
+                tl.push((0.0, Event::Control { cc: 64, value: 127 }));
+            }
             for (i, note) in (21u8..=108).enumerate() {
                 let t = i as f64 * step;
                 tl.push((t, Event::NoteOn { note, velocity }));

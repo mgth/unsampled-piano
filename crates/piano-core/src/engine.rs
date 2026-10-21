@@ -1,14 +1,15 @@
 //! Polyphonic engine: voice management, events and block rendering.
 //!
-//! Phase 0 voice: one modal string per note excited by a *prescribed*
-//! half-sine force whose duration comes from Stulov's rigid-surface contact
-//! law. This is a placeholder for the coupled hammer–string contact of
-//! Phase 1; the string side (modal projection, bridge force) is already the
-//! physical formulation.
+//! Phase 1 voice: one stiff string per key (modal, parameters from
+//! [`PianoModel`]) struck by a felt hammer through the passive contact
+//! solver of [`crate::hammer`]. During contact the solver owns the string;
+//! afterwards the modes run freely in the SIMD [`ModalBank`]. Unisons,
+//! bridge coupling and the soundboard come in Phase 2.
 
 use crate::denormal::DenormalGuard;
+use crate::hammer::ContactSolver;
 use crate::modal::{ModalBank, ModeSpec};
-use crate::params;
+use crate::params::{self, NoteParams, PianoModel};
 
 pub const MAX_MODES: usize = 512;
 /// Sustain pedal threshold on CC64.
@@ -19,7 +20,7 @@ const HIGHEST_DAMPED_NOTE: u8 = 88;
 const DAMPER_SIGMA: f64 = 23.0;
 /// Placeholder output scaling from bridge force (N) to full scale, until
 /// the soundboard and radiation exist.
-const OUTPUT_GAIN: f32 = 1.0 / 400.0;
+const OUTPUT_GAIN: f32 = 1.0 / 120.0;
 const SILENCE_ENERGY: f32 = 1e-14;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -42,9 +43,8 @@ pub struct EngineConfig {
     pub sample_rate: f64,
     pub max_block: usize,
     pub polyphony: usize,
-    pub a4: f64,
-    /// Relative striking position along the string.
-    pub strike_pos: f64,
+    pub model: PianoModel,
+    /// Hammer speed (m/s) at MIDI velocity 1 and 127.
     pub hammer_vmin: f64,
     pub hammer_vmax: f64,
 }
@@ -54,11 +54,11 @@ impl Default for EngineConfig {
         Self {
             sample_rate: 48_000.0,
             max_block: 128,
-            polyphony: 64,
-            a4: 440.0,
-            strike_pos: 1.0 / 8.0,
+            polyphony: 128,
+            model: PianoModel::default(),
             hammer_vmin: 0.4,
-            hammer_vmax: 6.0,
+            // Fits the Salamander dynamics curve (1.4 dB rms over 16 layers).
+            hammer_vmax: 4.0,
         }
     }
 }
@@ -68,19 +68,15 @@ struct Voice {
     active: bool,
     key_down: bool,
     damped: bool,
-    started_at: u64,
+    params: Option<NoteParams>,
     bank: ModalBank,
-    force: Vec<f32>,
-    pulse_pos: usize,
-    pulse_len: usize,
-    pulse_peak: f32,
+    contact: ContactSolver,
 }
 
 pub struct Engine {
     cfg: EngineConfig,
     voices: Vec<Voice>,
     sustain: bool,
-    clock: u64,
 }
 
 impl Engine {
@@ -91,15 +87,12 @@ impl Engine {
                 active: false,
                 key_down: false,
                 damped: false,
-                started_at: 0,
+                params: None,
                 bank: ModalBank::new(cfg.sample_rate, MAX_MODES, cfg.max_block),
-                force: vec![0.0; cfg.max_block],
-                pulse_pos: 0,
-                pulse_len: 0,
-                pulse_peak: 0.0,
+                contact: ContactSolver::new(MAX_MODES, cfg.sample_rate),
             })
             .collect();
-        Self { cfg, voices, sustain: false, clock: 0 }
+        Self { cfg, voices, sustain: false }
     }
 
     pub fn config(&self) -> &EngineConfig {
@@ -132,7 +125,7 @@ impl Engine {
             *o *= OUTPUT_GAIN;
         }
         for v in &mut self.voices {
-            if v.active && v.pulse_pos >= v.pulse_len && v.bank.energy() < SILENCE_ENERGY {
+            if v.active && !v.contact.is_active() && v.bank.energy() < SILENCE_ENERGY {
                 v.active = false;
             }
         }
@@ -142,22 +135,16 @@ impl Engine {
         if out.is_empty() {
             return;
         }
-        self.clock += out.len() as u64;
         for v in self.voices.iter_mut().filter(|v| v.active) {
-            if v.pulse_pos < v.pulse_len {
-                let force = &mut v.force[..out.len()];
-                for f in force.iter_mut() {
-                    *f = if v.pulse_pos < v.pulse_len {
-                        let ph = std::f32::consts::PI * (v.pulse_pos as f32 + 0.5) / v.pulse_len as f32;
-                        v.pulse_pos += 1;
-                        v.pulse_peak * ph.sin()
-                    } else {
-                        0.0
-                    };
+            let mut start = 0;
+            if v.contact.is_active() {
+                start = v.contact.run(out);
+                if !v.contact.is_active() {
+                    v.contact.hand_over(&mut v.bank);
                 }
-                v.bank.process(Some(force), out);
-            } else {
-                v.bank.process(None, out);
+            }
+            if start < out.len() {
+                v.bank.process(None, &mut out[start..]);
             }
         }
     }
@@ -186,7 +173,6 @@ impl Engine {
     }
 
     fn note_on(&mut self, note: u8, velocity: u8) {
-        let clock = self.clock;
         let cfg = self.cfg;
         // A key re-struck while its string still rings hits the moving string.
         let idx = self
@@ -209,25 +195,24 @@ impl Engine {
             });
         let v = &mut self.voices[idx];
         if !(v.active && v.note == note) {
+            let np = cfg.model.note(note);
             v.bank.reset();
+            v.bank.set_modes(string_modes(&cfg, &np, note));
             v.note = note;
-            v.bank.set_modes(string_modes(&cfg, note));
-        } else if v.damped {
-            v.bank.update_poles(0.0);
+            v.params = Some(np);
+        } else {
+            if v.contact.is_active() {
+                v.contact.hand_over(&mut v.bank);
+            }
+            if v.damped {
+                v.bank.update_poles(0.0);
+            }
         }
         v.active = true;
         v.key_down = true;
         v.damped = false;
-        v.started_at = clock;
-
-        let vh = hammer_velocity(&cfg, velocity);
-        let h = params::hammer_stulov(note);
-        let tc = h.contact_time_rigid(vh);
-        v.pulse_len = ((tc * cfg.sample_rate).round() as usize).max(2);
-        v.pulse_pos = 0;
-        // Half-sine whose impulse equals the rebound momentum 2·m·V.
-        let impulse = 2.0 * h.mass_kg * vh;
-        v.pulse_peak = (std::f64::consts::PI * impulse / (2.0 * tc)) as f32;
+        let np = v.params.expect("set above");
+        v.contact.strike(&v.bank, &np, hammer_velocity(&cfg, velocity), contact_oversampling(&cfg, note));
     }
 
     fn note_off(&mut self, note: u8) {
@@ -248,29 +233,46 @@ fn damp(v: &mut Voice) {
     }
 }
 
+/// Sub-steps per sample during contact so that the shortest treble contacts
+/// (≈ 0.4 ms) still span ~80 steps: 1 below C6 at 48 kHz, up to 4 at C8.
+pub fn contact_oversampling(cfg: &EngineConfig, note: u8) -> usize {
+    let per_ms = cfg.sample_rate / 1000.0;
+    let need = match note {
+        0..=83 => 40.0,
+        84..=95 => 80.0,
+        _ => 200.0,
+    };
+    ((need / per_ms).ceil() as usize).clamp(1, 8)
+}
+
 /// MIDI velocity → hammer velocity, exponential between vmin and vmax.
 pub fn hammer_velocity(cfg: &EngineConfig, velocity: u8) -> f64 {
     let t = (velocity.clamp(1, 127) as f64 - 1.0) / 126.0;
     cfg.hammer_vmin * (cfg.hammer_vmax / cfg.hammer_vmin).powf(t)
 }
 
-/// Transverse modes of one string seen as force at the bridge.
-///
-/// With modal mass μL/2 and μ = T/(2L·f0)², the bridge force T·∂y/∂x(0) for
-/// a unit force impulse at x0 is `4·f0·Σ sin(kπx0)/√(1+Bk²)·e^{-σt}·sin(ω_k t)`,
-/// independent of T and L.
-pub fn string_modes(cfg: &EngineConfig, note: u8) -> impl Iterator<Item = ModeSpec> + use<> {
-    let f0 = params::note_freq(note, cfg.a4);
-    let b = params::inharmonicity_rigaud(note);
+/// Transverse modes of one string, up to 0.45·fs.
+pub fn string_modes(cfg: &EngineConfig, np: &NoteParams, note: u8) -> impl Iterator<Item = ModeSpec> + use<> {
     let nyq = 0.45 * cfg.sample_rate;
-    let t = 1.0 / cfg.sample_rate;
-    let x0 = cfg.strike_pos;
-    (1..=MAX_MODES as u32)
-        .map(move |k| (k, params::partial_freq(f0, b, k)))
-        .take_while(move |&(_, f)| f < nyq)
-        .map(move |(k, f)| {
-            let kf = k as f64;
-            let amp = 4.0 * f0 * (kf * std::f64::consts::PI * x0).sin() / (1.0 + b * kf * kf).sqrt() * t;
-            ModeSpec::driven(f, params::decay_rate_placeholder(note, f), amp)
-        })
+    let (f0, b, losses) = (np.f0, np.b, cfg.model.losses);
+    (1..=MAX_MODES as u32).map_while(move |k| {
+        let f = params::partial_freq(f0, b, k);
+        (f < nyq).then(|| ModeSpec { freq_hz: f, sigma: losses.sigma(note, f), gain_re: 0.0, gain_im: 0.0 })
+    })
+}
+
+/// Contact duration (s) and peak force (N) of one strike on a string at
+/// rest. Allocates: analysis use only.
+pub fn strike_stats(cfg: &EngineConfig, note: u8, velocity: u8, oversample: Option<usize>) -> (f64, f64) {
+    let np = cfg.model.note(note);
+    let mut bank = ModalBank::new(cfg.sample_rate, MAX_MODES, cfg.max_block);
+    bank.set_modes(string_modes(cfg, &np, note));
+    let mut s = ContactSolver::new(MAX_MODES, cfg.sample_rate);
+    let os = oversample.unwrap_or_else(|| contact_oversampling(cfg, note));
+    s.strike(&bank, &np, hammer_velocity(cfg, velocity), os);
+    let mut out = vec![0.0f32; 256];
+    while s.is_active() {
+        s.run(&mut out);
+    }
+    (s.contact_time(), s.max_force())
 }
