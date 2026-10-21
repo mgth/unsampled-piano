@@ -10,6 +10,7 @@ pub mod instrument;
 pub mod modal;
 pub mod note_model;
 pub mod params;
+pub mod room;
 pub mod soundboard;
 pub mod unison;
 pub mod voice;

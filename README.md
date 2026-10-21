@@ -2,14 +2,14 @@
 
 Piano virtuel par modélisation physique, temps réel depuis MIDI, en Rust. Référence : Commercial. Aucun sample dans la production du son (les enregistrements ne servent qu'à l'analyse et à la calibration).
 
-Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cordes raides par touche, deux polarisations, couplées au chevalet (modes de Weinreich) → table d'harmonie modale (plaque orthotrope encastrée) → rayonnement de Rayleigh vers deux micros. S'y ajoutent les étouffoirs, les pédales (demi-pédale, sostenuto, una corda), la résonance sympathique par le chevalet et les bruits mécaniques par impulsions.
+Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cordes raides par touche, deux polarisations, couplées au chevalet (modes de Weinreich) → table d'harmonie modale (plaque orthotrope encastrée) → rayonnement de Rayleigh vers deux micros (couvercle optionnel) → salle (réflexions par sources images, réverbération). S'y ajoutent les étouffoirs, les pédales (demi-pédale, sostenuto, una corda), la résonance sympathique par le chevalet et les bruits mécaniques par impulsions.
 
 ## Utilisation
 
 ```bash
 # jouer depuis un clavier MIDI (PipeWire natif, priorité temps réel)
 cargo run --release -p piano-play -- --list
-cargo run --release -p piano-play -- --buffer 128 [--preset presets/default.toml]
+cargo run --release -p piano-play -- --buffer 128 [--preset presets/concert.toml]
 
 # rendu hors ligne (WAV stéréo)
 cargo run --release -p piano-render -- midi morceau.mid out/morceau.wav

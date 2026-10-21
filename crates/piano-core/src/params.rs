@@ -409,6 +409,8 @@ pub struct PianoModel {
     pub damper: DamperLaw,
     pub sympathetic: SympatheticLaw,
     pub noise: NoiseLaw,
+    /// The room around the piano (early reflections and reverberation).
+    pub room: crate::room::RoomParams,
     /// Felt softening when the una corda pedal shifts the action fully.
     pub una_corda_softening: f64,
     /// Multiplies Stulov's Q0 (felt hardness / voicing).
@@ -440,6 +442,7 @@ impl Default for PianoModel {
             damper: DamperLaw::GRAND,
             sympathetic: SympatheticLaw::DEFAULT,
             noise: NoiseLaw::DEFAULT,
+            room: crate::room::RoomParams::CONCERT_HALL,
             una_corda_softening: 0.6,
             // Calibrated on Salamander's absolute attack brightness and its
             // growth with velocity (tools/attack_grid.py), once the strike

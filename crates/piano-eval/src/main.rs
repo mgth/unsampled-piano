@@ -92,6 +92,10 @@ struct Args {
     pol_radiation: Option<f64>,
     #[arg(long)]
     pol_tilt: Option<f64>,
+    /// Keep the room (off by default: the calibrations compare the dry
+    /// instrument with the recordings).
+    #[arg(long)]
+    room: bool,
     /// Instrument preset (TOML) applied before the overrides below.
     #[arg(long)]
     preset: Option<PathBuf>,
@@ -155,6 +159,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(p) = &a.preset {
         cfg.model = piano_host::load_preset(p)?;
     }
+    cfg.model.room.enabled = a.room;
     if let Some(v) = a.p_offset {
         cfg.model.p_offset = v;
     }

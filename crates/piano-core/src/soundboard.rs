@@ -71,6 +71,15 @@ pub struct SoundboardParams {
     /// of an infinite baffle. back_gain = 0 is the baffled plate.
     pub back_depth: f64,
     pub back_gain: f64,
+    /// Lid opening angle (degrees); 0 = lid removed. It is hinged along the
+    /// board's long side y = b, `lid_hinge_height` m above the board, as long
+    /// as the board is wide, and opens towards y < 0 (the audience).
+    pub lid_angle: f64,
+    pub lid_hinge_height: f64,
+    /// Pressure reflection coefficient of the lid, and transmission through
+    /// it for a microphone behind it (no diffraction modelled).
+    pub lid_reflection: f64,
+    pub lid_transmission: f64,
 }
 
 impl Default for SoundboardParams {
@@ -113,6 +122,12 @@ impl SoundboardParams {
         // Calibrated on the spectral tilt of Salamander (low bands).
         back_depth: 0.6,
         back_gain: 0.6,
+        // Removed lid: the default mics hang above the board (calibrated
+        // set-up); see presets/concert.toml for an open lid.
+        lid_angle: 0.0,
+        lid_hinge_height: 0.25,
+        lid_reflection: 0.85,
+        lid_transmission: 0.1,
     };
 
     fn h(&self) -> f64 {
@@ -138,6 +153,91 @@ impl SoundboardParams {
             lerp(self.bass_bridge[0], self.bass_bridge[1], t.clamp(0.0, 1.0))
         };
         (u * self.a, v * self.b)
+    }
+}
+
+/// One radiation path from a board cell to a mic.
+#[derive(Clone, Copy)]
+struct Path {
+    r: f64,
+    /// 1, or the lid's transmission when it shadows the mic.
+    direct: f64,
+    /// Distance of the back-face image.
+    rb: f64,
+    /// Lid image: (distance, gain), gain 0 when the reflection misses.
+    image: (f64, f64),
+}
+
+/// The open lid as a reflecting rectangle.
+struct Lid {
+    p0: [f64; 3],
+    up: [f64; 3],
+    n: [f64; 3],
+    width: f64,
+    length: f64,
+    reflection: f64,
+    transmission: f64,
+}
+
+fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn lerp3(a: [f64; 3], b: [f64; 3], u: f64) -> [f64; 3] {
+    [a[0] + u * (b[0] - a[0]), a[1] + u * (b[1] - a[1]), a[2] + u * (b[2] - a[2])]
+}
+
+impl Lid {
+    fn new(p: &SoundboardParams) -> Option<Self> {
+        (p.lid_angle > 0.0).then(|| {
+            let th = p.lid_angle.to_radians();
+            Self {
+                p0: [0.0, p.b, p.lid_hinge_height],
+                up: [0.0, -th.cos(), th.sin()],
+                // Normal pointing to the board side.
+                n: [0.0, -th.sin(), -th.cos()],
+                width: p.a,
+                length: 1.05 * p.b,
+                reflection: p.lid_reflection,
+                transmission: p.lid_transmission,
+            }
+        })
+    }
+
+    fn side(&self, q: [f64; 3]) -> f64 {
+        dot(sub(q, self.p0), self.n)
+    }
+
+    fn on_lid(&self, x: [f64; 3]) -> bool {
+        let t = dot(sub(x, self.p0), self.up);
+        (0.0..=self.length).contains(&t) && (-0.05..=self.width + 0.05).contains(&x[0])
+    }
+
+    /// Direct path gain: shadowed when the mic is behind the lid.
+    fn direct_gain(&self, c: [f64; 3], m: [f64; 3]) -> f64 {
+        let (fc, fm) = (self.side(c), self.side(m));
+        if fm >= 0.0 || fc <= 0.0 {
+            return 1.0;
+        }
+        if self.on_lid(lerp3(c, m, fc / (fc - fm))) { self.transmission } else { 1.0 }
+    }
+
+    /// Mirror image of the cell in the lid, if the reflection hits the lid
+    /// and the mic sees it: (path length, gain).
+    fn image(&self, c: [f64; 3], m: [f64; 3]) -> Option<(f64, f64)> {
+        let (fc, fm) = (self.side(c), self.side(m));
+        if fc <= 0.0 || fm <= 0.0 {
+            return None;
+        }
+        let img = [c[0] - 2.0 * fc * self.n[0], c[1] - 2.0 * fc * self.n[1], c[2] - 2.0 * fc * self.n[2]];
+        self.on_lid(lerp3(img, m, fc / (fc + fm))).then(|| {
+            let d = sub(m, img);
+            (dot(d, d).sqrt(), self.reflection)
+        })
     }
 }
 
@@ -231,19 +331,27 @@ impl Soundboard {
         let nx = (p.a / p.grid_step).ceil() as usize;
         let ny = (p.b / p.grid_step).ceil() as usize;
         let (dx, dy) = (p.a / nx as f64, p.b / ny as f64);
-        // Distances from every grid cell to every mic, computed once.
-        let mut geo: Vec<[(f64, f64, f64, f64); 2]> = Vec::with_capacity(nx * ny);
-        let mut cells = Vec::with_capacity(nx * ny);
+        // Paths from every grid cell to every mic, computed once: direct
+        // (possibly shadowed by the lid), back face, and lid reflection.
+        let lid = Lid::new(p);
+        let mut geo: Vec<[Path; 2]> = Vec::with_capacity(nx * ny);
         for i in 0..nx {
             for j in 0..ny {
                 let (x, y) = ((i as f64 + 0.5) * dx, (j as f64 + 0.5) * dy);
-                cells.push((x, y));
                 geo.push(std::array::from_fn(|mic| {
                     let (mx, my, mz) = p.mics[mic];
+                    let (c, m) = ([x, y, 0.0], [mx, my, mz]);
                     let d2 = (x - mx).powi(2) + (y - my).powi(2);
-                    let r = (d2 + mz * mz).sqrt();
-                    let rb = (d2 + (mz + p.back_depth).powi(2)).sqrt();
-                    (r, rb, 0.0, 0.0)
+                    let (direct, image) = match &lid {
+                        Some(l) => (l.direct_gain(c, m), l.image(c, m)),
+                        None => (1.0, None),
+                    };
+                    Path {
+                        r: (d2 + mz * mz).sqrt(),
+                        direct,
+                        rb: (d2 + (mz + p.back_depth).powi(2)).sqrt(),
+                        image: image.unwrap_or((0.0, 0.0)),
+                    }
                 }));
             }
         }
@@ -260,9 +368,12 @@ impl Soundboard {
                 let norm = 2.0 / (p.rho_h * p.a * p.b).sqrt();
                 for (c, g) in geo.iter().enumerate() {
                     let phi = norm * sx[c / ny] * sy[c % ny];
-                    for mic in 0..2 {
-                        let (r, rb) = (g[mic].0, g[mic].1);
-                        acc[mic] += C64::polar(phi * ds / r, -k * r) - C64::polar(p.back_gain * phi * ds / rb, -k * rb);
+                    for (mic, pt) in g.iter().enumerate() {
+                        acc[mic] += C64::polar(pt.direct * phi * ds / pt.r, -k * pt.r)
+                            - C64::polar(p.back_gain * phi * ds / pt.rb, -k * pt.rb);
+                        if pt.image.1 != 0.0 {
+                            acc[mic] += C64::polar(pt.image.1 * phi * ds / pt.image.0, -k * pt.image.0);
+                        }
                     }
                 }
                 [pre * acc[0], pre * acc[1]]

@@ -113,3 +113,34 @@ Le marteau a ensuite été recalé sur la brillance *absolue* d'attaque, jusque-
 **Una corda.** Elle donne bien un timbre plus sombre et un aftersound plus long, comme le prédit Weinreich (test `una_corda_is_darker_with_more_aftersound`). Mais le modèle ne reproduit *pas* la baisse de niveau d'un vrai piano : frapper 2 cordes au lieu de 3 ne réduit pas l'énergie transmise par le marteau dans notre modèle.
 
 Après ces changements : gain de sortie +6 dB (pire cas à −3,2 dBFS) ; bruits à −22 / −23 dB sous la note ; relâchement de pédale à −14 dB.
+
+## Salle et couvercle (2026-10-22)
+
+Retour d'écoute : « le son reste un peu sec ». C'était attendu : le modèle s'arrêtait aux deux micros, comme dans une pièce parfaitement absorbante.
+
+**Salle** (`room.rs`, section `[room]` du préréglage).
+- Une pièce rectangulaire. Par défaut, une salle de concert de 40 × 28 × 16 m (≈ 18 000 m³, T60 ≈ 2,0 s dans le grave et 1,6 s dans l'aigu, distance critique ≈ 5,7 m). À 1,5 m, la réverbération arrive environ 12 dB sous le son direct, et les premiers échos après 30 à 60 ms. Préréglages : `small_hall.toml` (12 × 8 × 5 m, l'ancien défaut, perçu à l'écoute comme une « petite pièce très réverbérante ») et `studio.toml` (pièce traitée).
+- La source est la pression rayonnée ramenée à 1 m, estimée à partir des micros.
+- **Premières réflexions** : sources images jusqu'à l'ordre 3. Chaque réflexion a son retard exact, une atténuation √(1 − α) par mur et un passe-bas d'absorption qui se renforce avec le nombre de réflexions.
+- **Queue de réverbération** : réseau de 16 lignes à retard (matrice de Householder), longueurs réparties autour du libre parcours moyen 4V/S.
+  - Atténuation sur deux bandes donnant le T60 de Sabine : 1,1 s dans le grave, 0,8 s dans l'aigu (absorption de l'air comprise).
+  - Le niveau est fixé physiquement : énergie réverbérée = (r/r_c)² × énergie directe, avec la distance critique r_c = 0,057·√(V/T60) ≈ 1,3 m.
+  - Avec les micros à 1,5 m, la réverbération arrive environ 2 dB sous le son direct.
+- Test : le T60 rendu tombe entre les deux T60 de Sabine.
+- Coût : environ 1 % d'un cœur.
+- La salle est coupée dans `piano-eval`, car les calibrations comparent l'instrument seul aux enregistrements ; `--room` la réactive.
+- Préréglage `presets/dry.toml` : sans salle.
+
+**Couvercle** (`lid_*` dans `[soundboard]`).
+- Rectangle réfléchissant articulé sur le grand côté droit, ouvert vers le public.
+- Pour chaque élément de table, la source image est le symétrique par rapport au plan du couvercle. Elle compte si le point de réflexion tombe sur le couvercle et si le micro est du côté de la table.
+- Un micro placé derrière le couvercle est dans son ombre (transmission 0,1, sans diffraction).
+- Par défaut, le couvercle est retiré : les micros calés sur Salamander sont suspendus au-dessus de la table.
+- `presets/concert.toml` : couvercle à 35°, micros à 1,6 m devant l'ouverture. Pour ces micros, le couvercle ajoute en moyenne 2 dB (jusqu'à +4,7 dB dans le grave), avec les creux d'interférence direct/réfléchi propres à chaque note. Sans diffraction au bord du couvercle, ces creux sont plus marqués que dans la réalité.
+
+**Pas encore modélisé : le reste du corps du piano.**
+- La ceinture (le côté courbe) et le fond de caisse : apport surtout grave. La table est supposée encastrée dans une ceinture rigide.
+- Le cadre en fonte, excité par les forces des cordes à l'agrafe et aux pointes d'attache : résonance métallique faible.
+- La cavité d'air sous la table : modes graves.
+
+Ces trois éléments relèvent de la même méthode : des modes, excités par les forces déjà calculées et rayonnant vers les micros.

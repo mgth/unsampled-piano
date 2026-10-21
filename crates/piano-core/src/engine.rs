@@ -109,6 +109,7 @@ pub struct Engine {
     stereo: [Vec<f32>; MICS],
     listen_cursor: u8,
     knocks: [Knock; MAX_KNOCKS],
+    room: Option<crate::room::Room>,
     /// Damper engagement below which a landing damper counts as an impact.
     sustain_prev: f64,
 }
@@ -129,6 +130,12 @@ impl Engine {
             .as_ref()
             .filter(|_| inst.model.sympathetic.enabled)
             .map(|m| BoardBank::new(cfg.sample_rate, m, SUB_BLOCK));
+        let room = match (inst.model.soundboard, inst.board.is_some()) {
+            (Some(sb), true) if inst.model.room.enabled => {
+                Some(crate::room::Room::new(&inst.model.room, &sb.mics, (sb.a, sb.b), cfg.sample_rate))
+            }
+            _ => None,
+        };
         let mut e = Self {
             cfg,
             inst,
@@ -150,6 +157,7 @@ impl Engine {
             stereo: std::array::from_fn(|_| vec![0.0; cfg.max_block]),
             listen_cursor: 21,
             knocks: [Knock::default(); MAX_KNOCKS],
+            room,
             sustain_prev: 0.0,
         };
         // Strings without dampers always resonate.
@@ -290,6 +298,9 @@ impl Engine {
                 }
                 for x in left.iter_mut().chain(right.iter_mut()) {
                     *x *= PRESSURE_GAIN;
+                }
+                if let Some(room) = self.room.as_mut() {
+                    room.process(left, right);
                 }
             }
         }
