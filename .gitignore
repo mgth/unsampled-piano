@@ -1,0 +1,5 @@
+/target
+/out
+*.wav
+!tests/data/*.wav
+/data

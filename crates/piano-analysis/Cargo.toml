@@ -1,0 +1,22 @@
+[package]
+name = "piano-analysis"
+description = "Offline analysis of piano tones (partials, inharmonicity, decays, spectral distances) for calibration and evaluation."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+realfft.workspace = true
+hound.workspace = true
+claxon.workspace = true
+nalgebra.workspace = true
+rustfft.workspace = true
+clap.workspace = true
+
+[[bin]]
+name = "piano-analyze"
+path = "src/bin/piano-analyze.rs"
+
+[[bin]]
+name = "piano-survey"
+path = "src/bin/piano-survey.rs"

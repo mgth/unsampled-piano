@@ -1,0 +1,10 @@
+[package]
+name = "piano-bench"
+description = "Throughput and numerical-precision experiments for the modal core."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+piano-core.workspace = true
+clap.workspace = true

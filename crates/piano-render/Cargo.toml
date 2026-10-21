@@ -1,0 +1,12 @@
+[package]
+name = "piano-render"
+description = "Deterministic offline renderer: MIDI file (or single note) to WAV."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+piano-core.workspace = true
+midly.workspace = true
+hound.workspace = true
+clap.workspace = true

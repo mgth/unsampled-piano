@@ -1,0 +1,16 @@
+[package]
+name = "piano-core"
+description = "Framework-agnostic DSP engine of the physical piano (no plugin/host types here)."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+criterion.workspace = true
+assert_no_alloc.workspace = true
+
+[[bench]]
+name = "modal"
+harness = false
