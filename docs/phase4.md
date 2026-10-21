@@ -102,3 +102,5 @@ tools/unison_trial.sh essai --series-stiffness=2e7
 python3 -I tools/coupling_grid.py
 python3 -I tools/spectral_stats.py ref_et_modele=out/salamander/eval_phase4.csv
 ```
+
+> Note (phase 3) : les 16 bancs de zones ont été remplacés par un banc unique multi-entrées / multi-sorties qui fournit aussi la vitesse du chevalet. Un terme direct corrige l'invariance impulsionnelle : sans lui, la conductance rendue hors résonance était fausse dans le grave. La polarisation a été rendue passive. Voir [phase3.md](phase3.md).

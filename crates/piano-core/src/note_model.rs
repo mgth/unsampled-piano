@@ -3,6 +3,7 @@
 //! allocates and diagonalises up to 6×6 matrices per partial); voices only
 //! read it.
 
+use crate::board::{self, BoardMode, MICS};
 use crate::complex::C64;
 use crate::modal::ModeSpec;
 use crate::params::{self, NoteParams, PianoModel};
@@ -27,15 +28,36 @@ pub struct NoteModel {
     pub clusters: Vec<Cluster>,
     /// Index `k_idx·n_osc + j`.
     pub phys: Vec<PhysOsc>,
-    /// Coupled modes for the bank, index `k_idx·n_osc + m`.
+    /// Coupled modes for the bank, index `k_idx·n_osc + m`. Input 1 is the
+    /// bridge acceleration at the key's region point (sympathy; backward
+    /// difference of the board's velocity output), input 2 the
+    /// key's own bridge force (cancels its own contribution to input 1);
+    /// `damp_w` is the damper's mode-shape weight.
     pub modes: Vec<ModeSpec>,
+    /// Bridge region feeding / feeding back to this key.
+    pub region: usize,
+    pub has_damper: bool,
+    /// Modes run by a string that only listens (partials < max_freq).
+    pub n_listen: usize,
 }
 
 impl NoteModel {
     /// With a soundboard, the bridge coupling uses its modal admittance at
     /// the key's bridge point; otherwise the smooth [`params::BridgeLaw`].
-    pub fn build(model: &PianoModel, board: Option<&Soundboard>, note: u8, sample_rate: f64, max_modes: usize) -> Self {
+    pub fn build(
+        model: &PianoModel,
+        board: Option<&Soundboard>,
+        board_modes: Option<&[BoardMode]>,
+        note: u8,
+        sample_rate: f64,
+        max_modes: usize,
+    ) -> Self {
         let np = model.note(note);
+        let region = board::region_of(note);
+        let has_damper = note <= model.damper.highest_note;
+        let sympathy = board_modes.filter(|_| model.sympathetic.enabled);
+        let dt = 1.0 / sample_rate;
+        let mut n_listen = 0;
         let bridge_xy = board.map(|b| b.params.bridge_point(note));
         let ns = np.strings;
         let pol = model.polarization;
@@ -58,7 +80,7 @@ impl NoteModel {
             let dv: Vec<C64> = fv.iter().map(|&f| C64::new(-model.losses.sigma(note, f), tau * f)).collect();
             let cl = if pol.enabled {
                 let dh: Vec<C64> = fh.iter().map(|&f| C64::new(-model.losses.sigma(note, f), tau * f)).collect();
-                unison::couple_polarised(&dv, &dh, eps, eps.scale(pol.h_coupling), eps.scale(pol.cross))
+                unison::couple_polarised(&dv, &dh, eps, eps.scale(pol.h_coupling), eps.scale(pol.passive_cross()))
             } else {
                 unison::couple(&dv, eps)
             };
@@ -75,19 +97,63 @@ impl NoteModel {
             }
             // Bridge force of partial k: T·(kπ/L)·Σ_j w_j·q_j.
             let wk = np.tension * k as f64 * std::f64::consts::PI / np.length;
+            let omega = tau * fv[0];
+            // A moving bridge end forces string mode k with −(μL/kπ)·ü (wave
+            // equation with y(0,t) = u(t)): gain −i·dt/(M·ω)·(−μL/kπ) =
+            // i·2·dt/(kπ·ω) on the real acceleration input. (The displacement
+            // form w_k·u is only valid at resonance: off resonance it makes
+            // every mode follow the slow board motion statically.) Its own
+            // contribution to ü, H·F_own, is cancelled by input 2.
+
+            let mut vert = [0.0; MAX_OSC];
+            vert[..ns].fill(1.0);
+            let damp_w = if has_damper { model.damper.shape(k, np.length) } else { 0.0 };
             for m in 0..n_osc {
                 let u = cl.output_weight(m, &wout).scale(wk);
+                // Own contribution at this coupled mode's exact frequency (the
+                // bridge stiffness shifts treble modes by several Hz).
+                // Rendered path: velocity transfer, then (v[n] − v[n−1])·fs.
+                let h_self = sympathy.map(|bm| {
+                    let w = cl.lam[m].im;
+                    let diff = (C64::ONE - C64::polar(1.0, -w * dt)).scale(sample_rate);
+                    board::transfer(bm, region, MICS + region, w, sample_rate) * diff
+                });
+                let (g1, g2) = match h_self {
+                    Some(h) => {
+                        let kpi = k as f64 * std::f64::consts::PI;
+                        let g1 = cl.output_weight(m, &vert) * C64::new(0.0, 2.0 * dt / (kpi * omega));
+                        let g1 = g1.scale(model.sympathetic.gain);
+                        (g1, if model.sympathetic.self_cancel { -(g1 * h) } else { C64::ZERO })
+                    }
+                    None => (C64::ZERO, C64::ZERO),
+                };
                 modes.push(ModeSpec {
                     freq_hz: cl.lam[m].im / tau,
                     sigma: -cl.lam[m].re,
+                    gain_re: g1.re,
+                    gain_im: g1.im,
+                    gain2_re: g2.re,
+                    gain2_im: g2.im,
                     out_re: u.re,
                     out_im: u.im,
+                    damp_w,
                     ..Default::default()
                 });
             }
+            if fv[0] < model.sympathetic.max_freq {
+                n_listen = modes.len();
+            }
             clusters.push(cl);
         }
-        Self { note, params: np, n_osc, clusters, phys, modes }
+        Self { note, params: np, n_osc, clusters, phys, modes, region, has_damper, n_listen }
+    }
+
+    /// Damper decay-rate factor at contact `engagement` (0 lifted, 1 resting).
+    pub fn damper_rate(&self, model: &PianoModel, engagement: f64) -> f64 {
+        if !self.has_damper {
+            return 0.0;
+        }
+        model.damper.rate(engagement, self.params.tension, self.params.mu, self.params.length)
     }
 }
 
@@ -97,8 +163,18 @@ pub struct PianoTable {
 }
 
 impl PianoTable {
-    pub fn new(model: &PianoModel, board: Option<&Soundboard>, sample_rate: f64, max_modes: usize) -> Self {
-        Self { notes: (21u8..=108).map(|n| NoteModel::build(model, board, n, sample_rate, max_modes)).collect() }
+    pub fn new(
+        model: &PianoModel,
+        board: Option<&Soundboard>,
+        board_modes: Option<&[BoardMode]>,
+        sample_rate: f64,
+        max_modes: usize,
+    ) -> Self {
+        Self {
+            notes: (21u8..=108)
+                .map(|n| NoteModel::build(model, board, board_modes, n, sample_rate, max_modes))
+                .collect(),
+        }
     }
 
     pub fn get(&self, note: u8) -> &NoteModel {
@@ -115,7 +191,7 @@ mod tests {
     fn whole_table_is_well_conditioned() {
         let model = PianoModel::default();
         let t0 = std::time::Instant::now();
-        let table = PianoTable::new(&model, None, 48_000.0, 768);
+        let table = PianoTable::new(&model, None, None, 48_000.0, 768);
         eprintln!("table built in {:?}", t0.elapsed());
         let mut worst = 0.0f64;
         let mut worst_amp = 0.0f64;
@@ -143,13 +219,25 @@ mod tests {
         assert!(worst_amp < 50.0, "ill-conditioned cluster: {worst_amp}");
     }
 
+    /// With the modal soundboard (sharp admittance peaks), every coupled
+    /// mode of every key still decays: the bridge is passive.
+    #[test]
+    fn full_instrument_is_passive() {
+        let inst = crate::instrument::Instrument::new(PianoModel::default(), 48_000.0);
+        for note in 21u8..=108 {
+            for (i, m) in inst.table.get(note).modes.iter().enumerate() {
+                assert!(m.sigma > 0.0, "note {note} mode {i}: σ = {}", m.sigma);
+            }
+        }
+    }
+
     /// Every key, including single strings, has a fast and a slow component
     /// per partial (in-phase vertical vs out-of-phase/horizontal motion).
     #[test]
     fn every_key_has_two_decay_rates() {
         let model = PianoModel::default();
         for note in [21u8, 27, 30, 60, 100] {
-            let nm = NoteModel::build(&model, None, note, 48_000.0, 768);
+            let nm = NoteModel::build(&model, None, None, note, 48_000.0, 768);
             let cl = &nm.clusters[2];
             let mut sig: Vec<f64> = cl.lam[..cl.n].iter().map(|l| -l.re).collect();
             sig.sort_by(f64::total_cmp);

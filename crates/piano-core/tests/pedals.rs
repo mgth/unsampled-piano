@@ -1,0 +1,119 @@
+//! Behaviour of dampers, pedals and sympathetic resonance.
+
+use piano_core::instrument::Instrument;
+use piano_core::{Engine, EngineConfig, Event, TimedEvent};
+use std::sync::{Arc, OnceLock};
+
+fn instrument() -> Arc<Instrument> {
+    static I: OnceLock<Arc<Instrument>> = OnceLock::new();
+    I.get_or_init(|| Arc::new(Instrument::new(EngineConfig::default().model, 48_000.0))).clone()
+}
+
+/// Renders a script of (time s, event) for `dur` seconds; returns the mono
+/// output and the engine.
+fn render(script: &[(f64, Event)], dur: f64) -> (Vec<f32>, Engine) {
+    let cfg = EngineConfig::default();
+    let mut e = Engine::with_instrument(cfg, instrument());
+    let bs = cfg.max_block;
+    let n = (dur * cfg.sample_rate) as usize / bs;
+    let mut out = vec![0.0f32; n * bs];
+    for (b, blk) in out.chunks_mut(bs).enumerate() {
+        let ev: Vec<TimedEvent> = script
+            .iter()
+            .filter_map(|&(t, ev)| {
+                let f = (t * cfg.sample_rate) as usize;
+                (f / bs == b).then_some(TimedEvent { frame: (f % bs) as u32, event: ev })
+            })
+            .collect();
+        e.process(&ev, blk);
+    }
+    (out, e)
+}
+
+fn rms_db(x: &[f32]) -> f64 {
+    let p = x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len() as f64;
+    10.0 * p.max(1e-30).log10()
+}
+
+/// Bridge-force energy (dB) of one key's strings at the end of a script.
+fn key_energy_db(script: &[(f64, Event)], dur: f64, note: u8) -> f64 {
+    let (_, e) = render(script, dur);
+    let en = e.voice_energies().iter().find(|v| v.0 == note).map_or(0.0, |v| v.1);
+    10.0 * (en as f64).max(1e-30).log10()
+}
+
+/// Initial T60 of a key's strings after its release at `t`, from its energy
+/// (the slower tail of weakly damped partials is not measured).
+fn string_t60(script: &[(f64, Event)], t: f64, note: u8) -> f64 {
+    let (a, b) = (key_energy_db(script, t + 0.01, note), key_energy_db(script, t + 0.06, note));
+    60.0 * 0.05 / (a - b).max(1e-6)
+}
+
+fn on(note: u8, velocity: u8) -> Event {
+    Event::NoteOn { note, velocity }
+}
+
+fn off(note: u8) -> Event {
+    Event::NoteOff { note, velocity: 64 }
+}
+
+fn cc(cc: u8, value: u8) -> Event {
+    Event::Control { cc, value }
+}
+
+#[test]
+fn dampers_stop_mid_notes_faster_than_bass_and_skip_the_top() {
+    let t60 = |note: u8| string_t60(&[(0.0, on(note, 100)), (0.5, off(note))], 0.5, note);
+    let (bass, mid, top) = (t60(28), t60(60), t60(100));
+    eprintln!("T60 after release: E1 {bass:.2} s, C4 {mid:.2} s, E7 (no damper) {top:.2} s");
+    assert!(mid < 0.4, "C4 damped too slowly: {mid}");
+    assert!(bass > mid, "bass dampers should be less effective");
+    assert!(top > 2.0 * mid, "keys above the dampers must keep ringing");
+}
+
+#[test]
+fn half_pedal_damps_partially() {
+    let t60 = |pedal: u8| string_t60(&[(0.0, cc(64, pedal)), (0.01, on(60, 100)), (0.5, off(60))], 0.5, 60);
+    let (up, half, down) = (t60(0), t60(40), t60(127));
+    eprintln!("C4 T60 after release: pedal up {up:.2} s, half {half:.2} s, down {down:.2} s");
+    assert!(up < half && half < down, "{up} {half} {down}");
+}
+
+#[test]
+fn sostenuto_holds_only_the_keys_down_when_pressed() {
+    let script = [
+        (0.0, on(48, 100)),
+        (0.1, cc(66, 127)),
+        (0.2, off(48)),
+        (0.25, on(60, 100)),
+        (0.35, off(60)),
+    ];
+    let (_, e) = render(&script, 1.2);
+    let energy = |n: u8| e.voice_energies().iter().find(|v| v.0 == n).map_or(0.0, |v| v.1);
+    let (held, other) = (energy(48), energy(60));
+    eprintln!("at 1.2 s: C3 (sostenuto) {held:e}, C4 (played after) {other:e}");
+    assert!(held > 1e4 * other.max(1e-30), "sostenuto did not hold C3");
+}
+
+#[test]
+fn una_corda_is_softer() {
+    let level = |soft: u8| {
+        let (x, _) = render(&[(0.0, cc(67, soft)), (0.01, on(60, 100))], 0.5);
+        rms_db(&x)
+    };
+    let (normal, soft) = (level(0), level(127));
+    eprintln!("C4 level: normal {normal:.1} dB, una corda {soft:.1} dB");
+    assert!(soft < normal - 1.0);
+}
+
+#[test]
+fn pedal_lets_the_octave_resonate_more_than_the_semitone() {
+    // Pedal down, C3 struck briefly; listen to the free C4 and C#4 strings.
+    let script = [(0.0, cc(64, 127)), (0.3, on(48, 110)), (0.45, off(48))];
+    let (_, e) = render(&script, 1.5);
+    let energy = |n: u8| e.voice_energies().iter().find(|v| v.0 == n).map_or(0.0, |v| v.1);
+    let (octave, twelfth, semitone) = (energy(60), energy(67), energy(61));
+    eprintln!("sympathetic energy: C4 {octave:e}, G4 {twelfth:e}, C#4 {semitone:e}");
+    assert!(octave > 30.0 * semitone, "octave {octave:e} semitone {semitone:e}");
+    assert!(twelfth > 10.0 * semitone, "twelfth {twelfth:e} semitone {semitone:e}");
+}

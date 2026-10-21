@@ -152,7 +152,9 @@ pub struct PolarizationLaw {
     pub enabled: bool,
     /// ε_H / ε_V: the bridge is much stiffer sideways.
     pub h_coupling: f64,
-    /// ε_X / ε_V: transfer between polarisations (bridge rocking).
+    /// ε_X / ε_V: transfer between polarisations (bridge rocking). The
+    /// bridge stays passive only if ε_X² ≤ ε_V·ε_H, i.e. cross ≤ √h_coupling;
+    /// larger values are clamped.
     pub cross: f64,
     /// Horizontal minus vertical frequency (cents), from the terminations.
     pub detune_cents: f64,
@@ -165,10 +167,90 @@ pub struct PolarizationLaw {
 impl PolarizationLaw {
     pub const OFF: Self =
         Self { enabled: false, h_coupling: 0.0, cross: 0.0, detune_cents: 0.0, radiation: 0.0, hammer_tilt: 0.0 };
-    /// Calibrated on the ESPRIT statistics of Salamander (tools/pol_grid.py):
-    /// gives single strings their measured aftersound (≈ −27 dB, slow).
+    /// Calibrated on the ESPRIT statistics of Salamander (tools/pol_grid.py,
+    /// best passive setting): gives single strings their measured
+    /// aftersound (≈ −27 dB, slow).
     pub const DEFAULT: Self =
-        Self { enabled: true, h_coupling: 0.1, cross: 0.5, detune_cents: 0.3, radiation: 0.1, hammer_tilt: 0.05 };
+        Self { enabled: true, h_coupling: 0.3, cross: 0.5, detune_cents: 0.3, radiation: 0.1, hammer_tilt: 0.05 };
+
+    /// Cross coupling actually used: clamped to keep the bridge passive.
+    pub fn passive_cross(&self) -> f64 {
+        self.cross.min(self.h_coupling.sqrt())
+    }
+}
+
+/// Felt dampers: a dashpot of coefficient c = e·strength·2Z0 at
+/// `position`·L adds to partial k the decay rate
+/// σ_k = c·⟨sin²(kπx/L)⟩/(μL)·(2Z0/(c + 2Z0))², averaged over the pad width
+/// (impedance mismatch makes a too hard felt reflect instead of absorb).
+/// e ∈ [0, 1] is the contact.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DamperLaw {
+    /// Contact point relative to the string length.
+    pub position: f64,
+    /// Width of the felt pad (m): partials with a node under the damper
+    /// are still damped by the rest of the pad.
+    pub width: f64,
+    /// c_max / (2·Z0): 1 is the impedance-matched, most absorbing felt.
+    pub strength: f64,
+    /// Highest key with a damper.
+    pub highest_note: u8,
+    /// Sustain-pedal travel (0–1) at which the dampers leave the strings.
+    pub pedal_contact: f64,
+    /// Shape of the contact versus pedal travel below that point.
+    pub pedal_curve: f64,
+    /// Time constants (s) of the damper falling on / lifting off the strings.
+    pub fall_time: f64,
+    pub lift_time: f64,
+}
+
+impl DamperLaw {
+    pub const GRAND: Self = Self {
+        position: 0.14,
+        width: 0.02,
+        strength: 1.0,
+        highest_note: 88,
+        pedal_contact: 0.4,
+        pedal_curve: 1.5,
+        fall_time: 0.012,
+        lift_time: 0.005,
+    };
+
+    /// Contact (0 lifted … 1 resting) imposed by the sustain pedal alone.
+    pub fn pedal_engagement(&self, travel: f64) -> f64 {
+        ((self.pedal_contact - travel) / self.pedal_contact).clamp(0.0, 1.0).powf(self.pedal_curve)
+    }
+
+    /// Mean of sin²(kπx/L) over the pad: 1/2 − cos(2kπ·pos)·sinc(kπ·w/L)/2.
+    pub fn shape(&self, k: u32, length: f64) -> f64 {
+        let a = k as f64 * std::f64::consts::PI * self.width / length;
+        let sinc = if a > 1e-9 { a.sin() / a } else { 1.0 };
+        0.5 - 0.5 * (2.0 * k as f64 * std::f64::consts::PI * self.position).cos() * sinc
+    }
+
+    /// Decay-rate factor g(c) such that σ_k = g·shape(k).
+    pub fn rate(&self, engagement: f64, tension: f64, mu: f64, length: f64) -> f64 {
+        let z0 = (tension * mu).sqrt();
+        let c = engagement * self.strength * 2.0 * z0;
+        let m = 2.0 * z0 / (c + 2.0 * z0);
+        c / (mu * length) * m * m
+    }
+}
+
+/// Sympathetic resonance through the bridge.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SympatheticLaw {
+    pub enabled: bool,
+    /// Strings that only listen run their partials below this frequency.
+    pub max_freq: f64,
+    /// Scale on the bridge-to-string gain (1 = physical).
+    pub gain: f64,
+    /// Cancel each key's own contribution to its bridge input.
+    pub self_cancel: bool,
+}
+
+impl SympatheticLaw {
+    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 1.0, self_cancel: true };
 }
 
 /// Partial frequency of a stiff string: f_k = k·f0·sqrt(1 + B·k²).
@@ -248,6 +330,10 @@ pub struct PianoModel {
     pub polarization: PolarizationLaw,
     /// Modal soundboard: bridge admittance at each key and radiation.
     pub soundboard: Option<crate::soundboard::SoundboardParams>,
+    pub damper: DamperLaw,
+    pub sympathetic: SympatheticLaw,
+    /// Felt softening when the una corda pedal shifts the action fully.
+    pub una_corda_softening: f64,
     /// Multiplies Stulov's Q0 (felt hardness / voicing).
     pub hardness: f64,
     /// Extra hardness growth per key above C4: Q0 ×= e^{slope·(n − 40)}
@@ -273,6 +359,9 @@ impl Default for PianoModel {
             bridge: BridgeLaw::SALAMANDER_C5,
             polarization: PolarizationLaw::DEFAULT,
             soundboard: Some(crate::soundboard::SoundboardParams::GRAND_2M),
+            damper: DamperLaw::GRAND,
+            sympathetic: SympatheticLaw::DEFAULT,
+            una_corda_softening: 0.35,
             // Calibrated on Salamander (tools/grid_hammer.py): a less
             // nonlinear felt than Stulov's fit (p ≈ 2.7–4, Russell's range)
             // matches the brightness-vs-velocity curve 2.6× better.

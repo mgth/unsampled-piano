@@ -31,11 +31,28 @@ pub struct ModeSpec {
     /// Weight of the second output (see [`ModalBank::process2`]).
     pub out2_re: f64,
     pub out2_im: f64,
+    /// Gain of the second input (see [`ModalBank::process_two_inputs`]).
+    pub gain2_re: f64,
+    pub gain2_im: f64,
+    /// Extra decay rate per unit of [`ModalBank::set_damping`] (dampers).
+    pub damp_w: f64,
 }
 
 impl Default for ModeSpec {
     fn default() -> Self {
-        Self { freq_hz: 0.0, sigma: 0.0, gain_re: 0.0, gain_im: 0.0, out_re: 1.0, out_im: 0.0, out2_re: 0.0, out2_im: 0.0 }
+        Self {
+            freq_hz: 0.0,
+            sigma: 0.0,
+            gain_re: 0.0,
+            gain_im: 0.0,
+            out_re: 1.0,
+            out_im: 0.0,
+            out2_re: 0.0,
+            out2_im: 0.0,
+            gain2_re: 0.0,
+            gain2_im: 0.0,
+            damp_w: 0.0,
+        }
     }
 }
 
@@ -96,6 +113,8 @@ struct Chunk {
     pi: [f32; LANES],
     br: [f32; LANES],
     bi: [f32; LANES],
+    b2r: [f32; LANES],
+    b2i: [f32; LANES],
     or: [f32; LANES],
     oi: [f32; LANES],
     o2r: [f32; LANES],
@@ -109,10 +128,17 @@ pub struct ModalBank {
     chunks: Vec<Chunk>,
     specs: Vec<ModeSpec>,
     n_modes: usize,
+    /// Modes set by `set_modes` (≥ n_modes, see `set_active_len`).
+    n_specs: usize,
     acc: Vec<[f32; LANES]>,
     acc2: Vec<[f32; LANES]>,
     isa: Isa,
     group: usize,
+    /// Per mode: rotation e^{iθ}, base decay, damper weight (for set_damping).
+    rot: Vec<(f32, f32)>,
+    sig: Vec<f32>,
+    dw: Vec<f32>,
+    damping: f32,
 }
 
 impl ModalBank {
@@ -124,10 +150,15 @@ impl ModalBank {
             chunks: vec![Chunk::default(); n_chunks],
             specs: vec![ModeSpec::default(); n_chunks * LANES],
             n_modes: 0,
+            n_specs: 0,
             acc: vec![[0.0; LANES]; max_block],
             acc2: vec![[0.0; LANES]; max_block],
             isa: Isa::detect(),
             group: Isa::detect().best_group(),
+            rot: vec![(0.0, 0.0); n_chunks * LANES],
+            sig: vec![0.0; n_chunks * LANES],
+            dw: vec![0.0; n_chunks * LANES],
+            damping: 0.0,
         }
     }
 
@@ -169,6 +200,7 @@ impl ModalBank {
         }
         let old = self.n_modes;
         self.n_modes = n;
+        self.n_specs = n;
         self.update_poles(0.0);
         // Padding lanes and modes that disappeared must stay silent.
         for i in n..old.max(n).next_multiple_of(LANES).min(self.specs.len()) {
@@ -179,33 +211,66 @@ impl ModalBank {
     }
 
     /// Recomputes poles from the stored specs with an extra decay rate added
-    /// to every mode (crude damper until the real one exists). Real-time safe.
+    /// to every mode, and resets the damper scale. Real-time safe.
     pub fn update_poles(&mut self, extra_sigma: f64) {
         let t = 1.0 / self.sample_rate;
+        self.damping = 0.0;
         for i in 0..self.n_modes.next_multiple_of(LANES).min(self.specs.len()) {
             let c = &mut self.chunks[i / LANES];
             let l = i % LANES;
-            if i < self.n_modes {
-                let m = self.specs[i];
-                let r = (-(m.sigma + extra_sigma) * t).exp();
-                let (s, co) = (std::f64::consts::TAU * m.freq_hz * t).sin_cos();
-                c.pr[l] = (r * co) as f32;
-                c.pi[l] = (r * s) as f32;
-                c.br[l] = m.gain_re as f32;
-                c.bi[l] = m.gain_im as f32;
-                c.or[l] = m.out_re as f32;
-                c.oi[l] = m.out_im as f32;
-                c.o2r[l] = m.out2_re as f32;
-                c.o2i[l] = m.out2_im as f32;
-            } else {
-                c.pr[l] = 0.0;
-                c.pi[l] = 0.0;
-                c.br[l] = 0.0;
-                c.bi[l] = 0.0;
-                c.or[l] = 0.0;
-                c.oi[l] = 0.0;
-                c.o2r[l] = 0.0;
-                c.o2i[l] = 0.0;
+            let m = if i < self.n_modes { self.specs[i] } else { ModeSpec { out_re: 0.0, ..Default::default() } };
+            let live = i < self.n_modes;
+            let r = (-(m.sigma + extra_sigma) * t).exp();
+            let (s, co) = (std::f64::consts::TAU * m.freq_hz * t).sin_cos();
+            let (s, co) = if live { (s, co) } else { (0.0, 0.0) };
+            self.rot[i] = (co as f32, s as f32);
+            self.sig[i] = ((m.sigma + extra_sigma) * t) as f32;
+            self.dw[i] = (m.damp_w * t) as f32;
+            c.pr[l] = (r * co) as f32;
+            c.pi[l] = (r * s) as f32;
+            c.br[l] = m.gain_re as f32;
+            c.bi[l] = m.gain_im as f32;
+            c.b2r[l] = m.gain2_re as f32;
+            c.b2i[l] = m.gain2_im as f32;
+            c.or[l] = m.out_re as f32;
+            c.oi[l] = m.out_im as f32;
+            c.o2r[l] = m.out2_re as f32;
+            c.o2i[l] = m.out2_im as f32;
+        }
+    }
+
+    /// Adds `scale·damp_w` to every mode's decay rate (dampers). Cheap: one
+    /// exp per mode, no trigonometry. Real-time safe.
+    pub fn set_damping(&mut self, scale: f32) {
+        if scale == self.damping {
+            return;
+        }
+        self.damping = scale;
+        for i in 0..self.n_modes {
+            let r = (-(self.sig[i] + scale * self.dw[i])).exp();
+            let c = &mut self.chunks[i / LANES];
+            c.pr[i % LANES] = r * self.rot[i].0;
+            c.pi[i % LANES] = r * self.rot[i].1;
+        }
+    }
+
+    pub fn damping(&self) -> f32 {
+        self.damping
+    }
+
+    /// Number of modes run (a prefix of the modes set): sympathetic-only
+    /// strings run their low partials only. Real-time safe.
+    pub fn set_active_len(&mut self, n: usize) {
+        let n = n.min(self.n_specs);
+        let old = self.n_modes;
+        self.n_modes = n;
+        if n > old {
+            // Newly enabled modes start at rest with fresh poles.
+            let damping = self.damping;
+            self.update_poles(0.0);
+            self.set_damping(damping);
+            for i in old..n {
+                self.set_state(i, 0.0, 0.0);
             }
         }
     }
@@ -249,48 +314,59 @@ impl ModalBank {
     /// Advances the bank by `out.len()` samples and *adds* its output to `out`.
     /// `input` (the driving force) must have the same length when present.
     pub fn process(&mut self, input: Option<&[f32]>, out: &mut [f32]) {
-        self.process_impl::<false>(input, out, &mut []);
+        self.process_impl::<false>(input, None, out, &mut []);
     }
 
     /// Like [`Self::process`] with a second output (weights `out2_*`) computed
     /// from the same states in the same pass (e.g. two microphones).
     pub fn process2(&mut self, input: Option<&[f32]>, out: &mut [f32], out2: &mut [f32]) {
         assert_eq!(out.len(), out2.len());
-        self.process_impl::<true>(input, out, out2);
+        self.process_impl::<true>(input, None, out, out2);
     }
 
-    fn process_impl<const O2: bool>(&mut self, input: Option<&[f32]>, out: &mut [f32], out2: &mut [f32]) {
+    /// Two inputs (gains `gain_*` and `gain2_*`), one output.
+    pub fn process_two_inputs(&mut self, x1: &[f32], x2: &[f32], out: &mut [f32]) {
+        self.process_impl::<false>(Some(x1), Some(x2), out, &mut []);
+    }
+
+    fn process_impl<const O2: bool>(&mut self, x1: Option<&[f32]>, x2: Option<&[f32]>, out: &mut [f32], out2: &mut [f32]) {
         let len = out.len();
         assert!(len <= self.acc.len(), "block larger than max_block");
-        if let Some(x) = input {
+        for x in [x1, x2].into_iter().flatten() {
             assert_eq!(x.len(), len);
         }
+        assert!(x1.is_some() || x2.is_none());
         let acc = &mut self.acc[..len];
         let acc2 = &mut self.acc2[..if O2 { len } else { 0 }];
         let chunks = &mut self.chunks[..self.n_modes.div_ceil(LANES)];
-        // A driven bank holds 8–10 arrays per chunk: beyond 2 chunks per time
+        // A driven bank holds 8–12 arrays per chunk: beyond 2 chunks per time
         // loop the kernel spills (≈ 20× slower, measured on all ISAs), and a
-        // driven two-output bank needs a single chunk on AVX2.
-        let g = match (input.is_some(), O2, self.isa) {
+        // driven bank with a second input or output needs one chunk on AVX2.
+        let heavy = x2.is_some() || O2;
+        let g = match (x1.is_some(), heavy, self.isa) {
             #[cfg(target_arch = "x86_64")]
             (true, true, Isa::Avx2) => 1,
             (true, _, _) => self.group.min(2),
             (false, true, _) => self.group.min(2),
             (false, false, _) => self.group,
         };
-        let x = input.unwrap_or(&[]);
-        match (self.isa, input.is_some()) {
-            (Isa::Generic, false) => run::<false, O2>(chunks, x, acc, acc2, g),
-            (Isa::Generic, true) => run::<true, O2>(chunks, x, acc, acc2, g),
+        let (a, b) = (x1.unwrap_or(&[]), x2.unwrap_or(&[]));
+        macro_rules! go {
+            ($run:ident) => {
+                match (x1.is_some(), x2.is_some()) {
+                    (false, _) => $run::<false, false, O2>(chunks, a, b, acc, acc2, g),
+                    (true, false) => $run::<true, false, O2>(chunks, a, b, acc, acc2, g),
+                    (true, true) => $run::<true, true, O2>(chunks, a, b, acc, acc2, g),
+                }
+            };
+        }
+        match self.isa {
+            Isa::Generic => go!(run),
             // SAFETY: these variants are only selectable when detected.
             #[cfg(target_arch = "x86_64")]
-            (Isa::Avx2, false) => unsafe { run_avx2::<false, O2>(chunks, x, acc, acc2, g) },
+            Isa::Avx2 => unsafe { go!(run_avx2) },
             #[cfg(target_arch = "x86_64")]
-            (Isa::Avx2, true) => unsafe { run_avx2::<true, O2>(chunks, x, acc, acc2, g) },
-            #[cfg(target_arch = "x86_64")]
-            (Isa::Avx512, false) => unsafe { run_avx512::<false, O2>(chunks, x, acc, acc2, g) },
-            #[cfg(target_arch = "x86_64")]
-            (Isa::Avx512, true) => unsafe { run_avx512::<true, O2>(chunks, x, acc, acc2, g) },
+            Isa::Avx512 => unsafe { go!(run_avx512) },
         }
         for (o, a) in out.iter_mut().zip(acc.iter()) {
             *o += a.iter().sum::<f32>();
@@ -305,32 +381,35 @@ impl ModalBank {
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
-fn run_avx2<const IN: bool, const O2: bool>(
+fn run_avx2<const IN: bool, const IN2: bool, const O2: bool>(
     chunks: &mut [Chunk],
     x: &[f32],
+    x2: &[f32],
     acc: &mut [[f32; LANES]],
     acc2: &mut [[f32; LANES]],
     g: usize,
 ) {
-    run::<IN, O2>(chunks, x, acc, acc2, g)
+    run::<IN, IN2, O2>(chunks, x, x2, acc, acc2, g)
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f")]
-fn run_avx512<const IN: bool, const O2: bool>(
+fn run_avx512<const IN: bool, const IN2: bool, const O2: bool>(
     chunks: &mut [Chunk],
     x: &[f32],
+    x2: &[f32],
     acc: &mut [[f32; LANES]],
     acc2: &mut [[f32; LANES]],
     g: usize,
 ) {
-    run::<IN, O2>(chunks, x, acc, acc2, g)
+    run::<IN, IN2, O2>(chunks, x, x2, acc, acc2, g)
 }
 
 #[inline(always)]
-fn run<const IN: bool, const O2: bool>(
+fn run<const IN: bool, const IN2: bool, const O2: bool>(
     chunks: &mut [Chunk],
     x: &[f32],
+    x2: &[f32],
     acc: &mut [[f32; LANES]],
     acc2: &mut [[f32; LANES]],
     g: usize,
@@ -341,28 +420,29 @@ fn run<const IN: bool, const O2: bool>(
         4 => {
             let (grps, rest) = chunks.as_chunks_mut::<4>();
             for grp in grps {
-                group::<4, IN, O2>(grp, x, acc, acc2);
+                group::<4, IN, IN2, O2>(grp, x, x2, acc, acc2);
             }
             rest
         }
         2 => {
             let (grps, rest) = chunks.as_chunks_mut::<2>();
             for grp in grps {
-                group::<2, IN, O2>(grp, x, acc, acc2);
+                group::<2, IN, IN2, O2>(grp, x, x2, acc, acc2);
             }
             rest
         }
         _ => chunks,
     };
     for grp in rest.as_chunks_mut::<1>().0 {
-        group::<1, IN, O2>(grp, x, acc, acc2);
+        group::<1, IN, IN2, O2>(grp, x, x2, acc, acc2);
     }
 }
 
 #[inline(always)]
-fn group<const G: usize, const IN: bool, const O2: bool>(
+fn group<const G: usize, const IN: bool, const IN2: bool, const O2: bool>(
     grp: &mut [Chunk; G],
     x: &[f32],
+    x2: &[f32],
     acc: &mut [[f32; LANES]],
     acc2: &mut [[f32; LANES]],
 ) {
@@ -370,6 +450,8 @@ fn group<const G: usize, const IN: bool, const O2: bool>(
     let pi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].pi);
     let br: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].br);
     let bi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].bi);
+    let b2r: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].b2r);
+    let b2i: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].b2i);
     let or: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].or);
     let oi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].oi);
     let o2r: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].o2r);
@@ -377,7 +459,7 @@ fn group<const G: usize, const IN: bool, const O2: bool>(
     let mut zr: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].zr);
     let mut zi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].zi);
 
-    let mut step = |a: &mut [f32; LANES], a2: &mut [f32; LANES], xn: f32| {
+    let mut step = |a: &mut [f32; LANES], a2: &mut [f32; LANES], xn: f32, xn2: f32| {
         let mut s = *a;
         let mut s2 = *a2;
         for g in 0..G {
@@ -387,6 +469,10 @@ fn group<const G: usize, const IN: bool, const O2: bool>(
                 if IN {
                     r += br[g][l] * xn;
                     i += bi[g][l] * xn;
+                }
+                if IN2 {
+                    r += b2r[g][l] * xn2;
+                    i += b2i[g][l] * xn2;
                 }
                 zr[g][l] = r;
                 zi[g][l] = i;
@@ -404,10 +490,11 @@ fn group<const G: usize, const IN: bool, const O2: bool>(
     let mut dummy = [0.0f32; LANES];
     for (n, a) in acc.iter_mut().enumerate() {
         let xn = if IN { x[n] } else { 0.0 };
+        let xn2 = if IN2 { x2[n] } else { 0.0 };
         if O2 {
-            step(a, &mut acc2[n], xn);
+            step(a, &mut acc2[n], xn, xn2);
         } else {
-            step(a, &mut dummy, xn);
+            step(a, &mut dummy, xn, xn2);
         }
     }
 
@@ -479,6 +566,7 @@ mod tests {
                 out_im: -0.2,
                 out2_re: -0.3,
                 out2_im: 0.9,
+                ..Default::default()
             })
             .collect();
         let alt: Vec<ModeSpec> = specs.iter().map(|s| ModeSpec { out_re: s.out2_re, out_im: s.out2_im, ..*s }).collect();
@@ -497,6 +585,45 @@ mod tests {
             for (p, q) in o1.iter().zip(&r1).chain(o2.iter().zip(&r2)) {
                 assert!((p - q).abs() <= 1e-6 * (1.0 + q.abs()), "{isa:?}: {p} vs {q}");
             }
+        }
+    }
+
+    #[test]
+    fn two_inputs_superpose_and_damping_is_exact() {
+        let spec = |g2: f64| ModeSpec { freq_hz: 440.0, sigma: 2.0, gain_re: 0.3, gain_im: -0.1, gain2_re: g2, gain2_im: 0.2 * g2, damp_w: 5.0, ..Default::default() };
+        let x1: Vec<f32> = (0..64).map(|i| (i as f32 * 0.37).sin()).collect();
+        let x2: Vec<f32> = (0..64).map(|i| (i as f32 * 0.11).cos()).collect();
+        for isa in Isa::available() {
+            let mk = |g2| {
+                let mut b = ModalBank::new(48_000.0, 1, 64);
+                b.set_isa(isa);
+                b.set_modes([spec(g2)]);
+                b
+            };
+            // Bank with both inputs = bank with x1 + bank with x2 (gain2 used as gain).
+            let mut both = vec![0.0f32; 64];
+            mk(0.7).process_two_inputs(&x1, &x2, &mut both);
+            let mut a = vec![0.0f32; 64];
+            mk(0.0).process(Some(&x1), &mut a);
+            let mut only2 = ModalBank::new(48_000.0, 1, 64);
+            only2.set_isa(isa);
+            only2.set_modes([ModeSpec { gain_re: 0.7, gain_im: 0.14, ..spec(0.0) }]);
+            only2.process(Some(&x2), &mut a);
+            for (p, q) in both.iter().zip(&a) {
+                assert!((p - q).abs() < 1e-5, "{isa:?}: {p} vs {q}");
+            }
+        }
+        // set_damping(s) ≡ sigma + s·damp_w.
+        let mut d = ModalBank::new(48_000.0, 1, 64);
+        d.set_modes([spec(0.0)]);
+        d.set_damping(3.0);
+        let mut e = ModalBank::new(48_000.0, 1, 64);
+        e.set_modes([ModeSpec { sigma: 2.0 + 15.0, ..spec(0.0) }]);
+        let (mut o1, mut o2) = (vec![0.0f32; 64], vec![0.0f32; 64]);
+        d.process(Some(&x1), &mut o1);
+        e.process(Some(&x1), &mut o2);
+        for (p, q) in o1.iter().zip(&o2) {
+            assert!((p - q).abs() < 1e-5);
         }
     }
 
