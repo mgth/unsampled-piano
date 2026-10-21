@@ -243,14 +243,22 @@ pub struct PianoModel {
     pub losses: LossLaw,
     pub scale: StringScale,
     pub unison: UnisonLaw,
+    /// Smooth bridge law, used when `soundboard` is None.
     pub bridge: BridgeLaw,
     pub polarization: PolarizationLaw,
+    /// Modal soundboard: bridge admittance at each key and radiation.
+    pub soundboard: Option<crate::soundboard::SoundboardParams>,
     /// Multiplies Stulov's Q0 (felt hardness / voicing).
     pub hardness: f64,
+    /// Extra hardness growth per key above C4: Q0 ×= e^{slope·(n − 40)}
+    /// (voicing; Stulov's fit grows as e^{0.045·n}).
+    pub hardness_slope: f64,
     /// Added to Stulov's exponent p (Russell: 2–4, Stulov: 3.7–5).
     pub p_offset: f64,
     /// Multiplies Stulov's hysteresis time α.
     pub hysteresis: f64,
+    /// Multiplies the felt contact width (spatial low-pass of the strike).
+    pub contact_width_scale: f64,
 }
 
 impl Default for PianoModel {
@@ -264,12 +272,15 @@ impl Default for PianoModel {
             unison: UnisonLaw::GRAND,
             bridge: BridgeLaw::SALAMANDER_C5,
             polarization: PolarizationLaw::DEFAULT,
+            soundboard: Some(crate::soundboard::SoundboardParams::GRAND_2M),
             // Calibrated on Salamander (tools/grid_hammer.py): a less
             // nonlinear felt than Stulov's fit (p ≈ 2.7–4, Russell's range)
             // matches the brightness-vs-velocity curve 2.6× better.
             hardness: 2.0,
+            hardness_slope: 0.0,
             p_offset: -1.0,
             hysteresis: 1.0,
+            contact_width_scale: 1.0,
         }
     }
 }
@@ -283,9 +294,10 @@ impl PianoModel {
         // ≈1/8 of the length up to C6, closer to the agraffe in the high treble.
         let m = note as f64;
         let strike_pos = if m <= 84.0 { 0.12 } else { 0.12 - 0.05 * (m - 84.0) / 24.0 };
-        let contact_width = 0.008 - 0.004 * (m - 21.0) / 87.0;
+        let contact_width = (0.008 - 0.004 * (m - 21.0) / 87.0) * self.contact_width_scale;
         let mut hammer = hammer_stulov(note);
-        hammer.q0 *= self.hardness;
+        let key = note as f64 - 20.0;
+        hammer.q0 *= self.hardness * (self.hardness_slope * (key - 40.0).max(0.0)).exp();
         hammer.p += self.p_offset;
         hammer.alpha *= self.hysteresis;
         NoteParams {

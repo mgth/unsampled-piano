@@ -6,6 +6,7 @@
 use crate::complex::C64;
 use crate::modal::ModeSpec;
 use crate::params::{self, NoteParams, PianoModel};
+use crate::soundboard::Soundboard;
 use crate::unison::{self, Cluster, MAX_OSC};
 
 /// One physical oscillator (string j, polarisation) of partial k.
@@ -31,8 +32,11 @@ pub struct NoteModel {
 }
 
 impl NoteModel {
-    pub fn build(model: &PianoModel, note: u8, sample_rate: f64, max_modes: usize) -> Self {
+    /// With a soundboard, the bridge coupling uses its modal admittance at
+    /// the key's bridge point; otherwise the smooth [`params::BridgeLaw`].
+    pub fn build(model: &PianoModel, board: Option<&Soundboard>, note: u8, sample_rate: f64, max_modes: usize) -> Self {
         let np = model.note(note);
+        let bridge_xy = board.map(|b| b.params.bridge_point(note));
         let ns = np.strings;
         let pol = model.polarization;
         let n_osc = if pol.enabled { 2 * ns } else { ns };
@@ -47,7 +51,10 @@ impl NoteModel {
             if fv.iter().chain(&fh).any(|&f| f >= nyq) {
                 break;
             }
-            let eps = np.coupling(&model.bridge, fv[0]);
+            let eps = match (board, bridge_xy) {
+                (Some(b), Some((x, y))) => b.bridge_admittance(x, y, tau * fv[0]).scale(np.tension / np.length),
+                _ => np.coupling(&model.bridge, fv[0]),
+            };
             let dv: Vec<C64> = fv.iter().map(|&f| C64::new(-model.losses.sigma(note, f), tau * f)).collect();
             let cl = if pol.enabled {
                 let dh: Vec<C64> = fh.iter().map(|&f| C64::new(-model.losses.sigma(note, f), tau * f)).collect();
@@ -90,8 +97,8 @@ pub struct PianoTable {
 }
 
 impl PianoTable {
-    pub fn new(model: &PianoModel, sample_rate: f64, max_modes: usize) -> Self {
-        Self { notes: (21u8..=108).map(|n| NoteModel::build(model, n, sample_rate, max_modes)).collect() }
+    pub fn new(model: &PianoModel, board: Option<&Soundboard>, sample_rate: f64, max_modes: usize) -> Self {
+        Self { notes: (21u8..=108).map(|n| NoteModel::build(model, board, n, sample_rate, max_modes)).collect() }
     }
 
     pub fn get(&self, note: u8) -> &NoteModel {
@@ -108,7 +115,7 @@ mod tests {
     fn whole_table_is_well_conditioned() {
         let model = PianoModel::default();
         let t0 = std::time::Instant::now();
-        let table = PianoTable::new(&model, 48_000.0, 768);
+        let table = PianoTable::new(&model, None, 48_000.0, 768);
         eprintln!("table built in {:?}", t0.elapsed());
         let mut worst = 0.0f64;
         let mut worst_amp = 0.0f64;
@@ -142,7 +149,7 @@ mod tests {
     fn every_key_has_two_decay_rates() {
         let model = PianoModel::default();
         for note in [21u8, 27, 30, 60, 100] {
-            let nm = NoteModel::build(&model, note, 48_000.0, 768);
+            let nm = NoteModel::build(&model, None, note, 48_000.0, 768);
             let cl = &nm.clusters[2];
             let mut sig: Vec<f64> = cl.lam[..cl.n].iter().map(|l| -l.re).collect();
             sig.sort_by(f64::total_cmp);

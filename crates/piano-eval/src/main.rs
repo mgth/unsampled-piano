@@ -4,7 +4,9 @@
 
 use clap::Parser;
 use piano_analysis::{distance, inharm, io};
+use piano_core::instrument::Instrument;
 use piano_core::{Engine, EngineConfig, Event, TimedEvent};
+use std::sync::Arc;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -45,6 +47,31 @@ struct Args {
     single_string: bool,
     #[arg(long)]
     pol_enabled: Option<bool>,
+    /// Disable the modal soundboard (smooth bridge law, bridge force output).
+    #[arg(long)]
+    no_soundboard: bool,
+    #[arg(long)]
+    bridge_mass: Option<f64>,
+    #[arg(long)]
+    mobility_scale: Option<f64>,
+    #[arg(long)]
+    series_stiffness: Option<f64>,
+    /// Keep the modal coupling but output the bridge force.
+    #[arg(long)]
+    no_radiation: bool,
+    /// Microphone height above the board (m).
+    #[arg(long)]
+    mic_height: Option<f64>,
+    #[arg(long)]
+    board_loss: Option<f64>,
+    #[arg(long)]
+    board_loss_corner: Option<f64>,
+    #[arg(long)]
+    hysteresis: Option<f64>,
+    #[arg(long)]
+    hardness_slope: Option<f64>,
+    #[arg(long)]
+    contact_width: Option<f64>,
     #[arg(long)]
     pol_h_coupling: Option<f64>,
     #[arg(long)]
@@ -87,8 +114,8 @@ fn measure(x: &[f32], sr: f64, note: u8, partials: u32) -> Option<Measure> {
     })
 }
 
-fn render(cfg: EngineConfig, note: u8, velocity: u8, seconds: f64) -> Vec<f32> {
-    let mut e = Engine::new(cfg);
+fn render(cfg: EngineConfig, inst: &Arc<Instrument>, note: u8, velocity: u8, seconds: f64) -> Vec<f32> {
+    let mut e = Engine::with_instrument(cfg, inst.clone());
     let bs = cfg.max_block;
     let n = (seconds * cfg.sample_rate) as usize;
     let mut out = vec![0.0f32; n.next_multiple_of(bs)];
@@ -140,6 +167,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         cfg.model.unison.bichord_from = 200;
         cfg.model.unison.trichord_from = 200;
     }
+    if let Some(v) = a.hardness_slope {
+        cfg.model.hardness_slope = v;
+    }
+    if let Some(h) = a.hysteresis {
+        cfg.model.hysteresis = h;
+    }
+    if let Some(w) = a.contact_width {
+        cfg.model.contact_width_scale = w;
+    }
+    if a.no_soundboard {
+        cfg.model.soundboard = None;
+    }
+    if let Some(sb) = cfg.model.soundboard.as_mut() {
+        if let Some(m) = a.bridge_mass {
+            sb.bridge_mass = m;
+        }
+        if a.no_radiation {
+            sb.radiate = false;
+        }
+        if let Some(m) = a.mobility_scale {
+            *sb = sb.with_mobility_scale(m);
+        }
+        if let Some(k) = a.series_stiffness {
+            sb.series_stiffness = k;
+        }
+        if let Some(h) = a.mic_height {
+            for mic in &mut sb.mics {
+                mic.2 = h;
+            }
+        }
+        if let Some(l) = a.board_loss {
+            sb.loss_factor = l;
+        }
+        if let Some(c) = a.board_loss_corner {
+            sb.loss_corner = c;
+        }
+    }
     let pol = &mut cfg.model.polarization;
     if let Some(v) = a.pol_enabled {
         pol.enabled = v;
@@ -173,6 +237,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     jobs.sort_by_key(|j| (j.1, j.2));
+    let inst = Arc::new(Instrument::new(cfg.model, cfg.sample_rate));
     let next = std::sync::atomic::AtomicUsize::new(0);
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
     let mut lines: Vec<(u8, usize, Vec<String>)> = std::thread::scope(|s| {
@@ -186,7 +251,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let vel = a.velocities[layer - 1];
                         let mut rows = Vec::new();
                         let (ct, fmax) = piano_core::engine::strike_stats(&cfg, *note, vel, None);
-                        let model = render(cfg, *note, vel, a.seconds);
+                        let model = render(cfg, &inst, *note, vel, a.seconds);
                         if let Some(dir) = &a.write_wav {
                             let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("x");
                             write_wav(&dir.join(format!("{name}.wav")), &model, cfg.sample_rate as u32);

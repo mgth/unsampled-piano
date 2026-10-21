@@ -28,11 +28,14 @@ pub struct ModeSpec {
     /// Complex output weight `w`: the mode contributes Re(w·z).
     pub out_re: f64,
     pub out_im: f64,
+    /// Weight of the second output (see [`ModalBank::process2`]).
+    pub out2_re: f64,
+    pub out2_im: f64,
 }
 
 impl Default for ModeSpec {
     fn default() -> Self {
-        Self { freq_hz: 0.0, sigma: 0.0, gain_re: 0.0, gain_im: 0.0, out_re: 1.0, out_im: 0.0 }
+        Self { freq_hz: 0.0, sigma: 0.0, gain_re: 0.0, gain_im: 0.0, out_re: 1.0, out_im: 0.0, out2_re: 0.0, out2_im: 0.0 }
     }
 }
 
@@ -72,8 +75,9 @@ impl Isa {
         v
     }
 
-    /// Chunks per time loop that maximise throughput (measured on Zen 5:
-    /// AVX2 spills registers at 4, AVX-512 keeps 4 groups in its 32 zmm).
+    /// Chunks per time loop that maximise throughput of free-running banks
+    /// (measured on Zen 5: AVX2 spills registers at 4, AVX-512 keeps 4
+    /// groups in its 32 zmm). Driven banks are capped at 2.
     pub fn best_group(self) -> usize {
         match self {
             Isa::Generic => 1,
@@ -94,6 +98,8 @@ struct Chunk {
     bi: [f32; LANES],
     or: [f32; LANES],
     oi: [f32; LANES],
+    o2r: [f32; LANES],
+    o2i: [f32; LANES],
     zr: [f32; LANES],
     zi: [f32; LANES],
 }
@@ -104,6 +110,7 @@ pub struct ModalBank {
     specs: Vec<ModeSpec>,
     n_modes: usize,
     acc: Vec<[f32; LANES]>,
+    acc2: Vec<[f32; LANES]>,
     isa: Isa,
     group: usize,
 }
@@ -118,6 +125,7 @@ impl ModalBank {
             specs: vec![ModeSpec::default(); n_chunks * LANES],
             n_modes: 0,
             acc: vec![[0.0; LANES]; max_block],
+            acc2: vec![[0.0; LANES]; max_block],
             isa: Isa::detect(),
             group: Isa::detect().best_group(),
         }
@@ -187,6 +195,8 @@ impl ModalBank {
                 c.bi[l] = m.gain_im as f32;
                 c.or[l] = m.out_re as f32;
                 c.oi[l] = m.out_im as f32;
+                c.o2r[l] = m.out2_re as f32;
+                c.o2i[l] = m.out2_im as f32;
             } else {
                 c.pr[l] = 0.0;
                 c.pi[l] = 0.0;
@@ -194,6 +204,8 @@ impl ModalBank {
                 c.bi[l] = 0.0;
                 c.or[l] = 0.0;
                 c.oi[l] = 0.0;
+                c.o2r[l] = 0.0;
+                c.o2i[l] = 0.0;
             }
         }
     }
@@ -237,83 +249,137 @@ impl ModalBank {
     /// Advances the bank by `out.len()` samples and *adds* its output to `out`.
     /// `input` (the driving force) must have the same length when present.
     pub fn process(&mut self, input: Option<&[f32]>, out: &mut [f32]) {
+        self.process_impl::<false>(input, out, &mut []);
+    }
+
+    /// Like [`Self::process`] with a second output (weights `out2_*`) computed
+    /// from the same states in the same pass (e.g. two microphones).
+    pub fn process2(&mut self, input: Option<&[f32]>, out: &mut [f32], out2: &mut [f32]) {
+        assert_eq!(out.len(), out2.len());
+        self.process_impl::<true>(input, out, out2);
+    }
+
+    fn process_impl<const O2: bool>(&mut self, input: Option<&[f32]>, out: &mut [f32], out2: &mut [f32]) {
         let len = out.len();
         assert!(len <= self.acc.len(), "block larger than max_block");
         if let Some(x) = input {
             assert_eq!(x.len(), len);
         }
         let acc = &mut self.acc[..len];
+        let acc2 = &mut self.acc2[..if O2 { len } else { 0 }];
         let chunks = &mut self.chunks[..self.n_modes.div_ceil(LANES)];
-        let g = self.group;
-        match (self.isa, input) {
-            (Isa::Generic, None) => run::<false>(chunks, &[], acc, g),
-            (Isa::Generic, Some(x)) => run::<true>(chunks, x, acc, g),
+        // A driven bank holds 8–10 arrays per chunk: beyond 2 chunks per time
+        // loop the kernel spills (≈ 20× slower, measured on all ISAs), and a
+        // driven two-output bank needs a single chunk on AVX2.
+        let g = match (input.is_some(), O2, self.isa) {
+            #[cfg(target_arch = "x86_64")]
+            (true, true, Isa::Avx2) => 1,
+            (true, _, _) => self.group.min(2),
+            (false, true, _) => self.group.min(2),
+            (false, false, _) => self.group,
+        };
+        let x = input.unwrap_or(&[]);
+        match (self.isa, input.is_some()) {
+            (Isa::Generic, false) => run::<false, O2>(chunks, x, acc, acc2, g),
+            (Isa::Generic, true) => run::<true, O2>(chunks, x, acc, acc2, g),
             // SAFETY: these variants are only selectable when detected.
             #[cfg(target_arch = "x86_64")]
-            (Isa::Avx2, None) => unsafe { run_avx2::<false>(chunks, &[], acc, g) },
+            (Isa::Avx2, false) => unsafe { run_avx2::<false, O2>(chunks, x, acc, acc2, g) },
             #[cfg(target_arch = "x86_64")]
-            (Isa::Avx2, Some(x)) => unsafe { run_avx2::<true>(chunks, x, acc, g) },
+            (Isa::Avx2, true) => unsafe { run_avx2::<true, O2>(chunks, x, acc, acc2, g) },
             #[cfg(target_arch = "x86_64")]
-            (Isa::Avx512, None) => unsafe { run_avx512::<false>(chunks, &[], acc, g) },
+            (Isa::Avx512, false) => unsafe { run_avx512::<false, O2>(chunks, x, acc, acc2, g) },
             #[cfg(target_arch = "x86_64")]
-            (Isa::Avx512, Some(x)) => unsafe { run_avx512::<true>(chunks, x, acc, g) },
+            (Isa::Avx512, true) => unsafe { run_avx512::<true, O2>(chunks, x, acc, acc2, g) },
         }
         for (o, a) in out.iter_mut().zip(acc.iter()) {
             *o += a.iter().sum::<f32>();
+        }
+        if O2 {
+            for (o, a) in out2.iter_mut().zip(acc2.iter()) {
+                *o += a.iter().sum::<f32>();
+            }
         }
     }
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
-fn run_avx2<const IN: bool>(chunks: &mut [Chunk], x: &[f32], acc: &mut [[f32; LANES]], g: usize) {
-    run::<IN>(chunks, x, acc, g)
+fn run_avx2<const IN: bool, const O2: bool>(
+    chunks: &mut [Chunk],
+    x: &[f32],
+    acc: &mut [[f32; LANES]],
+    acc2: &mut [[f32; LANES]],
+    g: usize,
+) {
+    run::<IN, O2>(chunks, x, acc, acc2, g)
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f")]
-fn run_avx512<const IN: bool>(chunks: &mut [Chunk], x: &[f32], acc: &mut [[f32; LANES]], g: usize) {
-    run::<IN>(chunks, x, acc, g)
+fn run_avx512<const IN: bool, const O2: bool>(
+    chunks: &mut [Chunk],
+    x: &[f32],
+    acc: &mut [[f32; LANES]],
+    acc2: &mut [[f32; LANES]],
+    g: usize,
+) {
+    run::<IN, O2>(chunks, x, acc, acc2, g)
 }
 
 #[inline(always)]
-fn run<const IN: bool>(chunks: &mut [Chunk], x: &[f32], acc: &mut [[f32; LANES]], g: usize) {
+fn run<const IN: bool, const O2: bool>(
+    chunks: &mut [Chunk],
+    x: &[f32],
+    acc: &mut [[f32; LANES]],
+    acc2: &mut [[f32; LANES]],
+    g: usize,
+) {
     acc.fill([0.0; LANES]);
+    acc2.fill([0.0; LANES]);
     let rest = match g {
         4 => {
             let (grps, rest) = chunks.as_chunks_mut::<4>();
             for grp in grps {
-                group::<4, IN>(grp, x, acc);
+                group::<4, IN, O2>(grp, x, acc, acc2);
             }
             rest
         }
         2 => {
             let (grps, rest) = chunks.as_chunks_mut::<2>();
             for grp in grps {
-                group::<2, IN>(grp, x, acc);
+                group::<2, IN, O2>(grp, x, acc, acc2);
             }
             rest
         }
         _ => chunks,
     };
     for grp in rest.as_chunks_mut::<1>().0 {
-        group::<1, IN>(grp, x, acc);
+        group::<1, IN, O2>(grp, x, acc, acc2);
     }
 }
 
 #[inline(always)]
-fn group<const G: usize, const IN: bool>(grp: &mut [Chunk; G], x: &[f32], acc: &mut [[f32; LANES]]) {
+fn group<const G: usize, const IN: bool, const O2: bool>(
+    grp: &mut [Chunk; G],
+    x: &[f32],
+    acc: &mut [[f32; LANES]],
+    acc2: &mut [[f32; LANES]],
+) {
     let pr: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].pr);
     let pi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].pi);
     let br: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].br);
     let bi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].bi);
     let or: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].or);
     let oi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].oi);
+    let o2r: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].o2r);
+    let o2i: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].o2i);
     let mut zr: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].zr);
     let mut zi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].zi);
 
-    let mut step = |a: &mut [f32; LANES], xn: f32| {
+    let mut step = |a: &mut [f32; LANES], a2: &mut [f32; LANES], xn: f32| {
         let mut s = *a;
+        let mut s2 = *a2;
         for g in 0..G {
             for l in 0..LANES {
                 let mut r = pr[g][l] * zr[g][l] - pi[g][l] * zi[g][l];
@@ -325,17 +391,23 @@ fn group<const G: usize, const IN: bool>(grp: &mut [Chunk; G], x: &[f32], acc: &
                 zr[g][l] = r;
                 zi[g][l] = i;
                 s[l] += or[g][l] * r - oi[g][l] * i;
+                if O2 {
+                    s2[l] += o2r[g][l] * r - o2i[g][l] * i;
+                }
             }
         }
         *a = s;
-    };
-    if IN {
-        for (a, &xn) in acc.iter_mut().zip(x) {
-            step(a, xn);
+        if O2 {
+            *a2 = s2;
         }
-    } else {
-        for a in acc.iter_mut() {
-            step(a, 0.0);
+    };
+    let mut dummy = [0.0f32; LANES];
+    for (n, a) in acc.iter_mut().enumerate() {
+        let xn = if IN { x[n] } else { 0.0 };
+        if O2 {
+            step(a, &mut acc2[n], xn);
+        } else {
+            step(a, &mut dummy, xn);
         }
     }
 
@@ -391,6 +463,39 @@ mod tests {
                     None => reference = Some(out),
                     Some(r) => assert!(r.iter().zip(&out).all(|(a, b)| a.to_bits() == b.to_bits()), "{isa:?} g={g}"),
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn second_output_matches_a_separate_bank() {
+        let specs: Vec<ModeSpec> = (1..=70)
+            .map(|k| ModeSpec {
+                freq_hz: 31.0 * k as f64,
+                sigma: 1.0 + 0.1 * k as f64,
+                gain_re: 1e-3,
+                gain_im: -2e-4,
+                out_re: 0.7,
+                out_im: -0.2,
+                out2_re: -0.3,
+                out2_im: 0.9,
+            })
+            .collect();
+        let alt: Vec<ModeSpec> = specs.iter().map(|s| ModeSpec { out_re: s.out2_re, out_im: s.out2_im, ..*s }).collect();
+        let x: Vec<f32> = (0..128).map(|i| ((i * 37) % 11) as f32 - 5.0).collect();
+        for isa in Isa::available() {
+            let bank = |sp: &[ModeSpec]| {
+                let mut b = ModalBank::new(48_000.0, 70, 128);
+                b.set_isa(isa);
+                b.set_modes(sp.iter().copied());
+                b
+            };
+            let (mut o1, mut o2, mut r1, mut r2) = (vec![0.0f32; 128], vec![0.0f32; 128], vec![0.0f32; 128], vec![0.0f32; 128]);
+            bank(&specs).process2(Some(&x), &mut o1, &mut o2);
+            bank(&specs).process(Some(&x), &mut r1);
+            bank(&alt).process(Some(&x), &mut r2);
+            for (p, q) in o1.iter().zip(&r1).chain(o2.iter().zip(&r2)) {
+                assert!((p - q).abs() <= 1e-6 * (1.0 + q.abs()), "{isa:?}: {p} vs {q}");
             }
         }
     }

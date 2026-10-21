@@ -6,6 +6,7 @@ Piano virtuel par modélisation physique, temps réel depuis MIDI, en Rust. Réf
 - Phase 0 (outillage, mesures CPU et précision) : [docs/phase0.md](docs/phase0.md)
 - Phase 1 (corde + marteau, calibrage) : [docs/phase1.md](docs/phase1.md)
 - Phase 2 (unissons couplés, polarisations, conductance du chevalet) : [docs/phase2.md](docs/phase2.md)
+- Phase 4 (table d'harmonie modale, rayonnement, stéréo) : [docs/phase4.md](docs/phase4.md)
 - Analyse de Salamander Grand (Yamaha C5) : [docs/salamander.md](docs/salamander.md)
 
 ```bash
