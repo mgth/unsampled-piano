@@ -1,0 +1,9 @@
+# Lower pitch (A = 415 Hz), no stretch, softer and less nonlinear felt.
+a4 = 415.0
+hardness = 1.2
+p_offset = -1.3
+
+[stretch]
+a_t = 0.0
+a_b = 0.0
+c = 0.0

@@ -1,0 +1,9 @@
+# Saloon piano: strings of each unison far apart, harder felt, weaker dampers.
+hardness = 3.5
+
+[unison]
+width_mid = 12.0
+width_treble = 18.0
+
+[damper]
+strength = 0.4

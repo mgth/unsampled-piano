@@ -55,6 +55,16 @@ struct Args {
     #[arg(long)]
     mobility_scale: Option<f64>,
     #[arg(long)]
+    back_gain: Option<f64>,
+    /// Scale of the mechanical noises (0 = off).
+    #[arg(long)]
+    noise: Option<f64>,
+    #[arg(long)]
+    back_depth: Option<f64>,
+    /// Scales the intrinsic string losses (b1 and b2).
+    #[arg(long)]
+    loss_scale: Option<f64>,
+    #[arg(long)]
     series_stiffness: Option<f64>,
     /// Keep the modal coupling but output the bridge force.
     #[arg(long)]
@@ -82,6 +92,9 @@ struct Args {
     pol_radiation: Option<f64>,
     #[arg(long)]
     pol_tilt: Option<f64>,
+    /// Instrument preset (TOML) applied before the overrides below.
+    #[arg(long)]
+    preset: Option<PathBuf>,
     /// Skip the reference measurements (faster parameter sweeps).
     #[arg(long)]
     model_only: bool,
@@ -139,6 +152,9 @@ fn write_wav(path: &std::path::Path, x: &[f32], sr: u32) {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let a = Args::parse();
     let mut cfg = EngineConfig::default();
+    if let Some(p) = &a.preset {
+        cfg.model = piano_host::load_preset(p)?;
+    }
     if let Some(v) = a.p_offset {
         cfg.model.p_offset = v;
     }
@@ -146,10 +162,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         cfg.model.hardness = v;
     }
     if let Some(v) = a.vmin {
-        cfg.hammer_vmin = v;
+        cfg.model.velocity.vmin = v;
     }
     if let Some(v) = a.vmax {
-        cfg.hammer_vmax = v;
+        cfg.model.velocity.vmax = v;
     }
     if let Some(v) = a.unison_mid {
         cfg.model.unison.width_mid = v;
@@ -170,6 +186,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(v) = a.hardness_slope {
         cfg.model.hardness_slope = v;
     }
+    if let Some(k) = a.loss_scale {
+        cfg.model.losses.b1_offset += k.ln();
+        cfg.model.losses.b2 *= k;
+    }
+    if let Some(k) = a.noise {
+        let n = &mut cfg.model.noise;
+        n.keybed *= k;
+        n.pedal *= k;
+        n.damper_mass *= k;
+    }
     if let Some(h) = a.hysteresis {
         cfg.model.hysteresis = h;
     }
@@ -188,6 +214,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if let Some(m) = a.mobility_scale {
             *sb = sb.with_mobility_scale(m);
+        }
+        if let Some(g) = a.back_gain {
+            sb.back_gain = g;
+        }
+        if let Some(d) = a.back_depth {
+            sb.back_depth = d;
         }
         if let Some(k) = a.series_stiffness {
             sb.series_stiffness = k;

@@ -5,7 +5,11 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+serde = ["dep:serde"]
+
 [dependencies]
+serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion.workspace = true

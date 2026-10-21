@@ -160,9 +160,12 @@ impl ContactSolver {
             let (sn, cs) = th.sin_cos();
             let gamma = dt * r * sn / (modal_mass * std::f64::consts::TAU * m.freq);
             // Mode shape at the strike point, averaged over the felt width.
+            // The bridge is at x = 0 and the hammer strikes `strike_pos`·L
+            // from the *agraffe* (x = L): striking near the bridge would push
+            // it quasi-statically with most of the hammer force (a thump).
             let x = k * half_w;
             let phi = m.hit
-                * (k * std::f64::consts::PI * note.strike_pos).sin()
+                * (k * std::f64::consts::PI * (1.0 - note.strike_pos)).sin()
                 * if x > 1e-9 { x.sin() / x } else { 1.0 };
             self.c[i] = r * cs;
             self.ps[i] = r * sn;

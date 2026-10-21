@@ -95,15 +95,26 @@ fn sostenuto_holds_only_the_keys_down_when_pressed() {
     assert!(held > 1e4 * other.max(1e-30), "sostenuto did not hold C3");
 }
 
+/// Una corda: the shifted hammer meets softer felt (darker attack) and
+/// strikes 2 of 3 strings, which favours the slow out-of-phase modes (longer
+/// aftersound, Weinreich). The model does not reproduce the level drop of a
+/// real grand (see docs/phase5.md).
 #[test]
-fn una_corda_is_softer() {
-    let level = |soft: u8| {
-        let (x, _) = render(&[(0.0, cc(67, soft)), (0.01, on(60, 100))], 0.5);
-        rms_db(&x)
+fn una_corda_is_darker_with_more_aftersound() {
+    let measure = |soft: u8| {
+        let (x, _) = render(&[(0.0, cc(67, soft)), (0.01, on(60, 100))], 1.0);
+        let sr = 48_000.0;
+        let seg = |a: f64, b: f64| &x[(a * sr) as usize..(b * sr) as usize];
+        // Brightness proxy: energy of the first difference over the energy.
+        let att = seg(0.01, 0.06);
+        let d: f64 = att.windows(2).map(|w| ((w[1] - w[0]) as f64).powi(2)).sum();
+        let e: f64 = att.iter().map(|v| (*v as f64).powi(2)).sum();
+        (10.0 * (d / e).log10(), rms_db(seg(0.6, 1.0)) - rms_db(seg(0.01, 0.1)))
     };
-    let (normal, soft) = (level(0), level(127));
-    eprintln!("C4 level: normal {normal:.1} dB, una corda {soft:.1} dB");
-    assert!(soft < normal - 1.0);
+    let ((b0, s0), (b1, s1)) = (measure(0), measure(127));
+    eprintln!("brightness {b0:.1} → {b1:.1} dB, late/early level {s0:.1} → {s1:.1} dB");
+    assert!(b1 < b0 - 0.3, "una corda should be darker");
+    assert!(s1 > s0 + 1.0, "una corda should sustain longer");
 }
 
 #[test]

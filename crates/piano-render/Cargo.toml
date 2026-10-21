@@ -7,6 +7,7 @@ publish.workspace = true
 
 [dependencies]
 piano-core.workspace = true
+piano-host.workspace = true
 midly.workspace = true
 hound.workspace = true
 clap.workspace = true

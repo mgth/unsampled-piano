@@ -22,13 +22,16 @@
 //! (pins, bridge cap) and optionally a local bridge mass.
 //!
 //! Radiation: each mode's velocity field radiates through the Rayleigh
-//! integral (baffled plate), `p = iωρ₀/(2π)·∫ v·e^{−ikR}/R dS`, evaluated
-//! once per mode and microphone at the mode frequency (narrow-band modes).
+//! integral, `p = iωρ₀/(2π)·∫ v·(e^{−ikR}/R − β·e^{−ikR'}/R') dS`, where the
+//! second term is the back face (antiphase, image at the case depth, R' its
+//! distance): an unbaffled board short-circuits its low frequencies.
+//! Evaluated once per mode and microphone at the mode frequency.
 
 use crate::complex::C64;
 use std::f64::consts::{PI, TAU};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct SoundboardParams {
     /// Plate dimensions (m).
     pub a: f64,
@@ -61,6 +64,19 @@ pub struct SoundboardParams {
     pub radiate: bool,
     /// Grid step of the radiation integral (m).
     pub grid_step: f64,
+    /// The board radiates from both faces: the back face, in antiphase,
+    /// reaches the mics from `back_depth` m below (around the case), with
+    /// `back_gain` (partial shielding by rim and keybed). This acoustic short
+    /// circuit makes the low modes radiate as dipoles, not as the monopoles
+    /// of an infinite baffle. back_gain = 0 is the baffled plate.
+    pub back_depth: f64,
+    pub back_gain: f64,
+}
+
+impl Default for SoundboardParams {
+    fn default() -> Self {
+        Self::GRAND_2M
+    }
 }
 
 impl SoundboardParams {
@@ -82,7 +98,9 @@ impl SoundboardParams {
         dx: 3825.0,
         dy: 1700.0,
         loss_factor: 0.02,
-        loss_corner: f64::INFINITY,
+        // Wood and radiation damping grow with frequency (calibrated on the
+        // attack brightness, tools/attack_grid.py): η = 0.02·(1 + f/700 Hz).
+        loss_corner: 700.0,
         bridge_mass: 0.0,
         series_stiffness: 2e7,
         f_max: 20_000.0,
@@ -92,6 +110,9 @@ impl SoundboardParams {
         mics: [(0.45, 0.35, 1.5), (1.15, 0.85, 1.5)],
         radiate: true,
         grid_step: 0.015,
+        // Calibrated on the spectral tilt of Salamander (low bands).
+        back_depth: 0.6,
+        back_gain: 0.6,
     };
 
     fn h(&self) -> f64 {
@@ -219,8 +240,10 @@ impl Soundboard {
                 cells.push((x, y));
                 geo.push(std::array::from_fn(|mic| {
                     let (mx, my, mz) = p.mics[mic];
-                    let r = ((x - mx).powi(2) + (y - my).powi(2) + mz * mz).sqrt();
-                    (r, 0.0, 0.0, 0.0)
+                    let d2 = (x - mx).powi(2) + (y - my).powi(2);
+                    let r = (d2 + mz * mz).sqrt();
+                    let rb = (d2 + (mz + p.back_depth).powi(2)).sqrt();
+                    (r, rb, 0.0, 0.0)
                 }));
             }
         }
@@ -238,8 +261,8 @@ impl Soundboard {
                 for (c, g) in geo.iter().enumerate() {
                     let phi = norm * sx[c / ny] * sy[c % ny];
                     for mic in 0..2 {
-                        let r = g[mic].0;
-                        acc[mic] += C64::polar(phi * ds / r, -k * r);
+                        let (r, rb) = (g[mic].0, g[mic].1);
+                        acc[mic] += C64::polar(phi * ds / r, -k * r) - C64::polar(p.back_gain * phi * ds / rb, -k * rb);
                     }
                 }
                 [pre * acc[0], pre * acc[1]]

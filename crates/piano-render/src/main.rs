@@ -16,6 +16,9 @@ struct Cli {
     /// Seconds rendered after the last event.
     #[arg(long, global = true, default_value_t = 3.0)]
     tail: f64,
+    /// Instrument preset (TOML).
+    #[arg(long, global = true)]
+    preset: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -33,6 +36,8 @@ enum Cmd {
         #[arg(long, default_value_t = 4.0)]
         hold: f64,
     },
+    /// Write the full default preset (every parameter) to a TOML file.
+    DumpPreset { output: PathBuf },
     /// Every key from A0 to C8, one per `step` seconds.
     Sweep {
         output: PathBuf,
@@ -93,8 +98,8 @@ fn midi_timeline(path: &PathBuf) -> Result<Timeline, Box<dyn std::error::Error>>
 }
 
 /// Stereo render (two microphones), interleaved.
-fn render(tl: &Timeline, sr: u32, block: usize, tail: f64) -> (Vec<f32>, usize) {
-    let cfg = EngineConfig { sample_rate: sr as f64, max_block: block, ..Default::default() };
+fn render(tl: &Timeline, sr: u32, block: usize, tail: f64, model: piano_core::params::PianoModel) -> (Vec<f32>, usize) {
+    let cfg = EngineConfig { sample_rate: sr as f64, max_block: block, model, ..Default::default() };
     let mut engine = Engine::new(cfg);
     let end = tl.last().map_or(0.0, |e| e.0) + tail;
     let total = (end * sr as f64).ceil() as usize;
@@ -123,7 +128,16 @@ fn render(tl: &Timeline, sr: u32, block: usize, tail: f64) -> (Vec<f32>, usize) 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+    let model = match &cli.preset {
+        Some(p) => piano_host::load_preset(p)?,
+        None => Default::default(),
+    };
     let (tl, output): (Timeline, PathBuf) = match cli.cmd {
+        Cmd::DumpPreset { output } => {
+            piano_host::save_preset(&model, &output)?;
+            println!("{}", output.display());
+            return Ok(());
+        }
         Cmd::Midi { input, output } => (midi_timeline(&input)?, output),
         Cmd::Note { output, note, velocity, hold } => {
             (vec![(0.0, Event::NoteOn { note, velocity }), (hold, Event::NoteOff { note, velocity: 64 })], output)
@@ -142,7 +156,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     let t = std::time::Instant::now();
-    let (audio, peak_voices) = render(&tl, cli.sr, cli.block, cli.tail);
+    let (audio, peak_voices) = render(&tl, cli.sr, cli.block, cli.tail, model);
     let wall = t.elapsed().as_secs_f64();
     let dur = audio.len() as f64 / 2.0 / cli.sr as f64;
     let peak = audio.iter().fold(0.0f32, |m, v| m.max(v.abs()));

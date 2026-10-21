@@ -12,6 +12,7 @@ pub fn note_freq(note: u8, a4: f64) -> f64 {
 /// Inharmonicity B across the keyboard as the sum of a bass and a treble
 /// exponential (Rigaud, David & Daudet, JASA 2013).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct InharmonicityLaw {
     pub a_bass: f64,
     pub b_bass: f64,
@@ -40,6 +41,7 @@ pub fn inharmonicity_rigaud(note: u8) -> f64 {
 /// Stretch tuning in cents relative to equal temperament:
 /// `a_t·e^{k_t(m−69)} − a_b·e^{−k_b(m−69)} + c`.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct StretchLaw {
     pub a_t: f64,
     pub k_t: f64,
@@ -61,6 +63,7 @@ impl StretchLaw {
 
 /// Decay rate σ_k = b1(note) + b2·f_k² (1/s) with log b1 linear in the note.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct LossLaw {
     pub b1_slope: f64,
     pub b1_offset: f64,
@@ -71,8 +74,10 @@ impl LossLaw {
     /// Early ("prompt") decay of single partials, Salamander survey. A single
     /// string per note cannot reproduce the two-stage decay (Phase 2).
     pub const SALAMANDER_EARLY: Self = Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7 };
-    /// Intrinsic string losses from the ESPRIT aftersound (no bridge losses).
-    pub const SALAMANDER_STRING: Self = Self { b1_slope: 0.0590, b1_offset: -3.983, b2: 6.7e-8 };
+    /// Intrinsic string losses: law of the ESPRIT aftersound (no bridge
+    /// losses), scaled ×0.45 by the decay calibration of the full instrument
+    /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them.
+    pub const SALAMANDER_STRING: Self = Self { b1_slope: 0.0590, b1_offset: -4.782, b2: 3.0e-8 };
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
         (self.b1_slope * note as f64 + self.b1_offset).exp() + self.b2 * freq * freq
@@ -81,6 +86,7 @@ impl LossLaw {
 
 /// Strings per key and their mistuning.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct UnisonLaw {
     /// First bichord and first trichord key.
     pub bichord_from: u8,
@@ -130,6 +136,7 @@ impl UnisonLaw {
 /// decay difference (tools/bridge_conductance.py): G ≈ 4–6e-4 s/kg, nearly
 /// flat, with ±2.5× modal scatter left to the soundboard model (Phase 4).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct BridgeLaw {
     pub g_1k: f64,
     pub slope: f64,
@@ -148,6 +155,7 @@ impl BridgeLaw {
 
 /// Horizontal polarisation of the strings, relative to the vertical one.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct PolarizationLaw {
     pub enabled: bool,
     /// ε_H / ε_V: the bridge is much stiffer sideways.
@@ -167,11 +175,12 @@ pub struct PolarizationLaw {
 impl PolarizationLaw {
     pub const OFF: Self =
         Self { enabled: false, h_coupling: 0.0, cross: 0.0, detune_cents: 0.0, radiation: 0.0, hammer_tilt: 0.0 };
-    /// Calibrated on the ESPRIT statistics of Salamander (tools/pol_grid.py,
-    /// best passive setting): gives single strings their measured
+    /// Calibrated on the ESPRIT statistics of Salamander with the full
+    /// instrument (tools/decay_grid.py): weak sideways coupling, cross term
+    /// at the passivity limit √h; gives single strings their measured
     /// aftersound (≈ −27 dB, slow).
     pub const DEFAULT: Self =
-        Self { enabled: true, h_coupling: 0.3, cross: 0.5, detune_cents: 0.3, radiation: 0.1, hammer_tilt: 0.05 };
+        Self { enabled: true, h_coupling: 0.03, cross: 0.173, detune_cents: 0.3, radiation: 0.1, hammer_tilt: 0.05 };
 
     /// Cross coupling actually used: clamped to keep the bridge passive.
     pub fn passive_cross(&self) -> f64 {
@@ -185,8 +194,9 @@ impl PolarizationLaw {
 /// (impedance mismatch makes a too hard felt reflect instead of absorb).
 /// e ∈ [0, 1] is the contact.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct DamperLaw {
-    /// Contact point relative to the string length.
+    /// Contact point relative to the string length, from the agraffe end.
     pub position: f64,
     /// Width of the felt pad (m): partials with a node under the damper
     /// are still damped by the rest of the pad.
@@ -237,8 +247,51 @@ impl DamperLaw {
     }
 }
 
+/// Mechanical noises, as impulses into the modelled structures: the key
+/// bottoming on the keybed and the damper rail (pedal) knock the frame, whose
+/// force reaches the soundboard; a damper falling on a ringing string kicks
+/// its modes at the damper point.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct NoiseLaw {
+    /// Peak force (N) into the board per m/s of hammer speed when the key
+    /// bottoms (through keybed, rim and frame).
+    pub keybed: f64,
+    /// Effective felt mass (kg) and fall speed (m/s) at mid release
+    /// velocity: most of the head's momentum is absorbed by the soft felt,
+    /// only a small effective mass kicks the string.
+    pub damper_mass: f64,
+    pub damper_speed: f64,
+    /// Duration (s) of the felt landing: the impulse is a half-sine of this
+    /// length, whose spectrum falls quickly above 1/duration (soft thud).
+    pub damper_landing: f64,
+    /// Peak force (N) into the board for a full-speed pedal move.
+    pub pedal: f64,
+    /// Duration (s) of the keybed / pedal knocks.
+    pub knock_time: f64,
+}
+
+impl NoiseLaw {
+    /// Levels set 20–30 dB below a mezzo-forte note (examples/noise_levels.rs).
+    pub const DEFAULT: Self =
+        Self { keybed: 0.25, damper_mass: 0.007, damper_speed: 0.1, damper_landing: 0.004, pedal: 0.35, knock_time: 0.003 };
+    pub const OFF: Self =
+        Self { keybed: 0.0, damper_mass: 0.0, damper_speed: 0.0, damper_landing: 0.004, pedal: 0.0, knock_time: 0.003 };
+
+    /// |spectrum| of a unit-area half-sine pulse of duration τ at ω.
+    pub fn half_sine_spectrum(omega: f64, tau: f64) -> f64 {
+        let x = omega * tau / std::f64::consts::PI;
+        if (x - 1.0).abs() < 1e-6 {
+            std::f64::consts::FRAC_PI_4
+        } else {
+            ((omega * tau / 2.0).cos() / (1.0 - x * x)).abs()
+        }
+    }
+}
+
 /// Sympathetic resonance through the bridge.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct SympatheticLaw {
     pub enabled: bool,
     /// Strings that only listen run their partials below this frequency.
@@ -264,6 +317,7 @@ pub fn partial_freq(f0: f64, b: f64, k: u32) -> f64 {
 /// (foreshortened, wound bass strings). Linear mass follows from the tension
 /// and the fundamental. Placeholder until measured scales are digitised.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct StringScale {
     pub len_c8: f64,
     pub ratio_per_octave: f64,
@@ -297,7 +351,8 @@ pub struct NoteParams {
     pub tension: f64,
     /// Linear mass (kg/m).
     pub mu: f64,
-    /// Striking point relative to the string length.
+    /// Striking point relative to the string length, from the agraffe end
+    /// (the bridge is at the other end).
     pub strike_pos: f64,
     /// Width of the felt contact patch (m).
     pub contact_width: f64,
@@ -315,10 +370,31 @@ impl NoteParams {
     }
 }
 
+/// MIDI velocity → hammer speed: exponential from `vmin` (velocity 1) to
+/// `vmax` (velocity 127), m/s. Fits the Salamander dynamics curve (1.4 dB
+/// rms over 16 layers).
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct VelocityLaw {
+    pub vmin: f64,
+    pub vmax: f64,
+}
+
+impl VelocityLaw {
+    pub const DEFAULT: Self = Self { vmin: 0.4, vmax: 4.0 };
+
+    pub fn hammer_speed(&self, velocity: u8) -> f64 {
+        let t = (velocity.clamp(1, 127) as f64 - 1.0) / 126.0;
+        self.vmin * (self.vmax / self.vmin).powf(t)
+    }
+}
+
 /// The whole instrument description: laws evaluated per key.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct PianoModel {
     pub a4: f64,
+    pub velocity: VelocityLaw,
     pub inharmonicity: InharmonicityLaw,
     pub stretch: StretchLaw,
     /// Intrinsic string losses (the bridge adds its own through coupling).
@@ -332,11 +408,12 @@ pub struct PianoModel {
     pub soundboard: Option<crate::soundboard::SoundboardParams>,
     pub damper: DamperLaw,
     pub sympathetic: SympatheticLaw,
+    pub noise: NoiseLaw,
     /// Felt softening when the una corda pedal shifts the action fully.
     pub una_corda_softening: f64,
     /// Multiplies Stulov's Q0 (felt hardness / voicing).
     pub hardness: f64,
-    /// Extra hardness growth per key above C4: Q0 ×= e^{slope·(n − 40)}
+    /// Extra hardness growth per key around C4: Q0 ×= e^{slope·(n − 40)}
     /// (voicing; Stulov's fit grows as e^{0.045·n}).
     pub hardness_slope: f64,
     /// Added to Stulov's exponent p (Russell: 2–4, Stulov: 3.7–5).
@@ -351,6 +428,7 @@ impl Default for PianoModel {
     fn default() -> Self {
         Self {
             a4: 440.0,
+            velocity: VelocityLaw::DEFAULT,
             inharmonicity: InharmonicityLaw::SALAMANDER_C5,
             stretch: StretchLaw::SALAMANDER_C5,
             losses: LossLaw::SALAMANDER_STRING,
@@ -361,13 +439,15 @@ impl Default for PianoModel {
             soundboard: Some(crate::soundboard::SoundboardParams::GRAND_2M),
             damper: DamperLaw::GRAND,
             sympathetic: SympatheticLaw::DEFAULT,
-            una_corda_softening: 0.35,
-            // Calibrated on Salamander (tools/grid_hammer.py): a less
-            // nonlinear felt than Stulov's fit (p ≈ 2.7–4, Russell's range)
-            // matches the brightness-vs-velocity curve 2.6× better.
-            hardness: 2.0,
-            hardness_slope: 0.0,
-            p_offset: -1.0,
+            noise: NoiseLaw::DEFAULT,
+            una_corda_softening: 0.6,
+            // Calibrated on Salamander's absolute attack brightness and its
+            // growth with velocity (tools/attack_grid.py), once the strike
+            // point was measured from the agraffe: soft felt, Stulov's
+            // exponent −0.5, slightly harder towards the treble.
+            hardness: 0.35,
+            hardness_slope: 0.02,
+            p_offset: -0.5,
             hysteresis: 1.0,
             contact_width_scale: 1.0,
         }
@@ -386,7 +466,7 @@ impl PianoModel {
         let contact_width = (0.008 - 0.004 * (m - 21.0) / 87.0) * self.contact_width_scale;
         let mut hammer = hammer_stulov(note);
         let key = note as f64 - 20.0;
-        hammer.q0 *= self.hardness * (self.hardness_slope * (key - 40.0).max(0.0)).exp();
+        hammer.q0 *= self.hardness * (self.hardness_slope * (key - 40.0)).exp();
         hammer.p += self.p_offset;
         hammer.alpha *= self.hysteresis;
         NoteParams {
@@ -475,6 +555,72 @@ pub fn ln_gamma(x: f64) -> f64 {
     }
     let t = x + 7.5;
     0.5 * (2.0 * std::f64::consts::PI).ln() + (x + 0.5) * t.ln() - t + s.ln()
+}
+
+impl Default for InharmonicityLaw {
+    fn default() -> Self {
+        Self::SALAMANDER_C5
+    }
+}
+
+impl Default for StretchLaw {
+    fn default() -> Self {
+        Self::SALAMANDER_C5
+    }
+}
+
+impl Default for LossLaw {
+    fn default() -> Self {
+        Self::SALAMANDER_STRING
+    }
+}
+
+impl Default for StringScale {
+    fn default() -> Self {
+        Self::GRAND_2M
+    }
+}
+
+impl Default for UnisonLaw {
+    fn default() -> Self {
+        Self::GRAND
+    }
+}
+
+impl Default for BridgeLaw {
+    fn default() -> Self {
+        Self::SALAMANDER_C5
+    }
+}
+
+impl Default for PolarizationLaw {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+impl Default for DamperLaw {
+    fn default() -> Self {
+        Self::GRAND
+    }
+}
+
+impl Default for NoiseLaw {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+impl Default for SympatheticLaw {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+impl Default for VelocityLaw {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
 }
 
 #[cfg(test)]

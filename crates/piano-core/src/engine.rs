@@ -25,7 +25,7 @@ const INPUT_DELAY: f64 = SUB_BLOCK as f64 + 0.5;
 /// Output scaling without soundboard: bridge force (N) to full scale.
 const FORCE_GAIN: f32 = 1.0 / 240.0;
 /// Output scaling with soundboard: pressure at the mics (Pa) to full scale.
-const PRESSURE_GAIN: f32 = 1.0 / 24.0;
+const PRESSURE_GAIN: f32 = 1.0 / 12.0;
 /// Voices whose bridge force falls below ≈ 1e-5·240 N (−100 dB of a loud
 /// note) are freed, unless their strings are free to resonate.
 const SILENCE_ENERGY: f32 = (1e-5 / FORCE_GAIN) * (1e-5 / FORCE_GAIN);
@@ -33,6 +33,17 @@ const SILENCE_ENERGY: f32 = (1e-5 / FORCE_GAIN) * (1e-5 / FORCE_GAIN);
 const BOARD_SILENCE: f32 = (1e-6 / PRESSURE_GAIN) * (1e-6 / PRESSURE_GAIN);
 /// Listening strings set up per block when the dampers lift (spreads cost).
 const LISTENERS_PER_BLOCK: usize = 8;
+/// Pending frame knocks (keybed, pedal) at a time.
+const MAX_KNOCKS: usize = 32;
+
+/// A half-sine force pulse into the board at one region.
+#[derive(Clone, Copy, Default)]
+struct Knock {
+    region: usize,
+    pos: usize,
+    len: usize,
+    peak: f32,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
@@ -55,9 +66,6 @@ pub struct EngineConfig {
     pub max_block: usize,
     pub polyphony: usize,
     pub model: PianoModel,
-    /// Hammer speed (m/s) at MIDI velocity 1 and 127.
-    pub hammer_vmin: f64,
-    pub hammer_vmax: f64,
 }
 
 impl Default for EngineConfig {
@@ -67,9 +75,6 @@ impl Default for EngineConfig {
             max_block: 128,
             polyphony: 128,
             model: PianoModel::default(),
-            hammer_vmin: 0.4,
-            // Fits the Salamander dynamics curve (1.4 dB rms over 16 layers).
-            hammer_vmax: 4.0,
         }
     }
 }
@@ -103,6 +108,9 @@ pub struct Engine {
     clock: u64,
     stereo: [Vec<f32>; MICS],
     listen_cursor: u8,
+    knocks: [Knock; MAX_KNOCKS],
+    /// Damper engagement below which a landing damper counts as an impact.
+    sustain_prev: f64,
 }
 
 impl Engine {
@@ -141,6 +149,8 @@ impl Engine {
             clock: 0,
             stereo: std::array::from_fn(|_| vec![0.0; cfg.max_block]),
             listen_cursor: 21,
+            knocks: [Knock::default(); MAX_KNOCKS],
+            sustain_prev: 0.0,
         };
         // Strings without dampers always resonate.
         if e.sympathy() {
@@ -250,6 +260,7 @@ impl Engine {
         }
         self.render(pos, len);
 
+        self.render_knocks(len);
         left.fill(0.0);
         right.fill(0.0);
         for d in &mut self.disp {
@@ -320,6 +331,30 @@ impl Engine {
         }
     }
 
+    /// Adds the pending frame knocks to the region forces.
+    fn render_knocks(&mut self, len: usize) {
+        for k in self.knocks.iter_mut().filter(|k| k.pos < k.len) {
+            let r = &mut self.region[k.region];
+            for x in r[..len].iter_mut() {
+                if k.pos >= k.len {
+                    break;
+                }
+                *x += k.peak * (std::f32::consts::PI * (k.pos as f32 + 0.5) / k.len as f32).sin();
+                k.pos += 1;
+            }
+        }
+    }
+
+    fn knock(&mut self, region: usize, peak: f64) {
+        if peak <= 0.0 || self.board.is_none() {
+            return;
+        }
+        let len = ((self.inst.model.noise.knock_time * self.cfg.sample_rate) as usize).max(2);
+        if let Some(k) = self.knocks.iter_mut().find(|k| k.pos >= k.len) {
+            *k = Knock { region, pos: 0, len, peak: peak as f32 };
+        }
+    }
+
     /// Moves every damper towards its target contact and sets the decay.
     fn update_dampers(&mut self, len: usize) {
         let law = self.inst.model.damper;
@@ -331,7 +366,14 @@ impl Engine {
             let target = if v.key_down || v.sostenuto || !nm.has_damper { 0.0 } else { pedal };
             let k = if target > v.engagement { k_fall } else { k_lift };
             let e = v.engagement + (target - v.engagement) * k;
-            v.engagement = if (e - target).abs() < 1e-3 { target } else { e };
+            let e = if (e - target).abs() < 1e-3 { target } else { e };
+            // The felt lands on the strings: momentum kick at the damper point.
+            if v.engagement < 0.05 && e >= 0.05 {
+                let noise = self.inst.model.noise;
+                let impulse = noise.damper_mass * noise.damper_speed * v.damper_speed;
+                v.damper_kick(nm, impulse, law.position, law.width, noise.damper_landing);
+            }
+            v.engagement = e;
             v.set_damper_rate(nm.damper_rate(&self.inst.model, v.engagement));
         }
     }
@@ -372,8 +414,32 @@ impl Engine {
         match ev {
             Event::NoteOn { velocity: 0, note } => self.note_off(note),
             Event::NoteOn { note, velocity } => self.note_on(note, velocity),
-            Event::NoteOff { note, .. } => self.note_off(note),
-            Event::Control { cc: 64, value } => self.sustain = value as f64 / 127.0,
+            Event::NoteOff { note, velocity } => {
+                // Release velocity sets how fast the damper falls.
+                let speed = if velocity == 0 { 1.0 } else { velocity as f64 / 64.0 };
+                for v in self.voices.iter_mut().filter(|v| v.active && v.note == note) {
+                    v.damper_speed = speed;
+                }
+                self.note_off(note);
+            }
+            Event::Control { cc: 64, value } => {
+                let new = value as f64 / 127.0;
+                let delta = (new - self.sustain_prev).abs();
+                // The damper rail knocks the frame near the middle of the
+                // keyboard; on release the rail lowers the dampers, slower
+                // than a key does (its travel is cushioned by felts).
+                let peak = self.inst.model.noise.pedal * delta;
+                self.knock(region_of(54), 0.6 * peak);
+                self.knock(region_of(66), 0.4 * peak);
+                if new < self.sustain {
+                    let speed = (delta * 0.3).clamp(0.02, 0.2);
+                    for v in self.voices.iter_mut().filter(|v| v.active && !v.key_down) {
+                        v.damper_speed = speed;
+                    }
+                }
+                self.sustain = new;
+                self.sustain_prev = new;
+            }
             Event::Control { cc: 66, value } => {
                 let down = value >= 64;
                 if down && !self.sostenuto_down {
@@ -428,7 +494,11 @@ impl Engine {
         v.active = true;
         v.key_down = true;
         let softening = self.inst.model.una_corda_softening;
-        v.strike(nm, hammer_velocity(&cfg, velocity), contact_oversampling(&cfg, note), self.soft, softening);
+        let vh = hammer_velocity(&cfg, velocity);
+        v.strike(nm, vh, contact_oversampling(&cfg, note), self.soft, softening);
+        v.damper_speed = 1.0;
+        // The key bottoms on the keybed as the hammer reaches the string.
+        self.knock(region_of(note), self.inst.model.noise.keybed * vh);
     }
 
     fn note_off(&mut self, note: u8) {
@@ -450,10 +520,9 @@ pub fn contact_oversampling(cfg: &EngineConfig, note: u8) -> usize {
     ((need / per_ms).ceil() as usize).clamp(1, 8)
 }
 
-/// MIDI velocity → hammer velocity, exponential between vmin and vmax.
+/// MIDI velocity → hammer velocity (see [`crate::params::VelocityLaw`]).
 pub fn hammer_velocity(cfg: &EngineConfig, velocity: u8) -> f64 {
-    let t = (velocity.clamp(1, 127) as f64 - 1.0) / 126.0;
-    cfg.hammer_vmin * (cfg.hammer_vmax / cfg.hammer_vmin).powf(t)
+    cfg.model.velocity.hammer_speed(velocity)
 }
 
 /// Contact duration (s) and peak force (N) of one strike on a string at

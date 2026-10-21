@@ -35,6 +35,9 @@ pub struct Voice {
     pub struck: bool,
     /// Damper contact, 0 lifted … 1 resting on the strings.
     pub engagement: f64,
+    /// Speed factor of the next damper landing (from release velocity or
+    /// pedal speed), 1 at mid release velocity.
+    pub damper_speed: f64,
     /// Response to the hammer.
     pub bank: ModalBank,
     /// Response to the bridge motion from the other keys.
@@ -60,6 +63,7 @@ impl Voice {
             sostenuto: false,
             struck: false,
             engagement: 1.0,
+            damper_speed: 1.0,
             bank: ModalBank::new(sample_rate, MAX_MODES, max_block),
             sym: ModalBank::new(sample_rate, MAX_MODES, max_block),
             contact: ContactSolver::new(MAX_MODES, sample_rate),
@@ -188,6 +192,43 @@ impl Voice {
         }
         for (o, x) in out_sym.iter_mut().zip(f.iter()) {
             *o += x;
+        }
+    }
+
+    /// A damper landing on the strings with momentum `impulse` (N·s) at
+    /// `position`·L (pad `width` m), spread over `landing` s: each vertical
+    /// string's mode k receives Δq̇ = φ_k·S(ω)·I/M (S: half-sine spectrum),
+    /// i.e. Δζ = −i·φ_k·S·I/(M·ω), projected on the coupled modes.
+    /// Real-time safe.
+    pub fn damper_kick(&mut self, nm: &NoteModel, impulse: f64, position: f64, width: f64, landing: f64) {
+        if impulse == 0.0 {
+            return;
+        }
+        let np = &nm.params;
+        let n = nm.n_osc;
+        let ns = np.strings;
+        let modal_mass = np.mu * np.length / 2.0;
+        // A listening string only runs its sympathetic bank.
+        let bank = if self.bank.is_empty() { &mut self.sym } else { &mut self.bank };
+        for (ki, cl) in nm.clusters.iter().enumerate() {
+            if (ki + 1) * n > bank.len() {
+                break;
+            }
+            let k = (ki + 1) as f64;
+            let a = k * std::f64::consts::PI * width / (2.0 * np.length);
+            // Dampers sit near the strike line, `position`·L from the agraffe.
+            let phi = (k * std::f64::consts::PI * (1.0 - position)).sin() * if a > 1e-9 { a.sin() / a } else { 1.0 };
+            let omega = std::f64::consts::TAU * nm.phys[ki * n].freq;
+            // The felt lands over `landing` seconds: soft, low-passed thud.
+            let soft = crate::params::NoiseLaw::half_sine_spectrum(omega, landing);
+            let dz = C64::new(0.0, -phi * soft * impulse / (modal_mass * omega));
+            let mut zeta = [C64::ZERO; MAX_OSC];
+            zeta[..ns].fill(dz);
+            let dc = cl.to_modes(&zeta);
+            for (m, d) in dc.iter().enumerate().take(n) {
+                let (re, im) = bank.state(ki * n + m);
+                bank.set_state(ki * n + m, re + d.re, im + d.im);
+            }
         }
     }
 
