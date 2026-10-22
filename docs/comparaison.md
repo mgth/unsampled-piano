@@ -139,6 +139,6 @@ Ce qui reste après recalibration :
 ## Priorités pour réduire l'écart
 
 1. ~~Contact parallèle des unissons et recalibration du marteau~~ : fait.
-2. **Pertes des cordes graves selon la fréquence**, pour retrouver l'équilibre des partiels dans la tenue.
+2. ~~Pertes des cordes graves~~ : fait en grande partie ([graves.md](graves.md)).
 3. **Changement de timbre avec la nuance** : un modèle de feutre plus riche.
 4. Ensuite seulement, les ajouts de physique : non-linéarités de la corde, duplex, fin des notes aiguës, sympathie passive.

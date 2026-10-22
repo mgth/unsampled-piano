@@ -43,7 +43,7 @@ tension = 750.0
 [unison]
 bichord_from = 28
 trichord_from = 45
-width_mid = 1.0
+width_mid = 0.35
 width_treble = 5.0
 hit_spread = 0.2
 
@@ -76,6 +76,10 @@ bridge_spread = 0.3
 impedance_slope = 0.035
 impedance_slope_bass = 0.0
 f_max = 20000.0
+piston_freq = 40.0
+piston_loss = 0.7
+piston_mass = 1.5
+piston_radiation = 0.3
 treble_bridge = [
     [
     0.035,

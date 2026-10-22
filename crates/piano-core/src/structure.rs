@@ -107,6 +107,7 @@ impl FrameParams {
             back_depth: self.back_depth,
             back_gain: self.back_gain,
             lid_hinge_height: board.lid_hinge_height - self.height,
+            piston_freq: 0.0,
             ..*board
         }
     }
@@ -360,6 +361,10 @@ impl RimModel {
             .iter()
             .take_while(|md| md.omega / TAU < p.couple_f_max)
             .map(|md| {
+                if md.m == 0 {
+                    // The piston mode moves the rim with the board: no edge force.
+                    return vec![(0.0, 0.0); projections.len()];
+                }
                 let (dens, cf) = edge_reaction(bp, md.m, md.n, &s);
                 let scale = (md.omega / omega_ss(bp, md.m, md.n)).powi(2);
                 let sigma = sb.sigma(md);

@@ -117,10 +117,13 @@ pub struct UnisonLaw {
 }
 
 impl UnisonLaw {
-    /// Generic grand layout; widths calibrated on the ESPRIT statistics of
-    /// Salamander (tools/unison_grid.py); hit spread ±20 % set on the
-    /// aftersound level of the treble (docs/tenue.md).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2 };
+    /// Generic grand layout; treble width calibrated on the ESPRIT
+    /// statistics of Salamander (tools/unison_grid.py); width up to C4 0.35
+    /// cent, the measured spread of the bass and middle unisons (≈ 0.4
+    /// cent; 1 cent made the partials beat deeply, docs/graves.md); hit
+    /// spread ±20 % set on the aftersound level of the treble
+    /// (docs/tenue.md).
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 0.35, width_treble: 5.0, hit_spread: 0.2 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 

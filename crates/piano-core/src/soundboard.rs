@@ -70,6 +70,18 @@ pub struct SoundboardParams {
     pub impedance_slope_bass: f64,
     /// Highest mode kept (Hz).
     pub f_max: f64,
+    /// The board is not held by an infinitely rigid rim: board, rim and
+    /// case also move as a block on the case's compliance, a heavily damped
+    /// "piston" mode (uniform shape) that absorbs and radiates the bass
+    /// fundamentals, below the first clamped mode. Frequency (Hz, 0: none),
+    /// loss factor and effective mass (kg).
+    pub piston_freq: f64,
+    pub piston_loss: f64,
+    pub piston_mass: f64,
+    /// Radiation of the piston mode relative to a bare board moving alone:
+    /// when the whole case moves, the air pushed above is largely returned
+    /// below (strong dipole cancellation).
+    pub piston_radiation: f64,
     /// Bridge as a polyline in normalised plate coordinates, from C8 down to
     /// the last note of the main bridge; then the bass bridge.
     pub treble_bridge: [(f64, f64); 5],
@@ -141,6 +153,12 @@ impl SoundboardParams {
         impedance_slope: 0.035,
         impedance_slope_bass: 0.0,
         f_max: 20_000.0,
+        // Calibrated on the decays of the bass partials of Salamander, Iowa
+        // and Commercial (docs/graves.md): a broad mode near 40 Hz.
+        piston_freq: 40.0,
+        piston_loss: 0.7,
+        piston_mass: 1.5,
+        piston_radiation: 0.3,
         // Main bridge at equal steps of the main range (C8, ≈ F6, ≈ G#4,
         // ≈ C#3, F1): x follows the speaking length of the 2 m scale from
         // agraffes 3 cm in front of the board's front edge (C8 kept 6 cm in),
@@ -317,14 +335,26 @@ impl Soundboard {
             }
             m += 1;
         }
+        if p.piston_freq > 0.0 && p.piston_mass > 0.0 {
+            modes.push(PlateMode { m: 0, n: 0, omega: TAU * p.piston_freq });
+        }
         modes.sort_by(|x, y| x.omega.total_cmp(&y.omega));
         Self { params, modes }
     }
 
-    /// Mass-normalised mode shape at (x, y) metres.
+    /// Mass-normalised mode shape at (x, y) metres (uniform for the piston
+    /// mode, m = 0).
     pub fn shape(&self, mode: &PlateMode, x: f64, y: f64) -> f64 {
         let p = &self.params;
+        if mode.m == 0 {
+            return 1.0 / p.piston_mass.sqrt();
+        }
         2.0 / (p.rho_h * p.a * p.b).sqrt() * (mode.m as f64 * PI * x / p.a).sin() * (mode.n as f64 * PI * y / p.b).sin()
+    }
+
+    /// Loss factor of a mode.
+    pub fn mode_eta(&self, mode: &PlateMode) -> f64 {
+        if mode.m == 0 { self.params.piston_loss } else { self.eta(mode.omega) }
     }
 
     pub fn eta(&self, omega: f64) -> f64 {
@@ -333,7 +363,7 @@ impl Soundboard {
 
     pub fn sigma(&self, mode: &PlateMode) -> f64 {
         // η·ω_n is the 2σ of the velocity equation q̈ + η·ω_n·q̇ + ω_n²·q.
-        0.5 * self.eta(mode.omega) * mode.omega
+        0.5 * self.mode_eta(mode) * mode.omega
     }
 
     /// Length of bridge (m) over which a force at ω reaches the board.
@@ -383,7 +413,7 @@ impl Soundboard {
     pub fn mobility(&self, shapes: &[f64], omega: f64) -> C64 {
         let mut y_sum = C64::ZERO;
         for (md, phi) in self.modes.iter().zip(shapes) {
-            let den = C64::new(md.omega * md.omega - omega * omega, self.eta(md.omega) * md.omega * omega);
+            let den = C64::new(md.omega * md.omega - omega * omega, self.mode_eta(md) * md.omega * omega);
             y_sum += C64::new(0.0, omega * phi * phi) / den;
         }
         y_sum
@@ -409,7 +439,7 @@ impl Soundboard {
         let mut y_sum = C64::ZERO;
         for md in &self.modes {
             let phi = self.shape(md, x, y);
-            let den = C64::new(md.omega * md.omega - omega * omega, self.eta(md.omega) * md.omega * omega);
+            let den = C64::new(md.omega * md.omega - omega * omega, self.mode_eta(md) * md.omega * omega);
             y_sum += C64::new(0.0, omega * phi * phi) / den;
         }
         y_sum
@@ -456,9 +486,18 @@ impl Soundboard {
                 let pre = C64::new(0.0, md.omega * RHO0 / TAU);
                 let mut acc = [C64::ZERO; 2];
                 // Separable mode shape: tabulate the sines once per mode.
-                let sx: Vec<f64> = (0..nx).map(|i| (md.m as f64 * PI * (i as f64 + 0.5) * dx / p.a).sin()).collect();
-                let sy: Vec<f64> = (0..ny).map(|j| (md.n as f64 * PI * (j as f64 + 0.5) * dy / p.b).sin()).collect();
-                let norm = 2.0 / (p.rho_h * p.a * p.b).sqrt();
+                let piston = md.m == 0;
+                let sx: Vec<f64> = (0..nx)
+                    .map(|i| if piston { 1.0 } else { (md.m as f64 * PI * (i as f64 + 0.5) * dx / p.a).sin() })
+                    .collect();
+                let sy: Vec<f64> = (0..ny)
+                    .map(|j| if piston { 1.0 } else { (md.n as f64 * PI * (j as f64 + 0.5) * dy / p.b).sin() })
+                    .collect();
+                let norm = if piston {
+                    p.piston_radiation / p.piston_mass.sqrt()
+                } else {
+                    2.0 / (p.rho_h * p.a * p.b).sqrt()
+                };
                 for (c, g) in geo.iter().enumerate() {
                     let phi = norm * sx[c / ny] * sy[c % ny];
                     for (mic, pt) in g.iter().enumerate() {
