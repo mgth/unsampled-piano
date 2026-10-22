@@ -32,9 +32,25 @@ impl Instrument {
         let frame = rendered
             .filter(|_| model.frame.enabled)
             .map(|(s, _)| crate::structure::frame_modes(&model.frame, &s.params, sample_rate));
-        let rim = rendered
+        let mut rim = rendered
             .filter(|_| model.rim.enabled)
             .map(|(s, m)| RimModel::new(&model.rim, s, m.len(), sample_rate));
+        // The engine differentiates the summed mic outputs (pressure follows
+        // the acceleration): every radiating bank gets acceleration weights.
+        let mut modes = modes;
+        let mut frame = frame;
+        for m in modes.iter_mut().chain(frame.iter_mut()) {
+            board::to_acceleration_weights(m, sample_rate);
+        }
+        if let Some(r) = rim.as_mut() {
+            for m in &mut r.modes {
+                let d = board::mic_differentiator(std::f64::consts::TAU * m.freq_hz, sample_rate);
+                m.mics = m.mics.map(|(re, im)| {
+                    let w = crate::complex::C64::new(re, im) / d;
+                    (w.re, w.im)
+                });
+            }
+        }
         Self { model, sample_rate, table, board: modes, frame, rim }
     }
 }

@@ -25,7 +25,10 @@
 //! integral, `p = iωρ₀/(2π)·∫ v·(e^{−ikR}/R − β·e^{−ikR'}/R') dS`, where the
 //! second term is the back face (antiphase, image at the case depth, R' its
 //! distance): an unbaffled board short-circuits its low frequencies.
-//! Evaluated once per mode and microphone at the mode frequency.
+//! Evaluated once per mode and microphone at the mode frequency, and
+//! rendered on the modal acceleration ([`crate::board::to_acceleration_weights`]),
+//! so that a mode driven below its resonance radiates at the driving
+//! frequency's rate.
 
 use crate::complex::C64;
 use std::f64::consts::{PI, TAU};
@@ -63,10 +66,12 @@ pub struct SoundboardParams {
     /// plate sets its value at C4). Applied to the shapes through which the
     /// strings drive the board, so the board also answers less to them.
     pub impedance_slope: f64,
-    /// The same slope below C4 (the bass side of the board). 0: a bass side
-    /// as mobile as the board's middle; a positive slope made its low modes
-    /// boom (+13 dB at 100–200 Hz over Salamander, "a barrel"), and the
-    /// wound strings' own losses (`LossLaw::b1_floor`) set the bass decays.
+    /// The same slope below C4 (the bass side of the board). A positive
+    /// slope (bass side more mobile) made its low modes boom (+13 dB at
+    /// 100–200 Hz over Salamander, "a barrel"); a slightly negative one
+    /// (stiffer bass side, ×2.2 at A0) keeps the bass sustain once the
+    /// crown has packed the low modes between 150 and 300 Hz
+    /// (docs/rayonnement_grave.md).
     pub impedance_slope_bass: f64,
     /// Highest mode kept (Hz).
     pub f_max: f64,
@@ -82,6 +87,11 @@ pub struct SoundboardParams {
     /// when the whole case moves, the air pushed above is largely returned
     /// below (strong dipole cancellation).
     pub piston_radiation: f64,
+    /// Crown and string down-bearing make the board a pre-stressed shell:
+    /// its membrane stiffness raises the lowest modes, little the others.
+    /// Modelled as an elastic foundation, ω² → ω² + (2π·crown_freq)²
+    /// (Hz, 0: flat plate).
+    pub crown_freq: f64,
     /// Bridge as a polyline in normalised plate coordinates, from C8 down to
     /// the last note of the main bridge; then the bass bridge.
     pub treble_bridge: [(f64, f64); 5],
@@ -151,7 +161,7 @@ impl SoundboardParams {
         // Calibrated on the decay envelopes of Salamander (docs/tenue.md):
         // ×4.6 at C8, ×0.4 at A0 relative to C4.
         impedance_slope: 0.035,
-        impedance_slope_bass: 0.0,
+        impedance_slope_bass: -0.03,
         f_max: 20_000.0,
         // A broad mode near 40 Hz (docs/graves.md). Mass set on the late
         // sustain of the bass (docs/tenue_longue.md): with 1.5 kg it took
@@ -159,7 +169,13 @@ impl SoundboardParams {
         piston_freq: 40.0,
         piston_loss: 0.7,
         piston_mass: 6.0,
-        piston_radiation: 0.3,
+        // The case moving as a block barely radiates (the board's two faces
+        // and the open bottom short-circuit it): 0.3 put the bass
+        // fundamentals 25–30 dB over the references below 40 Hz.
+        piston_radiation: 0.03,
+        // Set on the third-octave balance of the bass keys (Commercial, Iowa,
+        // Salamander, docs/rayonnement_grave.md): first mode 61 → 109 Hz.
+        crown_freq: 90.0,
         // Main bridge at equal steps of the main range (C8, ≈ F6, ≈ G#4,
         // ≈ C#3, F1): x follows the speaking length of the 2 m scale from
         // agraffes 3 cm in front of the board's front edge (C8 kept 6 cm in),
@@ -327,7 +343,7 @@ impl Soundboard {
             let mut n = 1;
             loop {
                 let yn = ((n as f64 + 0.5) / p.b).powi(2);
-                let w = k * (p.dx * xm * xm + 2.0 * p.h() * xm * yn + p.dy * yn * yn).sqrt();
+                let w = (k * k * (p.dx * xm * xm + 2.0 * p.h() * xm * yn + p.dy * yn * yn) + (TAU * p.crown_freq).powi(2)).sqrt();
                 if w > w_max {
                     break;
                 }
@@ -488,6 +504,7 @@ impl Soundboard {
                 let mut acc = [C64::ZERO; 2];
                 // Separable mode shape: tabulate the sines once per mode.
                 let piston = md.m == 0;
+
                 let sx: Vec<f64> = (0..nx)
                     .map(|i| if piston { 1.0 } else { (md.m as f64 * PI * (i as f64 + 0.5) * dx / p.a).sin() })
                     .collect();

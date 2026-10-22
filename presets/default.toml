@@ -81,12 +81,13 @@ bridge_stiffness = 470.0
 bridge_line_mass = 0.6
 bridge_spread = 0.3
 impedance_slope = 0.035
-impedance_slope_bass = 0.0
+impedance_slope_bass = -0.03
 f_max = 20000.0
 piston_freq = 40.0
 piston_loss = 0.7
 piston_mass = 6.0
-piston_radiation = 0.3
+piston_radiation = 0.03
+crown_freq = 90.0
 treble_bridge = [
     [
     0.035,

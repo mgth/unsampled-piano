@@ -120,6 +120,8 @@ pub struct Engine {
     room: Option<crate::room::Room>,
     /// Damper engagement below which a landing damper counts as an impact.
     sustain_prev: f64,
+    /// Last summed mic outputs, for the differentiator.
+    mic_last: [f32; MICS],
 }
 
 impl Engine {
@@ -177,6 +179,7 @@ impl Engine {
             knocks: [Knock::default(); MAX_KNOCKS],
             room,
             sustain_prev: 0.0,
+            mic_last: [0.0; MICS],
         };
         // Strings without dampers always resonate.
         if e.sympathy() {
@@ -328,6 +331,16 @@ impl Engine {
                     if has_sym || self.board_sym_awake {
                         bs.process(&self.region_sym, len, [&mut *left, &mut *right], None, None);
                         self.board_sym_awake = has_sym || bs.energy() > BOARD_SILENCE;
+                    }
+                }
+                // The banks carry acceleration weights: the pressure is the
+                // derivative of their sum (board::to_acceleration_weights).
+                let fs = self.cfg.sample_rate as f32;
+                for (ch, last) in [&mut *left, &mut *right].into_iter().zip(self.mic_last.iter_mut()) {
+                    for x in ch.iter_mut() {
+                        let v = *x;
+                        *x = (v - *last) * fs;
+                        *last = v;
                     }
                 }
                 for x in left.iter_mut().chain(right.iter_mut()) {

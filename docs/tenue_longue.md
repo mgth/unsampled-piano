@@ -90,5 +90,5 @@ Autres mesures :
 ## Ce qui reste
 
 - **Fin du grave** : encore 2 à 3 dB sous les références à 3 s.
-- **Spectre de la tenue du grave** : la fondamentale y domine plus qu'avant, d'environ 3 dB. Partiel 2 à +4 dB par rapport au partiel 1 entre 0,5 et 1 s, contre +14 dB dans les références. La cause est le rayonnement : la bande 63 Hz est la plus forte du modèle à l'attaque, alors qu'elle est 3 à 15 dB sous la plus forte dans les références. C'est le chantier suivant, avec le manque de brillance de la tenue dans le médium et l'aigu.
+- **Spectre de la tenue du grave** : la fondamentale y domine plus qu'avant, d'environ 3 dB. Partiel 2 à +4 dB par rapport au partiel 1 entre 0,5 et 1 s, contre +14 dB dans les références. La cause est le rayonnement : la bande 63 Hz est la plus forte du modèle à l'attaque, alors qu'elle est 3 à 15 dB sous la plus forte dans les références. Traité depuis : [rayonnement_grave.md](rayonnement_grave.md).
 - **Durée du son « prompt »** : un peu longue dans le grave (13 s contre 8 à 11 s) et le médium (4,8 s contre 2,9 à 3,7 s), alors que l'enveloppe est juste.

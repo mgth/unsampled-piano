@@ -80,6 +80,8 @@ pub struct BoardBank {
     extra_w: Vec<[[f32; LANES]; 2]>,
     extra_acc: Vec<[f32; LANES]>,
     isa: Isa,
+    /// fs², for [`Self::energy`].
+    fs2: f32,
 }
 
 impl BoardBank {
@@ -145,6 +147,7 @@ impl BoardBank {
                 Isa::Avx512 => Isa::Avx2,
                 isa => isa,
             },
+            fs2: (sample_rate * sample_rate) as f32,
         }
     }
 
@@ -164,16 +167,19 @@ impl BoardBank {
         self.n_modes == 0
     }
 
-    /// Output-weighted energy at the mics, to let the board sleep.
+    /// Output-weighted energy at the mics, to let the board sleep. The mic
+    /// weights are acceleration weights ([`to_acceleration_weights`]): the
+    /// differentiator's gain |1 − p|·fs at each mode restores the pressure.
     pub fn energy(&self) -> f32 {
         let mut e = 0.0;
         for c in &self.chunks {
             for l in 0..LANES {
                 let w = c.wr[0][l] * c.wr[0][l] + c.wi[0][l] * c.wi[0][l];
-                e += w * (c.zr[l] * c.zr[l] + c.zi[l] * c.zi[l]);
+                let d = (1.0 - c.pr[l]) * (1.0 - c.pr[l]) + c.pi[l] * c.pi[l];
+                e += w * d * (c.zr[l] * c.zr[l] + c.zi[l] * c.zi[l]);
             }
         }
-        e
+        e * self.fs2
     }
 
     /// Advances by `len` samples. `inputs[r][..len]` are the region forces;
@@ -390,6 +396,36 @@ pub fn transfer(modes: &[BoardMode], r: usize, o: usize, omega: f64, sample_rate
         h += C64::new(-0.5 * m.outputs[o].0 * m.inputs[r], 0.0);
     }
     h
+}
+
+/// Response of the differentiator the engine applies to the summed mic
+/// outputs, y[n] = (x[n] − x[n−1])·fs, at ω (rad/s).
+pub fn mic_differentiator(omega: f64, sample_rate: f64) -> crate::complex::C64 {
+    (crate::complex::C64::ONE - crate::complex::C64::polar(1.0, -omega / sample_rate)).scale(sample_rate)
+}
+
+/// The radiated pressure follows the surface *acceleration* (Rayleigh
+/// integral, p = ρ/2π·∫ v̇(t − R/c)/R dS), while the mic weights are
+/// evaluated once per mode at its own frequency. Rendering them on the
+/// modal velocity made every mode radiate at its resonance's rate even when
+/// driven far below it: under a bass fundamental, the quasi-static motion
+/// of the modes above radiated ×ω_n/ω too much (+20–30 dB below 50 Hz,
+/// docs/rayonnement_grave.md). The weights are divided by the engine's
+/// differentiator at the mode frequency: unchanged at resonance, ∝ ω below.
+pub fn to_acceleration_weights(modes: &mut [BoardMode], sample_rate: f64) {
+    for m in modes {
+        let d = mic_differentiator(std::f64::consts::TAU * m.freq_hz, sample_rate);
+        for o in &mut m.outputs[..MICS] {
+            let w = crate::complex::C64::new(o.0, o.1) / d;
+            *o = (w.re, w.im);
+        }
+    }
+}
+
+/// Transfer to a mic output as rendered (acceleration weights followed by
+/// the engine's differentiator), in pressure per unit force.
+pub fn mic_transfer(modes: &[BoardMode], r: usize, mic: usize, omega: f64, sample_rate: f64) -> crate::complex::C64 {
+    transfer(modes, r, mic, omega, sample_rate) * mic_differentiator(omega, sample_rate)
 }
 
 /// Board modes for a soundboard: inputs through the bridge at the region

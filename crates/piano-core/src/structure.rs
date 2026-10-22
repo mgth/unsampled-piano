@@ -108,6 +108,7 @@ impl FrameParams {
             back_gain: self.back_gain,
             lid_hinge_height: board.lid_hinge_height - self.height,
             piston_freq: 0.0,
+            crown_freq: 0.0,
             ..*board
         }
     }
@@ -460,6 +461,7 @@ pub struct RimBank {
     w: Vec<[(f32, f32); MICS]>,
     zr: Vec<f32>,
     zi: Vec<f32>,
+    fs2: f32,
 }
 
 impl RimBank {
@@ -475,17 +477,20 @@ impl RimBank {
             w: model.modes.iter().map(|m| m.mics.map(|(re, im)| (re as f32, im as f32))).collect(),
             zr: vec![0.0; n],
             zi: vec![0.0; n],
+            fs2: (sample_rate * sample_rate) as f32,
         }
     }
 
-    /// Output-weighted energy at the first mic, to let the rim sleep.
+    /// Output-weighted energy at the first mic, to let the rim sleep
+    /// (acceleration weights: see [`crate::board::BoardBank::energy`]).
     pub fn energy(&self) -> f32 {
         let mut e = 0.0;
         for j in 0..self.zr.len() {
             let (wr, wi) = self.w[j][0];
-            e += (wr * wr + wi * wi) * (self.zr[j] * self.zr[j] + self.zi[j] * self.zi[j]);
+            let d = (1.0 - self.pr[j]) * (1.0 - self.pr[j]) + self.pi[j] * self.pi[j];
+            e += (wr * wr + wi * wi) * d * (self.zr[j] * self.zr[j] + self.zi[j] * self.zi[j]);
         }
-        e
+        e * self.fs2
     }
 
     /// Advances by `len` samples driven by the edge-force projections
