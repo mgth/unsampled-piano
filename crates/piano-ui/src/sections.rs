@@ -28,6 +28,8 @@ pub enum View {
     None,
     /// The microphones placed around the piano ([`crate::mics`]).
     Mics,
+    /// The action, the hovered parameter's part lit ([`crate::sketches`]).
+    Action,
 }
 
 const KEYS: (u8, u8) = (21, 108);
@@ -43,7 +45,7 @@ pub const SECTIONS: &[Section] = &[
             log: true,
             f: |m, v| m.velocity.hammer_speed(v),
         }],
-        view: View::None,
+        view: View::Action,
     },
     Section {
         title: "Microphones",
@@ -67,7 +69,7 @@ pub const SECTIONS: &[Section] = &[
             Curve { title: "Felt stiffness Q0", unit: "N/mm^p", x: KEYS, log: true, f: |m, n| m.note(n).hammer.q0 },
             Curve { title: "Felt exponent p", unit: "", x: KEYS, log: false, f: |m, n| m.note(n).hammer.p },
         ],
-        view: View::None,
+        view: View::Action,
     },
     Section {
         title: "Tuning",
@@ -94,8 +96,8 @@ pub const SECTIONS: &[Section] = &[
         ],
         view: View::None,
     },
-    Section { title: "Dampers", prefixes: &["damper.", "sympathetic."], curves: &[], view: View::None },
-    Section { title: "Noises", prefixes: &["noise."], curves: &[], view: View::None },
+    Section { title: "Dampers", prefixes: &["damper.", "sympathetic."], curves: &[], view: View::Action },
+    Section { title: "Noises", prefixes: &["noise."], curves: &[], view: View::Action },
     Section { title: "Soundboard", prefixes: &["soundboard.", "bridge."], curves: &[], view: View::None },
     Section { title: "Frame & rim", prefixes: &["frame.", "rim."], curves: &[], view: View::None },
     Section { title: "Room", prefixes: &["room."], curves: &[], view: View::None },

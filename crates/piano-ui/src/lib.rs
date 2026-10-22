@@ -7,6 +7,7 @@ mod mics;
 pub mod mock;
 pub mod sections;
 pub mod shot;
+mod sketches;
 mod widgets;
 
 use std::path::PathBuf;
@@ -30,6 +31,9 @@ pub struct PianoUi {
     /// Parameter whose help is shown (registry index).
     about: Option<usize>,
     mics: mics::MicView,
+    /// Parameter under the pointer (registry index), lighting its part in
+    /// the page's sketch on the next frame.
+    hovered: Option<usize>,
     /// Preset folder (TOML files), when the host has one: either flat, or
     /// `instruments/<family>/*.toml` and `listening/*.toml`.
     presets: Option<PathBuf>,
@@ -73,6 +77,7 @@ impl PianoUi {
             search: String::new(),
             about: None,
             mics: mics::MicView::default(),
+            hovered: None,
             presets,
             preset_name: String::new(),
             listening_names: Default::default(),
@@ -203,7 +208,7 @@ impl PianoUi {
                 });
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     let p = &self.registry.params()[i];
-                    widgets::about(ui, p, piano_params::get(&model, &p.path));
+                    widgets::about(ui, p, piano_params::get(&model, &p.path), &model);
                 });
             });
             if !open {
@@ -244,17 +249,38 @@ impl PianoUi {
                 self.mics.show(ui, control, model);
                 ui.add_space(8.0);
             }
-            if !s.curves.is_empty() {
+            let action = s.view == View::Action;
+            if action || !s.curves.is_empty() {
                 let reference = PianoModel::default();
                 let gap = ui.spacing().item_spacing.x;
                 let n = s.curves.len() as f32;
-                let width = ((ui.available_width() - gap * (n - 1.0)) / n).clamp(160.0, 420.0);
-                ui.horizontal_wrapped(|ui| {
+                let avail = ui.available_width();
+                let sketch = if action { 380.0f32.min(avail) } else { 0.0 };
+                // Curves beside the sketch when they keep 200 px each, else below.
+                let beside = action && avail - sketch - gap * n >= 200.0 * n;
+                let rest = if beside { avail - sketch - gap } else { avail };
+                let width = ((rest - gap * (n - 1.0)) / n.max(1.0)).clamp(160.0, 420.0);
+                let curves = |ui: &mut Ui| {
                     for c in s.curves {
                         widgets::curve(ui, c, model, &reference, width);
                     }
+                };
+                ui.horizontal_top(|ui| {
+                    if action {
+                        let path = self.hovered.map_or("", |i| self.registry.params()[i].path.as_str());
+                        sketches::action(ui, model, sketches::parts_of(path), path, sketch)
+                            .on_hover_text("Hover a parameter to see where it acts; click its name for details");
+                    }
+                    if beside || !action {
+                        curves(ui);
+                    }
                 });
-                ui.label(RichText::new("Faint: default instrument").small().weak());
+                if action && !beside && !s.curves.is_empty() {
+                    ui.horizontal_wrapped(curves);
+                }
+                if !s.curves.is_empty() {
+                    ui.label(RichText::new("Faint: default instrument").small().weak());
+                }
             }
             ui.add_space(8.0);
         } else if shown.is_empty() {
@@ -268,6 +294,7 @@ impl PianoUi {
         let group = |i: usize| params[i].path.rsplit_once('.').map(|(g, _)| g);
         let mut shown = shown;
         shown.sort_by_key(|&i| (group(i), !matches!(params[i].default, piano_params::Value::Bool(_)), &params[i].path));
+        let mut hovered = None;
         egui::Grid::new(("params", self.page, searching)).num_columns(5).striped(true).spacing([12.0, 4.0]).show(ui, |ui| {
             let mut last = None;
             for (k, &i) in shown.iter().enumerate() {
@@ -280,12 +307,17 @@ impl PianoUi {
                     ui.end_row();
                     last = g;
                 }
-                if widgets::param_row(ui, &params[i], values[i], control) {
+                let label = widgets::param_row(ui, &params[i], values[i], control);
+                if label.clicked() {
                     self.about = if self.about == Some(i) { None } else { Some(i) };
+                }
+                if label.hovered() {
+                    hovered = Some(i);
                 }
                 ui.end_row();
             }
         });
+        self.hovered = hovered;
     }
 
     /// The controllers mapped, with the values at CC 0 and 127.

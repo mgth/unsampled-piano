@@ -9,14 +9,13 @@ use crate::sections::Curve;
 
 /// One grid row: label, value, reset, kind. Edits go to `control` as a
 /// gesture (a drag is one begin/end pair; typed values are a whole one).
-/// True when the label was clicked (to show the parameter's help).
-pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn PianoControl) -> bool {
+/// Returns the label's response (clicked: show the parameter's help).
+pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn PianoControl) -> egui::Response {
     let m = &p.meta;
     let modified = value.is_some_and(|v| v != p.default);
     let text = RichText::new(&m.label);
     let label = ui.add(egui::Label::new(if modified { text.color(ui.visuals().strong_text_color()) } else { text }).sense(Sense::click()));
-    let clicked = label.clicked();
-    label.on_hover_ui(|ui| {
+    let label = label.on_hover_ui(|ui| {
         ui.set_max_width(340.0);
         if let Some(h) = piano_params::help(&p.path) {
             ui.label(h.what);
@@ -34,7 +33,7 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
         for _ in 0..3 {
             ui.label("");
         }
-        return clicked;
+        return label;
     };
     let r = match &mut v {
         Value::Float(x) => ui.add(
@@ -74,12 +73,12 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
     }
     kind_mark(ui, matches!(p.kind, Kind::Live(_)));
     midi_button(ui, p, control);
-    clicked
+    label
 }
 
-/// The help of a parameter: what it does on the piano, then how the model
-/// implements it (folded).
-pub fn about(ui: &mut Ui, p: &Param, value: Option<Value>) {
+/// The help of a parameter: where it acts, what it does on the piano, then
+/// how the model implements it.
+pub fn about(ui: &mut Ui, p: &Param, value: Option<Value>, model: &PianoModel) {
     ui.horizontal(|ui| {
         kind_mark(ui, matches!(p.kind, Kind::Live(_)));
         ui.heading(&p.meta.label);
@@ -89,6 +88,11 @@ pub fn about(ui: &mut Ui, p: &Param, value: Option<Value>) {
     let now = value.map_or("off in this model".into(), |v| format!("{}{unit}", show(v.as_f64())));
     ui.label(RichText::new(format!("{now} (default {}{unit})", show(p.default.as_f64()))).weak());
     ui.add_space(8.0);
+    let parts = crate::sketches::parts_of(&p.path);
+    if !parts.is_empty() {
+        crate::sketches::action(ui, model, parts, &p.path, ui.available_width().min(440.0));
+        ui.add_space(8.0);
+    }
     let Some(h) = piano_params::help(&p.path) else { return };
     ui.label(h.what);
     ui.add_space(8.0);
