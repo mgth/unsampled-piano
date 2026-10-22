@@ -2,6 +2,8 @@
 
 Physically modelled virtual piano, real-time from MIDI, in Rust. No samples are used to produce the sound (recordings are used only for analysis and calibration).
 
+![The interface (`unsampled-piano --ui`), Strings page: per-key losses, string length and unison spread over the keyboard](docs/img/interface.png)
+
 Physical chain: felt hammer (passive quadratised contact) → 1 to 3 stiff strings per key, two polarisations, coupled at the bridge (Weinreich modes) → modal soundboard (clamped orthotropic plate) → Rayleigh radiation to two microphones (optional lid) → room (image-source reflections, reverberation). The cast-iron frame (excited at the agraffes) and the rim (excited by the soundboard edges) also radiate. On top of this come the dampers, the pedals (half-pedal, sostenuto, una corda), sympathetic resonance through the bridge and impulse-driven mechanical noises.
 
 ## Usage
