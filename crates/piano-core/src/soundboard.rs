@@ -173,7 +173,7 @@ impl SoundboardParams {
         // and the open bottom short-circuit it): 0.3 put the bass
         // fundamentals 25–30 dB over the references below 40 Hz.
         piston_radiation: 0.03,
-        // Set on the third-octave balance of the bass keys (Commercial, Iowa,
+        // Set on the third-octave balance of the bass keys (commercial piano, Iowa,
         // Salamander, docs/rayonnement_grave.md): first mode 61 → 109 Hz.
         crown_freq: 90.0,
         // Main bridge at equal steps of the main range (C8, ≈ F6, ≈ G#4,

@@ -46,7 +46,7 @@ Exemples fournis :
 | `baroque_415.toml` | A = 415 Hz, sans accordage étiré, feutre plus doux |
 | `dry_close.toml` | micros à 40 cm de la table (+9 dB), sympathie réduite |
 
-Les paramètres exposés correspondent aux familles de réglages de Commercial : diapason et accordage étiré, inharmonicité, largeur d'unisson, dureté et exposant du feutre (harmonisation), courbe de vélocité, pertes des cordes, table (dimensions, raideurs, pertes, raideur série du chevalet), étouffoirs (position, force, demi-pédale, temps), sympathie, polarisation, bruits, position des micros.
+Les paramètres exposés correspondent aux familles de réglages d'un piano modélisé commercial : diapason et accordage étiré, inharmonicité, largeur d'unisson, dureté et exposant du feutre (harmonisation), courbe de vélocité, pertes des cordes, table (dimensions, raideurs, pertes, raideur série du chevalet), étouffoirs (position, force, demi-pédale, temps), sympathie, polarisation, bruits, position des micros.
 
 ## Application temps réel (`piano-play`)
 
@@ -95,7 +95,7 @@ Les recherches sur grille (`tools/grid_hammer.py`, `unison_grid.py`, `pol_grid.p
 - **Interface graphique** des réglages, et reconstruction de l'instrument hors du thread audio quand un paramètre change. Pour l'instant, il faut un nouveau préréglage et un redémarrage.
 - **Excès d'aigus au-dessus de 3 kHz** (phase 4, ouvert).
 - **Second piano de référence** (Iowa MIS) pour séparer ce qui vient du modèle de ce qui vient de l'enregistrement Salamander.
-- **Écoute comparative en aveugle** (MUSHRA) contre Salamander et Commercial.
+- **Écoute comparative en aveugle** (MUSHRA) contre Salamander et le piano commercial.
 
 ## Retour d'écoute (2026-10-22) : « très étouffé, comme une sourdine » et « bruit de relâchement trop clair »
 

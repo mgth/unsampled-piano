@@ -207,7 +207,7 @@ Real-time methods range from cheap reverberator-like string registers (12–28 s
 ### Gaps
 - I could not fetch Lehtonen, Penttinen, Rauhala & Välimäki, "Analysis and modeling of piano sustain-pedal effects", JASA 122(3), 2007, beyond its summary in Zambon 2008.
 - Weinreich 1977 (JASA, "Coupled piano strings") is not verified here. It is the canonical reference for unison coupling through bridge admittance (double decay, aftersound).
-- I found no quantitative CPU figures for modern commercial implementations (e.g. Commercial "full string resonance").
+- I found no quantitative CPU figures for modern commercial implementations (e.g. the commercial modelled piano's "full string resonance").
 
 ---
 
@@ -241,7 +241,7 @@ Measured piano directivity datasets exist:
 - Nakashima/Giron/Tohyama 1996: 2 m spherical array, 10° grid, minimum-phase directivity filters intended explicitly for synthesis and binaural simulation.
 - Hamburg (Plath, Bader et al.): 1289-position nearfield array over grand soundboards, back- and forward-propagated, with 15 bridge drive points. These enable Rayleigh/equivalent-source rendering.
 
-Commercial's public statements indicate a virtual soundboard shaped roughly like the cabinet, with pressure computed at each virtual mic position (ideal omni). The most practical real-time mic model is therefore one filter per mic (or per bridge region × mic), derived from a radiating-plate model.
+The vendor's public statements about the commercial modelled piano indicate a virtual soundboard shaped roughly like the cabinet, with pressure computed at each virtual mic position (ideal omni). The most practical real-time mic model is therefore one filter per mic (or per bridge region × mic), derived from a radiating-plate model.
 
 ### Cited Findings
 - **Nakashima, Giron & Tohyama (ASA 131st meeting, Indianapolis, 1996), "Directivity analysis of piano sounds".**
@@ -261,16 +261,16 @@ Commercial's public statements indicate a virtual soundboard shaped roughly like
 - **Same group, Vienna Talk 2015:** microphone-array soundboard radiation measurement with minimum-energy back-propagation. — [Vienna Talk 2015 pap 76](https://viennatalk2015.mdw.ac.at/index.htmlpage_id=13002&pap=76.html) (snippet)
 - **Treble radiation non-uniformity.** Forum Acusticum 2011 (Ege/Boutillon line, "Global and local synthetic descriptions of the piano soundboard"): above about 1.1 kHz the board behaves as rib-defined waveguides, which can make treble radiation non-uniform. — [IP Paris research portal](https://researchportal.ip-paris.fr/en/publications/global-and-local-synthetic-descriptions-of-the-piano-soundboard/) (snippet)
 - **Subsonic radiation regime.** The ribbed board's subsonic regime extends over a much wider band than for a homogeneous plate. Below coincidence the radiation efficiency is low, and radiation is dominated by edge and corner effects and low-order modes. — [Boutillon & Ege, arXiv 1305.3057](https://arxiv.org/abs/1305.3057v1)
-- **Commercial (Vendor), via forum statements quoted in search results:**
+- **The commercial piano, via vendor forum statements quoted in search results:**
   - "The sound radiation model simulates a soundboard that has (approximately) the shape of the piano cabinet, and the sound pressure is measured at the place where you place the microphone". The mic is therefore an ideal omni.
   - Turning reverb off for distant mics is said to be equivalent to a perfectly directional mic pointed at the piano.
-  - Source: [Vendor forum topic 568](https://forum.vendor.com/viewtopic.php?id=568). The page returned 403 to me; content is known only from the search snippet.
+  - Source: vendor forum. The page returned 403 to me; content is known only from the search snippet.
 - **Object-audio approach (MPEG-I style patents).** A piano is rendered as a spatially extended source with at least two basis signals (low and high keys) and direction-dependent processing. Radiation toward the back has less high-frequency content than toward the front; pedal noise is treated as more omnidirectional. — [US patent 12445796](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/12445796)
 - **Other directivity databases.** BYU built a rotating-instrument, semicircular-array system for high-resolution balloon directivity that includes a concert grand. Meyer's 1970s octave-band data is the historical directivity reference. — [BYU ETD 4004](https://scholarsarchive.byu.edu/etd/4004); [arXiv 2111.01900](https://arxiv.org/pdf/2111.01900) (snippets)
 - **Chabassier et al. radiation.** Radiation is computed by full 3D acoustics (pressure plus velocity, with PML) around the soundboard and rim. Simulated pressure is evaluated at a point close to the piano and compared with recordings. — [Numdam Part 2 PDF](https://www.numdam.org/item/10.1051/m2an/2015007.pdf)
 
 ### Inferences
-- **How "mic placement" can work in real time.** This is consistent with the Commercial statements but is my reconstruction, not Vendor's documented algorithm.
+- **How "mic placement" can work in real time.** This is consistent with the vendor's statements but is my reconstruction, not the vendor's documented algorithm.
   - The soundboard is a modal bank, with modal velocities v_k(t) as state.
   - The pressure at mic position r is p(r,t) = Σ_k (h_k(r,·) * v_k)(t), with h_k the modal radiation transfer to r (Rayleigh integral over the mode shape, including baffle/lid image sources).
   - h_k(r) can be precomputed offline per mode and per mic, and approximated by a gain plus delay (far field) or a short filter.
@@ -278,7 +278,7 @@ Commercial's public statements indicate a virtual soundboard shaped roughly like
   - Because the modal filter bank already shares poles, each mic is just another set of output residues. Bank 2010 notes this explicitly for stereo outputs.
   - This gives position-dependent comb-filtering and spatial cues "for free".
 - **Equivalent-source alternative.** Represent the board by a coarse grid of point sources (for example 16–64 patches) driven by modal velocities projected onto the patches. Each patch-to-mic path is a delay plus 1/r gain (plus lid image). This is cheap, handles near-field mic positions physically, and lends itself to binaural rendering by applying HRTFs per patch cluster.
-- **Room.** Couple the mic signals to a separate reverb, convolution with a measured or synthetic room IR (an FDN is acceptable). The piano model's radiation filters should then be "anechoic". Commercial's remark that "reverb off ≈ directional mic" shows that commercial systems treat room and source separately.
+- **Room.** Couple the mic signals to a separate reverb, convolution with a measured or synthetic room IR (an FDN is acceptable). The piano model's radiation filters should then be "anechoic". The vendor's remark that "reverb off ≈ directional mic" shows that commercial systems treat room and source separately.
 - **Calibration data for directivity.** Nakashima-type minimum-phase filters, or the Hamburg array data if it can be obtained, could tune per-direction EQ for the far field.
 
 ### Gaps
@@ -287,7 +287,7 @@ Commercial's public statements indicate a virtual soundboard shaped roughly like
   - Meyer's piano-specific data in "Acoustics and the Performance of Music" (5th ed., Springer 2009); not fetched.
   - Suzuki 1986 radiation efficiency values.
 - The Acta Acustica 2025 open-access article (aacus240005), which appeared in a directivity search, returned 403. Its relevance to piano could not be checked.
-- No published real-time piano model was found that documents a Rayleigh-integral or equivalent-source multi-mic renderer. Commercial's internals are proprietary.
+- No published real-time piano model was found that documents a Rayleigh-integral or equivalent-source multi-mic renderer. The commercial piano's internals are proprietary.
 
 ---
 
@@ -344,7 +344,7 @@ Recent differentiable piano models (Renault, Mignot & Roebel, DAFx 2022; DDSP-Pi
   - Sources: [DAFx paper PDF](https://dafx2020.mdw.ac.at/Proceedings/papers/DAFx20in22_paper_48.pdf); [DAFx archive](https://dafx.de/paper-archive/details/_5jvqdya3I0yV4ZgRQWTPw); [DDSP review arXiv 2308.15422](https://arxiv.org/pdf/2308.15422)
 - **Renault PhD thesis (IRCAM / Sorbonne, 2024), "Neural audio synthesis of realistic piano performances" (DDSP-Piano):** includes instrument knowledge such as inharmonicity, tuning and polyphony. — [HAL tel-04732963](https://hal.univ-lille.fr/IRCAM/tel-04732963v1); [IRCAM media](https://medias.ircam.fr/en/media/0532fe660802b06c40a0)
 - **"Sines, Transient, Noise Neural Modeling of Piano Notes" (arXiv 2409.06513, 2024):** a differentiable sinusoidal model guided by physics-derived formulas, with parameters estimated automatically from recordings. No physical soundboard. — [arXiv 2409.06513](https://arxiv.org/html/2409.06513)
-- **Hobbyist gradient-descent fit of a Commercial-style model to MAESTRO Disklavier data.** Strike position, hammer spectrum, soundboard EQ and room IR trade off against each other (identifiability problem); the author suggests priors and smoothness regularisation. Not peer-reviewed. — [GitHub VladPetk/nn_physical_model_piano](https://github.com/VladPetk/nn_physical_model_piano)
+- **Hobbyist gradient-descent fit of a model in the style of the commercial modelled piano to MAESTRO Disklavier data.** Strike position, hammer spectrum, soundboard EQ and room IR trade off against each other (identifiability problem); the author suggests priors and smoothness regularisation. Not peer-reviewed. — [GitHub VladPetk/nn_physical_model_piano](https://github.com/VladPetk/nn_physical_model_piano)
 - **Ege et al.:** the soundboard modal identification up to 3 kHz used a "high-resolution modal analysis technique" (Ege et al., JSV 2009) that gives modal damping in the mid-frequency range where FFT methods fail. — [arXiv 1212.2323](https://arxiv.org/abs/1212.2323)
 - **Zambon/Lehtonen/Bank 2008:** the FZ-ARMA plus least-squares two-step pipeline turned measured soundboard and string-register IRs into a 1500-section real-time filter. — [DAFx 2008](https://dafx.de/paper-archive/2008/papers/dafx08_37.pdf)
 - **Bensa et al. (JASA 118(1), 2005), "Parameter fitting for piano sound synthesis by physical modeling":** fits hammer–string parameters with a perceptual criterion; it has no soundboard. — [JASA](https://pubs.aip.org/asa/jasa/article/118/1/495/540250/Parameter-fitting-for-piano-sound-synthesis-by); [HAL hal-00105865](https://hal.science/hal-00105865/document) (snippets)
@@ -361,6 +361,6 @@ Recent differentiable piano models (Renault, Mignot & Roebel, DAFx 2022; DDSP-Pi
 - **Identifiability warning.** Body EQ, hammer spectrum, strike point and room IR are confounded in single-microphone recordings. Recordings with known mic positions or multiple mics help separate radiation from board modes.
 
 ### Gaps
-- I found no 2018–2026 JASA, Acta Acustica or DAFx paper on a new real-time physical piano soundboard or body model. Searches returned only the 2010 Bank et al. paper as the RT reference, plus generic modal-synthesis tools (2019 modular framework, 2026 nlm). Commercial systems (Commercial, Roland V-Piano, Kawai, Yamaha) are not documented in the literature.
+- I found no 2018–2026 JASA, Acta Acustica or DAFx paper on a new real-time physical piano soundboard or body model. Searches returned only the 2010 Bank et al. paper as the RT reference, plus generic modal-synthesis tools (2019 modular framework, 2026 nlm). Commercial systems (the commercial modelled piano, Roland V-Piano, Kawai, Yamaha) are not documented in the literature.
 - Badeau and ESPRIT applied specifically to piano soundboards was not verified here. The Ege high-resolution method (JSV 2009) is likely ESPRIT-based, but this was not confirmed from text.
 - Not verified: whether Chaigne, Cotté & Viggiano (JASA 2013) provide closed-form parametric soundboard models (mode frequencies and damping vs geometry) usable for synthesis.

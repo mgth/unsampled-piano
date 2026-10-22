@@ -37,7 +37,7 @@ Sorties : `out/salamander/survey.csv` (une ligne par fichier et par partiel), `s
 - Conséquence directe pour le plan : il faut séparer les composantes de chaque partiel (2 à 3 cordes légèrement désaccordées) par une méthode haute résolution (ESPRIT) pour mesurer les désaccords d'unisson et les amortissements individuels. La FFT n'y suffit pas. C'est aussi la preuve que la phase 2 (unissons couplés) est indispensable au réalisme.
 
 **Vélocité.**
-- 21,6 dB d'écart de crête entre les couches 1 et 16 (médiane sur les notes). C'est la plage de cette banque ; le manuel Commercial cite ≈ 50 dB pour un vrai piano, et la couche 1 couvre déjà les vélocités 1 à 26.
+- 21,6 dB d'écart de crête entre les couches 1 et 16 (médiane sur les notes). C'est la plage de cette banque ; le manuel d'un piano modélisé commercial cite ≈ 50 dB pour un vrai piano, et la couche 1 couvre déjà les vélocités 1 à 26.
 - Le centroïde d'attaque (50 premières ms) passe de 484 Hz à 1 083 Hz (×2,3). C'est la cible de brillance pour le modèle de marteau de la phase 1 (raidissement du feutre avec la vitesse, exposant p).
 
 ## Limites

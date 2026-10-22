@@ -4,7 +4,7 @@
 
 ## Constat
 
-D'après la comparaison avec Salamander, l'Iowa et Commercial ([comparaison.md](comparaison.md)), la tenue du grave était déséquilibrée. La fondamentale dominait de 10 à 20 dB, et les partiels 7 à 12 s'éteignaient deux fois trop vite. Le résultat sonnait « en tonneau ».
+D'après la comparaison avec Salamander, l'Iowa et le piano commercial ([comparaison.md](comparaison.md)), la tenue du grave était déséquilibrée. La fondamentale dominait de 10 à 20 dB, et les partiels 7 à 12 s'éteignaient deux fois trop vite. Le résultat sonnait « en tonneau ».
 
 T60 médian des partiels, en ff, touches A0–B2 (outil `tools/bass_trial.sh`) :
 

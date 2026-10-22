@@ -211,7 +211,7 @@ A typical modern grand action model has about 5 DOF plus 1 for the damper. "Touc
 ## 5. Dampers, sustain / half-pedal, sostenuto, soft pedal
 
 ### Takeaway
-There are almost no peer-reviewed physical models of damper felt for synthesis. Practical models use a time-varying viscous (or frequency-dependent) damping coefficient applied locally at the damper position. Half-pedal maps to an intermediate coefficient or contact pressure. Sustain-pedal sympathetic resonance is handled in the waveguide/filter literature (Lehtonen et al. JASA 2007; Zambon, Lehtonen & Bank DAFx 2008, parallel second-order filters). Commercial exposes "Damping duration" and "Damper position" (which overtones are damped less efficiently). A Vendor forum post claims Coulomb friction (F = μ·F_N) between felt and wire for pedal-release sound.
+There are almost no peer-reviewed physical models of damper felt for synthesis. Practical models use a time-varying viscous (or frequency-dependent) damping coefficient applied locally at the damper position. Half-pedal maps to an intermediate coefficient or contact pressure. Sustain-pedal sympathetic resonance is handled in the waveguide/filter literature (Lehtonen et al. JASA 2007; Zambon, Lehtonen & Bank DAFx 2008, parallel second-order filters). The commercial modelled piano exposes "Damping duration" and "Damper position" (which overtones are damped less efficiently). A vendor forum post claims Coulomb friction (F = μ·F_N) between felt and wire for pedal-release sound.
 
 ### Cited Findings
 - US patents (8115092 / 8895831, Kawai-family): a "damper model calculating module" varies a viscous coefficient b_D(nΔt) over time to simulate continuous decay and string resonance. An intermediate value naturally represents partial (half) damping. — [US 8115092](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/8115092); [US 8895831](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/8895831)
@@ -219,12 +219,12 @@ There are almost no peer-reviewed physical models of damper felt for synthesis. 
 - **Zambon, Lehtonen & Bank (DAFx 2008)**: sustain-pedal effect simulation using parallel second-order filters calibrated on soundboard and string-register impulse responses. — [DAFx archive](https://dafx.de/paper-archive/details/5mJ31JDQWZTHNiqjmf19mQ)
 - **Lehtonen et al. (JASA 2007)**, as cited secondhand: with the sustain pedal engaged, dampers lift, decay behaviour changes, and sympathetic vibration becomes more likely. A 2005 TKK thesis (supervisor Välimäki, advisor Rauhala) analysed recordings for a synthetic sustain-pedal algorithm. — [preprints.org 2026](https://www.preprints.org/manuscript/202608.1643); [Aalto thesis record](https://aaltodoc.aalto.fi/items/48d09ac6-59d3-4aee-94e9-3f047459d92b)
 - "Piano forte pedal analysis and detection" (Télécom Paris/Eurecom): the sustain pedal increases partial decay times. — [IP Paris](https://researchportal.ip-paris.fr/en/publications/piano-forte-pedal-analysis-and-detection/)
-- Commercial (forum reports, not official documentation):
+- The commercial piano (forum reports, not official documentation):
   - The Action panel has "Damping duration" (damper efficiency) and "Damper position" (which overtones are damped less efficiently).
-  - Half-pedal works with a continuous CC64; Commercial's velocity/pedal panel shows live CC64 values and a calibration.
+  - Half-pedal works with a continuous CC64; its velocity/pedal panel shows live CC64 values and a calibration.
   - Some pedals send a limited range (Yamaha FC3: 0–68; Roland DP-10: 24–127), and MIDI files often contain only 0/64/127.
-  - Sources: [forum id=8499](https://forum.vendor.com/viewtopic.php?id=8499); [forum id=3147](https://forum.vendor.com/viewtopic.php?id=3147); [forum id=2976](https://forum.vendor.com/viewtopic.php?id=2976); [forum id=6815](https://forum.vendor.com/viewtopic.php?id=6815)
-- A Vendor forum post (vendor or user description, not peer-reviewed) describes pedal release computed as wool-fibre friction on steel wire, F_f = μ·F_N, while the felt slowly lifts. — [forum id=13361](https://forum.vendor.com/viewtopic.php?id=13361)
+  - Sources: vendor forum (four threads)
+- A vendor forum post (vendor or user description, not peer-reviewed) describes pedal release computed as wool-fibre friction on steel wire, F_f = μ·F_N, while the felt slowly lifts. — (vendor forum)
 - Chabassier & Duruflé note that a grand action model has an extra DOF for the damper spoon (via the Acta Acustica 2024 snippet). — [Acta Acustica 2024](https://acta-acustica.edpsciences.org/articles/aacus/full_html/2024/01/aacus240066/aacus240066.html)
 
 ### Inferences
@@ -252,12 +252,12 @@ The literature and products treat mechanical noises mimetically: impulse or even
 - Goebl et al. (2014): finger–key noise drives listeners' ability to discriminate touch at equal hammer velocity. — [Goebl et al. 2014](https://www.researchgate.net/profile/Werner-Goebl/publication/269274469_GoeblBresinFujinaga2014-JASA-PianoTouchQuality1/links/548576440cf24356db60f1e0/GoeblBresinFujinaga2014-JASA-PianoTouchQuality1.pdf)
 - Patent US 5286915 (an electronic instrument simulating hammer–string interaction): mechanical noise from the key striking the stopper is synthesised from the negative part of a key accelerometer signal, filtered to approximate frame or soundboard resonance, and mixed with the tone. — [US 5286915](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/5286915)
 - Patent US 11138961: keybed-hitting sound generation in electronic pianos. — [US 11138961](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/11138961)
-- Commercial, per forum users:
+- The commercial modelled piano, per forum users:
   - Separate "Hammer noise", "Key release noise" and "Damper/Pedal noise" controls.
   - Key release noise depends on note-off velocity; in the Blüthner model its loudness range over note-off velocity is 12 dB.
   - Pedal noise can be raised to +25 dB.
   - Noise level depends on the microphone "Level compensation" setting.
-  - Sources: [forum id=3804](https://forum.vendor.com/viewtopic.php?id=3804); [forum id=3147](https://forum.vendor.com/viewtopic.php?id=3147); [forum id=8499](https://forum.vendor.com/viewtopic.php?id=8499); [forum id=4004](https://forum.vendor.com/viewtopic.php?id=4004)
+  - Sources: vendor forum (four threads)
 - Harpsichord precedent (EURASIP 2004): the key-release "thump" is reproduced by triggering a short sample extracted from a recording. This is mimetic, not physical. — [DOAJ, EURASIP JASP 2004](https://doaj.org/article/8724dc0c97f64d13ac03db29cfccb353)
 - The Chabassier full-piano model explicitly excludes "shock excitation on the structure" (keybed, rim, plate). This confirms that the leading physics model does not include these noises. — [Chabassier & Duruflé 2014](https://www.math.u-bordeaux.fr/~durufle/article/HammerJSVV2.pdf)
 
@@ -274,20 +274,20 @@ The literature and products treat mechanical noises mimetically: impulse or even
 
 ---
 
-## 7. MIDI conventions (CC64/66/67, high-res velocity, release velocity, aftertouch, MPE) and the Commercial feature checklist
+## 7. MIDI conventions (CC64/66/67, high-res velocity, release velocity, aftertouch, MPE) and the commercial piano feature checklist
 
 ### Takeaway
 - MIDI 1.0 gives 7-bit velocity, a continuous CC64 (0–127, despite the switch-oriented spec tradition), CC66 sostenuto and CC67 soft.
 - MIDI 2.0 raises velocity to 16 bits (65,536 steps).
 - The 2025 MIDI Association/AMEI Piano Profile standardises a default velocity-to-dynamics (pppp–ffff) curve via MIDI-CI.
-- Commercial is the de facto feature checklist: continuous half pedal, note-off velocity driving release noise, and separate hammer, key and pedal noises.
+- The commercial modelled piano is the de facto feature checklist: continuous half pedal, note-off velocity driving release noise, and separate hammer, key and pedal noises.
 
 ### Cited Findings
 - The MIDI Association and AMEI released the Piano Profile and implementation guide (MIDI-CI negotiates a shared interpretation). It defines a default note-on velocity curve mapping intended dynamics (pppp–ffff) to velocity values in both MIDI 1.0 and 2.0. — [midi.org announcement](https://midi.org/midi-association-and-amei-release-the-piano-profile-and-implementation-guide); [midi.org ?p=7438](https://midi.org/?p=7438)
 - MIDI 2.0 velocity: 65,536 levels vs 128. Synthogy Ivory (high-resolution velocity, Piano Profile demo) and the Roland A88 MKII (high-resolution velocity) are listed as implementations. — [midi.org Feb 2026 update](https://midi.org/the-state-of-midi-2-0-high-resolution-performance-and-the-rise-of-profiles-update-feb-2026); [midi.org open-source tag](https://midi.org/tag/open-source)
 - CineGrand2 advertises high-resolution pedal messages over MIDI 2.0. — [midi.org ?p=5153](https://midi.org/?p=5153)
-- CC64 practice: some argue CC64–69 were meant as switches, but CC64 is used continuously (0–127) in practice. Some DAWs (e.g. Cubase historically) display it as on/off. — [KVR thread](https://www.kvraudio.com/forum/viewtopic.php?p=6667754); [Vendor forum id=1852](https://forum.vendor.com/viewtopic.php?id=1852)
-- Commercial: continuous CC64 for half-pedal with pedal calibration, and CC remapping (e.g. CC11 → sustain); key release noise tied to note-off velocity; hammer noise, damper/pedal noise, "Damping duration" and "Damper position" parameters (forum sources above). The official manual pages (vendor.com) returned HTTP 403 and could not be read.
+- CC64 practice: some argue CC64–69 were meant as switches, but CC64 is used continuously (0–127) in practice. Some DAWs (e.g. Cubase historically) display it as on/off. — [KVR thread](https://www.kvraudio.com/forum/viewtopic.php?p=6667754); (vendor forum)
+- The commercial piano: continuous CC64 for half-pedal with pedal calibration, and CC remapping (e.g. CC11 → sustain); key release noise tied to note-off velocity; hammer noise, damper/pedal noise, "Damping duration" and "Damper position" parameters (forum sources above). The official manual pages (vendor site) returned HTTP 403 and could not be read.
 
 ### Inferences
 - Engine input should be continuous and resolution-agnostic:
@@ -298,6 +298,6 @@ The literature and products treat mechanical noises mimetically: impulse or even
 - Implementing a MIDI-CI Piano Profile responder would give standardised velocity semantics.
 
 ### Gaps
-- Official Commercial documentation (current version's parameter list; MIDI 2.0, polyphonic aftertouch and MPE support; repetition modelling) could not be accessed (HTTP 403). Whether Commercial 8/9 supports MIDI 2.0 high-resolution velocity is unverified.
+- Official documentation of the commercial piano (current version's parameter list; MIDI 2.0, polyphonic aftertouch and MPE support; repetition modelling) could not be accessed (HTTP 403). Whether its versions 8/9 support MIDI 2.0 high-resolution velocity is unverified.
 - Exact Piano Profile curve values were not retrieved.
 - No verified source documents an "aftertouch-like" acoustic effect in real pianos beyond key-bottom pressure and noise.

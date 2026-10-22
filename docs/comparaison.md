@@ -1,4 +1,4 @@
-# Comparaison avec Salamander, Iowa et Commercial
+# Comparaison avec Salamander, l'Iowa et un piano modélisé commercial
 
 État au 2026-10-22.
 
@@ -10,10 +10,10 @@ Chaque source joue la même série de notes : une touche sur trois à partir de 
 |---|---|---|
 | Salamander | Yamaha C5, échantillons | couches de l'échantillonneur |
 | Iowa MIS (`data/iowa/`) | Steinway modèle B, pp/mf/ff | micros à 20 cm au-dessus des cordes |
-| Commercial 6 | préréglage chargé, sans réverbération | joué en temps réel par `piano-play --midi-out "Commercial 6"`, enregistré par `jack_rec` |
+| Commercial | piano modélisé commercial, préréglage chargé, sans réverbération | joué en temps réel par `piano-play --midi-out "<port>"`, enregistré par `jack_rec` |
 | Modèle | rendu hors ligne | sans salle |
 
-Commercial ne retombe au silence numérique qu'après le relâchement des touches : il n'y a donc pas de réverbération à soustraire.
+Le piano commercial ne retombe au silence numérique qu'après le relâchement des touches : il n'y a donc pas de réverbération à soustraire.
 
 Outils, dans l'ordre d'utilisation :
 - `tools/note_sequence_midi.py` génère la séquence ;
@@ -77,17 +77,17 @@ Rapport de brillance de l'attaque ff/pp :
 | grave | ×1,8 | ×2,1 | ×1,2 |
 | médium | ×1,5 | ×1,8 | ×1,25 |
 
-Le jeu sonne uniforme. C'est l'affaire de l'exposant et de l'hystérésis du feutre, à recalibrer une fois le contact corrigé, sur Iowa et Commercial : Salamander a lui-même un rapport plat (×1,2).
+Le jeu sonne uniforme. C'est l'affaire de l'exposant et de l'hystérésis du feutre, à recalibrer une fois le contact corrigé, sur l'Iowa et le piano commercial : Salamander a lui-même un rapport plat (×1,2).
 
 ### 4. Ce qui est déjà en place
 
 - **Inharmonicité B** : 9e-5 au grave, 2,5e-4 au médium, 2e-3 à l'aigu, conforme aux trois références.
-- **Dynamique ff − mf** : 8 à 10 dB, entre Salamander et Iowa, proche de Commercial.
+- **Dynamique ff − mf** : 8 à 10 dB, entre Salamander et Iowa, proche du piano commercial.
 - **Tenue du grave et du médium** jusqu'à 1 s : dans la fourchette des références.
 
 ### 5. Écarts connus, non mesurés ici
 
-- Fin des notes aiguës entre 1 et 3 s, plus courte que Salamander et Iowa ; Commercial est entre les deux.
+- Fin des notes aiguës entre 1 et 3 s, plus courte que Salamander et Iowa  ; le piano commercial est entre les deux.
 - Partiels fantômes et non-linéarités de la corde en jeu fort.
 - Duplex.
 - Couplage sympathique passif.
@@ -98,7 +98,7 @@ Le contact parallèle est dans `hammer.rs`, sans allocation : l'itérateur des m
 
 - le profil des partiels 2, 3, 4 et 6 à l'attaque, en ff et en mf ;
 - l'éclaircissement de l'attaque de pp à ff ;
-- la dynamique ff − pp et ff − mf, comparée à Salamander et Commercial seulement, car l'Iowa est joué en nuances et non en vélocités.
+- la dynamique ff − pp et ff − mf, comparée à Salamander et au piano commercial seulement, car l'Iowa est joué en nuances et non en vélocités.
 
 | | Score |
 |---|---|

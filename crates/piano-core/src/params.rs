@@ -87,7 +87,7 @@ impl LossLaw {
     /// losses), scaled down by the decay calibration of the full instrument
     /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. b1
     /// was lowered again (×0.65 at C4, ×0.5 at F#6) on the sustain after
-    /// 1 s of Commercial, Iowa and Salamander (docs/tenue_longue.md): the
+    /// 1 s of a commercial modelled piano, Iowa and Salamander (docs/tenue_longue.md): the
     /// slow components of the treble fundamentals last 7–9 s there. The
     /// frequency term b2 = 1e-7 was set with the bridge spreading
     /// (docs/tenue.md): the upper partials decay at the measured rate and
@@ -123,7 +123,7 @@ impl UnisonLaw {
     /// Generic grand layout; treble width calibrated on the ESPRIT
     /// statistics of Salamander (tools/unison_grid.py); width up to C4 1
     /// cent: the aftersound of the bass and middle then sits 1–1.5 cent from
-    /// the prompt sound and 13–17 dB below it, as in Commercial, Iowa and
+    /// the prompt sound and 13–17 dB below it, as in the commercial piano, Iowa and
     /// Salamander (docs/tenue_longue.md; 0.35 cent left it 10 dB too weak
     /// and the notes died after 1 s); hit spread ±20 % set on the
     /// aftersound level of the treble (docs/tenue.md).

@@ -4,7 +4,7 @@
 
 ## Retour d'écoute
 
-« La version Commercial est plus percussive, et la nôtre donne l'impression de jouer piano fermé. »
+« La version du piano commercial est plus percussive, et la nôtre donne l'impression de jouer piano fermé. »
 
 ## Mesure
 
@@ -71,6 +71,6 @@ Score du marteau, avec la présence : 3,23 → 1,54. Attaque ff, part d'énergie
 
 ## Ce qui reste
 
-- **Commercial reste plus brillant que les deux vrais pianos** au-dessus de 4 kHz (−29 dB au grave contre −45 et −57). Le modèle se cale sur la moyenne des trois.
+- **Le piano commercial reste plus brillant que les deux vrais pianos** au-dessus de 4 kHz (−29 dB au grave contre −45 et −57). Le modèle se cale sur la moyenne des trois.
 - **Éclaircissement du grave et du médium** encore 2 à 4 dB sous les références.
 - **Aigu** un peu trop contrasté entre pp et ff (13,6 contre 12,2 dB).

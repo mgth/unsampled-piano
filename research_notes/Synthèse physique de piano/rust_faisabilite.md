@@ -86,7 +86,7 @@ The most informative real-world case study is **Anukari** (3D mass-spring physic
 
 ### Inferences
 - **Threading design:** with a 64–256-sample block, a voice-parallel fork/join inside `process()` is feasible. Use N pre-spawned worker threads promoted to RT priority, each spinning or waiting on a futex or semaphore, with voices partitioned per block and a sum-reduction at the end. Pitfalls: (1) workers must be RT-promoted or they get preempted and cause xruns; (2) spinning burns CPU and fights with the host's own thread pool in a plugin context. Many DAWs already parallelise across tracks, so inside a plugin, single-threaded SIMD is often the safer default, and internal threading should be optional. In the standalone app, internal threading is fully under your control. (3) Synchronisation cost per block (~µs) must stay small relative to the block period (1.33 ms at 64 samples / 48 kHz).
-- Prior knowledge (not re-verified): Vital and Surge render voices single-threaded with SIMD (Surge processes voices in SSE "quad" groups). Commercial physical-model pianos (Commercial) are mostly single-thread per instance with optional multi-core. This could not be confirmed with sources this session.
+- Prior knowledge (not re-verified): Vital and Surge render voices single-threaded with SIMD (Surge processes voices in SSE "quad" groups). Commercial physical-model pianos (such as the commercial modelled piano) are mostly single-thread per instance with optional multi-core. This could not be confirmed with sources this session.
 - **GPU for a piano: not recommended** for the core real-time path. The Anukari evidence (≥512-sample buffers, ~10.7 ms at 48 kHz, plus vendor-specific clock and launch issues) conflicts with the low-latency (≤128-sample) feel a piano needs. A piano's DSP (a few thousand modes per voice) fits comfortably on CPU SIMD (see Q4). GPU could still be useful *offline* for parameter fitting or high-resolution FDTD reference renders.
 - Physics-explosion detection (peak-velocity or energy watchdog with voice reset) is a useful safety net even with provably passive schemes, because parameter edits or modulation can break assumptions.
 
@@ -125,7 +125,7 @@ Published data points: (1) **van Walstijn, Bhanuprakash & Chatziioannou (DAFx 20
 - Bank et al. 2010's actual per-block complexity numbers (ops per sample, CPU %, hardware) were not extracted. The full text is on [IRIS Univr](https://iris.univr.it/handle/11562/342223) for whoever writes the report.
 - Exact numbers from DAFx22 Table 2 (run-time ratios vs oversampling) were not extracted cleanly. Only the qualitative statement is cited.
 - No published C++/Rust (non-Matlab) benchmark of a modal piano in modes/core was found. The ~10⁵ modes/core figure is a back-of-envelope estimate and should be checked with a microbenchmark (criterion) early in the project.
-- No Commercial or other commercial CPU and polyphony figures were sourced.
+- No CPU and polyphony figures for the commercial modelled piano or other commercial products were sourced.
 
 ---
 

@@ -2,7 +2,7 @@
 """Scores model note sets against the reference sets on what the hammer
 sets: attack partial profile (ff, mf), attack brightening pp→ff and the
 dynamics, per register. Target = mean of the references (dynamics: the sets
-played at the same MIDI velocities, Salamander and Commercial); tolerance =
+played at the same MIDI velocities, Salamander and the commercial piano); tolerance =
 their spread, at least 3 dB (brightening: 15 %).
   tools/hammer_score.py <refs.json> <model dir> [<model dir> …]
   tools/hammer_score.py --refs <out.json> salamander=<dir> iowa=<dir> commercial=<dir>"""

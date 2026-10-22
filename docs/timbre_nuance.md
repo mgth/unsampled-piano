@@ -71,7 +71,7 @@ Les durées de contact restent physiques : 11 ms pour A0 pp, contre 9,4 ms avant
 |---|---|---|---|
 | pente, grave | +2,6 dB | +5,5 dB | +6,1 (de +0,7 à +8) |
 | pente, médium | +12,9 dB | +15,5 dB | +17,4 |
-| dynamique ff − pp, grave | 6,6 dB | 8,1 dB | 10,0 (Salamander et Commercial) |
+| dynamique ff − pp, grave | 6,6 dB | 8,1 dB | 10,0 (Salamander et piano commercial) |
 | dynamique ff − pp, médium | 7,5 dB | 9,1 dB | 10,1 |
 | dynamique ff − pp, aigu | 11,4 dB | 13,6 dB | 12,2 |
 | score marteau | 1,73 | 1,79 | — |

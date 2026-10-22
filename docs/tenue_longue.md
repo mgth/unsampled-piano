@@ -4,7 +4,7 @@
 
 ## Constat
 
-Comparé à Commercial, à l'Iowa et à Salamander, le modèle avait une première seconde juste, puis perdait 6 à 17 dB de trop entre 2 et 3 s, dans tous les registres. Les notes « chantaient » trop peu longtemps.
+Comparé à un piano modélisé commercial, à l'Iowa et à Salamander, le modèle avait une première seconde juste, puis perdait 6 à 17 dB de trop entre 2 et 3 s, dans tous les registres. Les notes « chantaient » trop peu longtemps.
 
 ## Mesure
 
