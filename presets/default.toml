@@ -40,6 +40,8 @@ b1_offset = -5.1
 b2 = 0.0000001
 b1_floor = 0.2
 wound_until = 48
+top_slope = 0.05
+top_from = 84
 
 [scale]
 len_c8 = 0.052
@@ -148,7 +150,7 @@ position = 0.14
 width = 0.02
 strength = 1.0
 contact_exponent = 2.5
-highest_note = 88
+highest_note = 90
 pedal_free = 0.3
 pedal_contact = 0.55
 pedal_curve = 1.5
