@@ -5,7 +5,7 @@ use piano_core::{Engine, EngineConfig, Event, TimedEvent};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(about = "Render MIDI to WAV with the physical piano engine")]
+#[command(name = "unsampled-piano-render", about = "Render MIDI to WAV with the physical piano engine")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,

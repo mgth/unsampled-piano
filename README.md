@@ -48,8 +48,8 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 | `piano-params` | registre des paramètres (chemins, plages, live ou reconstruction), apprentissage MIDI, trait `PianoControl` |
 | `piano-control` | pilotage d'un instrument qui joue : paramètres live, reconstruction en arrière-plan et échange de moteur sans couper les notes (lecteur autonome et plugin) |
 | `piano-ui` | interface egui sur `PianoControl` |
-| `piano-play` | application temps réel : nœud PipeWire/JACK (audio, MIDI in, MIDI miroir), ou cpal + midir |
-| `piano-render` | rendu hors ligne déterministe MIDI → WAV |
+| `piano-play` | application temps réel (binaire `unsampled-piano`) : nœud PipeWire/JACK (audio, MIDI in, MIDI miroir), ou cpal + midir |
+| `piano-render` | rendu hors ligne (binaire `unsampled-piano-render`) déterministe MIDI → WAV |
 | `piano-analysis` | analyse : partiels, B, décroissances, ESPRIT, distances spectrales |
 | `piano-eval` | comparaison du modèle à une banque de référence |
 | `piano-bench` | débit du noyau modal, précision f32 |

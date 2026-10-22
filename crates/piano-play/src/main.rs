@@ -25,9 +25,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 #[derive(Parser)]
-#[command(about = "Play the physical piano from a MIDI keyboard or MIDI files")]
+#[command(name = "unsampled-piano", about = "Play the physical piano from a MIDI keyboard or MIDI files")]
 struct Args {
-    /// Instrument preset (TOML); see `piano-render dump-preset`.
+    /// Instrument preset (TOML); see `unsampled-piano-render dump-preset`.
     #[arg(long)]
     preset: Option<PathBuf>,
     /// MIDI input port to connect: substring of its name (default: the
@@ -90,7 +90,7 @@ enum Backend {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = Args::parse();
     apply_user_config(&mut args);
-    let midi_in = midir::MidiInput::new("piano-play")?;
+    let midi_in = midir::MidiInput::new("unsampled-piano")?;
     if args.list {
         let host = pick_host(args.host.as_deref().filter(|h| *h != "node"))?;
         println!("audio host: {:?}", host.id());
@@ -394,7 +394,7 @@ impl MidiMapFile {
         }
         self.saved = map.clone();
         let Some(path) = &self.path else { return };
-        let text = format!("# MIDI controllers mapped by piano-play's interface (MIDI learn).\n\n{}", map.to_toml());
+        let text = format!("# MIDI controllers mapped by unsampled-piano's interface (MIDI learn).\n\n{}", map.to_toml());
         if let Err(e) = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::fs::write(path, text)) {
             eprintln!("{}: {e}", path.display());
         }
@@ -484,7 +484,7 @@ fn midir_input(
     eprintln!("MIDI input: {}", name(&p));
     let conn = midi_in.connect(
         &p,
-        "piano-play-in",
+        "unsampled-piano-in",
         move |_, msg, _| {
             if let Some(ev) = piano_host::decode_midi(msg) {
                 let _ = tx.push(ev);

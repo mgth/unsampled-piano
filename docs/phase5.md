@@ -48,7 +48,7 @@ Exemples fournis :
 
 Les paramètres exposés correspondent aux familles de réglages d'un piano modélisé commercial : diapason et accordage étiré, inharmonicité, largeur d'unisson, dureté et exposant du feutre (harmonisation), courbe de vélocité, pertes des cordes, table (dimensions, raideurs, pertes, raideur série du chevalet), étouffoirs (position, force, demi-pédale, temps), sympathie, polarisation, bruits, position des micros.
 
-## Application temps réel (`piano-play`)
+## Application temps réel (`unsampled-piano`, crate `piano-play`)
 
 - Audio : cpal 0.18 avec l'hôte **PipeWire natif** par défaut (JACK et ALSA disponibles avec `--host`) et la priorité temps réel du thread audio.
 - MIDI : midir. Le premier port réel est choisi automatiquement, sinon `--midi <nom>`.
@@ -99,7 +99,7 @@ Les recherches sur grille (`tools/grid_hammer.py`, `unison_grid.py`, `pol_grid.p
 
 ## Retour d'écoute (2026-10-22) : « très étouffé, comme une sourdine » et « bruit de relâchement trop clair »
 
-Premier essai au clavier (Novation SL Studio, `piano-play --buffer 128`). Les mesures ont trouvé quatre causes, toutes corrigées physiquement :
+Premier essai au clavier (Novation SL Studio, `unsampled-piano --buffer 128`). Les mesures ont trouvé quatre causes, toutes corrigées physiquement :
 
 1. **Point de frappe du mauvais côté.** Le chevalet est en x = 0 et le marteau frappait à 0,12·L… *depuis le chevalet*. Le spectre des modes est identique (|sin(kπx0)| est symétrique), donc aucun calage spectral ne l'avait vu. Mais pendant le contact, le chevalet recevait quasi statiquement environ 88 % de la poussée du marteau, au lieu d'environ 12 % quand la frappe est près de l'agrafe. La table en faisait un « boum » grave : 64 à 92 % de l'énergie d'attaque tombait entre les partiels, contre 1 à 6 % pour Salamander. Désormais, le point de frappe et les étouffoirs se mesurent depuis l'agrafe.
 2. **Rayonnement en baffle infini.** Une vraie table rayonne par ses deux faces. Il faut ajouter la face arrière en opposition de phase (intégrale de Rayleigh avec image à 0,6 m, gain 0,6, calés sur la pente spectrale) : le court-circuit acoustique atténue les modes graves. Erreur de pente : de 4,7 à 3,8 dB.

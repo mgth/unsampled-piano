@@ -10,7 +10,7 @@ Chaque source joue la même série de notes : une touche sur trois à partir de 
 |---|---|---|
 | Salamander | Yamaha C5, échantillons | couches de l'échantillonneur |
 | Iowa MIS (`data/iowa/`) | Steinway modèle B, pp/mf/ff | micros à 20 cm au-dessus des cordes |
-| Commercial | piano modélisé commercial, préréglage chargé, sans réverbération | joué en temps réel par `piano-play --midi-out "<port>"`, enregistré par `jack_rec` |
+| Commercial | piano modélisé commercial, préréglage chargé, sans réverbération | joué en temps réel par `unsampled-piano --midi-out "<port>"`, enregistré par `jack_rec` |
 | Modèle | rendu hors ligne | sans salle |
 
 Le piano commercial ne retombe au silence numérique qu'après le relâchement des touches : il n'y a donc pas de réverbération à soustraire.

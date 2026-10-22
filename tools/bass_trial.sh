@@ -6,7 +6,7 @@ set -eu
 cd "$(dirname "$0")/.."
 n=$1; p=$2; d=out/bass/$n
 if [ ! -f "$d.survey.csv" ]; then
-  target/release/piano-render --preset "$p" --tail 2 midi out/compare/notes.mid "$d.wav" > /dev/null 2>&1
+  target/release/unsampled-piano-render --preset "$p" --tail 2 midi out/compare/notes.mid "$d.wav" > /dev/null 2>&1
   python3 -I tools/split_notes.py seq "$d.wav" out/compare/notes.txt "$d" && rm "$d.wav"
   target/release/piano-survey "$d" --out "$d.survey.csv" > /dev/null 2>&1
 fi

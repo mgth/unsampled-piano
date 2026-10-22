@@ -18,7 +18,7 @@ for h in $1; do for s in $2; do for p in $3; do for y in $4; do for vv in $V; do
   [ -f "$out/$n/C8v13.wav" ] && continue
   (
     printf 'hardness = %s\nhardness_slope = %s\nhardness_slope_bass = %s\np_offset = %s\np_bass = %s\nhysteresis = %s\n[room]\nenabled = false\n[velocity]\nvmin = %s\nvmax = %s\n' "$h" "$s" "$bass" "$p" "${PB:-0}" "$y" "$vmin" "$vmax" > "$out/$n.toml"
-    target/release/piano-render --preset "$out/$n.toml" --tail 2 midi out/compare/notes.mid "$out/$n.wav" > /dev/null 2>&1
+    target/release/unsampled-piano-render --preset "$out/$n.toml" --tail 2 midi out/compare/notes.mid "$out/$n.wav" > /dev/null 2>&1
     python3 -I tools/split_notes.py seq "$out/$n.wav" out/compare/notes.txt "$out/$n" && rm "$out/$n.wav"
   ) &
   jobs=$((jobs + 1)); [ $((jobs % 12)) -eq 0 ] && wait
