@@ -2,6 +2,11 @@
 //! instantiates, activates, sounds a note, and follows host automation of
 //! a live parameter. Debug builds also abort if `process` allocates
 //! (nice-plug's assert_process_allocs).
+//!
+//! `cargo test` links the plugin's rlib, not its cdylib: build it first,
+//!   cargo build -p piano-plugin && cargo test -p piano-plugin
+//! The test is skipped (with a message) when the cdylib is missing or older
+//! than the workspace's sources.
 
 use clack_host::events::event_types::{NoteOffEvent, NoteOnEvent, ParamValueEvent};
 use clack_host::prelude::*;
@@ -30,6 +35,34 @@ impl HostHandlers for Host {
 fn plugin_path() -> std::path::PathBuf {
     let exe = std::env::current_exe().unwrap();
     exe.parent().and_then(|d| d.parent()).unwrap().join("libpiano_plugin.so")
+}
+
+/// Why the built plugin cannot be tested, if so: missing, or older than a
+/// source file of the workspace's crates (tests and examples aside).
+fn unusable_plugin() -> Option<String> {
+    let path = plugin_path();
+    let built = match std::fs::metadata(&path).and_then(|m| m.modified()) {
+        Ok(t) => t,
+        Err(_) => return Some(format!("{} not built", path.display())),
+    };
+    let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let mut stack = vec![crates.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                // Only what goes into the plugin.
+                if !p.file_name().is_some_and(|n| ["tests", "examples", "benches"].contains(&n.to_str().unwrap_or(""))) {
+                    stack.push(p);
+                }
+            } else if p.extension().is_some_and(|x| x == "rs" || x == "toml")
+                && e.metadata().and_then(|m| m.modified()).is_ok_and(|t| t > built)
+            {
+                return Some(format!("{} is older than {}", path.display(), p.display()));
+            }
+        }
+    }
+    None
 }
 
 /// nice-plug's CLAP id of a parameter.
@@ -98,6 +131,10 @@ fn rms(x: &[f32]) -> f64 {
 
 #[test]
 fn plays_and_follows_automation() {
+    if let Some(why) = unusable_plugin() {
+        eprintln!("SKIPPED: {why}; run `cargo build -p piano-plugin` before the tests");
+        return;
+    }
     let dry = render(1.2, None);
     assert!(dry.iter().all(|x| x.is_finite()));
     let level = rms(&dry[..(0.5 * SR) as usize]);
