@@ -23,8 +23,9 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
     });
     let Some(mut v) = value else {
         ui.label(RichText::new("off in this model").weak());
-        ui.label("");
-        ui.label("");
+        for _ in 0..3 {
+            ui.label("");
+        }
         return;
     };
     let r = match &mut v {
@@ -64,6 +65,38 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
         control.end_edit(&p.path);
     }
     kind_mark(ui, matches!(p.kind, Kind::Live(_)));
+    midi_button(ui, p, control);
+}
+
+/// The controller mapped to `p` ("CC 21"); click to learn one (again to
+/// cancel), right-click to remove it.
+fn midi_button(ui: &mut Ui, p: &Param, control: &mut dyn PianoControl) {
+    let Some(learn) = control.midi() else {
+        ui.label("");
+        return;
+    };
+    let cc = learn.map().for_path(&p.path).map(|m| m.cc);
+    let waiting = learn.learning() == Some(p.path.as_str());
+    let text = match (waiting, cc) {
+        (true, _) => RichText::new("…").color(LIVE),
+        (false, Some(cc)) => RichText::new(format!("CC {cc}")),
+        (false, None) => RichText::new("MIDI").weak(),
+    };
+    let r = ui.add(egui::Button::new(text.small()).selected(waiting).frame(waiting || cc.is_some()));
+    let r = r.on_hover_text(match cc {
+        Some(_) => "Click to learn another controller, right-click to remove",
+        None => "Click, then move a knob or fader",
+    });
+    if r.clicked() {
+        if waiting { learn.cancel() } else { learn.learn(&p.path) }
+    }
+    if cc.is_some() {
+        r.context_menu(|ui| {
+            if ui.button("Remove the controller").clicked() {
+                learn.unmap(&p.path);
+            }
+        });
+    }
 }
 
 /// Filled green dot: applied while playing; hollow: rebuilds the instrument.

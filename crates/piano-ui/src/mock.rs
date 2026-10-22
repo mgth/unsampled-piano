@@ -4,6 +4,7 @@
 use std::time::{Duration, Instant};
 
 use piano_core::params::PianoModel;
+use piano_params::midi::{CcAction, MidiLearn, MidiMap};
 use piano_params::{Kind, PianoControl, Registry, Status, Value};
 
 /// Pause after the last rebuild edit, then simulated build time.
@@ -16,11 +17,19 @@ pub struct MockControl {
     /// Last rebuild edit, while a (fake) build is pending.
     pending: Option<Instant>,
     error: Option<String>,
+    midi: MidiLearn,
 }
 
 impl MockControl {
     pub fn new(model: PianoModel) -> Self {
-        Self { registry: Registry::new(), model, pending: None, error: None }
+        Self { registry: Registry::new(), model, pending: None, error: None, midi: MidiLearn::new(MidiMap::default()) }
+    }
+
+    /// A controller moved (what the audio side reports to a real host).
+    pub fn on_cc(&mut self, cc: u8, value: u8) {
+        if let CcAction::Set { path, value, .. } = self.midi.on_cc(cc, value) {
+            self.set(&path, value);
+        }
     }
 
     fn rebuild(&mut self) {
@@ -53,6 +62,10 @@ impl PianoControl for MockControl {
     fn load(&mut self, model: PianoModel) {
         self.model = model;
         self.rebuild();
+    }
+
+    fn midi(&mut self) -> Option<&mut MidiLearn> {
+        Some(&mut self.midi)
     }
 
     fn status(&self) -> Status {

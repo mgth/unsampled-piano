@@ -9,6 +9,7 @@
 
 mod control;
 mod meta;
+pub mod midi;
 
 use std::collections::HashMap;
 

@@ -7,4 +7,5 @@ publish.workspace = true
 
 [dependencies]
 piano-core = { workspace = true, features = ["serde"] }
+serde.workspace = true
 toml.workspace = true

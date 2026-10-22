@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use piano_core::params::PianoModel;
 
+use crate::midi::MidiLearn;
 use crate::Value;
 
 pub trait PianoControl {
@@ -20,6 +21,10 @@ pub trait PianoControl {
     /// Replaces the whole model (preset load): a single rebuild.
     fn load(&mut self, model: PianoModel);
     fn status(&self) -> Status;
+    /// MIDI learn, when the host receives MIDI controllers.
+    fn midi(&mut self) -> Option<&mut MidiLearn> {
+        None
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

@@ -13,3 +13,4 @@ egui.workspace = true
 
 [dev-dependencies]
 eframe.workspace = true
+midir.workspace = true

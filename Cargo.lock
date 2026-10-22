@@ -2960,6 +2960,7 @@ name = "piano-params"
 version = "0.1.0"
 dependencies = [
  "piano-core",
+ "serde",
  "toml",
 ]
 
@@ -2993,6 +2994,7 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "egui",
+ "midir",
  "piano-core",
  "piano-host",
  "piano-params",

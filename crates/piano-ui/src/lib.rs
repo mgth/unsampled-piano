@@ -15,6 +15,9 @@ use piano_params::{PianoControl, Registry};
 
 use sections::{section_of, SECTIONS};
 
+/// Page index of the MIDI map (after the sections).
+const MIDI_PAGE: usize = usize::MAX;
+
 pub struct PianoUi {
     registry: Registry,
     /// Section of each registry parameter.
@@ -35,9 +38,12 @@ impl PianoUi {
         Self { registry, section, page: 0, search: String::new(), presets, preset_name: String::new(), message: None }
     }
 
-    /// Opens the page with this title (case-insensitive), if any.
+    /// Opens the page with this title (case-insensitive), or "MIDI".
     pub fn open_page(&mut self, title: &str) {
-        if let Some(i) = SECTIONS.iter().position(|s| s.title.eq_ignore_ascii_case(title)) {
+        if title.eq_ignore_ascii_case("midi") {
+            self.page = MIDI_PAGE;
+            self.search.clear();
+        } else if let Some(i) = SECTIONS.iter().position(|s| s.title.eq_ignore_ascii_case(title)) {
             self.page = i;
             self.search.clear();
         }
@@ -51,6 +57,11 @@ impl PianoUi {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
         }
 
+        let learning = control.midi().and_then(|l| l.learning().map(String::from));
+        if learning.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            control.midi().map(|l| l.cancel());
+        }
+
         egui::Panel::top("piano-top").show(ui, |ui| {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
@@ -58,6 +69,16 @@ impl PianoUi {
                 ui.separator();
                 self.preset_bar(ui, control, &model);
             });
+            if let Some(path) = &learning {
+                let label = self.registry.get(path).map_or(path.as_str(), |p| p.meta.label.as_str());
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("Move a controller for \u{201c}{label}\u{201d}…")).color(widgets::LIVE));
+                    if ui.small_button("Cancel").clicked() {
+                        control.midi().map(|l| l.cancel());
+                    }
+                    ui.label(RichText::new("(Esc)").weak());
+                });
+            }
             ui.add_space(2.0);
         });
 
@@ -93,6 +114,13 @@ impl PianoUi {
                     self.search.clear();
                 }
             }
+            if control.midi().is_some() {
+                ui.add_space(6.0);
+                if ui.selectable_label(self.page == MIDI_PAGE && self.search.is_empty(), "MIDI").clicked() {
+                    self.page = MIDI_PAGE;
+                    self.search.clear();
+                }
+            }
             ui.add_space(12.0);
             ui.horizontal(|ui| {
                 widgets::kind_mark(ui, true);
@@ -103,7 +131,13 @@ impl PianoUi {
         });
 
         egui::CentralPanel::default().show(ui, |ui| {
-            egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| self.page(ui, control, &model));
+            egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+                if self.page == MIDI_PAGE && self.search.is_empty() {
+                    self.midi_page(ui, control);
+                } else {
+                    self.page(ui, control, &model);
+                }
+            });
         });
     }
 
@@ -123,7 +157,7 @@ impl PianoUi {
             .collect();
 
         if !searching {
-            let s = &SECTIONS[self.page];
+            let s = &SECTIONS[self.page.min(SECTIONS.len() - 1)];
             ui.heading(s.title);
             if !s.curves.is_empty() {
                 let reference = PianoModel::default();
@@ -149,7 +183,7 @@ impl PianoUi {
         let group = |i: usize| params[i].path.rsplit_once('.').map(|(g, _)| g);
         let mut shown = shown;
         shown.sort_by_key(|&i| (group(i), !matches!(params[i].default, piano_params::Value::Bool(_)), &params[i].path));
-        egui::Grid::new(("params", self.page, searching)).num_columns(4).striped(true).spacing([12.0, 4.0]).show(ui, |ui| {
+        egui::Grid::new(("params", self.page, searching)).num_columns(5).striped(true).spacing([12.0, 4.0]).show(ui, |ui| {
             let mut last = None;
             for (k, &i) in shown.iter().enumerate() {
                 let g = group(i);
@@ -165,6 +199,60 @@ impl PianoUi {
                 ui.end_row();
             }
         });
+    }
+
+    /// The controllers mapped, with the values at CC 0 and 127.
+    fn midi_page(&mut self, ui: &mut Ui, control: &mut dyn PianoControl) {
+        ui.heading("MIDI controllers");
+        let Some(learn) = control.midi() else { return };
+        ui.label(
+            RichText::new(
+                "Click the MIDI button of a parameter, then move a knob or fader. Live parameters follow the \
+                 controller as you play; the others rebuild the instrument when it stops moving.",
+            )
+            .weak(),
+        );
+        ui.add_space(8.0);
+        if learn.map().mappings.is_empty() {
+            ui.label("No controller mapped yet.");
+            return;
+        }
+        let mut remove = None;
+        let mut range = None;
+        egui::Grid::new("midi-map").num_columns(5).striped(true).spacing([12.0, 4.0]).show(ui, |ui| {
+            ui.label(RichText::new("CC").strong());
+            ui.label(RichText::new("Parameter").strong());
+            ui.label(RichText::new("At 0").strong());
+            ui.label(RichText::new("At 127").strong());
+            ui.label("");
+            ui.end_row();
+            for m in &learn.map().mappings {
+                let Some(p) = self.registry.get(&m.path) else { continue };
+                ui.label(format!("{}", m.cc));
+                ui.horizontal(|ui| {
+                    widgets::kind_mark(ui, matches!(p.kind, piano_params::Kind::Live(_)));
+                    ui.label(&p.meta.label).on_hover_text(&m.path);
+                });
+                let (mut lo, mut hi) = (m.min, m.max);
+                let speed = (p.meta.max - p.meta.min).abs() / 300.0;
+                let unit = if p.meta.unit.is_empty() { String::new() } else { format!(" {}", p.meta.unit) };
+                let a = ui.add(egui::DragValue::new(&mut lo).speed(speed).custom_formatter(|v, _| widgets::show(v)).suffix(&unit));
+                let b = ui.add(egui::DragValue::new(&mut hi).speed(speed).custom_formatter(|v, _| widgets::show(v)).suffix(&unit));
+                if a.changed() || b.changed() {
+                    range = Some((m.path.clone(), lo, hi));
+                }
+                if ui.small_button("Remove").clicked() {
+                    remove = Some(m.path.clone());
+                }
+                ui.end_row();
+            }
+        });
+        if let Some((path, lo, hi)) = range {
+            learn.set_range(&path, lo, hi);
+        }
+        if let Some(path) = remove {
+            learn.unmap(&path);
+        }
     }
 
     fn preset_bar(&mut self, ui: &mut Ui, control: &mut dyn PianoControl, model: &PianoModel) {
