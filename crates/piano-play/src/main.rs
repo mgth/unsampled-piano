@@ -39,6 +39,10 @@ struct Args {
     /// Name of the graph node.
     #[arg(long, default_value = "piano")]
     name: String,
+    /// Connect the MIDI mirror output to the graph's MIDI inputs whose name
+    /// contains this (node backend), e.g. another synthesiser.
+    #[arg(long)]
+    midi_out: Option<String>,
     /// Audio output: substring of the device (cpal) or of the playback port
     /// names (node).
     #[arg(long)]
@@ -174,6 +178,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     running.connect(&names.left, a)?;
                     running.connect(&names.right, b)?;
                     eprintln!("  audio → {a}, {b}");
+                }
+            }
+            if let Some(want) = &args.midi_out {
+                let targets = n_inputs_matching(&running, want);
+                if targets.is_empty() {
+                    eprintln!("  no MIDI input matching {want:?} for the mirror");
+                }
+                for t in targets {
+                    running.connect(&names.midi_out, &t)?;
+                    eprintln!("  mirror → {t}");
                 }
             }
             // Keyboard: --midi, else the first hardware port (ALSA bridge).
@@ -334,6 +348,11 @@ fn file_timeline(args: &Args, sr: f64) -> Result<(Vec<(u64, Event)>, Vec<(f64, S
         t0 += len + GAP_S;
     }
     Ok((timeline, pieces, t0))
+}
+
+/// MIDI input ports of the graph containing `want`.
+fn n_inputs_matching(running: &node::Running, want: &str) -> Vec<String> {
+    running.midi_inputs().into_iter().filter(|p| p.contains(want)).collect()
 }
 
 /// JACK port prefix (node description, else name) of PipeWire's default

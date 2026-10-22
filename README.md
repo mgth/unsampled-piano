@@ -60,3 +60,4 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 - Cadre en fonte et ceinture : [docs/cadre_ceinture.md](docs/cadre_ceinture.md)
 - Tenue des notes (chevalet, épaisseur de la table, pertes des cordes) : [docs/tenue.md](docs/tenue.md)
 - Dynamique, pédale et résonance sympathique : [docs/dynamique_pedale.md](docs/dynamique_pedale.md)
+- Comparaison avec Salamander, Iowa et Commercial : [docs/comparaison.md](docs/comparaison.md)

@@ -445,7 +445,7 @@ pub struct VelocityLaw {
 }
 
 impl VelocityLaw {
-    pub const DEFAULT: Self = Self { vmin: 0.3, vmax: 5.5 };
+    pub const DEFAULT: Self = Self { vmin: 0.6, vmax: 3.0 };
     /// Fit of the Salamander layers (sampler velocity ranges), 1.4 dB rms.
     pub const SALAMANDER_LAYERS: Self = Self { vmin: 0.4, vmax: 4.0 };
 
@@ -520,10 +520,10 @@ impl Default for PianoModel {
             // growth with velocity (tools/attack_grid.py), once the strike
             // point was measured from the agraffe: soft felt, Stulov's
             // exponent −0.5, slightly harder towards the treble.
-            hardness: 0.35,
-            hardness_slope: 0.02,
-            p_offset: -0.5,
-            hysteresis: 1.0,
+            hardness: 0.7,
+            hardness_slope: 0.05,
+            p_offset: 0.5,
+            hysteresis: 0.25,
             contact_width_scale: 1.0,
         }
     }

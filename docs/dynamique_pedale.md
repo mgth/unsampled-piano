@@ -60,7 +60,9 @@ En attendant un couplage passif, `SympatheticLaw::gain` passe à 0,25. Ce n'est 
 
 ## Toucher : écoute comparative
 
-Les vélocités de Salamander viennent d'un échantillonneur, celles de MAESTRO d'un Disklavier. Les mesures seules ne disent pas quelle échelle convient à ces fichiers. Par rapport à Salamander, l'échelle Disklavier étend la dynamique : 30 dB du plus doux au plus fort au lieu de 21. Elle éclaircit aussi l'attaque des nuances fortes : centroïde ×1,4–1,7 au lieu de ×1,2–1,5. Les trois réglages `out/ab/*.toml` ont été départagés à l'écoute (A : Disklavier, B : Salamander, C : intermédiaire). Le choix s'est porté sur **C**, qui devient le réglage par défaut : `VelocityLaw { vmin: 0.3, vmax: 5.5 }`, avec 2 m/s vers la vélocité 84.
+Les vélocités de Salamander viennent d'un échantillonneur, celles de MAESTRO d'un Disklavier. Les mesures seules ne disent pas quelle échelle convient à ces fichiers. Par rapport à Salamander, l'échelle Disklavier étend la dynamique : 30 dB du plus doux au plus fort au lieu de 21. Elle éclaircit aussi l'attaque des nuances fortes : centroïde ×1,4–1,7 au lieu de ×1,2–1,5. Les trois réglages `out/ab/*.toml` ont été départagés à l'écoute (A : Disklavier, B : Salamander, C : intermédiaire). Le choix s'est porté sur **C**, qui est devenu le réglage par défaut : `VelocityLaw { vmin: 0.3, vmax: 5.5 }`, avec 2 m/s vers la vélocité 84.
+
+Après la correction du contact marteau–cordes ([comparaison.md](comparaison.md)), la loi a été recalibrée avec le marteau, sur la dynamique de Salamander et de Commercial aux mêmes vélocités : 0,6–3,0 m/s. Ce choix fait par l'écoute est donc à refaire.
 
 ## À faire
 

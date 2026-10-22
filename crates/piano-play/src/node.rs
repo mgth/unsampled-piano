@@ -116,4 +116,13 @@ impl Running {
     pub fn connect(&self, from: &str, to: &str) -> Result<(), jack::Error> {
         self.0.as_client().connect_ports_by_name(from, to)
     }
+
+    /// MIDI inputs of the other nodes.
+    pub fn midi_inputs(&self) -> Vec<String> {
+        let c = self.0.as_client();
+        let own = format!("{}:", c.name());
+        let mut v = c.ports(None, Some("midi"), PortFlags::IS_INPUT);
+        v.retain(|p| !p.starts_with(&own));
+        v
+    }
 }

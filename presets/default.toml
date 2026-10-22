@@ -3,15 +3,15 @@
 
 a4 = 440.0
 una_corda_softening = 0.6
-hardness = 0.35
-hardness_slope = 0.02
-p_offset = -0.5
-hysteresis = 1.0
+hardness = 0.7
+hardness_slope = 0.05
+p_offset = 0.5
+hysteresis = 0.25
 contact_width_scale = 1.0
 
 [velocity]
-vmin = 0.3
-vmax = 5.5
+vmin = 0.6
+vmax = 3.0
 
 [inharmonicity]
 a_bass = -0.111714

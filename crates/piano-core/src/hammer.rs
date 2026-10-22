@@ -145,7 +145,11 @@ impl ContactSolver {
     /// simply taken every `oversample` steps. During the few milliseconds of
     /// contact the strings are treated as uncoupled (bridge coupling acts on
     /// a time scale 1/|ε| of 0.1–1 s). Real-time safe.
-    pub fn strike(&mut self, note: &NoteParams, v: f64, oversample: usize, modes: impl IntoIterator<Item = PhysMode>) {
+    pub fn strike<I>(&mut self, note: &NoteParams, v: f64, oversample: usize, modes: I)
+    where
+        I: IntoIterator<Item = PhysMode>,
+        I::IntoIter: Clone,
+    {
         self.oversample = oversample.max(1);
         self.dt = self.base_dt / self.oversample as f64;
         let dt = self.dt;
@@ -155,7 +159,16 @@ impl ContactSolver {
         let mut w0 = 0.0;
         let mut w1 = 0.0;
         let mut n = 0;
-        for m in modes.into_iter().take(self.c.len()) {
+        // The strings of a unison lie side by side under one felt: in
+        // parallel. The felt presses on their mean displacement (weighted by
+        // the share each one takes, `hit`) and each takes that share of the
+        // force; summing the displacements instead put them in series, the
+        // hammer seeing them N² times too compliant.
+        // (Modes come ordered by partial: the first ones are partial 1. No
+        // allocation: the iterator is walked twice.)
+        let modes = modes.into_iter();
+        let share: f64 = modes.clone().take_while(|m| m.k == 1).map(|m| m.hit).sum::<f64>().max(1e-9);
+        for m in modes.take(self.c.len()) {
             let i = n;
             n += 1;
             let k = m.k as f64;
@@ -168,7 +181,7 @@ impl ContactSolver {
             // from the *agraffe* (x = L): striking near the bridge would push
             // it quasi-statically with most of the hammer force (a thump).
             let x = k * half_w;
-            let phi = m.hit
+            let phi = m.hit / share
                 * (k * std::f64::consts::PI * (1.0 - note.strike_pos)).sin()
                 * if x > 1e-9 { x.sin() / x } else { 1.0 };
             self.c[i] = r * cs;
