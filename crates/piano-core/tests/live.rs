@@ -26,7 +26,10 @@ fn render(engine: &mut Engine, gain_db: Option<f32>) -> Vec<f32> {
 
 #[test]
 fn output_gain_is_live_and_smooth() {
-    let cfg = EngineConfig::default();
+    // Without the room: its tail of the pre-change sound mixes with the
+    // attenuated one and blurs the ratio.
+    let mut cfg = EngineConfig::default();
+    cfg.model.room.enabled = false;
     let mut a = Engine::new(cfg);
     let mut b = Engine::with_instrument(cfg, a.instrument().clone());
     let dry = render(&mut a, None);
