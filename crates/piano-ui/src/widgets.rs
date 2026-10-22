@@ -115,18 +115,19 @@ fn reset_button(ui: &mut Ui, visible: bool) -> egui::Response {
     }
     let stroke = Stroke::new(1.5, style.fg_stroke.color);
     let (c, r) = (rect.center(), 0.28 * rect.height());
-    // Three quarters of a circle, from the top clockwise to the left.
-    let start = -std::f32::consts::FRAC_PI_2;
+    // ↺: three quarters of a circle turning anticlockwise, from the left
+    // through the bottom and the right, up to the top.
+    let (from, to) = (std::f32::consts::PI, -std::f32::consts::FRAC_PI_2);
     let points: Vec<Pos2> = (0..=24)
-        .map(|i| start + 1.5 * std::f32::consts::PI * i as f32 / 24.0)
+        .map(|i| from + (to - from) * i as f32 / 24.0)
         .map(|a| c + r * Vec2::angled(a))
         .collect();
     ui.painter().add(egui::Shape::line(points, stroke));
-    // Arrowhead at the open end (the top), pointing along the arc.
-    let tip = c + r * Vec2::angled(start);
+    // Arrowhead at the end (the top), pointing left along the arc.
+    let tip = c + r * Vec2::angled(to);
     let h = 0.55 * r;
     ui.painter().add(egui::Shape::convex_polygon(
-        vec![tip + Vec2::new(h, 0.0), tip + Vec2::new(-0.4 * h, -0.8 * h), tip + Vec2::new(-0.4 * h, 0.8 * h)],
+        vec![tip + Vec2::new(-h, 0.0), tip + Vec2::new(0.4 * h, -0.8 * h), tip + Vec2::new(0.4 * h, 0.8 * h)],
         style.fg_stroke.color,
         Stroke::NONE,
     ));
