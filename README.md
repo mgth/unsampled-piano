@@ -1,6 +1,6 @@
 # piano
 
-Piano virtuel par modélisation physique, temps réel depuis MIDI, en Rust. Référence : Commercial. Aucun sample dans la production du son (les enregistrements ne servent qu'à l'analyse et à la calibration).
+Piano virtuel par modélisation physique, temps réel depuis MIDI, en Rust. Aucun sample dans la production du son (les enregistrements ne servent qu'à l'analyse et à la calibration).
 
 Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cordes raides par touche, deux polarisations, couplées au chevalet (modes de Weinreich) → table d'harmonie modale (plaque orthotrope encastrée) → rayonnement de Rayleigh vers deux micros (couvercle optionnel) → salle (réflexions par sources images, réverbération). Le cadre en fonte (excité aux agrafes) et la ceinture (excitée par les bords de la table) rayonnent aussi. S'y ajoutent les étouffoirs, les pédales (demi-pédale, sostenuto, una corda), la résonance sympathique par le chevalet et les bruits mécaniques par impulsions.
 
