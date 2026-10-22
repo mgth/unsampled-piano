@@ -110,7 +110,7 @@ Le marteau a ensuite été recalé sur la brillance *absolue* d'attaque, jusque-
 
 **Bruit de relâchement trop clair.** La chute d'étouffoir était une impulsion instantanée, donc à large bande. Le feutre se pose maintenant en 4 ms : le spectre de l'impulsion est celui d'un demi-sinus, et le bruit devient un « tomp » sourd, 23 dB sous la note.
 
-**Una corda.** Elle donne bien un timbre plus sombre et un aftersound plus long, comme le prédit Weinreich (test `una_corda_is_darker_with_more_aftersound`). Mais le modèle ne reproduit *pas* la baisse de niveau d'un vrai piano : frapper 2 cordes au lieu de 3 ne réduit pas l'énergie transmise par le marteau dans notre modèle.
+**Una corda.** Elle donne bien un timbre plus sombre et, dans cette version, un aftersound plus long, comme le prédit Weinreich. Depuis la recalibration de la tenue ([tenue.md](tenue.md)), le gain d'aftersound dépend de la note et devient nul en moyenne ; le test s'appelle désormais `una_corda_is_darker_and_keeps_its_sustain`. Mais le modèle ne reproduit *pas* la baisse de niveau d'un vrai piano : frapper 2 cordes au lieu de 3 ne réduit pas l'énergie transmise par le marteau dans notre modèle.
 
 Après ces changements : gain de sortie +6 dB (pire cas à −3,2 dBFS) ; bruits à −22 / −23 dB sous la note ; relâchement de pédale à −14 dB.
 

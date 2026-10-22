@@ -39,6 +39,17 @@ fn main() {
     c.model.sympathetic.max_freq = 2000.0;
     run("sympathy below 2 kHz", c);
     let mut c = base;
+    c.model.frame.enabled = false;
+    run("no frame", c);
+    let mut c = base;
+    c.model.rim.enabled = false;
+    run("no rim", c);
+    let mut c = base;
+    c.model.rim.couple_f_max = 1.0;
+    run("rim uncoupled (bank only)", c);
+    c.model.frame.enabled = false;
+    run("no frame, no rim", c);
+    let mut c = base;
     c.model.soundboard = None;
     run("no soundboard", c);
 }

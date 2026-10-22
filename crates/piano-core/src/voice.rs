@@ -44,6 +44,7 @@ pub struct Voice {
     pub sym: ModalBank,
     pub contact: ContactSolver,
     sym_force: Vec<f32>,
+    agraffe: Vec<f32>,
     /// Own bridge force: this sub-block, and its history (ring indexed by
     /// absolute sample) to cancel its own contribution D samples later.
     force: Vec<f32>,
@@ -68,6 +69,7 @@ impl Voice {
             sym: ModalBank::new(sample_rate, MAX_MODES, max_block),
             contact: ContactSolver::new(MAX_MODES, sample_rate),
             sym_force: vec![0.0; max_block],
+            agraffe: vec![0.0; max_block],
             force: vec![0.0; max_block],
             force_ring: vec![0.0; RING],
             x2: vec![0.0; max_block],
@@ -144,8 +146,8 @@ impl Voice {
     }
 
     /// Renders samples `from..to` of the sub-block starting at absolute
-    /// sample `t0`: adds the primary bridge force to `out` and the
-    /// sympathetic one to `out_sym`. `bridge` is the bridge displacement
+    /// sample `t0`: adds the primary bridge force to `out`, the sympathetic
+    /// one to `out_sym` and the force on the agraffes to `out_agraffe`. `bridge` is the bridge displacement
     /// (from the other keys' primary forces) at the region point, `delay`
     /// samples earlier, when sympathy is on.
     #[allow(clippy::too_many_arguments)]
@@ -154,22 +156,35 @@ impl Voice {
         nm: &NoteModel,
         out: &mut [f32],
         out_sym: &mut [f32],
+        out_agraffe: Option<&mut [f32]>,
         t0: u64,
         from: usize,
         to: usize,
         bridge: Option<(&[f32], usize)>,
     ) {
         self.force[from..to].fill(0.0);
+        let n = to - from;
+        let with_agraffe = out_agraffe.is_some();
+        self.agraffe[..n].fill(0.0);
         let mut start = 0;
         if self.contact.is_active() {
-            start = self.contact.run(&mut self.force[from..to]);
+            let agraffe = with_agraffe.then_some(&mut self.agraffe[..n]);
+            start = self.contact.run(&mut self.force[from..to], agraffe);
             if !self.contact.is_active() {
                 self.hand_over(nm);
             }
         }
-        let n = to - from;
         if start < n && !self.bank.is_empty() {
-            self.bank.process(None, &mut self.force[from + start..to]);
+            if with_agraffe {
+                self.bank.process2(None, &mut self.force[from + start..to], &mut self.agraffe[start..n]);
+            } else {
+                self.bank.process(None, &mut self.force[from + start..to]);
+            }
+        }
+        if let Some(out_agraffe) = out_agraffe {
+            for (o, a) in out_agraffe.iter_mut().zip(&self.agraffe[..n]) {
+                *o += a;
+            }
         }
         for (i, (o, f)) in out.iter_mut().zip(&self.force[from..to]).enumerate() {
             *o += f;

@@ -17,6 +17,7 @@ use crate::modal::{Isa, LANES};
 
 pub const REGIONS: usize = 16;
 pub const MICS: usize = 2;
+/// Outputs: the mics, then the bridge velocity at each region point.
 pub const OUTPUTS: usize = MICS + REGIONS;
 
 /// One board mode, in physical units.
@@ -70,12 +71,37 @@ pub struct BoardBank {
     /// a force impulse makes the velocity jump; the sampled response counts
     /// the jump fully at n = 0 instead of half.
     direct: [[f32; REGIONS]; OUTPUTS],
+    /// Extra outputs computed on the first `extra_chunks` chunks only (the
+    /// low modes): weights `[c·n_extra + e]` (re, im) and accumulators.
+    /// They carry no direct term: meant for displacement-like outputs,
+    /// which do not jump on an impulse.
+    n_extra: usize,
+    extra_chunks: usize,
+    extra_w: Vec<[[f32; LANES]; 2]>,
+    extra_acc: Vec<[f32; LANES]>,
     isa: Isa,
 }
 
 impl BoardBank {
     pub fn new(sample_rate: f64, modes: &[BoardMode], max_block: usize) -> Self {
+        Self::with_extra(sample_rate, modes, &[], max_block)
+    }
+
+    /// Bank with extra outputs: `extra[i]` holds the complex weights of mode
+    /// `i` on each extra output (all the same length); modes past
+    /// `extra.len()` do not contribute to them.
+    pub fn with_extra(sample_rate: f64, modes: &[BoardMode], extra: &[Vec<(f64, f64)>], max_block: usize) -> Self {
         let t = 1.0 / sample_rate;
+        let n_extra = extra.first().map_or(0, |e| e.len());
+        let extra_chunks = if n_extra == 0 { 0 } else { extra.len().min(modes.len()).div_ceil(LANES) };
+        let mut extra_w = vec![[[0.0f32; LANES]; 2]; extra_chunks * n_extra];
+        for (i, ws) in extra.iter().take(modes.len()).enumerate() {
+            for (e, w) in ws.iter().enumerate() {
+                let cell = &mut extra_w[(i / LANES) * n_extra + e];
+                cell[0][i % LANES] = w.0 as f32;
+                cell[1][i % LANES] = w.1 as f32;
+            }
+        }
         let mut chunks = vec![Chunk::default(); modes.len().div_ceil(LANES)];
         let mut direct = [[0.0f64; REGIONS]; OUTPUTS];
         for m in modes {
@@ -108,6 +134,10 @@ impl BoardBank {
             max_block,
             xin: vec![[0.0; REGIONS]; max_block],
             direct: direct.map(|row| row.map(|d| d as f32)),
+            n_extra,
+            extra_chunks,
+            extra_w,
+            extra_acc: vec![[0.0; LANES]; n_extra * max_block],
             // LLVM's AVX-512 code for this kernel is ≈ 10× slower than its
             // AVX2 code on Zen 5 (measured: 12.9 vs 1.3 ns/mode·sample).
             isa: match Isa::detect() {
@@ -120,6 +150,10 @@ impl BoardBank {
 
     pub fn len(&self) -> usize {
         self.n_modes
+    }
+
+    pub fn extra_outputs(&self) -> usize {
+        self.n_extra
     }
 
     pub fn set_isa(&mut self, isa: Isa) {
@@ -144,8 +178,16 @@ impl BoardBank {
 
     /// Advances by `len` samples. `inputs[r][..len]` are the region forces;
     /// the outputs are *added* to `mics[o][..len]` and, when given,
-    /// `disp[r][..len]` (bridge velocity at the region points).
-    pub fn process(&mut self, inputs: &[Vec<f32>], len: usize, mics: [&mut [f32]; MICS], disp: Option<&mut [Vec<f32>]>) {
+    /// `disp[r][..len]` (bridge velocity at the region points) and
+    /// `extra[e][..len]`.
+    pub fn process(
+        &mut self,
+        inputs: &[Vec<f32>],
+        len: usize,
+        mics: [&mut [f32]; MICS],
+        disp: Option<&mut [Vec<f32>]>,
+        extra: Option<&mut [Vec<f32>]>,
+    ) {
         assert!(len <= self.max_block && inputs.len() == REGIONS);
         // Only regions with input this block take part in the projection.
         let mut active = [0usize; REGIONS];
@@ -164,12 +206,14 @@ impl BoardBank {
         let (mb, acc, hist) = (self.max_block, &mut self.acc[..], &mut self.hist[..len]);
         let (chunks, xin) = (&mut self.chunks[..], &self.xin[..len]);
         let act = &active[..na];
+        let n_ex = if extra.is_some() { self.n_extra } else { 0 };
+        let (ex_w, ex_acc) = (&self.extra_w[..self.extra_chunks * n_ex], &mut self.extra_acc[..]);
         macro_rules! go {
             ($run:ident) => {
                 if disp.is_some() {
-                    $run::<OUTPUTS>(chunks, xin, act, acc, hist, mb)
+                    $run::<OUTPUTS>(chunks, xin, act, acc, hist, mb, n_ex, ex_w, ex_acc)
                 } else {
-                    $run::<MICS>(chunks, xin, act, acc, hist, mb)
+                    $run::<MICS>(chunks, xin, act, acc, hist, mb, n_ex, ex_w, ex_acc)
                 }
             };
         }
@@ -185,7 +229,7 @@ impl BoardBank {
         let act = &active[..na];
         let sum = |o: usize, t: usize| {
             let feed: f32 = act.iter().enumerate().map(|(k, &r)| self.direct[o][r] * self.xin[t][k]).sum();
-            self.acc[o * mb + t].iter().sum::<f32>() + feed
+            hsum(&self.acc[o * mb + t]) + feed
         };
         for t in 0..len {
             m0[t] += sum(0, t);
@@ -198,13 +242,24 @@ impl BoardBank {
                 }
             }
         }
+        if let Some(extra) = extra {
+            for (e, out) in extra.iter_mut().take(self.n_extra).enumerate() {
+                for (x, a) in out[..len].iter_mut().zip(&self.extra_acc[e * mb..e * mb + len]) {
+                    *x += hsum(a);
+                }
+            }
+        }
     }
 }
 
 type Hist = ([f32; LANES], [f32; LANES]);
 
+/// Extra outputs' weights of the low chunks, `[c·n_ex + e]`.
+type ExtraW = [[f32; LANES]; 2];
+
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2,fma")]
+#[allow(clippy::too_many_arguments)]
 fn run_avx2<const NO: usize>(
     chunks: &mut [Chunk],
     xin: &[[f32; REGIONS]],
@@ -212,12 +267,16 @@ fn run_avx2<const NO: usize>(
     acc: &mut [[f32; LANES]],
     hist: &mut [Hist],
     mb: usize,
+    n_ex: usize,
+    ex_w: &[ExtraW],
+    ex_acc: &mut [[f32; LANES]],
 ) {
-    run::<NO>(chunks, xin, act, acc, hist, mb)
+    run::<NO>(chunks, xin, act, acc, hist, mb, n_ex, ex_w, ex_acc)
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f,avx512vl,avx512bw,avx512dq,fma")]
+#[allow(clippy::too_many_arguments)]
 fn run_avx512<const NO: usize>(
     chunks: &mut [Chunk],
     xin: &[[f32; REGIONS]],
@@ -225,14 +284,41 @@ fn run_avx512<const NO: usize>(
     acc: &mut [[f32; LANES]],
     hist: &mut [Hist],
     mb: usize,
+    n_ex: usize,
+    ex_w: &[ExtraW],
+    ex_acc: &mut [[f32; LANES]],
 ) {
-    run::<NO>(chunks, xin, act, acc, hist, mb)
+    run::<NO>(chunks, xin, act, acc, hist, mb, n_ex, ex_w, ex_acc)
+}
+
+/// Sum of the lanes as a tree (independent adds, not a serial chain).
+#[inline(always)]
+fn hsum(a: &[f32; LANES]) -> f32 {
+    let mut v = *a;
+    let mut w = LANES / 2;
+    while w > 0 {
+        for l in 0..w {
+            v[l] += v[l + w];
+        }
+        w /= 2;
+    }
+    v[0]
+}
+
+#[inline(always)]
+fn accumulate(acc: &mut [[f32; LANES]], hist: &[Hist], wr: &[f32; LANES], wi: &[f32; LANES]) {
+    for (a, h) in acc.iter_mut().zip(hist) {
+        for l in 0..LANES {
+            a[l] += wr[l] * h.0[l] - wi[l] * h.1[l];
+        }
+    }
 }
 
 /// Two passes per chunk of 16 modes: the recursion over the block (states
 /// kept in an L1-resident history), then each output streamed over time.
 /// A single pass with 18 lane accumulators per sample spills (≈ 30× slower).
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 fn run<const NO: usize>(
     chunks: &mut [Chunk],
     xin: &[[f32; REGIONS]],
@@ -240,12 +326,19 @@ fn run<const NO: usize>(
     acc: &mut [[f32; LANES]],
     hist: &mut [Hist],
     mb: usize,
+    n_ex: usize,
+    ex_w: &[ExtraW],
+    ex_acc: &mut [[f32; LANES]],
 ) {
     let len = hist.len();
     for o in 0..NO {
         acc[o * mb..o * mb + len].fill([0.0; LANES]);
     }
-    for c in chunks.iter_mut() {
+    for e in 0..n_ex {
+        ex_acc[e * mb..e * mb + len].fill([0.0; LANES]);
+    }
+    let ex_chunks = ex_w.len().checked_div(n_ex).unwrap_or(0);
+    for (ci, c) in chunks.iter_mut().enumerate() {
         let (pr, pi) = (c.pr, c.pi);
         let (mut zr, mut zi) = (c.zr, c.zi);
         for (x, h) in xin.iter().zip(hist.iter_mut()) {
@@ -267,11 +360,11 @@ fn run<const NO: usize>(
         c.zr = zr;
         c.zi = zi;
         for o in 0..NO {
-            let (wr, wi) = (c.wr[o], c.wi[o]);
-            for (a, h) in acc[o * mb..o * mb + len].iter_mut().zip(hist.iter()) {
-                for l in 0..LANES {
-                    a[l] += wr[l] * h.0[l] - wi[l] * h.1[l];
-                }
+            accumulate(&mut acc[o * mb..o * mb + len], hist, &c.wr[o], &c.wi[o]);
+        }
+        if ci < ex_chunks {
+            for (e, [wr, wi]) in ex_w[ci * n_ex..(ci + 1) * n_ex].iter().enumerate() {
+                accumulate(&mut ex_acc[e * mb..e * mb + len], hist, wr, wi);
             }
         }
     }
@@ -299,24 +392,37 @@ pub fn transfer(modes: &[BoardMode], r: usize, o: usize, omega: f64, sample_rate
     h
 }
 
-/// Board modes for a soundboard: inputs at the region points, outputs at
-/// the two mics (Rayleigh) and velocity at the region points.
+/// Board modes for a soundboard: inputs through the bridge at the region
+/// keys, outputs at the two mics (Rayleigh) and bridge velocity there.
 pub fn board_modes(sb: &crate::soundboard::Soundboard, sample_rate: f64) -> Vec<BoardMode> {
+    let shapes: Vec<Vec<f64>> = (0..REGIONS).map(|r| sb.bridge_shapes(region_center_note(r))).collect();
+    board_modes_with(sb, &shapes, sample_rate)
+}
+
+/// Same as [`board_modes`] with point inputs at `points` (m).
+pub fn board_modes_at(sb: &crate::soundboard::Soundboard, points: &[(f64, f64)], sample_rate: f64) -> Vec<BoardMode> {
+    let shapes: Vec<Vec<f64>> =
+        points.iter().map(|&(x, y)| sb.modes.iter().map(|md| sb.shape(md, x, y)).collect()).collect();
+    board_modes_with(sb, &shapes, sample_rate)
+}
+
+/// Board modes with per-region input shapes `shapes[r][mode]`.
+fn board_modes_with(sb: &crate::soundboard::Soundboard, shapes: &[Vec<f64>], sample_rate: f64) -> Vec<BoardMode> {
     use crate::complex::C64;
     let rad = sb.radiation();
     let nyq = 0.45 * sample_rate;
     let t = 1.0 / sample_rate;
-    let points: Vec<(f64, f64)> = (0..REGIONS).map(|r| sb.params.bridge_point(region_center_note(r))).collect();
     sb.modes
         .iter()
         .zip(&rad)
-        .filter(|(md, _)| md.omega / std::f64::consts::TAU < nyq)
-        .map(|(md, w)| {
+        .enumerate()
+        .filter(|(_, (md, _))| md.omega / std::f64::consts::TAU < nyq)
+        .map(|(i, (md, w))| {
             let mut outputs = [(0.0, 0.0); OUTPUTS];
             outputs[0] = (w[0].re, w[0].im);
             outputs[1] = (w[1].re, w[1].im);
-            for (r, &(x, y)) in points.iter().enumerate() {
-                outputs[MICS + r] = (sb.shape(md, x, y), 0.0);
+            for (r, sh) in shapes.iter().enumerate() {
+                outputs[MICS + r] = (sh[i], 0.0);
             }
             // Exact velocity impulse response of a damped mode,
             // e^{−σt}(cos ω_d t − σ/ω_d·sin ω_d t) = Re((1 + iσ/ω_d)·e^{(−σ+iω_d)t}):
@@ -330,7 +436,7 @@ pub fn board_modes(sb: &crate::soundboard::Soundboard, sample_rate: f64) -> Vec<
             BoardMode {
                 freq_hz: md.omega / std::f64::consts::TAU,
                 sigma,
-                inputs: std::array::from_fn(|r| sb.shape(md, points[r].0, points[r].1) * t),
+                inputs: std::array::from_fn(|r| shapes[r][i] * t),
                 outputs,
             }
         })
@@ -360,16 +466,17 @@ mod tests {
         let sb = Soundboard::new(SoundboardParams::GRAND_2M);
         let modes = board_modes(&sb, sr);
         let r = 7;
-        let (x, y) = sb.params.bridge_point(region_center_note(r));
+        let shapes = sb.bridge_shapes(region_center_note(r));
         for f in [80.0, 440.0, 2500.0] {
             let w = std::f64::consts::TAU * f;
             let h = transfer(&modes, r, MICS + r, w, sr);
-            let want = sb.admittance(x, y, w);
+            let want = sb.mobility(&shapes, w);
             // Impulse invariance departs from the continuous mobility for the
             // strongly damped high modes (η up to ≈ 0.6): in the 80 Hz
-            // conductance valley the small real part is off by ≈ 2×, i.e.
-            // ≈ 18 % of |Y|.
-            assert!((h - want).norm() < 0.2 * want.norm(), "f {f}: {h:?} vs {want:?}");
+            // conductance valley the small real part is off by ≈ 2.4×, i.e.
+            // ≈ 27 % of |Y| (the reactive part matches to 0.3 %).
+            let tol = if f < 100.0 { 0.3 } else { 0.2 };
+            assert!((h - want).norm() < tol * want.norm(), "f {f}: {h:?} vs {want:?}");
         }
         // Render a sine through the bank and compare its steady state.
         let f = 440.0;
@@ -387,7 +494,7 @@ mod tests {
             for d in disp.iter_mut() {
                 d.fill(0.0);
             }
-            bank.process(&inputs, 256, [&mut m0, &mut m1], Some(&mut disp));
+            bank.process(&inputs, 256, [&mut m0, &mut m1], Some(&mut disp), None);
             if blk >= 380 {
                 for t in 0..256 {
                     let ph = std::f64::consts::TAU * f * (blk * 256 + t) as f64 / sr;

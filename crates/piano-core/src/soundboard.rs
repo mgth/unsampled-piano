@@ -49,11 +49,25 @@ pub struct SoundboardParams {
     /// Stiffness (N/m) in series between string and bridge (pins, cap):
     /// adds iω/k to the admittance seen by the strings.
     pub series_stiffness: f64,
+    /// The bridge is a stiff hardwood beam glued on the board: a string's
+    /// force reaches the board spread along it, over `bridge_spread` times
+    /// the bridge's bending wavelength 2π·(EI/(μω²))^¼ (capped at 0.5 m).
+    /// Short board waves (high modes) then average out: this is what makes
+    /// the bridge conductance rise slowly with frequency. EI (N·m²) and line
+    /// mass μ (kg/m) of the bridge; EI = 0 drives the board at a point.
+    pub bridge_stiffness: f64,
+    pub bridge_line_mass: f64,
+    pub bridge_spread: f64,
+    /// Boards are thicker and more densely ribbed under the treble: the
+    /// impedance under the bridge grows as e^{slope·(key − 60)} (the uniform
+    /// plate sets its value at C4). Applied to the shapes through which the
+    /// strings drive the board, so the board also answers less to them.
+    pub impedance_slope: f64,
     /// Highest mode kept (Hz).
     pub f_max: f64,
     /// Bridge as a polyline in normalised plate coordinates, from C8 down to
     /// the last note of the main bridge; then the bass bridge.
-    pub treble_bridge: [(f64, f64); 3],
+    pub treble_bridge: [(f64, f64); 5],
     pub bass_bridge: [(f64, f64); 2],
     /// First note on the main bridge (lower notes are on the bass bridge).
     pub main_bridge_from: u8,
@@ -112,8 +126,21 @@ impl SoundboardParams {
         loss_corner: 700.0,
         bridge_mass: 0.0,
         series_stiffness: 2e7,
+        // Maple, ≈ 3 × 2.5 cm; spread over 0.3 bending wavelength (set with
+        // the ESPRIT decays of the upper partials, docs/tenue.md).
+        bridge_stiffness: 470.0,
+        bridge_line_mass: 0.6,
+        bridge_spread: 0.3,
+        // Calibrated on the decay envelopes of Salamander (docs/tenue.md):
+        // ×4.6 at C8, ×0.4 at A0 relative to C4.
+        impedance_slope: 0.035,
         f_max: 20_000.0,
-        treble_bridge: [(0.18, 0.22), (0.42, 0.60), (0.62, 0.86)],
+        // Main bridge at equal steps of the main range (C8, ≈ F6, ≈ G#4,
+        // ≈ C#3, F1): x follows the speaking length of the 2 m scale from
+        // agraffes 3 cm in front of the board's front edge (C8 kept 6 cm in),
+        // y the key's place across the 1.2 m wide string band. The treble
+        // end sits in the board's clamped corner, as on real grands.
+        treble_bridge: [(0.035, 0.077), (0.07, 0.28), (0.21, 0.50), (0.62, 0.71), (0.78, 0.92)],
         bass_bridge: [(0.72, 0.62), (0.86, 0.40)],
         main_bridge_from: 29,
         mics: [(0.45, 0.35, 1.5), (1.15, 0.85, 1.5)],
@@ -141,15 +168,21 @@ impl SoundboardParams {
 
     /// Bridge point of a key, in metres.
     pub fn bridge_point(&self, note: u8) -> (f64, f64) {
+        self.bridge_point_at(note as f64, note >= self.main_bridge_from)
+    }
+
+    /// Point at a fractional key position along the main or the bass bridge.
+    pub fn bridge_point_at(&self, note: f64, main: bool) -> (f64, f64) {
         let lerp = |p: (f64, f64), q: (f64, f64), t: f64| (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
-        let (u, v) = if note >= self.main_bridge_from {
+        let (u, v) = if main {
             // 0 at C8, 1 at the lowest note of the main bridge.
-            let t = (108.0 - note as f64) / (108.0 - self.main_bridge_from as f64);
+            let t = ((108.0 - note) / (108.0 - self.main_bridge_from as f64)).clamp(0.0, 1.0);
             let tb = &self.treble_bridge;
-            if t < 0.5 { lerp(tb[0], tb[1], 2.0 * t) } else { lerp(tb[1], tb[2], 2.0 * t - 1.0) }
+            let seg = ((t * 4.0) as usize).min(3);
+            lerp(tb[seg], tb[seg + 1], t * 4.0 - seg as f64)
         } else {
             let span = (self.main_bridge_from - 21).max(1) as f64;
-            let t = (self.main_bridge_from as f64 - 1.0 - note as f64) / span.max(1.0);
+            let t = (self.main_bridge_from as f64 - 1.0 - note) / span.max(1.0);
             lerp(self.bass_bridge[0], self.bass_bridge[1], t.clamp(0.0, 1.0))
         };
         (u * self.a, v * self.b)
@@ -297,10 +330,63 @@ impl Soundboard {
         0.5 * self.eta(mode.omega) * mode.omega
     }
 
-    /// Mobility seen by the strings at (x, y): plate with the bridge mass,
-    /// in series with the pin/cap compliance.
-    pub fn bridge_admittance(&self, x: f64, y: f64, omega: f64) -> C64 {
-        let yp = self.admittance(x, y, omega);
+    /// Length of bridge (m) over which a force at ω reaches the board.
+    pub fn drive_length(&self, omega: f64) -> f64 {
+        let p = &self.params;
+        if p.bridge_stiffness <= 0.0 || omega <= 0.0 {
+            return 0.0;
+        }
+        (p.bridge_spread * TAU * (p.bridge_stiffness / (p.bridge_line_mass * omega * omega)).powf(0.25)).min(0.5)
+    }
+
+    /// Shape of every mode as a key's string drives it through the bridge:
+    /// Φ averaged (Hann window) over the drive length at the mode's
+    /// frequency, along the key's bridge.
+    pub fn bridge_shapes(&self, note: u8) -> Vec<f64> {
+        let p = &self.params;
+        let main = note >= p.main_bridge_from;
+        let (lo, hi) = if main { (p.main_bridge_from as f64, 108.0) } else { (21.0, p.main_bridge_from as f64 - 1.0) };
+        let n = note as f64;
+        let (a, b) = (p.bridge_point_at(n - 0.5, main), p.bridge_point_at(n + 0.5, main));
+        let per_key = ((a.0 - b.0).hypot(a.1 - b.1)).max(1e-3);
+        const K: usize = 9;
+        let taper = (-0.5 * p.impedance_slope * (n - 60.0)).exp();
+        self.modes
+            .iter()
+            .map(|md| {
+                let half = 0.5 * self.drive_length(md.omega) / per_key;
+                if half < 1e-3 {
+                    let (x, y) = p.bridge_point(note);
+                    return taper * self.shape(md, x, y);
+                }
+                let (mut acc, mut wsum) = (0.0, 0.0);
+                for i in 0..K {
+                    let u = -1.0 + 2.0 * (i as f64 + 0.5) / K as f64;
+                    let w = (0.5 * PI * u).cos().powi(2);
+                    let (x, y) = p.bridge_point_at((n + half * u).clamp(lo, hi), main);
+                    acc += w * self.shape(md, x, y);
+                    wsum += w;
+                }
+                taper * acc / wsum
+            })
+            .collect()
+    }
+
+    /// Plate mobility for a drive with the given per-mode shapes.
+    pub fn mobility(&self, shapes: &[f64], omega: f64) -> C64 {
+        let mut y_sum = C64::ZERO;
+        for (md, phi) in self.modes.iter().zip(shapes) {
+            let den = C64::new(md.omega * md.omega - omega * omega, self.eta(md.omega) * md.omega * omega);
+            y_sum += C64::new(0.0, omega * phi * phi) / den;
+        }
+        y_sum
+    }
+
+    /// Mobility seen by a key's strings: plate driven through the bridge
+    /// (shapes from [`Self::bridge_shapes`]), with the bridge mass, in
+    /// series with the pin/cap compliance.
+    pub fn bridge_admittance(&self, shapes: &[f64], omega: f64) -> C64 {
+        let yp = self.mobility(shapes, omega);
         let with_mass = yp / (C64::ONE + C64::new(0.0, omega * self.params.bridge_mass) * yp);
         with_mass + C64::new(0.0, omega / self.params.series_stiffness)
     }

@@ -61,26 +61,34 @@ impl StretchLaw {
     }
 }
 
-/// Decay rate σ_k = b1(note) + b2·f_k² (1/s) with log b1 linear in the note.
+/// Decay rate σ_k = b1(note) + b2·f_k² (1/s) with log b1 linear in the note,
+/// plus a constant floor `b1_floor` (internal friction of the wound bass
+/// strings, which the log-linear law misses).
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct LossLaw {
     pub b1_slope: f64,
     pub b1_offset: f64,
     pub b2: f64,
+    pub b1_floor: f64,
 }
+
 
 impl LossLaw {
     /// Early ("prompt") decay of single partials, Salamander survey. A single
     /// string per note cannot reproduce the two-stage decay (Phase 2).
-    pub const SALAMANDER_EARLY: Self = Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7 };
+    pub const SALAMANDER_EARLY: Self = Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0 };
     /// Intrinsic string losses: law of the ESPRIT aftersound (no bridge
     /// losses), scaled ×0.45 by the decay calibration of the full instrument
-    /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them.
-    pub const SALAMANDER_STRING: Self = Self { b1_slope: 0.0590, b1_offset: -4.782, b2: 3.0e-8 };
+    /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. The
+    /// frequency term b2 = 1e-7 was set with the bridge spreading
+    /// (docs/tenue.md): the upper partials decay at the measured rate and
+    /// most of the excess above 6 kHz goes; 2e-7 would shorten the treble
+    /// fundamentals.
+    pub const SALAMANDER_STRING: Self = Self { b1_slope: 0.0590, b1_offset: -4.782, b2: 1.0e-7, b1_floor: 0.0 };
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
-        (self.b1_slope * note as f64 + self.b1_offset).exp() + self.b2 * freq * freq
+        self.b1_floor + (self.b1_slope * note as f64 + self.b1_offset).exp() + self.b2 * freq * freq
     }
 }
 
@@ -95,12 +103,18 @@ pub struct UnisonLaw {
     /// (quadratic in between).
     pub width_mid: f64,
     pub width_treble: f64,
+    /// The hammer never strikes the strings of a unison equally (uneven
+    /// felt, strings not quite level): relative spread of the force each
+    /// string receives (0 = equal). The uneven part directly excites the
+    /// slow out-of-phase modes, i.e. the aftersound.
+    pub hit_spread: f64,
 }
 
 impl UnisonLaw {
     /// Generic grand layout; widths calibrated on the ESPRIT statistics of
-    /// Salamander (tools/unison_grid.py).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0 };
+    /// Salamander (tools/unison_grid.py); hit spread ±20 % set on the
+    /// aftersound level of the treble (docs/tenue.md).
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 
@@ -127,6 +141,26 @@ impl UnisonLaw {
             1 => [0.0; 3],
             2 => [-0.5 * w * (0.7 + 0.6 * h), 0.5 * w, 0.0],
             _ => [-0.5 * w, (h - 0.5) * 0.6 * w, 0.5 * w],
+        }
+    }
+
+    /// Share of the hammer force each string receives (mean 1),
+    /// deterministic but irregular per key and independent of the detuning.
+    pub fn hits(&self, note: u8) -> [f64; 3] {
+        let g = ((note as f64 * 78.233).sin() * 12_345.678_9).rem_euclid(1.0);
+        let s = self.hit_spread;
+        match self.strings(note) {
+            1 => [1.0, 1.0, 1.0],
+            2 => {
+                let d = if g < 0.5 { -1.0 } else { 1.0 } * (0.5 + g.min(1.0 - g));
+                [1.0 + s * d, 1.0 - s * d, 1.0]
+            }
+            _ => {
+                // Zero-mean pattern with unit extreme, rotated by key.
+                let base = [1.0, -0.5 + (g - 0.5), -0.5 - (g - 0.5)];
+                let r = (g * 3.0) as usize % 3;
+                [1.0 + s * base[r], 1.0 + s * base[(r + 1) % 3], 1.0 + s * base[(r + 2) % 3]]
+            }
         }
     }
 }
@@ -411,6 +445,10 @@ pub struct PianoModel {
     pub noise: NoiseLaw,
     /// The room around the piano (early reflections and reverberation).
     pub room: crate::room::RoomParams,
+    /// The cast-iron frame (driven by the agraffes) and the rim (driven by
+    /// the board's edges); both need the soundboard.
+    pub frame: crate::structure::FrameParams,
+    pub rim: crate::structure::RimParams,
     /// Felt softening when the una corda pedal shifts the action fully.
     pub una_corda_softening: f64,
     /// Multiplies Stulov's Q0 (felt hardness / voicing).
@@ -443,6 +481,8 @@ impl Default for PianoModel {
             sympathetic: SympatheticLaw::DEFAULT,
             noise: NoiseLaw::DEFAULT,
             room: crate::room::RoomParams::CONCERT_HALL,
+            frame: crate::structure::FrameParams::GRAND_2M,
+            rim: crate::structure::RimParams::GRAND_2M,
             una_corda_softening: 0.6,
             // Calibrated on Salamander's absolute attack brightness and its
             // growth with velocity (tools/attack_grid.py), once the strike

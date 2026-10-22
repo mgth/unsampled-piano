@@ -32,7 +32,8 @@ pub struct NoteModel {
     /// bridge acceleration at the key's region point (sympathy; backward
     /// difference of the board's velocity output), input 2 the
     /// key's own bridge force (cancels its own contribution to input 1);
-    /// `damp_w` is the damper's mode-shape weight.
+    /// `damp_w` is the damper's mode-shape weight; output 2 is the force on
+    /// the agraffe (driving the frame).
     pub modes: Vec<ModeSpec>,
     /// Bridge region feeding / feeding back to this key.
     pub region: usize,
@@ -58,12 +59,13 @@ impl NoteModel {
         let sympathy = board_modes.filter(|_| model.sympathetic.enabled);
         let dt = 1.0 / sample_rate;
         let mut n_listen = 0;
-        let bridge_xy = board.map(|b| b.params.bridge_point(note));
+        let bridge_shapes = board.map(|b| b.bridge_shapes(note));
         let ns = np.strings;
         let pol = model.polarization;
         let n_osc = if pol.enabled { 2 * ns } else { ns };
         let nyq = 0.45 * sample_rate;
         let tau = std::f64::consts::TAU;
+        let hits = model.unison.hits(note);
         let f0v: Vec<f64> = (0..ns).map(|j| np.f0 * 2f64.powf(np.detune[j] / 1200.0)).collect();
         let f0h: Vec<f64> = f0v.iter().map(|f| f * 2f64.powf(pol.detune_cents / 1200.0)).collect();
         let (mut clusters, mut phys, mut modes) = (Vec::new(), Vec::new(), Vec::new());
@@ -73,8 +75,8 @@ impl NoteModel {
             if fv.iter().chain(&fh).any(|&f| f >= nyq) {
                 break;
             }
-            let eps = match (board, bridge_xy) {
-                (Some(b), Some((x, y))) => b.bridge_admittance(x, y, tau * fv[0]).scale(np.tension / np.length),
+            let eps = match (board, &bridge_shapes) {
+                (Some(b), Some(sh)) => b.bridge_admittance(sh, tau * fv[0]).scale(np.tension / np.length),
                 _ => np.coupling(&model.bridge, fv[0]),
             };
             let dv: Vec<C64> = fv.iter().map(|&f| C64::new(-model.losses.sigma(note, f), tau * f)).collect();
@@ -86,12 +88,12 @@ impl NoteModel {
             };
             let mut wout = [0.0; MAX_OSC];
             for j in 0..ns {
-                phys.push(PhysOsc { k, freq: fv[j], sigma: -dv[j].re, hit: 1.0 });
+                phys.push(PhysOsc { k, freq: fv[j], sigma: -dv[j].re, hit: hits[j] });
                 wout[j] = 1.0;
             }
             if pol.enabled {
                 for j in 0..ns {
-                    phys.push(PhysOsc { k, freq: fh[j], sigma: -dv[j].re, hit: pol.hammer_tilt });
+                    phys.push(PhysOsc { k, freq: fh[j], sigma: -dv[j].re, hit: pol.hammer_tilt * hits[j] });
                     wout[ns + j] = pol.radiation;
                 }
             }
@@ -136,8 +138,10 @@ impl NoteModel {
                     gain2_im: g2.im,
                     out_re: u.re,
                     out_im: u.im,
+                    // Agraffe end: same slope weights with (−1)^{k+1}.
+                    out2_re: if k % 2 == 0 { -u.re } else { u.re },
+                    out2_im: if k % 2 == 0 { -u.im } else { u.im },
                     damp_w,
-                    ..Default::default()
                 });
             }
             if fv[0] < model.sympathetic.max_freq {

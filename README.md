@@ -2,7 +2,7 @@
 
 Piano virtuel par modélisation physique, temps réel depuis MIDI, en Rust. Référence : Commercial. Aucun sample dans la production du son (les enregistrements ne servent qu'à l'analyse et à la calibration).
 
-Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cordes raides par touche, deux polarisations, couplées au chevalet (modes de Weinreich) → table d'harmonie modale (plaque orthotrope encastrée) → rayonnement de Rayleigh vers deux micros (couvercle optionnel) → salle (réflexions par sources images, réverbération). S'y ajoutent les étouffoirs, les pédales (demi-pédale, sostenuto, una corda), la résonance sympathique par le chevalet et les bruits mécaniques par impulsions.
+Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cordes raides par touche, deux polarisations, couplées au chevalet (modes de Weinreich) → table d'harmonie modale (plaque orthotrope encastrée) → rayonnement de Rayleigh vers deux micros (couvercle optionnel) → salle (réflexions par sources images, réverbération). Le cadre en fonte (excité aux agrafes) et la ceinture (excitée par les bords de la table) rayonnent aussi. S'y ajoutent les étouffoirs, les pédales (demi-pédale, sostenuto, una corda), la résonance sympathique par le chevalet et les bruits mécaniques par impulsions.
 
 ## Utilisation
 
@@ -44,3 +44,5 @@ cargo test --workspace
 - Phase 4 (table d'harmonie modale, rayonnement, stéréo) : [docs/phase4.md](docs/phase4.md)
 - Phase 3 (étouffoirs, pédales, résonance sympathique) : [docs/phase3.md](docs/phase3.md)
 - Phase 5 (bruits mécaniques, préréglages, temps réel, calibration) : [docs/phase5.md](docs/phase5.md)
+- Cadre en fonte et ceinture : [docs/cadre_ceinture.md](docs/cadre_ceinture.md)
+- Tenue des notes (chevalet, épaisseur de la table, pertes des cordes) : [docs/tenue.md](docs/tenue.md)

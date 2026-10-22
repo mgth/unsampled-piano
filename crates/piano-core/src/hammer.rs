@@ -59,6 +59,9 @@ pub struct ContactSolver {
     /// Inverse of γ_k (energy weights), and output weights (bridge force).
     inv_gamma: Vec<f64>,
     out_w: Vec<f64>,
+    /// Force on the agraffe end, −T·∂y/∂x(L) = T·Σ (kπ/L)·(−1)^{k+1}·q_k
+    /// (k from 1: the fundamental pulls both ends the same way).
+    out_a: Vec<f64>,
     q0: Vec<f64>,
     q1: Vec<f64>,
     n: usize,
@@ -96,6 +99,7 @@ impl ContactSolver {
             phi: v(),
             inv_gamma: v(),
             out_w: v(),
+            out_a: v(),
             q0: v(),
             q1: v(),
             n: 0,
@@ -175,6 +179,7 @@ impl ContactSolver {
             self.inv_gamma[i] = 1.0 / gamma;
             // Bridge force T·∂y/∂x(0) = T·Σ (kπ/L)·q_k.
             self.out_w[i] = note.tension * k * std::f64::consts::PI / note.length;
+            self.out_a[i] = if m.k % 2 == 0 { -self.out_w[i] } else { self.out_w[i] };
             lambda += phi * phi * gamma;
             // Displacements now and one sub-step earlier from the complex amplitude.
             let pole = C64::new(r * cs, r * sn);
@@ -222,23 +227,27 @@ impl ContactSolver {
     }
 
     /// Advances up to `out.len()` samples, *adding* the bridge force to
-    /// `out`. Returns how many samples were rendered: fewer than requested
-    /// when the episode ends, after which [`Self::hand_over`] must be called.
-    pub fn run(&mut self, out: &mut [f32]) -> usize {
+    /// `out` (and the agraffe force to `agraffe` when given). Returns how
+    /// many samples were rendered: fewer than requested when the episode
+    /// ends, after which the state must be handed back.
+    pub fn run(&mut self, out: &mut [f32], mut agraffe: Option<&mut [f32]>) -> usize {
         for (i, o) in out.iter_mut().enumerate() {
             if !self.active {
                 return i;
             }
-            let mut y = 0.0;
+            let mut y = (0.0, 0.0);
             for _ in 0..self.oversample {
                 y = self.step();
             }
-            *o += y as f32;
+            *o += y.0 as f32;
+            if let Some(a) = agraffe.as_deref_mut() {
+                a[i] += y.1 as f32;
+            }
         }
         out.len()
     }
 
-    fn step(&mut self) -> f64 {
+    fn step(&mut self) -> (f64, f64) {
         let n = self.n;
         let dt = self.dt;
         // Free predictions and string displacement under the hammer.
@@ -277,13 +286,14 @@ impl ContactSolver {
         // Updates.
         let x_next = x_star - dt * dt / self.mass * f;
         let mut w_next = 0.0;
-        let mut out = 0.0;
+        let (mut out, mut out_a) = (0.0, 0.0);
         for i in 0..n {
             let q = 2.0 * self.c[i] * self.q0[i] - self.e[i] * self.q1[i] + self.gphi[i] * f;
             self.q1[i] = self.q0[i];
             self.q0[i] = q;
             w_next += self.phi[i] * q;
             out += self.out_w[i] * q;
+            out_a += self.out_a[i] * q;
         }
         self.x1 = self.x0;
         self.x0 = x_next;
@@ -302,7 +312,7 @@ impl ContactSolver {
         if self.separated as f64 * dt > RELEASE_AFTER_S || self.samples as f64 * dt > MAX_CONTACT_S {
             self.active = false;
         }
-        out
+        (out, out_a)
     }
 
     /// Discrete energy H[n+½] (twice the physical energy), for checks.
@@ -361,13 +371,13 @@ mod tests {
         let mut s = ContactSolver::new(512, 48_000.0);
         s.strike(&np, 3.0, 1, modes.iter().copied());
         let mut out = [0.0f32; 1];
-        s.run(&mut out);
+        s.run(&mut out, None);
         let h0 = s.energy();
         // Exact while in contact (only the separation guard may then remove
         // energy, and it never adds any).
         let mut prev = h0;
         while s.is_active() {
-            s.run(&mut out);
+            s.run(&mut out, None);
             let h = s.energy();
             if s.psi > 0.0 {
                 assert!((h - h0).abs() / h0 < 1e-10, "drift in contact {:e}", (h - h0) / h0);
@@ -387,10 +397,10 @@ mod tests {
                 let mut s = ContactSolver::new(512, 48_000.0);
                 s.strike(&np, v, 1, modes.iter().copied());
                 let mut out = [0.0f32; 1];
-                s.run(&mut out);
+                s.run(&mut out, None);
                 let mut prev = s.energy();
                 while s.is_active() {
-                    s.run(&mut out);
+                    s.run(&mut out, None);
                     let h = s.energy();
                     assert!(h <= prev * (1.0 + 1e-12), "note {note} v {v}: {h} > {prev}");
                     assert!(out[0].is_finite());
@@ -411,7 +421,7 @@ mod tests {
             s.strike(&np, v, 1, modes.iter().copied());
             let mut out = [0.0f32; 64];
             while s.is_active() {
-                s.run(&mut out);
+                s.run(&mut out, None);
             }
             let want = np.hammer.contact_time_rigid(v);
             let got = s.contact_time();
@@ -428,7 +438,7 @@ mod tests {
             s.strike(&np, v, 1, modes.iter().copied());
             let mut out = [0.0f32; 64];
             while s.is_active() {
-                s.run(&mut out);
+                s.run(&mut out, None);
             }
             if let Some((t, f)) = last {
                 assert!(s.contact_time() <= t, "contact time grows with v");

@@ -7,11 +7,18 @@ fn main() {
     let sr = 48_000.0;
     let sb = Soundboard::new(SoundboardParams::GRAND_2M);
     let modes = board_modes(&sb, sr);
+    let rim = piano_core::structure::RimModel::new(&piano_core::structure::RimParams::GRAND_2M, &sb, modes.len(), sr);
     let len = 64;
     for isa in piano_core::modal::Isa::available() {
-    for (label, active, disp) in [("16 inputs, 18 outputs", 16, true), ("16 inputs, 2 outputs", 16, false), ("0 inputs, 18 outputs", 0, true)] {
+    for (label, active, disp, with_rim) in [
+        ("16 inputs, 18 outputs", 16, true, false),
+        ("16 inputs, 18 outputs + rim", 16, true, true),
+        ("16 inputs, 2 outputs", 16, false, false),
+        ("0 inputs, 18 outputs", 0, true, false),
+    ] {
         let label = format!("{isa:?} {label}");
-        let mut bank = BoardBank::new(sr, &modes, len);
+        let mut bank = BoardBank::with_extra(sr, &modes, if with_rim { &rim.couple } else { &[] }, len);
+        let mut ex = vec![vec![0.0f32; len]; rim.projections.len()];
         bank.set_isa(isa);
         let mut inputs = vec![vec![0.0f32; len]; REGIONS];
         for (r, x) in inputs.iter_mut().enumerate().take(active) {
@@ -25,7 +32,7 @@ fn main() {
         let n = 2000;
         let t = Instant::now();
         for _ in 0..n {
-            bank.process(&inputs, len, [&mut a, &mut b], if disp { Some(&mut d) } else { None });
+            bank.process(&inputs, len, [&mut a, &mut b], if disp { Some(&mut d) } else { None }, with_rim.then_some(&mut ex[..]));
         }
         let el = t.elapsed().as_secs_f64();
         let per = el * 1e9 / (n * len * modes.len()) as f64;

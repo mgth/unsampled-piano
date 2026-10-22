@@ -91,6 +91,14 @@ pub struct Engine {
     /// response) and sympathetic.
     region: Vec<Vec<f32>>,
     region_sym: Vec<Vec<f32>>,
+    /// Force on the agraffes per region (primary strings), for the frame.
+    region_agraffe: Vec<Vec<f32>>,
+    frame: Option<BoardBank>,
+    frame_awake: bool,
+    /// Rim modes and the board's edge-force projections that drive them.
+    rim: Option<crate::structure::RimBank>,
+    rim_force: Vec<Vec<f32>>,
+    rim_awake: bool,
     /// Soundboard driven by the primary forces (radiates and moves the
     /// bridge for the strings), and by the sympathetic ones (radiates only).
     board: Option<BoardBank>,
@@ -124,7 +132,11 @@ impl Engine {
     pub fn with_instrument(cfg: EngineConfig, inst: Arc<Instrument>) -> Self {
         assert_eq!(inst.sample_rate, cfg.sample_rate);
         let voices = (0..cfg.polyphony).map(|_| Voice::new(cfg.sample_rate, cfg.max_block)).collect();
-        let board = inst.board.as_ref().map(|m| BoardBank::new(cfg.sample_rate, m, SUB_BLOCK));
+        let rim_couple = inst.rim.as_ref().map_or(&[][..], |r| &r.couple[..]);
+        let board = inst.board.as_ref().map(|m| BoardBank::with_extra(cfg.sample_rate, m, rim_couple, SUB_BLOCK));
+        let frame = inst.frame.as_ref().map(|m| BoardBank::new(cfg.sample_rate, m, SUB_BLOCK));
+        let rim = inst.rim.as_ref().map(|r| crate::structure::RimBank::new(r, cfg.sample_rate));
+        let n_proj = inst.rim.as_ref().map_or(0, |r| r.projections.len());
         let board_sym = inst
             .board
             .as_ref()
@@ -145,6 +157,12 @@ impl Engine {
             sostenuto_down: false,
             region: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             region_sym: vec![vec![0.0; SUB_BLOCK]; REGIONS],
+            region_agraffe: vec![vec![0.0; SUB_BLOCK]; REGIONS],
+            frame,
+            frame_awake: false,
+            rim,
+            rim_force: vec![vec![0.0; SUB_BLOCK]; n_proj],
+            rim_awake: false,
             board,
             board_sym,
             board_sym_awake: false,
@@ -247,7 +265,7 @@ impl Engine {
         let len = left.len();
         self.update_dampers(len);
         self.add_listeners();
-        for r in self.region.iter_mut().chain(self.region_sym.iter_mut()) {
+        for r in self.region.iter_mut().chain(self.region_sym.iter_mut()).chain(self.region_agraffe.iter_mut()) {
             r[..len].fill(0.0);
         }
         // Bridge displacement SUB_BLOCK samples ago, for the strings.
@@ -285,14 +303,29 @@ impl Engine {
             }
             Some(board) => {
                 let has_input = self.region.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
+                for f in &mut self.rim_force {
+                    f[..len].fill(0.0);
+                }
                 if has_input || self.board_awake {
-                    board.process(&self.region, len, [&mut *left, &mut *right], Some(&mut self.disp));
+                    let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
+                    board.process(&self.region, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
                     self.board_awake = has_input || board.energy() > BOARD_SILENCE;
+                }
+                if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
+                    rim.process(&self.rim_force, len, [&mut *left, &mut *right]);
+                    self.rim_awake = self.board_awake || rim.energy() > BOARD_SILENCE;
+                }
+                if let Some(frame) = self.frame.as_mut() {
+                    let has = self.region_agraffe.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
+                    if has || self.frame_awake {
+                        frame.process(&self.region_agraffe, len, [&mut *left, &mut *right], None, None);
+                        self.frame_awake = has || frame.energy() > BOARD_SILENCE;
+                    }
                 }
                 if let Some(bs) = self.board_sym.as_mut() {
                     let has_sym = self.region_sym.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
                     if has_sym || self.board_sym_awake {
-                        bs.process(&self.region_sym, len, [&mut *left, &mut *right], None);
+                        bs.process(&self.region_sym, len, [&mut *left, &mut *right], None, None);
                         self.board_sym_awake = has_sym || bs.energy() > BOARD_SILENCE;
                     }
                 }
@@ -332,13 +365,23 @@ impl Engine {
             return;
         }
         let sympathy = self.sympathy();
+        let with_frame = self.frame.is_some();
         let t0 = self.clock;
         for v in self.voices.iter_mut().filter(|v| v.active) {
             let nm = self.inst.table.get(v.note);
             let r = region_of(v.note);
             // Fully damped strings do not resonate: skip their input.
             let bridge = (sympathy && v.engagement < 0.99).then(|| (&self.disp_in[r][from..to], SUB_BLOCK));
-            v.render(nm, &mut self.region[r][from..to], &mut self.region_sym[r][from..to], t0, from, to, bridge);
+            v.render(
+                nm,
+                &mut self.region[r][from..to],
+                &mut self.region_sym[r][from..to],
+                with_frame.then(|| &mut self.region_agraffe[r][from..to]),
+                t0,
+                from,
+                to,
+                bridge,
+            );
         }
     }
 
@@ -547,7 +590,7 @@ pub fn strike_stats(cfg: &EngineConfig, note: u8, velocity: u8, oversample: Opti
     v.strike(&nm, hammer_velocity(cfg, velocity), os, 0.0, 0.0);
     let mut out = vec![0.0f32; 256];
     while v.contact.is_active() {
-        v.contact.run(&mut out);
+        v.contact.run(&mut out, None);
     }
     (v.contact.contact_time(), v.contact.max_force())
 }
