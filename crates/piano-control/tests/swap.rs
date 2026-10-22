@@ -115,7 +115,9 @@ fn midi_learn_routes_a_controller() {
     let (mut ctl, mut slot) = piano_control::new(PianoModel::default(), cfg());
     ctl.midi().unwrap().learn("output_gain_db");
     let cc = |value| [TimedEvent { frame: 0, event: Event::Control { cc: 20, value } }];
+    // Learnt once moved over part of its travel (MidiLearn::LEARN_TRAVEL).
     block(&mut slot, &cc(0));
+    block(&mut slot, &cc(40));
     ctl.poll();
     assert_eq!(ctl.midi().unwrap().learning(), None);
     let before = ctl.model().output_gain_db;

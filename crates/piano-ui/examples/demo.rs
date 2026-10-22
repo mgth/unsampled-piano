@@ -15,8 +15,7 @@ struct Demo {
     control: MockControl,
     cc: mpsc::Receiver<(u8, u8)>,
     _ports: Vec<midir::MidiInputConnection<()>>,
-    shot: Option<String>,
-    frames: u32,
+    shot: piano_ui::shot::Shot,
 }
 
 impl eframe::App for Demo {
@@ -25,26 +24,7 @@ impl eframe::App for Demo {
             self.control.on_cc(cc, value);
         }
         self.ui.show(ui, &mut self.control);
-        let Some(path) = self.shot.clone() else { return };
-        self.frames += 1;
-        if self.frames == 5 {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
-        }
-        ui.ctx().request_repaint();
-        let image = ui.ctx().input(|i| {
-            i.events.iter().find_map(|e| match e {
-                egui::Event::Screenshot { image, .. } => Some(image.clone()),
-                _ => None,
-            })
-        });
-        if let Some(img) = image {
-            let mut ppm = format!("P6 {} {} 255\n", img.width(), img.height()).into_bytes();
-            for p in &img.pixels {
-                ppm.extend_from_slice(&[p.r(), p.g(), p.b()]);
-            }
-            std::fs::write(&path, ppm).expect("screenshot written");
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-        }
+        self.shot.frame(ui.ctx());
     }
 }
 
@@ -62,13 +42,13 @@ fn main() -> eframe::Result {
         Ok(p) => piano_host::load_preset(p.as_ref()).unwrap_or_else(|e| panic!("{e}")),
         Err(_) => PianoModel::default(),
     };
-    let shot = std::env::var("PIANO_UI_SHOT").ok();
+    let shot = piano_ui::shot::Shot::from_env();
     eframe::run_native(
         "piano-ui-demo",
         options,
         Box::new(move |cc| {
             let (tx, rx) = mpsc::channel();
-            let ports = if shot.is_some() { Vec::new() } else { listen(tx, cc.egui_ctx.clone()) };
+            let ports = if shot.active() { Vec::new() } else { listen(tx, cc.egui_ctx.clone()) };
             let mut control = MockControl::new(model);
             use piano_params::PianoControl;
             for (cc, path) in std::env::var("PIANO_UI_MAP").unwrap_or_default().split(',').filter_map(|m| m.split_once('=')) {
@@ -78,7 +58,7 @@ fn main() -> eframe::Result {
             if let Ok(path) = std::env::var("PIANO_UI_LEARN") {
                 control.midi().unwrap().learn(&path);
             }
-            Ok(Box::new(Demo { ui, control, cc: rx, _ports: ports, shot, frames: 0 }))
+            Ok(Box::new(Demo { ui, control, cc: rx, _ports: ports, shot }))
         }),
     )
 }

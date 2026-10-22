@@ -5,6 +5,7 @@
 
 pub mod mock;
 pub mod sections;
+pub mod shot;
 mod widgets;
 
 use std::path::PathBuf;
@@ -29,13 +30,39 @@ pub struct PianoUi {
     preset_name: String,
     /// Result of the last preset action.
     message: Option<Result<String, String>>,
+    /// CPU load shown: the peak over the last second (the status gives the
+    /// peak since it was last read).
+    load: LoadMeter,
+}
+
+#[derive(Default)]
+struct LoadMeter {
+    peak: f32,
+    shown: f32,
+    since: Option<std::time::Instant>,
+}
+
+impl LoadMeter {
+    fn update(&mut self, load: f32) -> f32 {
+        self.peak = self.peak.max(load);
+        let now = std::time::Instant::now();
+        if self.since.is_none_or(|t| now.duration_since(t).as_secs_f32() >= 1.0) {
+            (self.shown, self.peak, self.since) = (self.peak, 0.0, Some(now));
+        }
+        self.shown
+    }
 }
 
 impl PianoUi {
     pub fn new(presets: Option<PathBuf>) -> Self {
         let registry = Registry::new();
         let section = registry.params().iter().map(|p| section_of(&p.path)).collect();
-        Self { registry, section, page: 0, search: String::new(), presets, preset_name: String::new(), message: None }
+        Self { registry, section, page: 0, search: String::new(), presets, preset_name: String::new(), message: None, load: LoadMeter::default() }
+    }
+
+    /// The preset shown as loaded (its file name without `.toml`).
+    pub fn set_preset_name(&mut self, name: &str) {
+        self.preset_name = name.into();
     }
 
     /// Opens the page with this title (case-insensitive), or "MIDI".
@@ -93,7 +120,7 @@ impl PianoUi {
                 ui.separator();
                 ui.label(format!("{} voices", status.voices));
                 ui.separator();
-                ui.label(format!("CPU {:.0} %", 100.0 * status.load));
+                ui.label(format!("CPU {:.0} %", 100.0 * self.load.update(status.load))).on_hover_text("Audio callback time over buffer duration, peak of the last second");
                 if let Some(e) = &status.error {
                     ui.separator();
                     ui.colored_label(ui.visuals().error_fg_color, e);

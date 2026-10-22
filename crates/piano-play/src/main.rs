@@ -10,15 +10,18 @@
 
 mod node;
 mod player;
+mod window;
 
 use clap::Parser;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use piano_core::{EngineConfig, Event};
+use piano_control::Controller;
+use piano_params::midi::MidiMap;
 use piano_params::PianoControl;
 use player::{Player, Stats, MAX_BLOCK};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 #[derive(Parser)]
@@ -66,6 +69,13 @@ struct Args {
     /// Start the first file at this time (s).
     #[arg(long, default_value_t = 0.0)]
     from: f64,
+    /// Open the interface window (every parameter, presets, MIDI learn).
+    #[arg(long)]
+    ui: bool,
+    /// Preset folder of the interface (default: the --preset file's, else
+    /// ./presets).
+    #[arg(long)]
+    presets: Option<PathBuf>,
 }
 
 /// Silence between two files (s), and after the last one before quitting.
@@ -126,7 +136,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = EngineConfig { sample_rate: sr, max_block: MAX_BLOCK, model, ..Default::default() };
     let (mut control, engine) = piano_control::new(model, cfg);
     eprintln!("instrument built at {sr} Hz in {:.0} ms", control.status().last_build.unwrap_or_default().as_secs_f64() * 1e3);
-    let mut watch = args.preset.clone().map(PresetWatch::new);
+    let mut midi_map = MidiMapFile::new();
+    if let Some(map) = midi_map.load() {
+        eprintln!("MIDI controllers: {} mapped ({})", map.mappings.len(), midi_map.path.as_ref().map_or(String::new(), |p| p.display().to_string()));
+        control.set_midi_map(map);
+    }
+    let control = Arc::new(Mutex::new(control));
+    let watch = args.preset.clone().map(PresetWatch::new);
 
     let (timeline, pieces, end_s) = file_timeline(&args, sr)?;
     for (start, name, len) in &pieces {
@@ -252,45 +268,145 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut next_piece = 0;
-    let mut last_report = Instant::now();
-    let mut was_rebuilding = false;
-    loop {
-        // MIDI learn and preset edits, every 50 ms; the report every second.
-        std::thread::sleep(Duration::from_millis(50));
-        control.poll();
-        if let Some(w) = watch.as_mut()
-            && let Some(m) = w.changed()
-        {
-            eprintln!("preset changed: rebuilding the instrument (notes keep playing)");
-            control.load(m);
+    let sup = Supervisor { control: control.clone(), watch, midi_map, stats, pieces, end_s, sr, repaint: Default::default() };
+    if !args.ui {
+        sup.run(true);
+        return Ok(());
+    }
+    let repaint = sup.repaint.clone();
+    // Keeps polling (MIDI learn, preset file) while the window is hidden.
+    std::thread::spawn(move || sup.run(false));
+    let presets = args.presets.clone().or_else(|| args.preset.as_ref().and_then(|p| p.parent()).map(Path::to_path_buf));
+    let presets = presets.or_else(|| Some(PathBuf::from("presets")).filter(|p| p.is_dir()));
+    let preset = args.preset.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().into_owned());
+    window::run(control, repaint, presets, preset, &format!("Piano — {}", args.name))?;
+    Ok(())
+}
+
+/// The non-real-time side while playing: MIDI learn and rebuild edits
+/// (controller polling), the preset file, the MIDI map file, the end of the
+/// files, and (without a window) a load report every second.
+struct Supervisor {
+    control: Arc<Mutex<Controller>>,
+    watch: Option<PresetWatch>,
+    midi_map: MidiMapFile,
+    stats: Arc<Stats>,
+    pieces: Vec<(f64, String, f64)>,
+    end_s: f64,
+    sr: f64,
+    repaint: window::Repaint,
+}
+
+impl Supervisor {
+    /// `report`: print the load and stop at the end of the files (no window;
+    /// the window shows the load and reads the controller's status itself).
+    fn run(mut self, report: bool) {
+        let mut next_piece = 0;
+        let mut last_report = Instant::now();
+        let mut was_rebuilding = false;
+        let mut seen = String::new();
+        loop {
+            // Every 50 ms; the report every second.
+            std::thread::sleep(Duration::from_millis(50));
+            {
+                let mut control = self.control.lock().unwrap();
+                control.poll();
+                if let Some(w) = self.watch.as_mut()
+                    && let Some(m) = w.changed()
+                {
+                    eprintln!("preset changed: rebuilding the instrument (notes keep playing)");
+                    control.load(m);
+                }
+                if let Some(map) = control.midi().map(|l| l.map().clone()) {
+                    self.midi_map.save_if_changed(&map);
+                }
+                // Controllers move sliders: redraw when the model changed.
+                if let Some(ctx) = self.repaint.get() {
+                    let now = format!("{:?}", control.model());
+                    if now != seen {
+                        seen = now;
+                        ctx.request_repaint();
+                    }
+                }
+                if report {
+                    let st = control.status();
+                    if was_rebuilding && !st.rebuilding {
+                        match &st.error {
+                            Some(e) => eprintln!("rebuild failed: {e}"),
+                            None => eprintln!("instrument rebuilt in {:.0} ms", st.last_build.unwrap_or_default().as_secs_f64() * 1e3),
+                        }
+                    }
+                    was_rebuilding = st.rebuilding;
+                }
+            }
+            if !report || last_report.elapsed() < Duration::from_secs(1) {
+                continue;
+            }
+            last_report = Instant::now();
+            let now = self.stats.clock.load(Ordering::Relaxed) as f64 / self.sr;
+            while next_piece < self.pieces.len() && now >= self.pieces[next_piece].0 {
+                eprintln!("▶ {}", self.pieces[next_piece].1);
+                next_piece += 1;
+            }
+            if !self.pieces.is_empty() && now >= self.end_s {
+                eprintln!("end of the files");
+                return;
+            }
+            let st = &self.stats;
+            let n = st.callbacks.swap(0, Ordering::Relaxed).max(1);
+            let avg = st.load_sum.swap(0, Ordering::Relaxed) as f64 / n as f64 / 100.0;
+            let max = st.load_max.swap(0, Ordering::Relaxed) as f64 / 100.0;
+            eprintln!("CPU load avg {avg:5.1} %  max {max:5.1} %  voices {:3}", st.voices.load(Ordering::Relaxed));
         }
-        let st = control.status();
-        if was_rebuilding && !st.rebuilding {
-            match &st.error {
-                Some(e) => eprintln!("rebuild failed: {e}"),
-                None => eprintln!("instrument rebuilt in {:.0} ms", st.last_build.unwrap_or_default().as_secs_f64() * 1e3),
+    }
+}
+
+/// The MIDI controller map, `$XDG_CONFIG_HOME/piano/midi.toml` (else
+/// `~/.config/piano/midi.toml`): the player's controllers, kept apart
+/// from the instrument presets.
+struct MidiMapFile {
+    path: Option<PathBuf>,
+    saved: MidiMap,
+}
+
+impl MidiMapFile {
+    fn new() -> Self {
+        Self { path: config_dir().map(|d| d.join("midi.toml")), saved: MidiMap::default() }
+    }
+
+    fn load(&mut self) -> Option<MidiMap> {
+        let text = std::fs::read_to_string(self.path.as_ref()?).ok()?;
+        match MidiMap::from_toml(&text, &piano_params::Registry::new()) {
+            Ok(map) => {
+                self.saved = map.clone();
+                Some(map)
+            }
+            Err(e) => {
+                eprintln!("{}: {e}", self.path.as_ref()?.display());
+                None
             }
         }
-        was_rebuilding = st.rebuilding;
-        if last_report.elapsed() < Duration::from_secs(1) {
-            continue;
-        }
-        last_report = Instant::now();
-        let now = stats.clock.load(Ordering::Relaxed) as f64 / sr;
-        while next_piece < pieces.len() && now >= pieces[next_piece].0 {
-            eprintln!("▶ {}", pieces[next_piece].1);
-            next_piece += 1;
-        }
-        if !pieces.is_empty() && now >= end_s {
-            eprintln!("end of the files");
-            return Ok(());
-        }
-        let n = stats.callbacks.swap(0, Ordering::Relaxed).max(1);
-        let avg = stats.load_sum.swap(0, Ordering::Relaxed) as f64 / n as f64 / 100.0;
-        let max = stats.load_max.swap(0, Ordering::Relaxed) as f64 / 100.0;
-        eprintln!("CPU load avg {avg:5.1} %  max {max:5.1} %  voices {:3}", stats.voices.load(Ordering::Relaxed));
     }
+
+    fn save_if_changed(&mut self, map: &MidiMap) {
+        if *map == self.saved {
+            return;
+        }
+        self.saved = map.clone();
+        let Some(path) = &self.path else { return };
+        let text = format!("# MIDI controllers mapped by piano-play's interface (MIDI learn).\n\n{}", map.to_toml());
+        if let Err(e) = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::fs::write(path, text)) {
+            eprintln!("{}: {e}", path.display());
+        }
+    }
+}
+
+/// `$XDG_CONFIG_HOME/piano`, else `~/.config/piano`.
+fn config_dir() -> Option<PathBuf> {
+    std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
+        .map(|d| d.join("piano"))
 }
 
 /// The preset file, reloaded when its modification time changes.
@@ -414,13 +530,10 @@ fn file_timeline(args: &Args, sr: f64) -> Result<(Vec<(u64, Event)>, Vec<(f64, S
 
 /// Personal defaults from `$XDG_CONFIG_HOME/piano/play.toml` (else
 /// `~/.config/piano/play.toml`), used for what the command line leaves out:
-/// `device`, `midi`, `midi_out`, `name`, `preset` (strings), `buffer`,
-/// `gain_db` (numbers).
+/// `device`, `midi`, `midi_out`, `name`, `preset`, `presets` (strings),
+/// `buffer`, `gain_db` (numbers), `ui` (boolean).
 fn apply_user_config(args: &mut Args) {
-    let dir = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")));
-    let Some(path) = dir.map(|d| d.join("piano").join("play.toml")) else { return };
+    let Some(path) = config_dir().map(|d| d.join("play.toml")) else { return };
     let Ok(text) = std::fs::read_to_string(&path) else { return };
     let table: toml::Table = match text.parse() {
         Ok(t) => t,
@@ -453,6 +566,12 @@ fn apply_user_config(args: &mut Args) {
     }
     if let (false, Some(g)) = (given("--gain-db"), number("gain_db")) {
         args.gain_db = g as f32;
+    }
+    if !given("--presets") {
+        args.presets = args.presets.take().or(string("presets").map(PathBuf::from));
+    }
+    if table.get("ui").and_then(|v| v.as_bool()) == Some(true) {
+        args.ui = true;
     }
     eprintln!("defaults from {}", path.display());
 }
