@@ -12,6 +12,7 @@ piano-core = { path = "crates/piano-core" }
 piano-analysis = { path = "crates/piano-analysis" }
 piano-eval = { path = "crates/piano-eval" }
 piano-host = { path = "crates/piano-host" }
+piano-params = { path = "crates/piano-params" }
 hound = "3.5"
 midly = "0.5"
 realfft = "3.5"

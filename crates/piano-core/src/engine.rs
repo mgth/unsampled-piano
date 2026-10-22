@@ -12,6 +12,7 @@ use std::sync::Arc;
 use crate::board::BoardBank;
 use crate::denormal::DenormalGuard;
 use crate::instrument::{region_of, Instrument, MICS, REGIONS};
+use crate::live::LiveParam;
 use crate::params::PianoModel;
 use crate::voice::{Voice, RING};
 
@@ -33,6 +34,8 @@ const SILENCE_ENERGY: f32 = (1e-5 / FORCE_GAIN) * (1e-5 / FORCE_GAIN);
 const BOARD_SILENCE: f32 = (1e-6 / PRESSURE_GAIN) * (1e-6 / PRESSURE_GAIN);
 /// Listening strings set up per block when the dampers lift (spreads cost).
 const LISTENERS_PER_BLOCK: usize = 8;
+/// Time constant (s) of the output gain smoothing.
+const GAIN_SMOOTHING: f64 = 0.02;
 /// Pending frame knocks (keybed, pedal) at a time.
 const MAX_KNOCKS: usize = 32;
 
@@ -51,6 +54,8 @@ pub enum Event {
     NoteOff { note: u8, velocity: u8 },
     Control { cc: u8, value: u8 },
     AllNotesOff,
+    /// A live parameter change ([`LiveParam`]), applied at its frame.
+    Param { id: LiveParam, value: f32 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -82,6 +87,11 @@ impl Default for EngineConfig {
 pub struct Engine {
     cfg: EngineConfig,
     inst: Arc<Instrument>,
+    /// The instrument's model with the live parameters applied
+    /// ([`LiveParam`]); its other fields always equal the instrument's.
+    live: PianoModel,
+    /// Output gain, smoothed towards `live.output_gain_db`.
+    gain: f32,
     voices: Vec<Voice>,
     /// Pedal positions, 0–1.
     sustain: f64,
@@ -148,9 +158,12 @@ impl Engine {
             }
             _ => None,
         };
+        let live = inst.model;
         let mut e = Self {
             cfg,
             inst,
+            live,
+            gain: db_to_gain(live.output_gain_db),
             voices,
             sustain: 0.0,
             soft: 0.0,
@@ -263,7 +276,7 @@ impl Engine {
     /// host block, which starts `offset` samples before this sub-block.
     fn sub_block(&mut self, events: &[TimedEvent], offset: usize, left: &mut [f32], right: &mut [f32]) {
         let len = left.len();
-        let out_gain = 10f32.powf(self.inst.model.output_gain_db as f32 / 20.0);
+        let out_gain = self.smooth_gain(len);
         self.update_dampers(len);
         self.add_listeners();
         for r in self.region.iter_mut().chain(self.region_sym.iter_mut()).chain(self.region_agraffe.iter_mut()) {
@@ -404,7 +417,7 @@ impl Engine {
         if peak <= 0.0 || self.board.is_none() {
             return;
         }
-        let len = ((self.inst.model.noise.knock_time * self.cfg.sample_rate) as usize).max(2);
+        let len = ((self.live.noise.knock_time * self.cfg.sample_rate) as usize).max(2);
         if let Some(k) = self.knocks.iter_mut().find(|k| k.pos >= k.len) {
             *k = Knock { region, pos: 0, len, peak: peak as f32 };
         }
@@ -412,7 +425,7 @@ impl Engine {
 
     /// Moves every damper towards its target contact and sets the decay.
     fn update_dampers(&mut self, len: usize) {
-        let law = self.inst.model.damper;
+        let law = self.live.damper;
         let dt = len as f64 / self.cfg.sample_rate;
         let pedal = law.pedal_engagement(self.sustain);
         let (k_fall, k_lift) = (1.0 - (-dt / law.fall_time).exp(), 1.0 - (-dt / law.lift_time).exp());
@@ -424,18 +437,18 @@ impl Engine {
             let e = if (e - target).abs() < 1e-3 { target } else { e };
             // The felt lands on the strings: momentum kick at the damper point.
             if v.engagement < 0.05 && e >= 0.05 {
-                let noise = self.inst.model.noise;
+                let noise = self.live.noise;
                 let impulse = noise.damper_mass * noise.damper_speed * v.damper_speed;
                 v.damper_kick(nm, impulse, law.position, law.width, noise.damper_landing);
             }
             v.engagement = e;
-            v.set_damper_rate(nm.damper_rate(&self.inst.model, v.engagement));
+            v.set_damper_rate(nm.damper_rate(&self.live, v.engagement));
         }
     }
 
     /// While the dampers are lifted, give every damped key a listening string.
     fn add_listeners(&mut self) {
-        let law = self.inst.model.damper;
+        let law = self.live.damper;
         if !self.sympathy() || law.pedal_engagement(self.sustain) >= 0.5 {
             return;
         }
@@ -459,9 +472,9 @@ impl Engine {
         v.setup(nm, true, INPUT_DELAY / self.cfg.sample_rate);
         v.active = true;
         v.key_down = false;
-        let law = self.inst.model.damper;
+        let law = self.live.damper;
         v.engagement = if nm.has_damper { law.pedal_engagement(self.sustain) } else { 0.0 };
-        v.set_damper_rate(nm.damper_rate(&self.inst.model, v.engagement));
+        v.set_damper_rate(nm.damper_rate(&self.live, v.engagement));
         true
     }
 
@@ -483,7 +496,7 @@ impl Engine {
                 // The damper rail knocks the frame near the middle of the
                 // keyboard; on release the rail lowers the dampers, slower
                 // than a key does (its travel is cushioned by felts).
-                let peak = self.inst.model.noise.pedal * delta;
+                let peak = self.live.noise.pedal * delta;
                 self.knock(region_of(54), 0.6 * peak);
                 self.knock(region_of(66), 0.4 * peak);
                 if new < self.sustain {
@@ -516,7 +529,20 @@ impl Engine {
                 }
             }
             Event::Control { .. } => {}
+            Event::Param { id, value } => id.set(&mut self.live, value as f64),
         }
+    }
+
+    /// Output gain for a sub-block of `len` samples, moving towards the
+    /// live target with a 20 ms time constant (no zipper on gain moves).
+    fn smooth_gain(&mut self, len: usize) -> f32 {
+        let target = db_to_gain(self.live.output_gain_db);
+        let k = 1.0 - (-(len as f64) / (GAIN_SMOOTHING * self.cfg.sample_rate)).exp() as f32;
+        self.gain += (target - self.gain) * k;
+        if (self.gain - target).abs() < 1e-6 * target {
+            self.gain = target;
+        }
+        self.gain
     }
 
     fn note_on(&mut self, note: u8, velocity: u8) {
@@ -548,12 +574,12 @@ impl Engine {
         }
         v.active = true;
         v.key_down = true;
-        let softening = self.inst.model.una_corda_softening;
-        let vh = hammer_velocity(&cfg, velocity);
+        let softening = self.live.una_corda_softening;
+        let vh = self.live.velocity.hammer_speed(velocity);
         v.strike(nm, vh, contact_oversampling(&cfg, note), self.soft, softening);
         v.damper_speed = 1.0;
         // The key bottoms on the keybed as the hammer reaches the string.
-        self.knock(region_of(note), self.inst.model.noise.keybed * vh);
+        self.knock(region_of(note), self.live.noise.keybed * vh);
     }
 
     fn note_off(&mut self, note: u8) {
@@ -600,4 +626,8 @@ pub fn strike_stats_full(cfg: &EngineConfig, note: u8, velocity: u8, oversample:
         v.contact.run(&mut out, None);
     }
     (v.contact.contact_time(), v.contact.max_force(), v.contact.max_compression())
+}
+
+fn db_to_gain(db: f64) -> f32 {
+    10f32.powf(db as f32 / 20.0)
 }

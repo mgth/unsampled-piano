@@ -1318,6 +1318,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "piano-params"
+version = "0.1.0"
+dependencies = [
+ "piano-core",
+ "toml",
+]
+
+[[package]]
 name = "piano-play"
 version = "0.1.0"
 dependencies = [

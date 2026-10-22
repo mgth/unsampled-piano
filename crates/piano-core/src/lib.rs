@@ -7,6 +7,7 @@ pub mod denormal;
 pub mod engine;
 pub mod hammer;
 pub mod instrument;
+pub mod live;
 pub mod modal;
 pub mod note_model;
 pub mod params;
@@ -17,3 +18,4 @@ pub mod unison;
 pub mod voice;
 
 pub use engine::{Engine, EngineConfig, Event, TimedEvent};
+pub use live::LiveParam;
