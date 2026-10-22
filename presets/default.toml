@@ -34,8 +34,8 @@ k_b = 0.135202
 c = -3.708095
 
 [losses]
-b1_slope = 0.059
-b1_offset = -4.782
+b1_slope = 0.055
+b1_offset = -5.1
 b2 = 0.0000001
 b1_floor = 0.2
 wound_until = 48
@@ -50,7 +50,7 @@ tension = 750.0
 [unison]
 bichord_from = 28
 trichord_from = 45
-width_mid = 0.35
+width_mid = 1.0
 width_treble = 5.0
 hit_spread = 0.2
 
@@ -85,7 +85,7 @@ impedance_slope_bass = 0.0
 f_max = 20000.0
 piston_freq = 40.0
 piston_loss = 0.7
-piston_mass = 1.5
+piston_mass = 6.0
 piston_radiation = 0.3
 treble_bridge = [
     [

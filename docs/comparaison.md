@@ -142,3 +142,4 @@ Ce qui reste après recalibration :
 2. ~~Pertes des cordes graves~~ : fait en grande partie ([graves.md](graves.md)).
 3. **Changement de timbre avec la nuance** : le feutre est fait ([timbre_nuance.md](timbre_nuance.md)). Le grave demande la non-linéarité de la corde.
 4. Ensuite seulement, les ajouts de physique : non-linéarités de la corde, duplex, fin des notes aiguës, sympathie passive.
+5. ~~Tenue après la première seconde~~ : fait ([tenue_longue.md](tenue_longue.md)).

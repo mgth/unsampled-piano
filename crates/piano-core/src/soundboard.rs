@@ -153,11 +153,12 @@ impl SoundboardParams {
         impedance_slope: 0.035,
         impedance_slope_bass: 0.0,
         f_max: 20_000.0,
-        // Calibrated on the decays of the bass partials of Salamander, Iowa
-        // and Commercial (docs/graves.md): a broad mode near 40 Hz.
+        // A broad mode near 40 Hz (docs/graves.md). Mass set on the late
+        // sustain of the bass (docs/tenue_longue.md): with 1.5 kg it took
+        // 37 dB from the 63 Hz band between 0.3 and 3 s (references 6–21).
         piston_freq: 40.0,
         piston_loss: 0.7,
-        piston_mass: 1.5,
+        piston_mass: 6.0,
         piston_radiation: 0.3,
         // Main bridge at equal steps of the main range (C8, ≈ F6, ≈ G#4,
         // ≈ C#3, F1): x follows the speaking length of the 2 m scale from

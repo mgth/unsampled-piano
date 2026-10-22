@@ -64,3 +64,5 @@ Spectre à long terme par rapport à Salamander (`tools/calibrate.sh`, `spectral
 
 - **Profil de la tenue du grave.** Les partiels 3 à 6 restent 10 à 15 dB sous les références par rapport à la fondamentale entre 0,5 et 1 s. Dans les références, la fondamentale grave chute d'environ 8 dB dès la première demi-seconde, une décroissance initiale rapide que le modèle n'a pas. Les fondamentales graves sont toutefois les mesures les plus dispersées des références : leur T60 va de 4,5 à 39 s selon la source et la note.
 - **Fin des notes du médium à 2–3 s**, un peu trop courte depuis le désaccord resserré.
+
+Mise à jour : le désaccord (1 cent), la masse du piston (6 kg) et les pertes propres ont été revus sur la tenue après 1 s ([tenue_longue.md](tenue_longue.md)).

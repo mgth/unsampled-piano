@@ -84,13 +84,16 @@ impl LossLaw {
     /// string per note cannot reproduce the two-stage decay (Phase 2).
     pub const SALAMANDER_EARLY: Self = Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48 };
     /// Intrinsic string losses: law of the ESPRIT aftersound (no bridge
-    /// losses), scaled ×0.45 by the decay calibration of the full instrument
-    /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. The
+    /// losses), scaled down by the decay calibration of the full instrument
+    /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. b1
+    /// was lowered again (×0.65 at C4, ×0.5 at F#6) on the sustain after
+    /// 1 s of Commercial, Iowa and Salamander (docs/tenue_longue.md): the
+    /// slow components of the treble fundamentals last 7–9 s there. The
     /// frequency term b2 = 1e-7 was set with the bridge spreading
     /// (docs/tenue.md): the upper partials decay at the measured rate and
     /// most of the excess above 6 kHz goes; 2e-7 would shorten the treble
     /// fundamentals.
-    pub const SALAMANDER_STRING: Self = Self { b1_slope: 0.0590, b1_offset: -4.782, b2: 1.0e-7, b1_floor: 0.2, wound_until: 48 };
+    pub const SALAMANDER_STRING: Self = Self { b1_slope: 0.055, b1_offset: -5.1, b2: 1.0e-7, b1_floor: 0.2, wound_until: 48 };
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
         let wound = ((self.wound_until as f64 + 12.0 - note as f64) / 12.0).clamp(0.0, 1.0);
@@ -118,12 +121,13 @@ pub struct UnisonLaw {
 
 impl UnisonLaw {
     /// Generic grand layout; treble width calibrated on the ESPRIT
-    /// statistics of Salamander (tools/unison_grid.py); width up to C4 0.35
-    /// cent, the measured spread of the bass and middle unisons (≈ 0.4
-    /// cent; 1 cent made the partials beat deeply, docs/graves.md); hit
-    /// spread ±20 % set on the aftersound level of the treble
-    /// (docs/tenue.md).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 0.35, width_treble: 5.0, hit_spread: 0.2 };
+    /// statistics of Salamander (tools/unison_grid.py); width up to C4 1
+    /// cent: the aftersound of the bass and middle then sits 1–1.5 cent from
+    /// the prompt sound and 13–17 dB below it, as in Commercial, Iowa and
+    /// Salamander (docs/tenue_longue.md; 0.35 cent left it 10 dB too weak
+    /// and the notes died after 1 s); hit spread ±20 % set on the
+    /// aftersound level of the treble (docs/tenue.md).
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 
