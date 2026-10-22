@@ -74,3 +74,4 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 - Présence de l'attaque (marteau à deux couches, prises de son) : [docs/presence.md](docs/presence.md)
 - Tenue après la première seconde (désaccord d'unisson, piston, pertes des cordes) : [docs/tenue_longue.md](docs/tenue_longue.md)
 - Rayonnement des fondamentales graves (rayonnement par l'accélération, bombe de la table) : [docs/rayonnement_grave.md](docs/rayonnement_grave.md)
+- Brillance de l'attaque et de la tenue (amortissement de la table, feutre, vitesse du marteau) : [docs/brillance.md](docs/brillance.md)

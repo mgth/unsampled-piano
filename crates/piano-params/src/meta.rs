@@ -42,6 +42,7 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("core_hardness", "Felt core hardness", "", 0.0, 100.0, false),
     ("core_p", "Felt core exponent", "", 1.5, 5.0, false),
     ("core_depth_bass", "Top felt depth (bass)", "mm", 0.0, 3.0, false),
+    ("core_depth_mid", "Top felt depth (middle)", "mm", 0.0, 3.0, false),
     ("core_depth_treble", "Top felt depth (treble)", "mm", 0.0, 3.0, false),
     ("p_bass", "Extra felt exponent (bass)", "", 0.0, 2.0, false),
     ("p_offset", "Felt exponent offset", "", -1.5, 1.5, false),

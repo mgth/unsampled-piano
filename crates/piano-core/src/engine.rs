@@ -24,9 +24,11 @@ pub const SUB_BLOCK: usize = 64;
 /// delay plus the half sample of the backward difference.
 const INPUT_DELAY: f64 = SUB_BLOCK as f64 + 0.5;
 /// Output scaling without soundboard: bridge force (N) to full scale.
-const FORCE_GAIN: f32 = 1.0 / 440.0;
+/// Lowered by 2.7 dB with the faster hammer law (docs/brillance.md), same
+/// loudness for recorded performances.
+const FORCE_GAIN: f32 = 1.0 / 600.0;
 /// Output scaling with soundboard: pressure at the mics (Pa) to full scale.
-const PRESSURE_GAIN: f32 = 1.0 / 22.0;
+const PRESSURE_GAIN: f32 = 1.0 / 30.0;
 /// Voices whose bridge force falls below ≈ 1e-5·240 N (−100 dB of a loud
 /// note) are freed, unless their strings are free to resonate.
 const SILENCE_ENERGY: f32 = (1e-5 / FORCE_GAIN) * (1e-5 / FORCE_GAIN);

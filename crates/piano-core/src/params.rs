@@ -496,7 +496,9 @@ impl NoteParams {
 /// recording pianos (Goebl & Bresin 2003: velocity = 52 + 25·log2(v m/s),
 /// 2 m/s ↔ 77 on the Disklavier), so that recorded performances (MAESTRO)
 /// keep their dynamics; the earlier fit on Salamander's sampler layers
-/// (0.4–4 m/s) compressed both ends.
+/// (0.4–4 m/s) compressed both ends. 0.6–4.2 m/s (velocity 77 ↔ 1.94 m/s)
+/// was set with the felt on the brightness of attack and sustain
+/// (docs/brillance.md); 0.5–3.5 left the middle register dull.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct VelocityLaw {
@@ -505,7 +507,7 @@ pub struct VelocityLaw {
 }
 
 impl VelocityLaw {
-    pub const DEFAULT: Self = Self { vmin: 0.5, vmax: 3.5 };
+    pub const DEFAULT: Self = Self { vmin: 0.6, vmax: 4.2 };
     /// Fit of the Salamander layers (sampler velocity ranges), 1.4 dB rms.
     pub const SALAMANDER_LAYERS: Self = Self { vmin: 0.4, vmax: 4.0 };
 
@@ -557,10 +559,13 @@ pub struct PianoModel {
     pub hardness_slope_bass: f64,
     /// Hard hammer core (two-layer felt): stiffness relative to Stulov's Q0
     /// of the key (0: single layer), exponent, and depth of the top felt
-    /// (mm) in the bass (A0) and the treble (C8), linear in between.
+    /// (mm) in the bass (A0), the middle (C4) and the treble (C8), linear
+    /// in between: the felt thins fast from the large bass hammers to the
+    /// middle, then little.
     pub core_hardness: f64,
     pub core_p: f64,
     pub core_depth_bass: f64,
+    pub core_depth_mid: f64,
     pub core_depth_treble: f64,
     /// Extra felt exponent in the bass, growing linearly from C4 to A0:
     /// bass hammers have a soft surface over a very hard core, round at pp,
@@ -606,11 +611,13 @@ impl Default for PianoModel {
             hardness_slope_bass: 0.02,
             p_bass: 0.0,
             // Two-layer hammer (docs/presence.md): soft top felt (0.2 × Stulov)
-            // over a core 30 × Stulov reached between pp and ff, 0.7 mm deep
-            // in the bass, 0.4 mm in the treble.
+            // over a core 30 × Stulov reached between pp and ff, 0.8 mm deep
+            // in the bass, 0.57 mm at C4, 0.4 mm in the treble (bass depth
+            // set on the brightness, docs/brillance.md).
             core_hardness: 30.0,
             core_p: 2.5,
-            core_depth_bass: 0.7,
+            core_depth_bass: 0.8,
+            core_depth_mid: 0.5655,
             core_depth_treble: 0.4,
             p_offset: 0.0,
             hysteresis: 0.6,
@@ -639,8 +646,14 @@ impl PianoModel {
         hammer.p += self.p_offset + self.p_bass * ((40.0 - key) / 39.0).max(0.0);
         hammer.core_q = self.core_hardness * base_q0;
         hammer.core_p = self.core_p;
-        let t = ((key - 1.0) / 87.0).clamp(0.0, 1.0);
-        hammer.core_depth = (self.core_depth_bass + (self.core_depth_treble - self.core_depth_bass) * t) * 1e-3;
+        let depth = if m <= 60.0 {
+            let t = ((m - 21.0) / 39.0).clamp(0.0, 1.0);
+            self.core_depth_bass + (self.core_depth_mid - self.core_depth_bass) * t
+        } else {
+            let t = ((m - 60.0) / 48.0).clamp(0.0, 1.0);
+            self.core_depth_mid + (self.core_depth_treble - self.core_depth_mid) * t
+        };
+        hammer.core_depth = depth * 1e-3;
         hammer.alpha *= self.hysteresis;
         NoteParams {
             f0,

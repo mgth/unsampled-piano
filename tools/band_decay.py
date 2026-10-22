@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Octave-band levels (dB re the note's broadband peak) at 0.3 s and 3 s
-after the onset, averaged over the keys of a register (ff): shows which
-frequency range carries the late sustain.  tools/band_decay.py lo hi name=dir …"""
+"""Octave-band levels (dB re the note's strongest band at the attack) in
+0.4 s windows after the onset, averaged over the keys of a register (ff):
+which frequency range carries the sustain. TIMES (env, comma-separated
+seconds) sets the windows, default 0.05,0.3,3.
+  tools/band_decay.py lo hi name=dir …"""
 import os, subprocess, sys
 import numpy as np
 NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -23,7 +25,7 @@ lo, hi = int(sys.argv[1]), int(sys.argv[2])
 print("bande (Hz)      " + " ".join(f"{c:>6g}" for c in CEN))
 for a in sys.argv[3:]:
     nm, d = a.split("=", 1)
-    r = {0.05: [], 0.3: [], 3.0: []}
+    r = {float(t): [] for t in os.environ.get("TIMES", "0.05,0.3,3").split(",")}
     for m in range(21, 109, 3):
         if not (lo <= m <= hi) or not find(d, m): continue
         x = load(find(d, m)); ref = bands(x, 0.0, 0.1).max()

@@ -131,7 +131,9 @@ impl Voice {
 
     /// Strikes the (possibly ringing) strings with the hammer at `v` m/s.
     /// `una_corda` ∈ [0, 1] shifts the hammer off the first string and onto
-    /// softer felt (`softening` at full shift).
+    /// felt the strings have not grooved: softer (`softening` at full
+    /// shift) and less compacted, so thicker over the hard core (by half the
+    /// softening: +30 % at 0.6).
     pub fn strike(&mut self, nm: &NoteModel, v: f64, oversample: usize, una_corda: f64, softening: f64) {
         if self.contact.is_active() {
             self.hand_over(nm);
@@ -142,7 +144,9 @@ impl Voice {
         let ns = nm.params.strings;
         let shift = if ns >= 2 { una_corda.clamp(0.0, 1.0) } else { 0.0 };
         let mut np = nm.params;
-        np.hammer.q0 *= 1.0 - softening * una_corda.clamp(0.0, 1.0);
+        let u = softening * una_corda.clamp(0.0, 1.0);
+        np.hammer.q0 *= 1.0 - u;
+        np.hammer.core_depth *= 1.0 + 0.5 * u;
         let bank = &self.bank;
         let modes = nm.clusters.iter().enumerate().flat_map(move |(ki, cl)| {
             let mut c = [C64::ZERO; MAX_OSC];

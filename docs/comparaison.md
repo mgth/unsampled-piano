@@ -144,3 +144,4 @@ Ce qui reste après recalibration :
 4. Ensuite seulement, les ajouts de physique : non-linéarités de la corde, duplex, fin des notes aiguës, sympathie passive.
 5. ~~Tenue après la première seconde~~ : fait ([tenue_longue.md](tenue_longue.md)).
 6. ~~Rayonnement des fondamentales graves~~ : fait ([rayonnement_grave.md](rayonnement_grave.md)).
+7. Brillance de la tenue : en grande partie ([brillance.md](brillance.md)) ; reste le médium à 4–8 kHz.

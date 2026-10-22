@@ -148,9 +148,11 @@ impl SoundboardParams {
         dx: 3825.0,
         dy: 1700.0,
         loss_factor: 0.02,
-        // Wood and radiation damping grow with frequency (calibrated on the
-        // attack brightness, tools/attack_grid.py): η = 0.02·(1 + f/700 Hz).
-        loss_corner: 700.0,
+        // Wood and radiation damping grow with frequency: η = 0.02·(1 +
+        // f/2500 Hz). The share of its energy the board radiates falls as
+        // 1/η; the earlier corner at 700 Hz (13 % at 4 kHz) muffled the
+        // 2–8 kHz bands (docs/brillance.md).
+        loss_corner: 2500.0,
         bridge_mass: 0.0,
         series_stiffness: 2e7,
         // Maple, ≈ 3 × 2.5 cm; spread over 0.3 bending wavelength (set with

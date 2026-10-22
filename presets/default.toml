@@ -9,7 +9,8 @@ hardness_slope = 0.02
 hardness_slope_bass = 0.02
 core_hardness = 30.0
 core_p = 2.5
-core_depth_bass = 0.7
+core_depth_bass = 0.8
+core_depth_mid = 0.5655
 core_depth_treble = 0.4
 p_bass = 0.0
 p_offset = 0.0
@@ -17,8 +18,8 @@ hysteresis = 0.6
 contact_width_scale = 1.0
 
 [velocity]
-vmin = 0.5
-vmax = 3.5
+vmin = 0.6
+vmax = 4.2
 
 [inharmonicity]
 a_bass = -0.111714
@@ -74,7 +75,7 @@ rho_h = 7.0
 dx = 3825.0
 dy = 1700.0
 loss_factor = 0.02
-loss_corner = 700.0
+loss_corner = 2500.0
 bridge_mass = 0.0
 series_stiffness = 20000000.0
 bridge_stiffness = 470.0
