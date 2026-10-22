@@ -1,35 +1,49 @@
-//! Real-time player. The instrument is built on the main thread; the MIDI
-//! callback pushes decoded events into a lock-free queue; the audio callback
-//! drains it at the start of each buffer and renders (no allocation, no
-//! lock). MIDI files are played from a timeline owned by the audio callback,
-//! with sample-accurate event times. CPU load is reported once per second.
+//! Real-time player. By default the piano is a node of the PipeWire graph
+//! (through PipeWire's JACK API): stereo audio out, a MIDI input with
+//! sample-accurate timing, and a MIDI output mirroring every event the piano
+//! plays; the keyboard and the speakers are connected automatically. The
+//! cpal backends (`--host pipewire|jack|alsa`) remain, with the keyboard read
+//! through midir and played at the start of each buffer. MIDI files play from
+//! a timeline owned by the audio thread, sample-accurately. The instrument
+//! is built on the main thread; the audio thread neither allocates nor
+//! locks. CPU load is reported once per second.
+
+mod node;
+mod player;
 
 use clap::Parser;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use piano_core::instrument::Instrument;
-use piano_core::{Engine, EngineConfig, Event, TimedEvent};
+use piano_core::{Engine, EngineConfig, Event};
+use player::{Player, Stats, MAX_BLOCK};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 #[derive(Parser)]
-#[command(about = "Play the physical piano from a MIDI keyboard")]
+#[command(about = "Play the physical piano from a MIDI keyboard or MIDI files")]
 struct Args {
     /// Instrument preset (TOML); see `piano-render dump-preset`.
     #[arg(long)]
     preset: Option<PathBuf>,
-    /// MIDI input port: substring of its name (default: first real port).
+    /// MIDI input port to connect: substring of its name (default: the
+    /// first hardware port).
     #[arg(long)]
     midi: Option<String>,
-    /// Audio host: pipewire (default when available), jack or alsa.
+    /// Audio backend: node (default: the piano as a graph node with MIDI in
+    /// and out, through PipeWire's JACK API), or a cpal host without MIDI
+    /// ports: pipewire, jack, alsa.
     #[arg(long)]
     host: Option<String>,
-    /// Audio output device: substring of its name (default: the system
-    /// default, else PipeWire, else PulseAudio).
+    /// Name of the graph node.
+    #[arg(long, default_value = "piano")]
+    name: String,
+    /// Audio output: substring of the device (cpal) or of the playback port
+    /// names (node).
     #[arg(long)]
     device: Option<String>,
-    /// Audio buffer size in frames.
+    /// Audio buffer size in frames (node: requested graph period).
     #[arg(long, default_value_t = 256)]
     buffer: u32,
     /// Output gain (dB).
@@ -53,26 +67,17 @@ struct Args {
 /// Silence between two files (s), and after the last one before quitting.
 const GAP_S: f64 = 4.0;
 
-/// Engine block limit; host buffers are rendered in pieces of this size.
-const MAX_BLOCK: usize = 1024;
-const MAX_EVENTS: usize = 256;
-
-#[derive(Default)]
-struct Stats {
-    /// Max callback time / buffer duration over the last period, ×1e4.
-    load_max: AtomicU32,
-    load_sum: AtomicU32,
-    callbacks: AtomicU32,
-    voices: AtomicU32,
-    /// Samples rendered since the start.
-    clock: AtomicU64,
+/// Where the audio goes.
+enum Backend {
+    Node(node::Node),
+    Cpal { device: cpal::Device, config: cpal::SupportedStreamConfig },
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let host = pick_host(args.host.as_deref())?;
     let midi_in = midir::MidiInput::new("piano-play")?;
     if args.list {
+        let host = pick_host(args.host.as_deref().filter(|h| *h != "node"))?;
         println!("audio host: {:?}", host.id());
         for d in host.output_devices()? {
             println!("  output: {}", d.description().map(|x| x.to_string()).unwrap_or_default());
@@ -80,9 +85,173 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for p in midi_in.ports() {
             println!("  MIDI in: {}", midi_in.port_name(&p).unwrap_or_default());
         }
+        if let Ok(n) = node::Node::open(&args.name, args.buffer) {
+            let (midi, audio) = n.graph_ports();
+            println!("graph (node backend), default sink: {:?}", default_sink_prefix());
+            for p in midi {
+                println!("  MIDI source: {p}");
+            }
+            for p in audio {
+                println!("  audio input: {p}");
+            }
+        }
         return Ok(());
     }
 
+    let backend = match args.host.as_deref() {
+        None | Some("node") => match node::Node::open(&args.name, args.buffer) {
+            Ok(n) => Backend::Node(n),
+            Err(e) if args.host.is_none() => {
+                eprintln!("graph node unavailable ({e}); falling back to cpal/PipeWire, without MIDI ports");
+                cpal_backend(&args)?
+            }
+            Err(e) => return Err(e.into()),
+        },
+        Some(_) => cpal_backend(&args)?,
+    };
+    let sr = match &backend {
+        Backend::Node(n) => n.sample_rate(),
+        Backend::Cpal { config, .. } => config.sample_rate() as f64,
+    };
+
+    let model = match &args.preset {
+        Some(p) => piano_host::load_preset(p)?,
+        None => Default::default(),
+    };
+    eprintln!("building the instrument at {sr} Hz…");
+    let t = Instant::now();
+    let inst = Arc::new(Instrument::new(model, sr));
+    eprintln!("built in {:.2} s", t.elapsed().as_secs_f64());
+    let cfg = EngineConfig { sample_rate: sr, max_block: MAX_BLOCK, model, ..Default::default() };
+    let engine = Engine::with_instrument(cfg, inst);
+
+    let (timeline, pieces, end_s) = file_timeline(&args, sr)?;
+    for (start, name, len) in &pieces {
+        eprintln!("  {:>7}  {name} ({}:{:02})", clock_str(*start), (*len as u64) / 60, (*len as u64) % 60);
+    }
+
+    // Events from other threads (demo, keyboard through midir), played at
+    // the start of the next buffer.
+    let (tx, rx) = rtrb::RingBuffer::<Event>::new(1024);
+    let listen = args.file.is_empty() || args.midi.is_some();
+    let stats = Arc::new(Stats::default());
+    let player = Player::new(engine, sr, timeline, Some(rx), stats.clone());
+    let gain = 10f32.powf(args.gain_db / 20.0);
+
+    let mut _midi_conn = None;
+    let mut _stream = None;
+    let mut _node = None;
+    if args.demo {
+        std::thread::spawn(move || demo(tx));
+    } else if matches!(backend, Backend::Cpal { .. }) && listen {
+        _midi_conn = midir_input(midi_in, args.midi.as_deref(), tx)?;
+    }
+    match backend {
+        Backend::Node(n) => {
+            let (midi_sources, audio_inputs) = n.graph_ports();
+            let period = n.buffer_size();
+            let (running, names) = n.start(player, gain)?;
+            eprintln!("graph node \"{}\" ({period} frames/period)", args.name);
+            eprintln!("  MIDI in:  {}", names.midi_in);
+            eprintln!("  MIDI out: {} (mirror of what the piano plays)", names.midi_out);
+            // Audio: --device, else the system's default sink.
+            let prefix = match &args.device {
+                Some(w) => Some(w.clone()),
+                None => default_sink_prefix().map(|p| format!("{p}:")),
+            };
+            let sinks: Vec<&String> = match &prefix {
+                Some(p) => audio_inputs.iter().filter(|x| x.contains(p.as_str())).collect(),
+                None => Vec::new(),
+            };
+            match sinks.as_slice() {
+                [] => eprintln!("  no output found ({prefix:?}): connect {} / {} in the graph", names.left, names.right),
+                [one] => {
+                    running.connect(&names.left, one)?;
+                    running.connect(&names.right, one)?;
+                    eprintln!("  audio → {one}");
+                }
+                [a, b, ..] => {
+                    running.connect(&names.left, a)?;
+                    running.connect(&names.right, b)?;
+                    eprintln!("  audio → {a}, {b}");
+                }
+            }
+            // Keyboard: --midi, else the first hardware port (ALSA bridge).
+            if listen && !args.demo {
+                let src = match &args.midi {
+                    Some(want) => midi_sources.iter().find(|p| p.contains(want.as_str())),
+                    None => midi_sources.iter().find(|p| p.starts_with("Midi-Bridge:") && !p.contains("Through")),
+                };
+                match src {
+                    Some(s) => {
+                        running.connect(s, &names.midi_in)?;
+                        eprintln!("  keyboard: {s}");
+                    }
+                    None => eprintln!("  no MIDI keyboard found: connect one to {} in the graph", names.midi_in),
+                }
+            }
+            _node = Some(running);
+            eprintln!("playing. Ctrl-C to quit.");
+        }
+        Backend::Cpal { device, config } => {
+            let channels = config.channels() as usize;
+            let mut player = player;
+            let stream_config = cpal::StreamConfig {
+                channels: config.channels(),
+                sample_rate: config.sample_rate(),
+                buffer_size: cpal::BufferSize::Fixed(args.buffer),
+            };
+            let stream = device.build_output_stream(
+                stream_config,
+                move |data: &mut [f32], _| {
+                    let frames = data.len() / channels;
+                    player.render(
+                        frames,
+                        std::iter::empty(),
+                        |off, l, r| {
+                            for (i, f) in data[off * channels..(off + l.len()) * channels].chunks_mut(channels).enumerate() {
+                                f[0] = gain * l[i];
+                                if channels > 1 {
+                                    f[1] = gain * r[i];
+                                }
+                                for x in f.iter_mut().skip(2) {
+                                    *x = 0.0;
+                                }
+                            }
+                        },
+                        |_, _| {},
+                    );
+                },
+                |e| eprintln!("audio error: {e}"),
+                None,
+            )?;
+            stream.play()?;
+            _stream = Some(stream);
+            eprintln!("playing ({} frames/buffer, {channels} channels). Ctrl-C to quit.", args.buffer);
+        }
+    }
+
+    let mut next_piece = 0;
+    loop {
+        std::thread::sleep(Duration::from_secs(1));
+        let now = stats.clock.load(Ordering::Relaxed) as f64 / sr;
+        while next_piece < pieces.len() && now >= pieces[next_piece].0 {
+            eprintln!("▶ {}", pieces[next_piece].1);
+            next_piece += 1;
+        }
+        if !pieces.is_empty() && now >= end_s {
+            eprintln!("end of the files");
+            return Ok(());
+        }
+        let n = stats.callbacks.swap(0, Ordering::Relaxed).max(1);
+        let avg = stats.load_sum.swap(0, Ordering::Relaxed) as f64 / n as f64 / 100.0;
+        let max = stats.load_max.swap(0, Ordering::Relaxed) as f64 / 100.0;
+        eprintln!("CPU load avg {avg:5.1} %  max {max:5.1} %  voices {:3}", stats.voices.load(Ordering::Relaxed));
+    }
+}
+
+fn cpal_backend(args: &Args) -> Result<Backend, Box<dyn std::error::Error>> {
+    let host = pick_host(args.host.as_deref())?;
     let named = |want: &str| {
         host.output_devices().ok()?.find(|d| d.description().map(|x| x.to_string()).unwrap_or_default().contains(want))
     };
@@ -97,27 +266,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .ok_or("no usable audio output device (see --list, --device)")?,
     };
     eprintln!("audio output: {}", device.description().map(|x| x.to_string()).unwrap_or_default());
-    let supported = device.default_output_config()?;
-    let sr = supported.sample_rate() as f64;
-    let channels = supported.channels() as usize;
-    if supported.sample_format() != cpal::SampleFormat::F32 {
-        return Err(format!("unsupported sample format {:?}", supported.sample_format()).into());
+    let config = device.default_output_config()?;
+    if config.sample_format() != cpal::SampleFormat::F32 {
+        return Err(format!("unsupported sample format {:?}", config.sample_format()).into());
     }
-    let model = match &args.preset {
-        Some(p) => piano_host::load_preset(p)?,
-        None => Default::default(),
-    };
-    eprintln!("building the instrument at {sr} Hz…");
-    let t = Instant::now();
-    let inst = Arc::new(Instrument::new(model, sr));
-    eprintln!("built in {:.2} s", t.elapsed().as_secs_f64());
-    let cfg = EngineConfig { sample_rate: sr, max_block: MAX_BLOCK, model, ..Default::default() };
-    let mut engine = Engine::with_instrument(cfg, inst);
+    Ok(Backend::Cpal { device, config })
+}
 
-    // File timeline: (sample, event), files back to back with a gap; pedals
-    // released at the start of each file.
+/// Keyboard through midir (cpal backends): events go to the queue.
+fn midir_input(
+    midi_in: midir::MidiInput,
+    want: Option<&str>,
+    mut tx: rtrb::Producer<Event>,
+) -> Result<Option<midir::MidiInputConnection<()>>, Box<dyn std::error::Error>> {
+    let ports = midi_in.ports();
+    let name = |p: &midir::MidiInputPort| midi_in.port_name(p).unwrap_or_default();
+    let port = match want {
+        Some(w) => ports.iter().find(|p| name(p).contains(w)),
+        None => ports.iter().find(|p| !name(p).contains("Through")),
+    };
+    let Some(p) = port.cloned() else {
+        eprintln!("no MIDI input port found (use --list / --midi, or --demo)");
+        return Ok(None);
+    };
+    eprintln!("MIDI input: {}", name(&p));
+    let conn = midi_in.connect(
+        &p,
+        "piano-play-in",
+        move |_, msg, _| {
+            if let Some(ev) = piano_host::decode_midi(msg) {
+                let _ = tx.push(ev);
+            }
+        },
+        (),
+    )?;
+    Ok(Some(conn))
+}
+
+/// Files back to back with a gap: (sample, event) timeline, the pieces
+/// (start s, name, length s) and the end time. Pedals are released at the
+/// start of each file.
+#[allow(clippy::type_complexity)]
+fn file_timeline(args: &Args, sr: f64) -> Result<(Vec<(u64, Event)>, Vec<(f64, String, f64)>, f64), String> {
     let mut timeline: Vec<(u64, Event)> = Vec::new();
-    let mut pieces: Vec<(f64, String, f64)> = Vec::new();
+    let mut pieces = Vec::new();
     let mut t0 = 0.5;
     for (i, f) in args.file.iter().enumerate() {
         let evs = piano_host::read_midi_file(f)?;
@@ -141,125 +333,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         pieces.push((t0, name, len));
         t0 += len + GAP_S;
     }
-    let end_s = t0;
-    for (start, name, len) in &pieces {
-        eprintln!("  {:>7}  {name} ({}:{:02})", clock_str(*start), (*len as u64) / 60, (*len as u64) % 60);
-    }
+    Ok((timeline, pieces, t0))
+}
 
-    let (mut tx, mut rx) = rtrb::RingBuffer::<Event>::new(1024);
-    let listen = args.file.is_empty() || args.midi.is_some();
-    let _midi_conn = if args.demo {
-        std::thread::spawn(move || demo(tx));
-        None
-    } else if !listen {
-        None
-    } else {
-        let ports = midi_in.ports();
-        let name = |p: &midir::MidiInputPort| midi_in.port_name(p).unwrap_or_default();
-        let port = match &args.midi {
-            Some(want) => ports.iter().find(|p| name(p).contains(want.as_str())),
-            None => ports.iter().find(|p| !name(p).contains("Through")),
-        };
-        match port.cloned() {
-            Some(p) => {
-                eprintln!("MIDI input: {}", name(&p));
-                let conn = midi_in.connect(
-                    &p,
-                    "piano-play-in",
-                    move |_, msg, _| {
-                        if let Some(ev) = piano_host::decode_midi(msg) {
-                            let _ = tx.push(ev);
-                        }
-                    },
-                    (),
-                )?;
-                Some(conn)
-            }
-            None => {
-                eprintln!("no MIDI input port found (use --list / --midi, or --demo)");
-                None
-            }
-        }
+/// JACK port prefix (node description, else name) of PipeWire's default
+/// audio sink, from `pw-metadata` and `pw-cli`.
+fn default_sink_prefix() -> Option<String> {
+    let run = |cmd: &str, args: &[&str]| {
+        let out = std::process::Command::new(cmd).args(args).output().ok()?;
+        String::from_utf8(out.stdout).ok()
     };
-
-    let stats = Arc::new(Stats::default());
-    let st = stats.clone();
-    let gain = 10f32.powf(args.gain_db / 20.0);
-    let (mut l, mut r) = (vec![0.0f32; MAX_BLOCK], vec![0.0f32; MAX_BLOCK]);
-    let mut events: Vec<TimedEvent> = Vec::with_capacity(MAX_EVENTS);
-    let (mut clock, mut cursor) = (0u64, 0usize);
-    let config = cpal::StreamConfig {
-        channels: supported.channels(),
-        sample_rate: supported.sample_rate(),
-        buffer_size: cpal::BufferSize::Fixed(args.buffer),
-    };
-    let stream = device.build_output_stream(
-        config,
-        move |data: &mut [f32], _| {
-            let start = Instant::now();
-            let frames = data.len() / channels;
-            let mut done = 0;
-            while done < frames {
-                let n = (frames - done).min(MAX_BLOCK);
-                events.clear();
-                if done == 0 {
-                    while events.len() < MAX_EVENTS / 2 {
-                        match rx.pop() {
-                            Ok(event) => events.push(TimedEvent { frame: 0, event }),
-                            Err(_) => break,
-                        }
-                    }
-                }
-                // File events due in this piece, at their exact frame (late
-                // ones, if the queue overflowed, at its start).
-                while cursor < timeline.len() && timeline[cursor].0 < clock + n as u64 && events.len() < MAX_EVENTS {
-                    let (t, event) = timeline[cursor];
-                    events.push(TimedEvent { frame: t.saturating_sub(clock) as u32, event });
-                    cursor += 1;
-                }
-                engine.process_stereo(&events, &mut l[..n], &mut r[..n]);
-                clock += n as u64;
-                for (i, f) in data[done * channels..(done + n) * channels].chunks_mut(channels).enumerate() {
-                    f[0] = gain * l[i];
-                    if channels > 1 {
-                        f[1] = gain * r[i];
-                    }
-                    for x in f.iter_mut().skip(2) {
-                        *x = 0.0;
-                    }
-                }
-                done += n;
-            }
-            let load = start.elapsed().as_secs_f64() * sr / frames.max(1) as f64;
-            let l4 = (load * 1e4) as u32;
-            st.load_max.fetch_max(l4, Ordering::Relaxed);
-            st.load_sum.fetch_add(l4, Ordering::Relaxed);
-            st.callbacks.fetch_add(1, Ordering::Relaxed);
-            st.voices.store(engine.active_voices() as u32, Ordering::Relaxed);
-            st.clock.store(clock, Ordering::Relaxed);
-        },
-        |e| eprintln!("audio error: {e}"),
-        None,
-    )?;
-    stream.play()?;
-    eprintln!("playing ({} frames/buffer, {channels} channels). Ctrl-C to quit.", args.buffer);
-    let mut next_piece = 0;
-    loop {
-        std::thread::sleep(Duration::from_secs(1));
-        let now = stats.clock.load(Ordering::Relaxed) as f64 / sr;
-        while next_piece < pieces.len() && now >= pieces[next_piece].0 {
-            eprintln!("▶ {}", pieces[next_piece].1);
-            next_piece += 1;
-        }
-        if !pieces.is_empty() && now >= end_s {
-            eprintln!("end of the files");
-            return Ok(());
-        }
-        let n = stats.callbacks.swap(0, Ordering::Relaxed).max(1);
-        let avg = stats.load_sum.swap(0, Ordering::Relaxed) as f64 / n as f64 / 100.0;
-        let max = stats.load_max.swap(0, Ordering::Relaxed) as f64 / 100.0;
-        eprintln!("CPU load avg {avg:5.1} %  max {max:5.1} %  voices {:3}", stats.voices.load(Ordering::Relaxed));
-    }
+    let meta = run("pw-metadata", &["0", "default.audio.sink"])?;
+    let name = meta.split("\"name\":\"").nth(1)?.split('"').next()?.to_string();
+    let nodes = run("pw-cli", &["ls", "Node"]).unwrap_or_default();
+    let quoted = format!("node.name = \"{name}\"");
+    let desc = nodes.split("\tid ").find(|b| b.contains(&quoted)).and_then(|b| {
+        let line = b.lines().find(|l| l.trim_start().starts_with("node.description = "))?;
+        Some(line.split('"').nth(1)?.to_string())
+    });
+    Some(desc.unwrap_or(name))
 }
 
 /// h:mm:ss

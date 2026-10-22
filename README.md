@@ -7,7 +7,10 @@ Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cor
 ## Utilisation
 
 ```bash
-# jouer depuis un clavier MIDI (PipeWire natif, priorité temps réel)
+# jouer : le piano devient un nœud du graphe PipeWire (API JACK) avec sortie
+# stéréo, entrée MIDI (timing à l'échantillon) et sortie MIDI miroir de ce qu'il
+# joue ; il se branche sur la sortie par défaut et sur le premier clavier
+# (--midi / --device pour choisir, --host pipewire pour l'ancien mode cpal)
 cargo run --release -p piano-play -- --list
 cargo run --release -p piano-play -- --buffer 128 [--preset presets/concert.toml]
 # jouer des fichiers MIDI à la suite (timing à l'échantillon près ; --from saute le début)
@@ -38,7 +41,7 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 |---|---|
 | `piano-core` | moteur DSP, sans dépendance (feature `serde` pour les préréglages) |
 | `piano-host` | préréglages TOML, décodage MIDI |
-| `piano-play` | application temps réel (cpal + midir) |
+| `piano-play` | application temps réel : nœud PipeWire/JACK (audio, MIDI in, MIDI miroir), ou cpal + midir |
 | `piano-render` | rendu hors ligne déterministe MIDI → WAV |
 | `piano-analysis` | analyse : partiels, B, décroissances, ESPRIT, distances spectrales |
 | `piano-eval` | comparaison du modèle à une banque de référence |

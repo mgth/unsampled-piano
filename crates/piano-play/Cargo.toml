@@ -1,6 +1,6 @@
 [package]
 name = "piano-play"
-description = "Real-time standalone player: MIDI input to audio output."
+description = "Real-time standalone player: a PipeWire graph node (audio, MIDI in, MIDI mirror out) or cpal output."
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
@@ -12,3 +12,4 @@ cpal = { workspace = true, features = ["pipewire", "jack", "realtime"] }
 midir.workspace = true
 rtrb.workspace = true
 clap.workspace = true
+jack = "0.13"
