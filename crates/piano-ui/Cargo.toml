@@ -11,7 +11,9 @@ repository.workspace = true
 piano-core = { workspace = true, features = ["serde"] }
 piano-host.workspace = true
 piano-params.workspace = true
-egui.workspace = true
+# Text needs fonts: since 0.37 egui ships them only on request (eframe
+# asks for them, the plugin adapter does not).
+egui = { workspace = true, features = ["default_fonts"] }
 
 [dev-dependencies]
 eframe.workspace = true
