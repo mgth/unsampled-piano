@@ -15,6 +15,7 @@ use piano_core::params::PianoModel;
 use piano_params::{PianoControl, Registry};
 
 use sections::{section_of, SECTIONS};
+pub use widgets::show as format_value;
 
 /// Page index of the MIDI map (after the sections).
 const MIDI_PAGE: usize = usize::MAX;

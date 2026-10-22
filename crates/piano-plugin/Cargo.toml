@@ -1,0 +1,25 @@
+[package]
+name = "piano-plugin"
+description = "The physical piano as a CLAP and VST3 instrument plugin (nice-plug), with the piano-ui editor."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+# cdylib: the plugin; lib: tests.
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+piano-core = { workspace = true, features = ["serde"] }
+piano-params.workspace = true
+piano-control.workspace = true
+piano-host.workspace = true
+piano-ui.workspace = true
+egui.workspace = true
+nice-plug = { version = "0.4.2", default-features = false, features = ["editor", "vst3", "assert_process_allocs"] }
+nice-plug-egui = "0.6.0"
+serde_json = "1"
+toml.workspace = true
+
+[dev-dependencies]
+clack-host = "0.2.0"

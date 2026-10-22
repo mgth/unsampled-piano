@@ -25,6 +25,12 @@ pub trait PianoControl {
     fn midi(&mut self) -> Option<&mut MidiLearn> {
         None
     }
+    /// Whether a controller may be learnt for `path` (a plugin leaves its
+    /// automatable parameters to the host's own MIDI mapping).
+    fn midi_learnable(&self, path: &str) -> bool {
+        let _ = path;
+        true
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

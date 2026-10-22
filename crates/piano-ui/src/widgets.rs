@@ -71,7 +71,8 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
 /// The controller mapped to `p` ("CC 21"); click to learn one (again to
 /// cancel), right-click to remove it.
 fn midi_button(ui: &mut Ui, p: &Param, control: &mut dyn PianoControl) {
-    let Some(learn) = control.midi() else {
+    let learnable = control.midi_learnable(&p.path);
+    let Some(learn) = control.midi().filter(|_| learnable) else {
         ui.label("");
         return;
     };
