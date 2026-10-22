@@ -3,6 +3,7 @@
 //! [`Ui`] and acts through [`PianoControl`], so the standalone player and
 //! the plugin wrappers only provide the window and the control.
 
+mod mics;
 pub mod mock;
 pub mod sections;
 pub mod shot;
@@ -14,7 +15,7 @@ use egui::{RichText, Ui};
 use piano_core::params::PianoModel;
 use piano_params::{PianoControl, Registry};
 
-use sections::{section_of, SECTIONS};
+use sections::{section_of, View, SECTIONS};
 pub use widgets::show as format_value;
 
 /// Page index of the MIDI map (after the sections).
@@ -28,6 +29,7 @@ pub struct PianoUi {
     search: String,
     /// Parameter whose help is shown (registry index).
     about: Option<usize>,
+    mics: mics::MicView,
     /// Preset folder (TOML files), when the host has one: either flat, or
     /// `instruments/<family>/*.toml` and `listening/*.toml`.
     presets: Option<PathBuf>,
@@ -70,6 +72,7 @@ impl PianoUi {
             page: 0,
             search: String::new(),
             about: None,
+            mics: mics::MicView::default(),
             presets,
             preset_name: String::new(),
             listening_names: Default::default(),
@@ -237,6 +240,10 @@ impl PianoUi {
         if !searching {
             let s = &SECTIONS[self.page.min(SECTIONS.len() - 1)];
             ui.heading(s.title);
+            if s.view == View::Mics {
+                self.mics.show(ui, control, model);
+                ui.add_space(8.0);
+            }
             if !s.curves.is_empty() {
                 let reference = PianoModel::default();
                 let gap = ui.spacing().item_spacing.x;

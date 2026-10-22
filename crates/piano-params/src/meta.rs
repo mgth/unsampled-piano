@@ -50,6 +50,18 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("contact_width_scale", "Felt contact width", "", 0.25, 4.0, true),
     ("hammer_mass_scale", "Hammer mass", "", 0.25, 2.0, true),
     ("strike_ratio", "Strike point", "", 0.06, 0.2, false),
+    ("soundboard.mics[0][0]", "Left mic x (along)", "", -3.0, 5.0, false),
+    ("soundboard.mics[0][1]", "Left mic y (across)", "", -5.0, 5.0, false),
+    ("soundboard.mics[0][2]", "Left mic height", "m", 0.05, 4.0, false),
+    ("soundboard.mics[1][0]", "Right mic x (along)", "", -3.0, 5.0, false),
+    ("soundboard.mics[1][1]", "Right mic y (across)", "", -5.0, 5.0, false),
+    ("soundboard.mics[1][2]", "Right mic height", "m", 0.05, 4.0, false),
+    ("soundboard.mics_relative", "Positions relative to the board", "", 0.0, 1.0, false),
+    ("soundboard.mic_gain_db", "Microphone gain", "dB", -30.0, 20.0, false),
+    ("soundboard.lid_angle", "Lid angle", "°", 0.0, 60.0, false),
+    ("soundboard.lid_hinge_height", "Lid hinge height", "m", 0.05, 0.6, false),
+    ("soundboard.lid_reflection", "Lid reflection", "", 0.0, 1.0, false),
+    ("soundboard.lid_transmission", "Sound through the lid", "", 0.0, 1.0, false),
 ];
 
 impl Meta {

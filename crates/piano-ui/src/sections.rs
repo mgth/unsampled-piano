@@ -16,9 +16,18 @@ pub struct Curve {
 
 pub struct Section {
     pub title: &'static str,
-    /// Exact paths or prefixes ending in '.'.
+    /// Exact paths or prefixes ending in '.', '_' or '['.
     pub prefixes: &'static [&'static str],
     pub curves: &'static [Curve],
+    /// Drawing shown above the parameters.
+    pub view: View,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum View {
+    None,
+    /// The microphones placed around the piano ([`crate::mics`]).
+    Mics,
 }
 
 const KEYS: (u8, u8) = (21, 108);
@@ -34,6 +43,13 @@ pub const SECTIONS: &[Section] = &[
             log: true,
             f: |m, v| m.velocity.hammer_speed(v),
         }],
+        view: View::None,
+    },
+    Section {
+        title: "Microphones",
+        prefixes: &["soundboard.mics[", "soundboard.lid_"],
+        curves: &[],
+        view: View::Mics,
     },
     Section {
         title: "Hammer",
@@ -51,6 +67,7 @@ pub const SECTIONS: &[Section] = &[
             Curve { title: "Felt stiffness Q0", unit: "N/mm^p", x: KEYS, log: true, f: |m, n| m.note(n).hammer.q0 },
             Curve { title: "Felt exponent p", unit: "", x: KEYS, log: false, f: |m, n| m.note(n).hammer.p },
         ],
+        view: View::None,
     },
     Section {
         title: "Tuning",
@@ -59,6 +76,7 @@ pub const SECTIONS: &[Section] = &[
             Curve { title: "Stretch", unit: "cents", x: KEYS, log: false, f: |m, n| m.stretch.cents(n) },
             Curve { title: "Inharmonicity B", unit: "", x: KEYS, log: true, f: |m, n| m.inharmonicity.b(n) },
         ],
+        view: View::None,
     },
     Section {
         title: "Strings",
@@ -74,20 +92,21 @@ pub const SECTIONS: &[Section] = &[
             Curve { title: "String length", unit: "m", x: KEYS, log: true, f: |m, n| m.scale.length(n) },
             Curve { title: "Unison spread", unit: "cents", x: KEYS, log: false, f: |m, n| m.unison.width(n) },
         ],
+        view: View::None,
     },
-    Section { title: "Dampers", prefixes: &["damper.", "sympathetic."], curves: &[] },
-    Section { title: "Noises", prefixes: &["noise."], curves: &[] },
-    Section { title: "Soundboard", prefixes: &["soundboard.", "bridge."], curves: &[] },
-    Section { title: "Frame & rim", prefixes: &["frame.", "rim."], curves: &[] },
-    Section { title: "Room", prefixes: &["room."], curves: &[] },
-    Section { title: "Other", prefixes: &[""], curves: &[] },
+    Section { title: "Dampers", prefixes: &["damper.", "sympathetic."], curves: &[], view: View::None },
+    Section { title: "Noises", prefixes: &["noise."], curves: &[], view: View::None },
+    Section { title: "Soundboard", prefixes: &["soundboard.", "bridge."], curves: &[], view: View::None },
+    Section { title: "Frame & rim", prefixes: &["frame.", "rim."], curves: &[], view: View::None },
+    Section { title: "Room", prefixes: &["room."], curves: &[], view: View::None },
+    Section { title: "Other", prefixes: &[""], curves: &[], view: View::None },
 ];
 
 pub fn section_of(path: &str) -> usize {
     SECTIONS
         .iter()
         .position(|s| {
-            s.prefixes.iter().any(|p| if p.is_empty() || p.ends_with(['.', '_']) { path.starts_with(p) } else { path == *p })
+            s.prefixes.iter().any(|p| if p.is_empty() || p.ends_with(['.', '_', '[']) { path.starts_with(p) } else { path == *p })
         })
         .unwrap_or(SECTIONS.len() - 1)
 }
@@ -104,6 +123,9 @@ mod tests {
         assert_eq!(SECTIONS[section_of("core_p")].title, "Hammer");
         assert_eq!(SECTIONS[section_of("room.size[1]")].title, "Room");
         assert_eq!(SECTIONS[section_of("a4")].title, "Tuning");
+        assert_eq!(SECTIONS[section_of("soundboard.mics[1][2]")].title, "Microphones");
+        assert_eq!(SECTIONS[section_of("soundboard.lid_angle")].title, "Microphones");
+        assert_eq!(SECTIONS[section_of("soundboard.back_gain")].title, "Soundboard");
         assert_eq!(SECTIONS[section_of("some_new_field")].title, "Other");
     }
 
