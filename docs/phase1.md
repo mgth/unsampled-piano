@@ -1,72 +1,72 @@
-# Phase 1 — corde et marteau
+# Phase 1 — string and hammer
 
-État au 2026-10-21. Une corde modale par touche, frappée par un marteau en feutre à travers un contact physique explicite et passif. Les unissons, le couplage au chevalet et la table d'harmonie viennent en phase 2.
+Status as of 2026-10-21. One modal string per key, struck by a felt hammer through an explicit, passive physical contact. Unisons, bridge coupling and the soundboard come in phase 2.
 
-## Modèle
+## Model
 
-**Corde** (`params.rs`, `engine.rs`).
-- Modes transverses jusqu'à 0,45·fs : f_k = k·f0·√(1+B·k²).
-- f0, B et l'accord étiré suivent les lois ajustées sur Salamander (Yamaha C5).
-- Pertes : σ_k = b1(note) + b2·f_k², loi de la décroissance précoce Salamander. Une seule corde ne peut pas produire la double décroissance, d'où la phase 2.
-- Masse linéique déduite d'une échelle de cordes générique (longueurs de 5,2 cm à C8 jusqu'à 1,45 m à A0, tension de 750 N). Cette échelle n'est pas mesurée.
-- Mode de vibration au point de frappe moyenné sur la largeur du feutre (8 mm dans le grave, 4 mm dans l'aigu).
-- Point de frappe à 0,12·L jusqu'à C6, puis 0,07·L à C8.
-- Sortie : force au chevalet T·∂y/∂x(0).
+**String** (`params.rs`, `engine.rs`).
+- Transverse modes up to 0.45·fs: f_k = k·f0·√(1+B·k²).
+- f0, B and stretched tuning follow the laws fitted on Salamander (Yamaha C5).
+- Losses: σ_k = b1(note) + b2·f_k², the Salamander early-decay law. A single string cannot produce the double decay, hence phase 2.
+- Linear density derived from a generic string scale (lengths from 5.2 cm at C8 to 1.45 m at A0, tension 750 N). This scale is not measured.
+- Mode shape at the striking point averaged over the felt width (8 mm in the bass, 4 mm in the treble).
+- Striking point at 0.12·L up to C6, then 0.07·L at C8.
+- Output: bridge force T·∂y/∂x(0).
 
-**Marteau** (`hammer.rs`).
-- Masse et loi du feutre F = Q0·[u^p + α·d(u^p)/dt] de Stulov, par touche.
-- Le contact est intégré par quadratisation de l'énergie (Ducceschi et al. 2021, van Walstijn et al. 2023). Chaque mode utilise la même récursion exacte que le banc SIMD.
-- Chaque pas se résout en une seule division, sans itération, pour un coût de O(modes).
-- Énergie discrète démontrée non croissante (preuve en tête de `hammer.rs`). Les deux garde-fous (pas de force de traction, ψ remis à zéro hors contact) ne font que retirer de l'énergie.
-- Le solveur prend la main pendant le contact, y compris sur une corde qui vibre déjà (refrappe), puis rend l'état au banc modal sans perte.
-- Il gère aussi les re-contacts du marteau dans les 4 ms qui suivent la séparation.
-- Garde de passivité : l'hystérésis est forcée à α ≥ 0. La formule publiée de Stulov (via [JOS PASP](https://ccrma.stanford.edu/~jos/pasp/Including_Hysteresis.html)) devient négative au-delà de la touche ~85. Elle est bornée à 30 µs.
+**Hammer** (`hammer.rs`).
+- Mass and Stulov felt law F = Q0·[u^p + α·d(u^p)/dt], per key.
+- The contact is integrated by energy quadratisation (Ducceschi et al. 2021, van Walstijn et al. 2023). Each mode uses the same exact recursion as the SIMD bank.
+- Each step is solved with a single division, without iteration, at a cost of O(modes).
+- Discrete energy proven non-increasing (proof at the top of `hammer.rs`). The two safeguards (no tensile force, ψ reset to zero out of contact) only remove energy.
+- The solver takes over during contact, including on a string that is already vibrating (restrike), then hands the state back to the modal bank without loss.
+- It also handles hammer re-contacts within 4 ms after separation.
+- Passivity guard: the hysteresis is forced to α ≥ 0. Stulov's published formula (via [JOS PASP](https://ccrma.stanford.edu/~jos/pasp/Including_Hysteresis.html)) becomes negative beyond key ~85. It is capped at 30 µs.
 
-**Suréchantillonnage local.** Pendant le contact seulement, le solveur fait plusieurs sous-pas par échantillon : ×1 sous C6, ×2 de C6 à B6, ×5 au-dessus à 48 kHz.
+**Local oversampling.** During contact only, the solver takes several substeps per sample: ×1 below C6, ×2 from C6 to B6, ×5 above at 48 kHz.
 
-## Vérifications (tests)
+## Checks (tests)
 
-| Test | Résultat |
+| Test | Result |
 |---|---|
-| Énergie sans pertes pendant le contact | constante à < 1e-10 près |
-| Énergie avec pertes, 6 notes × 4 vitesses | jamais croissante |
-| Corde très lourde ≈ mur rigide | durée de contact = formule fermée de Stulov à 2 % près |
-| Vitesse croissante | contact plus court, force plus grande |
-| Tout le clavier × 4 vélocités, refrappes pendant le contact et sur corde vibrante | sortie finie et bornée |
-| Chemin audio | aucune allocation, rendu bit-exact |
+| Lossless energy during contact | constant to within < 1e-10 |
+| Energy with losses, 6 notes × 4 velocities | never increasing |
+| Very heavy string ≈ rigid wall | contact duration = Stulov closed-form formula within 2 % |
+| Increasing velocity | shorter contact, larger force |
+| Whole keyboard × 4 velocities, restrikes during contact and on a vibrating string | finite, bounded output |
+| Audio path | no allocation, bit-exact render |
 
-**Convergence du contact** (`cargo run --release -p piano-core --example contact_convergence`). C'est l'écart de force maximale par rapport à un pas 16 fois plus fin, sans suréchantillonnage puis avec le réglage automatique. Il est inférieur à 1,1 % jusqu'à C6 sans suréchantillonnage. À C8 fortissimo, il atteint +13 % sans et +0,2 % avec. Le contact dure de 5,9 ms (A0, pp) à 0,47 ms (C8, ff).
+**Contact convergence** (`cargo run --release -p piano-core --example contact_convergence`). This is the deviation in peak force relative to a 16 times finer step, without oversampling and then with the automatic setting. It is below 1.1 % up to C6 without oversampling. At C8 fortissimo, it reaches +13 % without and +0.2 % with. Contact lasts from 5.9 ms (A0, pp) to 0.47 ms (C8, ff).
 
-**Coût CPU.** Balayage de tout le clavier à vélocité 127, une note toutes les 30 ms, pédale enfoncée, 64 voix simultanées : rendu 62 fois plus vite que le temps réel sur un seul thread, soit environ 1,6 % d'un cœur. Polyphonie par défaut portée à 128 voix.
+**CPU cost.** Sweep of the whole keyboard at velocity 127, one note every 30 ms, pedal down, 64 simultaneous voices: rendered 62 times faster than real time on a single thread, i.e. about 1.6 % of a core. Default polyphony raised to 128 voices.
 
-## Comparaison avec Salamander
+## Comparison with Salamander
 
-`piano-eval` rend les 30 notes × 16 couches de Salamander avec le modèle et les mesure avec les mêmes outils d'analyse. `tools/eval_compare.py` produit la figure et les tableaux (`out/salamander/eval_phase1.md`).
+`piano-eval` renders Salamander's 30 notes × 16 layers with the model and measures them with the same analysis tools. `tools/eval_compare.py` produces the figure and the tables (`out/salamander/eval_phase1.md`).
 
 ![phase 1](img/phase1_eval.png)
 
-**Calibrage** (`tools/grid_hammer.py`, recherche sur 36 réglages de l'exposant du feutre, de la dureté et de la vitesse maximale du marteau).
-- Brillance : avec les valeurs de Stulov, la brillance de l'attaque (centroïde sur 50 ms) monte trop vite avec la vélocité (×1,86 contre ×1,51). Un feutre moins non linéaire, p diminué de 1 (≈ 2,7 à 4, la plage dynamique de Russell), avec Q0 ×2, divise l'erreur sur cette courbe par 2,6. **Pour ce piano, les mesures tranchent la contradiction p de Russell contre p de Stulov relevée dans le rapport.**
-- Dynamique : une vitesse de marteau de 0,4 à 4 m/s (vélocités MIDI 1 à 127, loi exponentielle) reproduit la courbe crête/vélocité à 1,4 dB rms près. La plage est de 18,9 dB pour le modèle contre 21,4 dB pour la référence.
-- Résultat : centroïde relatif en couche 16 ×1,50 (référence ×1,51), en couche 1 ×0,69 (référence ×0,65).
+**Calibration** (`tools/grid_hammer.py`, search over 36 settings of the felt exponent, the stiffness and the maximum hammer velocity).
+- Brightness: with Stulov's values, the attack brightness (centroid over 50 ms) rises too fast with velocity (×1.86 versus ×1.51). A less nonlinear felt, p reduced by 1 (≈ 2.7 to 4, Russell's dynamic range), with Q0 ×2, divides the error on this curve by 2.6. **For this piano, the measurements settle the Russell-p versus Stulov-p contradiction noted in the report.**
+- Dynamics: a hammer velocity of 0.4 to 4 m/s (MIDI velocities 1 to 127, exponential law) reproduces the peak/velocity curve within 1.4 dB rms. The range is 18.9 dB for the model versus 21.4 dB for the reference.
+- Result: relative centroid at layer 16 ×1.50 (reference ×1.51), at layer 1 ×0.69 (reference ×0.65).
 
-**Ce qui ne colle pas encore** : le profil des partiels (niveaux relatifs, k ≤ 12).
-- L'écart médian est de 8,5 dB : 3,5 à 12 dB du grave au médium, jusqu'à 22 dB à certaines notes de l'aigu (D#5 à A7).
-- La recherche sur grille ne l'améliore pas (7,7 à 8,9 dB pour tous les réglages) : il ne vient pas du marteau.
-- Il vient de ce qui manque :
-  - la table d'harmonie et le rayonnement, qui filtrent fortement les partiels (le partiel 2 de C4 domine dans l'enregistrement) ;
-  - les micros ;
-  - les 2 ou 3 cordes de l'unisson ;
-  - l'échelle de cordes générique (longueurs, points de frappe), non mesurée.
-- C'est l'objectif mesurable des phases 2 et 4.
+**What does not fit yet**: the partial profile (relative levels, k ≤ 12).
+- The median deviation is 8.5 dB: 3.5 to 12 dB from bass to middle, up to 22 dB at some treble notes (D#5 to A7).
+- The grid search does not improve it (7.7 to 8.9 dB for all settings): it does not come from the hammer.
+- It comes from what is missing:
+  - the soundboard and radiation, which strongly filter the partials (partial 2 of C4 dominates in the recording);
+  - the microphones;
+  - the 2 or 3 strings of the unison;
+  - the generic string scale (lengths, striking points), not measured.
+- This is the measurable goal of phases 2 and 4.
 
-## Reste à faire en phase 1
+## Remaining in phase 1
 
-1. Modes longitudinaux et partiels fantômes dans le grave (Bank & Sujbert), et modulation de tension (glissement de hauteur en fortissimo).
-2. Échelle de cordes réelle : longueurs, points de frappe et tensions d'un grand piano, à numériser depuis Conklin ou à mesurer.
-3. Écoute comparative en aveugle note par note contre Salamander.
+1. Longitudinal modes and phantom partials in the bass (Bank & Sujbert), and tension modulation (pitch glide in fortissimo).
+2. Real string scale: lengths, striking points and tensions of a grand piano, to be digitised from Conklin or measured.
+3. Blind comparative listening, note by note, against Salamander.
 
-## Commandes
+## Commands
 
 ```bash
 cargo test --workspace
@@ -77,4 +77,4 @@ python3 -I tools/grid_hammer.py
 cargo run --release -p piano-render -- sweep out/sweep.wav --velocity 100
 ```
 
-> Note (phase 2) : la métrique de profil a été corrigée. L'ancienne était sensible à la perte du partiel le plus fort par le suivi de partiels. Avec la métrique robuste, cette configuration de phase 1 donne 5,8 dB, et non 8,5 dB. Voir [phase2.md](phase2.md).
+> Note (phase 2): the profile metric has been corrected. The old one was sensitive to the partial tracker losing the strongest partial. With the robust metric, this phase 1 configuration gives 5.8 dB, not 8.5 dB. See [phase2.md](phase2.md).

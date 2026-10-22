@@ -1,52 +1,52 @@
-# Non-linéarité géométrique des cordes (partiels fantômes)
+# Geometric string nonlinearity (phantom partials)
 
-État au 2026-10-22. Code : `params::StringNonlinearity`, `note_model::Longitudinal`, `Voice::nl_start` et `Voice::nl_run`.
+Status as of 2026-10-22. Code: `params::StringNonlinearity`, `note_model::Longitudinal`, `Voice::nl_start` and `Voice::nl_run`.
 
-## Physique
+## Physics
 
-Une corde qui vibre fort s'allonge, d'après Bank & Sujbert (2005). Sa pente vaut y' = Σ a_k·cos(kπx/L), avec a_k = (kπ/L)·q_k. L'étirement pousse le mode longitudinal n (forme sin(nπx/L), masse modale μL/2) avec la force
+A string vibrating strongly stretches, following Bank & Sujbert (2005). Its slope is y' = Σ a_k·cos(kπx/L), with a_k = (kπ/L)·q_k. The stretching drives longitudinal mode n (shape sin(nπx/L), modal mass μL/2) with the force
 
 F_n = −(EA·nπ/8)·(Σ_{j+k=n} a_j·a_k + 2·Σ_k a_k·a_{k+n}),
 
-et ce mode tire sur le chevalet avec EA·(nπ/L)·ξ_n. Les produits de partiels donnent des fréquences somme et différence : ce sont les « partiels fantômes », quelques hertz sous chaque partiel transversal à cause de l'inharmonicité. Les résonances longitudinales tombent entre 14 et 20 fois f0. L'effet croît comme le carré de l'amplitude : nul en pp, marqué en ff, surtout dans le grave.
+and this mode pulls on the bridge with EA·(nπ/L)·ξ_n. Products of partials give sum and difference frequencies: these are the “phantom partials”, a few hertz below each transverse partial because of inharmonicity. The longitudinal resonances fall between 14 and 20 times f0. The effect grows as the square of the amplitude: none at pp, marked at ff, especially in the bass.
 
-- **EA** est déduit de l'inharmonicité déjà calibrée : B = π³·E·d⁴/(64·T·L²), d'où EA = E·π·d²/4 avec E = 200 GPa. On obtient une âme de 0,9 à 1,4 mm, et un premier mode longitudinal à 544 Hz pour A0 et 1,1 kHz pour E2, soit 14 à 20 fois f0. Giordano et Conklin mesurent 15 à 20 fois.
-- **Sens unique** : le mouvement transversal reste linéaire, comme chez Bank & Sujbert. La modulation de hauteur en ff n'est pas modélisée.
-- **Transmission au chevalet** : la force longitudinale tire le chevalet dans le plan de la table. La table ne fléchit que par le moment au pied du chevalet, qui croît avec son nombre d'onde. Le modèle applique donc un passe-haut du premier ordre à 1 kHz, puis le couplage `coupling` = 0,3. Sans passe-haut, la modulation quasi statique de la tension s'ajoutait aux premiers partiels et assourdissait le grave.
+- **EA** is derived from the already calibrated inharmonicity: B = π³·E·d⁴/(64·T·L²), hence EA = E·π·d²/4 with E = 200 GPa. This gives a core of 0.9 to 1.4 mm, and a first longitudinal mode at 544 Hz for A0 and 1.1 kHz for E2, i.e. 14 to 20 times f0. Giordano and Conklin measure 15 to 20 times.
+- **One-way**: the transverse motion stays linear, as in Bank & Sujbert. Pitch modulation at ff is not modelled.
+- **Transmission to the bridge**: the longitudinal force pulls the bridge in the plane of the soundboard. The soundboard bends only through the moment at the foot of the bridge, which grows with its wavenumber. The model therefore applies a first-order high-pass at 1 kHz, then the coupling `coupling` = 0.3. Without the high-pass, the quasi-static tension modulation added to the first partials and muffled the bass.
 
-## Réalisation temps réel
+## Real-time implementation
 
-La voix lit, en début de segment libre (hors contact du marteau), le déplacement vertical moyen de chaque partiel à partir des états du banc de modes couplés. Elle le fait ensuite tourner avec le pôle du mode principal, sans toucher au noyau SIMD.
+At the start of a free segment (outside hammer contact), the voice reads the mean vertical displacement of each partial from the states of the coupled mode bank. It then rotates it with the pole of the main mode, without touching the SIMD kernel.
 
-Par échantillon : produits des partiels, avec 8 accumulateurs vectorisables, et résonateurs longitudinaux.
+Per sample: products of partials, with 8 vectorisable accumulators, and longitudinal resonators.
 
-Bornes du calcul :
-- touches jusqu'à E4, partiels sous 5 kHz (au plus 48), modes longitudinaux sous 8 kHz ;
-- montée de 2 ms après le contact ;
-- calcul suspendu sous 0,1 mN de force estimée.
+Computation limits:
+- keys up to E4, partials below 5 kHz (at most 48), longitudinal modes below 8 kHz;
+- 2 ms ramp-up after contact;
+- computation suspended below 0.1 mN of estimated force.
 
 ## Calibration
 
-`tools/phantom_levels.py` mesure le niveau des pics sous chaque partiel n = 8..30 en ff, par rapport au partiel n, en médiane sur les touches C1 à A2. Chaque piano est mesuré avec sa propre inharmonicité.
+`tools/phantom_levels.py` measures the level of the peaks below each partial n = 8..30 at ff, relative to partial n, as the median over keys C1 to A2. Each piano is measured with its own inharmonicity.
 
-| | Salamander | Iowa | Commercial | Modèle sans | Modèle (`coupling` 0,3) |
+| | Salamander | Iowa | Commercial | Model without | Model (`coupling` 0.3) |
 |---|---|---|---|---|---|
-| fantômes (médiane) | −28,7 dB | −26,0 dB | −31,4 dB | −38,8 dB (plancher) | −27,9 dB |
+| phantoms (median) | −28.7 dB | −26.0 dB | −31.4 dB | −38.8 dB (floor) | −27.9 dB |
 
-Avec `coupling` = 1, les fantômes du modèle étaient environ 10 dB trop forts.
+With `coupling` = 1, the model's phantoms were about 10 dB too strong.
 
-## Effet et coût
+## Effect and cost
 
-- **Éclaircissement pp→ff du grave** (pente partiels ≥ 6 contre 1–2) : +2,5 → +2,6 dB, pour +6 dB dans les références. Au niveau réel des références, les fantômes ne suffisent pas à expliquer cet éclaircissement : une autre part reste à trouver (marteau du grave, rayonnement).
-- **Score marteau** : 1,73 → 1,70.
-- **CPU** :
-  - pire cas `stress_cost` (88 voix ff, pédale) : 28 → 37 % d'un cœur ;
-  - Rachmaninov : moyenne 23,4 → 25,2 %, pire buffer inchangé (environ 55 %).
+- **pp→ff brightening of the bass** (slope of partials ≥ 6 versus 1–2): +2.5 → +2.6 dB, against +6 dB in the references. At the references' actual level, the phantoms are not enough to explain this brightening: another part remains to be found (bass hammer, radiation).
+- **Hammer score**: 1.73 → 1.70.
+- **CPU**:
+  - worst case `stress_cost` (88 voices ff, pedal): 28 → 37 % of one core;
+  - Rachmaninoff: mean 23.4 → 25.2 %, worst buffer unchanged (about 55 %).
 
-Extraits d'écoute : `out/nonlineaire/` (la1 ff et 45 s du Rachmaninov, avec et sans).
+Listening excerpts: `out/nonlinear/` (A1 ff and 45 s of the Rachmaninoff, with and without).
 
-## Ce qui reste
+## What remains
 
-- Glissement de hauteur en ff (modulation de tension sur les modes transversaux).
-- Fantômes pendant le contact du marteau : les 2 à 5 premières ms ne sont pas calculées.
-- Origine du reste de l'éclaircissement du grave.
+- Pitch glide at ff (tension modulation on the transverse modes).
+- Phantoms during hammer contact: the first 2 to 5 ms are not computed.
+- Origin of the rest of the bass brightening.

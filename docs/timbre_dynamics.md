@@ -1,87 +1,87 @@
-# Changement de timbre avec la nuance
+# Timbre change with dynamics
 
-État au 2026-10-22.
+Status as of 2026-10-22.
 
-## Le phénomène
+## The phenomenon
 
-Sur un vrai piano, une note jouée fort n'est pas seulement plus forte : elle est plus brillante. Le feutre du marteau durcit beaucoup plus vite qu'il ne s'écrase.
+On a real piano, a note played loudly is not just louder: it is brighter. The hammer felt stiffens much faster than it compresses.
 
-- **Jeu doux** : le marteau reste dans la couche souple du feutre. Le contact est long (environ 4 ms pour do4) et n'excite que le bas du spectre.
-- **Jeu fort** : il atteint la partie dure. Le contact est bref (1,5 à 2 ms) et excite toutes les harmoniques.
+- **Soft playing**: the hammer stays in the soft layer of the felt. The contact is long (about 4 ms for C4) and excites only the lower spectrum.
+- **Loud playing**: it reaches the hard part. The contact is short (1.5 to 2 ms) and excites all the harmonics.
 
-Dans le grave, une seconde cause s'ajoute : la non-linéarité de la corde elle-même. Une forte amplitude modifie la tension, ce qui crée des partiels « fantômes » et le grondement du fortissimo.
+In the bass, a second cause adds to this: the nonlinearity of the string itself. A large amplitude changes the tension, which creates “phantom” partials and the rumble of fortissimo.
 
-## Mesure
+## Measurement
 
-`tools/hammer_score.py` a une nouvelle mesure, la pente (`slope`). On prend le gain ff − pp des partiels 6 à 12, moins celui des partiels 1 et 2, à l'attaque (0–100 ms). La mesure ne porte que sur le grave et le médium : au-delà, les partiels 6 et plus dépassent 6 kHz et se perdent dans le bruit des enregistrements.
+`tools/hammer_score.py` has a new measure, the slope (`slope`). It takes the ff − pp gain of partials 6 to 12, minus that of partials 1 and 2, in the attack (0–100 ms). The measure covers only the bass and middle: higher up, partials 6 and above exceed 6 kHz and are lost in the recordings' noise.
 
-| Note | Salamander | Iowa | Commercial | Modèle avant |
+| Note | Salamander | Iowa | Commercial | Model before |
 |---|---|---|---|---|
-| do2 | +0,7 | +8,0 | +5,8 | +2,5 |
-| do3 | +5,0 | +23,7 | +14,4 | +4,8 |
-| do4 | +14,4 | +27,3 | +24,6 | +8,8 |
-| do5 | +17,2 | +21,5 | +20,0 | +16,2 |
+| C2 | +0.7 | +8.0 | +5.8 | +2.5 |
+| C3 | +5.0 | +23.7 | +14.4 | +4.8 |
+| C4 | +14.4 | +27.3 | +24.6 | +8.8 |
+| C5 | +17.2 | +21.5 | +20.0 | +16.2 |
 
-Le contact du do4 du modèle ne raccourcissait que de 30 % de pp à ff (2,8 → 2,0 ms) : le feutre était trop dur aux faibles écrasements.
+The model's C4 contact shortened by only 30 % from pp to ff (2.8 → 2.0 ms): the felt was too hard at small compressions.
 
-## Changement : un feutre plus souple au départ, plus non linéaire
+## Change: a softer felt at first, more nonlinear
 
-Grille `tools/hammer_grid.sh` (environ 50 combinaisons) :
+Grid `tools/hammer_grid.sh` (about 50 combinations):
 
-| Paramètre | Avant | Après |
+| Parameter | Before | After |
 |---|---|---|
-| `hardness` | 0,7 | 0,1 |
-| `hardness_slope` | 0,05 | 0,02 |
-| `p_offset` | +0,5 | +2,0 (p ≈ 5,7–7) |
-| `hysteresis` | 0,25 | 0,6 |
+| `hardness` | 0.7 | 0.1 |
+| `hardness_slope` | 0.05 | 0.02 |
+| `p_offset` | +0.5 | +2.0 (p ≈ 5.7–7) |
+| `hysteresis` | 0.25 | 0.6 |
 
-L'exposant dépasse les mesures d'un feutre homogène (2 à 5). Il tient lieu d'un marteau multicouche, avec un feutre de surface souple sur une sous-couche dure : sa raideur croît plus vite qu'une seule loi de puissance. Un modèle explicite à deux couches serait plus juste.
+The exponent exceeds the measurements for a homogeneous felt (2 to 5). It stands in for a multilayer hammer, with a soft surface felt over a hard underlayer: its stiffness grows faster than a single power law. An explicit two-layer model would be more accurate.
 
-## Résultat
+## Result
 
-| | Avant | Après | Références |
+| | Before | After | References |
 |---|---|---|---|
-| contact do4, pp → ff | 2,8 → 2,0 ms | 3,7 → 2,3 ms | ≈ 4 → 1,5–2 ms |
-| pente, médium | +8,8 dB | +12,8 dB | +17,4 dB |
-| pente, grave | +1,9 dB | +2,5 dB | +6,1 dB |
-| dynamique ff − pp, aigu | 9,1 dB | 11,4 dB | 12,2 dB |
-| score marteau | 2,24 | 1,73 | — |
+| C4 contact, pp → ff | 2.8 → 2.0 ms | 3.7 → 2.3 ms | ≈ 4 → 1.5–2 ms |
+| slope, middle | +8.8 dB | +12.8 dB | +17.4 dB |
+| slope, bass | +1.9 dB | +2.5 dB | +6.1 dB |
+| ff − pp dynamics, treble | 9.1 dB | 11.4 dB | 12.2 dB |
+| hammer score | 2.24 | 1.73 | — |
 
-Volume inchangé : la Campanella culmine à −15 dBFS, le Chopin à −18,7 dBFS.
+Loudness unchanged: La Campanella peaks at −15 dBFS, the Chopin at −18.7 dBFS.
 
-## Ce qui reste
+## What remains
 
-- **Grave** : le feutre n'y change presque rien (+2,5 dB contre +6), car la corde lourde fixe la durée du contact. Il faut la non-linéarité géométrique de la corde : modulation de tension, modes longitudinaux, partiels fantômes.
-- **Médium** : encore 4 à 5 dB d'éclaircissement en moins que les références.
-- **Centroïde de l'attaque** : son rapport ff/pp bouge peu (×1,14 contre ×1,4–1,5). Il est dominé par les premiers partiels et par le filtrage de la table.
+- **Bass**: the felt changes almost nothing there (+2.5 dB versus +6), because the heavy string sets the contact duration. The geometric nonlinearity of the string is needed: tension modulation, longitudinal modes, phantom partials.
+- **Middle**: still 4 to 5 dB less brightening than the references.
+- **Attack centroid**: its ff/pp ratio moves little (×1.14 versus ×1.4–1.5). It is dominated by the first partials and by the soundboard filtering.
 
-## Éclaircissement du grave (2026-10-22)
+## Bass brightening (2026-10-22)
 
-Les partiels fantômes ([nonlinearity.md](nonlinearity.md)), à leur niveau mesuré, n'apportaient que +0,1 dB d'éclaircissement. La cause principale est ailleurs.
+The phantom partials ([nonlinearity.md](nonlinearity.md)), at their measured level, contributed only +0.1 dB of brightening. The main cause lies elsewhere.
 
-Le marteau du grave frappe une corde lourde : environ 0,03 kg/m, deux cordes pour do2. Avec la dureté de feutre du médium, il ne s'enfonce que d'environ 1 mm, même ff. Le feutre ne filtre alors qu'au-dessus de 2 kHz. Entre 150 Hz et 1,5 kHz, où vivent les partiels 6 à 12 du grave, le contact est un choc linéaire entre la masse du marteau et la corde : sa forme ne dépend pas de la vitesse. Les vrais marteaux du grave sont gros et moelleux, et leur feutre filtre plus bas, d'autant moins que la frappe est forte.
+The bass hammer strikes a heavy string: about 0.03 kg/m, two strings for C2. With the middle register's felt hardness, it compresses only about 1 mm, even at ff. The felt then filters only above 2 kHz. Between 150 Hz and 1.5 kHz, where partials 6 to 12 of the bass live, the contact is a linear collision between the hammer mass and the string: its shape does not depend on velocity. Real bass hammers are large and soft, and their felt filters lower, less so the harder the strike.
 
-Changements :
-- `hardness_slope_bass` = 0,10, une pente de dureté propre au grave (Q0 × e^{0,10·(touche − 40)} sous do4) ;
-- vélocité 0,5–3,5 m/s.
+Changes:
+- `hardness_slope_bass` = 0.10, a hardness slope specific to the bass (Q0 × e^{0.10·(key − 40)} below C4);
+- velocity 0.5–3.5 m/s.
 
-Les durées de contact restent physiques : 11 ms pour A0 pp, contre 9,4 ms avant, dominées par l'aller-retour vers l'agrafe ; 7 ms pour do2.
+The contact durations stay physical: 11 ms for A0 pp, versus 9.4 ms before, dominated by the round trip to the agraffe; 7 ms for C2.
 
-| | Avant | Après | Références |
+| | Before | After | References |
 |---|---|---|---|
-| pente, grave | +2,6 dB | +5,5 dB | +6,1 (de +0,7 à +8) |
-| pente, médium | +12,9 dB | +15,5 dB | +17,4 |
-| dynamique ff − pp, grave | 6,6 dB | 8,1 dB | 10,0 (Salamander et piano commercial) |
-| dynamique ff − pp, médium | 7,5 dB | 9,1 dB | 10,1 |
-| dynamique ff − pp, aigu | 11,4 dB | 13,6 dB | 12,2 |
-| score marteau | 1,73 | 1,79 | — |
+| slope, bass | +2.6 dB | +5.5 dB | +6.1 (from +0.7 to +8) |
+| slope, middle | +12.9 dB | +15.5 dB | +17.4 |
+| ff − pp dynamics, bass | 6.6 dB | 8.1 dB | 10.0 (Salamander and the commercial modelled piano) |
+| ff − pp dynamics, middle | 7.5 dB | 9.1 dB | 10.1 |
+| ff − pp dynamics, treble | 11.4 dB | 13.6 dB | 12.2 |
+| hammer score | 1.73 | 1.79 | — |
 
-L'attaque du médium est un peu plus sombre (partiels 2 à 6 de −1 à −2 dB). Le score écarte désormais la dynamique du suraigu (C7–C8) : ces cordes sans étouffoir résonnent encore des notes précédentes dans une séquence enregistrée, et leurs pics pp ne sont pas les leurs. Une vélocité plus large (0,4–4,0) atteint la cible au grave et au médium, mais élargit trop l'aigu (16,8 dB contre 12,2). Durcir les marteaux de l'aigu ne la corrige pas.
+The middle-register attack is slightly darker (partials 2 to 6 by −1 to −2 dB). The score now excludes the top-treble dynamics (C7–C8): these undamped strings still ring from previous notes in a recorded sequence, and their pp peaks are not their own. A wider velocity range (0.4–4.0) reaches the target in the bass and middle, but widens the treble too much (16.8 dB versus 12.2). Hardening the treble hammers does not fix it.
 
-Reste :
-- **Fondamentale du grave à l'attaque**, encore trop forte face aux partiels 2 à 6. Les références les mettent 10 à 30 dB au-dessus d'elle ; c'est ce qui creuse la moyenne du partiel 4 (−7,7 contre +3 dB).
-- **Centroïde ff/pp** : ×1,12 au grave, contre ×1,2 à ×2,1 dans les références.
+Remaining:
+- **Bass fundamental in the attack**, still too strong compared with partials 2 to 6. The references put those 10 to 30 dB above it; this is what pulls down the mean of partial 4 (−7.7 versus +3 dB).
+- **ff/pp centroid**: ×1.12 in the bass, versus ×1.2 to ×2.1 in the references.
 
-## Révision : marteau à deux couches (voir [presence.md](presence.md))
+## Revision: two-layer hammer (see [presence.md](presence.md))
 
-Le feutre très souple et très non linéaire de cette page coupait les aigus de l'attaque (−63 dB à 4–8 kHz au grave contre −44). Il est remplacé par une surface souple (dureté 0,2, p de Stulov) sur un cœur dur. `hardness_slope_bass` revient à 0,02 et `p_bass` à 0. L'éclaircissement devient +4,0 dB au grave et +13,3 au médium, contre +5,5 et +15,5 avec le feutre de cette page, et l'attaque retrouve ses aigus.
+The very soft, very nonlinear felt of this page cut the high frequencies of the attack (−63 dB at 4–8 kHz in the bass versus −44). It is replaced by a soft surface (hardness 0.2, Stulov's p) over a hard core. `hardness_slope_bass` returns to 0.02 and `p_bass` to 0. The brightening becomes +4.0 dB in the bass and +13.3 in the middle, versus +5.5 and +15.5 with this page's felt, and the attack gets its high frequencies back.

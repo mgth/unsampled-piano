@@ -7,7 +7,7 @@ import sys
 import numpy as np
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-REGS = [(21, 47, "grave"), (48, 71, "médium"), (72, 95, "aigu")]
+REGS = [(21, 47, "bass"), (48, 71, "middle"), (72, 95, "treble")]
 import os, subprocess
 def name(m): return NAMES[m % 12] + str(m // 12 - 1)
 def f0(m): return 440 * 2 ** ((m - 69) / 12)
@@ -44,7 +44,7 @@ for nm, d in srcs:
         pk = A[0][np.isfinite(A[0])].max()
         res[(nm, m)] = A - pk
 for lo, hi, lab in REGS:
-    print(f"\n## {lab} : niveau des partiels re partiel le plus fort à 0,1 s (dB)")
+    print(f"\n## {lab}: partial levels re the strongest partial at 0.1 s (dB)")
     for ti, t in enumerate(TIMES):
         print(f"  t={t:3.1f}s", end="")
         for nm, _ in srcs:

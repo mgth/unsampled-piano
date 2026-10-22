@@ -1,103 +1,103 @@
-# Tenue des notes : chevalet, épaisseur de la table, pertes des cordes
+# Note sustain: bridge, soundboard thickness, string losses
 
-État au 2026-10-22.
+Status as of 2026-10-22.
 
-## Retour d'écoute
+## Listening feedback
 
-« La tenue de la note semble un peu courte. Elle dure bien dans le temps, mais perd très rapidement de l'énergie au début. Ça fait un piano assez doux, pas très puissant. »
+“The sustain of the note seems a bit short. It lasts well over time, but loses energy very quickly at the start. It makes for a rather soft piano, not very powerful.”
 
-## Mesure
+## Measurement
 
-[`tools/envelope_compare.py`](../tools/envelope_compare.py) compare l'enveloppe du modèle à celle de Salamander. Le protocole :
+[`tools/envelope_compare.py`](../tools/envelope_compare.py) compares the model's envelope with Salamander's. The protocol:
 
-- une touche sur trois, couche 13 contre vélocité 100, touche tenue 4 s ;
-- rendu à sec : sans salle ni bruits ;
-- niveaux exprimés par rapport à la crête.
+- every third key, layer 13 versus velocity 100, key held for 4 s;
+- dry render: no room or noises;
+- levels expressed relative to the peak.
 
-Un passe-haut à 0,7·f0 retire le plancher grave des enregistrements. Dans l'aigu, ce plancher domine la fin de la note : bruit, pièce et résonances graves. Sans ce filtre, les notes aiguës de Salamander semblaient tenir à −40 dB pendant des secondes, et la comparaison était fausse au-delà de 1 s.
+A high-pass at 0.7·f0 removes the low floor of the recordings. In the treble, this floor dominates the end of the note: noise, room and low resonances. Without this filter, Salamander's treble notes seemed to hold at −40 dB for seconds, and the comparison was wrong beyond 1 s.
 
-[`tools/t60_bins.py`](../tools/t60_bins.py) complète cette vue. Il compare la durée (T60) de chaque partiel, par registre et par bande de fréquence, à partir des composantes ESPRIT de `tools/calibrate.sh`.
+[`tools/t60_bins.py`](../tools/t60_bins.py) complements this view. It compares the duration (T60) of each partial, by register and by frequency band, using the ESPRIT components from `tools/calibrate.sh`.
 
-### Écart moyen modèle − référence (dB), avant
+### Mean deviation model − reference (dB), before
 
-| Registre | 0,1 s | 0,3 s | 0,6 s | 1 s | 2 s | 3 s |
+| Register | 0.1 s | 0.3 s | 0.6 s | 1 s | 2 s | 3 s |
 |---|---|---|---|---|---|---|
-| A0–B2 | −2,6 | −0,7 | +0,1 | +1,4 | +2,9 | +3,8 |
-| C3–B4 | −2,9 | −5,0 | −5,2 | −3,9 | −4,0 | −3,7 |
-| C5–B6 | −2,7 | −5,4 | −7,6 | −7,2 | −18,8 | −23,1 |
-| C7–C8 | −2,3 | −6,9 | −10,6 | −10,3 | −11,6 | −8,3 |
+| A0–B2 | −2.6 | −0.7 | +0.1 | +1.4 | +2.9 | +3.8 |
+| C3–B4 | −2.9 | −5.0 | −5.2 | −3.9 | −4.0 | −3.7 |
+| C5–B6 | −2.7 | −5.4 | −7.6 | −7.2 | −18.8 | −23.1 |
+| C7–C8 | −2.3 | −6.9 | −10.6 | −10.3 | −11.6 | −8.3 |
 
-L'impression d'écoute était juste. Du médium à l'aigu, la note perdait 5 à 8 dB de trop dans la première demi-seconde.
+The listening impression was right. From the middle to the treble, the note lost 5 to 8 dB too much in the first half-second.
 
-## Diagnostic
+## Diagnosis
 
-La fuite d'énergie d'un mode de corde vers le chevalet vaut σ = N·G·T/L, avec N cordes, G la conductance du chevalet, T la tension et L la longueur. Pour do6, la décroissance rapide mesurée (T60 1,46 s) donne G ≈ 3,7e-4 s/kg. C'est aussi ce que donne l'ajustement global de Salamander (`tools/bridge_conductance.py`) : log G = −8,84 + 0,289·log f − 0,0146·touche. Le modèle avait 7,3e-4 au chevalet de do6 : deux fois trop.
+The energy leak from a string mode into the bridge is σ = N·G·T/L, with N strings, G the bridge conductance, T the tension and L the length. For C6, the measured fast decay (T60 1.46 s) gives G ≈ 3.7e-4 s/kg. This is also what the global Salamander fit gives (`tools/bridge_conductance.py`): log G = −8.84 + 0.289·log f − 0.0146·key. The model had 7.3e-4 at the C6 bridge point: twice too much.
 
-Comme les cordes aiguës sont courtes (T/L grand), elles sont les plus sensibles à cet excès.
+Since the treble strings are short (large T/L), they are the most sensitive to this excess.
 
-[`examples/bridge_conductance_model.rs`](../crates/piano-core/examples/bridge_conductance_model.rs) ajuste la même loi sur le modèle. Avant correction, la conductance croissait trop vite avec la fréquence (pente 0,465 au lieu de 0,289) et ne baissait pas assez vers l'aigu (−0,0094 par touche au lieu de −0,0146). [`examples/decay_budget.rs`](../crates/piano-core/examples/decay_budget.rs) détaille, note par note, les pertes propres de la corde et les T60 des modes couplés.
+[`examples/bridge_conductance_model.rs`](../crates/piano-core/examples/bridge_conductance_model.rs) fits the same law on the model. Before the fix, the conductance grew too fast with frequency (slope 0.465 instead of 0.289) and did not drop enough towards the treble (−0.0094 per key instead of −0.0146). [`examples/decay_budget.rs`](../crates/piano-core/examples/decay_budget.rs) details, note by note, the string's own losses and the T60 of the coupled modes.
 
-## Changements (`soundboard.rs`, `params.rs`)
+## Changes (`soundboard.rs`, `params.rs`)
 
-1. **Le chevalet répartit la force** (`bridge_stiffness` 470 N·m², `bridge_line_mass` 0,6 kg/m, `bridge_spread` 0,3). Le chevalet est une poutre d'érable d'environ 3 × 2,5 cm collée sur la table. La force d'une corde n'attaque pas la table en un point : elle est étalée le long du chevalet.
-   - Elle est étalée sur 0,3 fois la longueur d'onde de flexion du chevalet, 2π·(EI/(μω²))^¼, plafonnée à 0,5 m, avec une fenêtre de Hann le long du tracé.
-   - Ce lissage s'applique mode par mode : `Soundboard::bridge_shapes` donne la forme vue par chaque touche.
-   - Il sert aux entrées de la banque de table, aux vitesses du chevalet (sympathie, réciprocité) et à l'admittance qui couple les cordes.
-   - Effet : les petites ondulations de la table, c'est-à-dire les modes aigus, sont moins excitées. La conductance monte donc plus lentement avec la fréquence.
-2. **La table est plus raide sous l'aigu** (`impedance_slope` 0,035). Les tables sont plus épaisses et plus serrées en barres côté aigu, et la fin du chevalet aigu est près de la ceinture.
-   - L'impédance sous le chevalet varie comme e^{0,035·(touche − 60)} : ×4,6 à do8, ×0,4 à la0, par rapport à do4.
-   - Elle est appliquée aux formes, donc la table répond aussi moins aux cordes aiguës.
-   - La plaque modale reste uniforme : c'est un gradient équivalent, pas une épaisseur variable résolue.
-3. **Pertes des cordes à haute fréquence** : b2 = 1e-7 au lieu de 3e-8.
-   - L'étalement du chevalet ralentissait trop les partiels supérieurs. Avec ce b2, ils retrouvent la vitesse de décroissance mesurée.
-   - Cela retire aussi l'essentiel de l'excès au-dessus de 6 kHz.
-   - b2 = 2e-7 (la valeur de la décroissance rapide mesurée) aligne encore mieux les partiels supérieurs, mais raccourcit les fondamentales de l'aigu de 2 à 3 dB.
-4. **Tracé du chevalet**, en 5 points au lieu de 3. Le x suit la longueur parlante de chaque corde depuis les agrafes ; le y suit la place de la touche. L'extrémité aiguë vient dans le coin encastré de la table, comme sur un vrai piano. À lui seul, ce changement modifie peu les décroissances.
-5. **Le marteau frappe inégalement les cordes d'un unisson** (`UnisonLaw::hit_spread` 0,2, soit environ ±20 % de force d'une corde à l'autre, réparti de façon irrégulière mais déterministe selon la touche). La part inégale excite directement les modes lents en opposition de phase, c'est-à-dire l'arrière-résonance. Sur l'aigu (do5–ré#6), l'arrière-résonance passe ainsi de −13,5 à −10,6 dB, pour −11,2 dB dans la référence, sans changer sa durée ni l'écart de profil (6,0 dB).
-6. `LossLaw::b1_floor` : plancher de pertes pour les cordes filées. Il vaut 0 par défaut, car le gradient d'impédance a suffi à raccourcir les graves.
+1. **The bridge spreads the force** (`bridge_stiffness` 470 N·m², `bridge_line_mass` 0.6 kg/m, `bridge_spread` 0.3). The bridge is a maple beam of about 3 × 2.5 cm glued onto the soundboard. A string's force does not drive the soundboard at a point: it is spread along the bridge.
+   - It is spread over 0.3 times the bridge's bending wavelength, 2π·(EI/(μω²))^¼, capped at 0.5 m, with a Hann window along the bridge path.
+   - This smoothing applies mode by mode: `Soundboard::bridge_shapes` gives the shape seen by each key.
+   - It is used for the soundboard bank inputs, the bridge velocities (sympathy, reciprocity) and the admittance that couples the strings.
+   - Effect: the small ripples of the soundboard, i.e. the high modes, are less excited. The conductance therefore rises more slowly with frequency.
+2. **The soundboard is stiffer under the treble** (`impedance_slope` 0.035). Soundboards are thicker and more densely ribbed on the treble side, and the end of the treble bridge is close to the rim.
+   - The impedance under the bridge varies as e^{0.035·(key − 60)}: ×4.6 at C8, ×0.4 at A0, relative to C4.
+   - It is applied to the shapes, so the soundboard also responds less to the treble strings.
+   - The modal plate stays uniform: this is an equivalent gradient, not a resolved variable thickness.
+3. **High-frequency string losses**: b2 = 1e-7 instead of 3e-8.
+   - The bridge spreading slowed down the upper partials too much. With this b2, they recover the measured decay rate.
+   - It also removes most of the excess above 6 kHz.
+   - b2 = 2e-7 (the value from the measured fast decay) aligns the upper partials even better, but shortens the treble fundamentals by 2 to 3 dB.
+4. **Bridge path**, with 5 points instead of 3. The x follows each string's speaking length from the agraffes; the y follows the key's position. The treble end goes into the clamped corner of the soundboard, as on a real piano. On its own, this change alters the decays little.
+5. **The hammer strikes the strings of a unison unevenly** (`UnisonLaw::hit_spread` 0.2, i.e. about ±20 % force from one string to the next, distributed irregularly but deterministically by key). The uneven part directly excites the slow anti-phase modes, i.e. the aftersound. In the treble (C5–D#6), the aftersound thus goes from −13.5 to −10.6 dB, versus −11.2 dB in the reference, without changing its duration or the profile deviation (6.0 dB).
+6. `LossLaw::b1_floor`: loss floor for the wound strings. It is 0 by default, since the impedance gradient was enough to shorten the bass.
 
-Les réglages ont été choisis sur une grille. Pour chaque essai : calibration complète (`tools/calibrate.sh`, une minute) et enveloppes de clavier.
+The settings were chosen on a grid. For each trial: full calibration (`tools/calibrate.sh`, one minute) and keyboard envelopes.
 
-## Résultat
+## Result
 
-Écart moyen modèle − référence (dB), après :
+Mean deviation model − reference (dB), after:
 
-| Registre | 0,1 s | 0,3 s | 0,6 s | 1 s | 2 s | 3 s |
+| Register | 0.1 s | 0.3 s | 0.6 s | 1 s | 2 s | 3 s |
 |---|---|---|---|---|---|---|
-| A0–B2 | −2,1 | −1,2 | −1,2 | −0,0 | +1,6 | +1,9 |
-| C3–B4 | −1,5 | −1,2 | −0,2 | +1,6 | −2,1 | −4,1 |
-| C5–B6 | +1,2 | −0,6 | −3,6 | −3,7 | −11,9 | −20,0 |
-| C7–C8 | +5,7 | +3,3 | −4,5 | −8,4 | −14,3 | −11,0 |
+| A0–B2 | −2.1 | −1.2 | −1.2 | −0.0 | +1.6 | +1.9 |
+| C3–B4 | −1.5 | −1.2 | −0.2 | +1.6 | −2.1 | −4.1 |
+| C5–B6 | +1.2 | −0.6 | −3.6 | −3.7 | −11.9 | −20.0 |
+| C7–C8 | +5.7 | +3.3 | −4.5 | −8.4 | −14.3 | −11.0 |
 
-- **Première seconde.** Les trois premiers registres sont à moins de 4 dB de la référence, contre 5 à 8 dB de perte en trop auparavant.
-- **Durée des partiels (ESPRIT).** Le médium et les partiels supérieurs sont entre −0,4 et +0,7 en log2, contre −0,5 à −0,8 auparavant pour les partiels aigus.
-- **Écart de profil spectral.** 6,0 dB au lieu de 7,0 dB.
-- **Bande 6,4–20 kHz.** −14,4 dB au lieu de −8,7 dB, pour −23,4 dB dans la référence.
-- **Coût.** Le CPU (28 % d'un cœur au pire) et la construction (1,06 s) sont inchangés.
+- **First second.** The first three registers are within 4 dB of the reference, versus 5 to 8 dB of excess loss before.
+- **Partial durations (ESPRIT).** The middle and the upper partials are between −0.4 and +0.7 in log2, versus −0.5 to −0.8 before for the high partials.
+- **Spectral profile deviation.** 6.0 dB instead of 7.0 dB.
+- **6.4–20 kHz band.** −14.4 dB instead of −8.7 dB, versus −23.4 dB in the reference.
+- **Cost.** CPU (28 % of a core at worst) and construction (1.06 s) are unchanged.
 
-## Ce qui reste
+## What remains
 
-- **Fin de note dans l'aigu.** De do5 à si6, entre 2 et 3 s, l'enveloppe reste en moyenne 11 à 18 dB sous la référence. Ce qui a été vérifié :
-  - **Ce n'est pas la salle.** Avec la petite salle réverbérante, l'écart est le même.
-  - **Ce n'est pas la polarisation horizontale.** L'excitation ×3 et le rayonnement ×2,5 ne changent rien.
-  - **C'est la fondamentale.** À 1,8 s, elle domine la référence. Le modèle en a 2 dB de moins à F#5, 5 dB à A5 et 10 dB à C5.
-  - **L'écart varie selon la note.** Il suit le désaccord de chaque unisson, irrégulier d'une touche à l'autre comme sur un vrai piano.
-  - **Resserrer le désaccord** (`width_treble` 2,5 ou 1,5) rapproche l'écart de fréquence entre composantes de la mesure : 1,0–1,2 cent contre 0,5 dans la référence. Mais l'arrière-résonance faiblit alors (−16 à −23 dB), car dans le modèle elle naît surtout du désaccord.
-  - **Piste suivante.** Le mécanisme qui, dans un vrai piano, donne à la fois un petit écart de fréquence et une arrière-résonance forte et longue : la partie réactive de l'admittance du chevalet et le couplage entre unissons voisins par le chevalet.
-- **Graves.** Les partiels de 300 à 700 Hz décroissent environ 2 fois trop vite, ceux sous 300 Hz environ 2 fois trop lentement.
-- **Una corda.** Le gain d'arrière-résonance n'est plus reproduit en moyenne : il varie de −7 à +7 dB selon la note. Le couplage d'unisson est plus faible depuis ces changements. Le test vérifie seulement que la tenue n'est pas perdue.
-- **Limites du modèle de table.** Le gradient d'impédance et l'étalement du chevalet sont des modèles équivalents. Une table d'épaisseur variable, avec barres et chevalet en poutre couplés, demanderait des modes calculés numériquement (éléments finis) au lieu des modes analytiques.
+- **End of note in the treble.** From C5 to B6, between 2 and 3 s, the envelope stays on average 11 to 18 dB below the reference. What has been checked:
+  - **It is not the room.** With the small reverberant room, the gap is the same.
+  - **It is not the horizontal polarisation.** Excitation ×3 and radiation ×2.5 change nothing.
+  - **It is the fundamental.** At 1.8 s, it dominates the reference. The model has 2 dB less of it at F#5, 5 dB at A5 and 10 dB at C5.
+  - **The gap varies with the note.** It follows the detuning of each unison, irregular from one key to the next as on a real piano.
+  - **Tightening the detuning** (`width_treble` 2.5 or 1.5) brings the frequency difference between components closer to the measurement: 1.0–1.2 cents versus 0.5 in the reference. But the aftersound then weakens (−16 to −23 dB), because in the model it arises mainly from the detuning.
+  - **Next lead.** The mechanism that, in a real piano, gives both a small frequency difference and a strong, long aftersound: the reactive part of the bridge admittance and the coupling between neighbouring unisons through the bridge.
+- **Bass.** Partials from 300 to 700 Hz decay about 2 times too fast, those below 300 Hz about 2 times too slowly.
+- **Una corda.** The aftersound gain is no longer reproduced on average: it varies from −7 to +7 dB depending on the note. The unison coupling has been weaker since these changes. The test only checks that the sustain is not lost.
+- **Limits of the soundboard model.** The impedance gradient and the bridge spreading are equivalent models. A soundboard of variable thickness, with coupled ribs and beam bridge, would require numerically computed modes (finite elements) instead of analytical modes.
 
-## Retour d'écoute : grave « comme dans un tonneau » (2026-10-22)
+## Listening feedback: bass “like in a barrel” (2026-10-22)
 
-Le gradient d'impédance s'appliquait aussi côté grave. Il rendait la table 2 à 2,5 fois plus mobile sous les basses que sous do4, et renforçait donc ses résonances graves. Dans la bande 100–200 Hz, le modèle dépassait Salamander de 12,8 dB (26,8 contre 14,0), contre 9,7 dB avant ces changements.
+The impedance gradient also applied on the bass side. It made the soundboard 2 to 2.5 times more mobile under the bass than under C4, and thus reinforced its low resonances. In the 100–200 Hz band, the model exceeded Salamander by 12.8 dB (26.8 versus 14.0), versus 9.7 dB before these changes.
 
-Il est désormais séparé en deux (`impedance_slope_bass` = 0, `impedance_slope` = 0,035 côté aigu). Les décroissances du grave sont reprises par les pertes propres des cordes filées : `LossLaw::b1_floor` = 0,2 s⁻¹ sous `wound_until` = 48, s'estompant sur l'octave au-dessus. C'est l'ordre de grandeur des taux ESPRIT de l'arrière-résonance du grave dans Salamander (0,15–0,18).
+It is now split in two (`impedance_slope_bass` = 0, `impedance_slope` = 0.035 on the treble side). The bass decays are taken over by the own losses of the wound strings: `LossLaw::b1_floor` = 0.2 s⁻¹ below `wound_until` = 48, fading out over the octave above. This is the order of magnitude of the ESPRIT rates of the bass aftersound in Salamander (0.15–0.18).
 
-| | 0–100 Hz | 100–200 Hz | 200–400 Hz | 400–800 Hz | erreur d'inclinaison |
+| | 0–100 Hz | 100–200 Hz | 200–400 Hz | 400–800 Hz | tilt error |
 |---|---|---|---|---|---|
-| Salamander | 11,8 | 14,0 | 5,3 | 1,0 | — |
-| avant | 13,0 | 26,8 | 8,3 | 4,1 | 5,3 dB |
-| après | 11,9 | 17,3 | 6,6 | 1,8 | 3,5 dB |
+| Salamander | 11.8 | 14.0 | 5.3 | 1.0 | — |
+| before | 13.0 | 26.8 | 8.3 | 4.1 | 5.3 dB |
+| after | 11.9 | 17.3 | 6.6 | 1.8 | 3.5 dB |
 
-Enveloppes du grave (A0–B2) : entre −0,9 et +0,8 dB de la référence de 0,1 à 3 s, contre +2,1 à +2,8 dB après 2 s auparavant.
+Bass envelopes (A0–B2): between −0.9 and +0.8 dB from the reference from 0.1 to 3 s, versus +2.1 to +2.8 dB after 2 s before.

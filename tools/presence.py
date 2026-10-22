@@ -21,8 +21,8 @@ def stats(x):
     return peak - sus, bands(0, 0.06), bands(0.3, 0.8)
 srcs = [(a.split("=")[0], a.split("=")[1]) for a in ARGS]
 for layer, tag in ((13, "ff"), (8, "mf")):
-    print(f"\n### {tag} : percussivité (crête 5 ms − niveau 150–300 ms, dB)")
-    print("| registre | " + " | ".join(n for n, _ in srcs) + " |\n|---|" + "---|" * len(srcs))
+    print(f"\n### {tag}: percussiveness (5 ms peak − 150–300 ms level, dB)")
+    print("| register | " + " | ".join(n for n, _ in srcs) + " |\n|---|" + "---|" * len(srcs))
     res = {}
     for lo, hi, lab in REGS:
         cells = []
@@ -31,8 +31,8 @@ for layer, tag in ((13, "ff"), (8, "mf")):
             res[(lab, n)] = st
             cells.append(f"{np.mean([s[0] for s in st]):5.1f}")
         print(f"| {lab} | " + " | ".join(cells) + " |")
-    for which, title in ((1, "attaque 0–60 ms"), (2, "tenue 0,3–0,8 s")):
-        print(f"\n{tag}, {title} : part d'énergie (dB) par bande " + " ".join(f"{a}-{b}" for a, b in BANDS))
+    for which, title in ((1, "attack 0–60 ms"), (2, "sustain 0.3–0.8 s")):
+        print(f"\n{tag}, {title}: energy share (dB) per band " + " ".join(f"{a}-{b}" for a, b in BANDS))
         for lo, hi, lab in REGS:
             line = " | ".join(f"{n}: " + " ".join(f"{v:5.1f}" for v in np.mean([s[which] for s in res[(lab, n)]], axis=0)) for n, _ in srcs)
             print(f"  {lab:14} {line}")

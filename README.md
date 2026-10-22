@@ -1,39 +1,39 @@
 # Unsampled Piano
 
-Piano virtuel par modélisation physique, temps réel depuis MIDI, en Rust. Aucun sample dans la production du son (les enregistrements ne servent qu'à l'analyse et à la calibration).
+Physically modelled virtual piano, real-time from MIDI, in Rust. No samples are used to produce the sound (recordings are used only for analysis and calibration).
 
-Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cordes raides par touche, deux polarisations, couplées au chevalet (modes de Weinreich) → table d'harmonie modale (plaque orthotrope encastrée) → rayonnement de Rayleigh vers deux micros (couvercle optionnel) → salle (réflexions par sources images, réverbération). Le cadre en fonte (excité aux agrafes) et la ceinture (excitée par les bords de la table) rayonnent aussi. S'y ajoutent les étouffoirs, les pédales (demi-pédale, sostenuto, una corda), la résonance sympathique par le chevalet et les bruits mécaniques par impulsions.
+Physical chain: felt hammer (passive quadratised contact) → 1 to 3 stiff strings per key, two polarisations, coupled at the bridge (Weinreich modes) → modal soundboard (clamped orthotropic plate) → Rayleigh radiation to two microphones (optional lid) → room (image-source reflections, reverberation). The cast-iron frame (excited at the agraffes) and the rim (excited by the soundboard edges) also radiate. On top of this come the dampers, the pedals (half-pedal, sostenuto, una corda), sympathetic resonance through the bridge and impulse-driven mechanical noises.
 
-## Utilisation
+## Usage
 
 ```bash
-# jouer : le piano devient un nœud du graphe PipeWire (API JACK) avec sortie
-# stéréo, entrée MIDI (timing à l'échantillon) et sortie MIDI miroir de ce qu'il
-# joue ; il se branche sur la sortie par défaut et sur le premier clavier
-# (--midi / --device pour choisir, --host pipewire pour l'ancien mode cpal ;
-# réglages personnels par défaut dans ~/.config/unsampled-piano/play.toml, par ex.
+# play: the piano becomes a node in the PipeWire graph (JACK API) with stereo
+# output, MIDI input (sample-accurate timing) and a MIDI output mirroring what it
+# plays; it connects to the default output and to the first keyboard
+# (--midi / --device to choose, --host pipewire for the old cpal mode;
+# personal defaults in ~/.config/unsampled-piano/play.toml, e.g.
 # device = "Stereo DJ X-Fade:In B")
 cargo run --release -p piano-play -- --list
-cargo run --release -p piano-play -- --buffer 128 [--preset presets/proche.toml | presets/concert.toml]
-# le préréglage est surveillé : modifié pendant le jeu, l'instrument est
-# reconstruit en arrière-plan (≈ 0,1 s) sans couper les notes tenues
-# jouer des fichiers MIDI à la suite (timing à l'échantillon près ; --from saute le début)
+cargo run --release -p piano-play -- --buffer 128 [--preset presets/close.toml | presets/concert.toml]
+# the preset is watched: when edited during play, the instrument is
+# rebuilt in the background (≈ 0.1 s) without cutting held notes
+# play MIDI files in sequence (sample-accurate timing; --from skips the beginning)
 cargo run --release -p piano-play -- --buffer 128 --file data/midi/*.mid
 
-# rendu hors ligne (WAV stéréo)
-cargo run --release -p piano-render -- midi morceau.mid out/morceau.wav
+# offline rendering (stereo WAV)
+cargo run --release -p piano-render -- midi piece.mid out/piece.wav
 cargo run --release -p piano-render -- note out/c4.wav --note 60 --velocity 90
-cargo run --release -p piano-render -- dump-preset presets/mon_piano.toml
+cargo run --release -p piano-render -- dump-preset presets/my_piano.toml
 
-# calibration contre une banque d'échantillons <note>v<couche>
+# calibration against a <note>v<layer> sample bank
 tools/calibrate.sh data/salamander/Samples out/calib
 
 cargo test --workspace
 ```
 
-## Interprétations de référence
+## Reference performances
 
-Les fichiers de `data/midi/` sont tirés de [MAESTRO v3](https://magenta.tensorflow.org/datasets/maestro) (Google Magenta, CC BY-NC-SA 4.0) : des pianistes du Piano-e-Competition enregistrés sur Disklavier, avec la vélocité réelle des touches et les pédales. `data/` n'est pas versionné ; pour les retrouver :
+The files in `data/midi/` come from [MAESTRO v3](https://magenta.tensorflow.org/datasets/maestro) (Google Magenta, CC BY-NC-SA 4.0): Piano-e-Competition pianists recorded on a Disklavier, with the actual key velocities and pedals. `data/` is not under version control; to retrieve them:
 
 ```bash
 curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/magentadata/datasets/maestro/v3.0.0/maestro-v3.0.0-midi.zip
@@ -41,43 +41,43 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 
 ## Crates
 
-| Crate | Rôle |
+| Crate | Role |
 |---|---|
-| `piano-core` | moteur DSP, sans dépendance (feature `serde` pour les préréglages) |
-| `piano-host` | préréglages TOML, décodage MIDI |
-| `piano-params` | registre des paramètres (chemins, plages, live ou reconstruction), apprentissage MIDI, trait `PianoControl` |
-| `piano-control` | pilotage d'un instrument qui joue : paramètres live, reconstruction en arrière-plan et échange de moteur sans couper les notes (lecteur autonome et plugin) |
-| `piano-ui` | interface egui sur `PianoControl` |
-| `piano-play` | application temps réel (binaire `unsampled-piano`) : nœud PipeWire/JACK (audio, MIDI in, MIDI miroir), ou cpal + midir |
-| `piano-render` | rendu hors ligne (binaire `unsampled-piano-render`) déterministe MIDI → WAV |
-| `piano-analysis` | analyse : partiels, B, décroissances, ESPRIT, distances spectrales |
-| `piano-eval` | comparaison du modèle à une banque de référence |
-| `piano-bench` | débit du noyau modal, précision f32 |
+| `piano-core` | DSP engine, no dependencies (`serde` feature for presets) |
+| `piano-host` | TOML presets, MIDI decoding |
+| `piano-params` | parameter registry (paths, ranges, live or rebuild), MIDI learn, `PianoControl` trait |
+| `piano-control` | control of a playing instrument: live parameters, background rebuild and engine swap without cutting notes (standalone player and plugin) |
+| `piano-ui` | egui interface on top of `PianoControl` |
+| `piano-play` | real-time application (`unsampled-piano` binary): PipeWire/JACK node (audio, MIDI in, MIDI mirror), or cpal + midir |
+| `piano-render` | deterministic offline MIDI → WAV rendering (`unsampled-piano-render` binary) |
+| `piano-analysis` | analysis: partials, B, decays, ESPRIT, spectral distances |
+| `piano-eval` | comparison of the model with a reference bank |
+| `piano-bench` | modal kernel throughput, f32 precision |
 
 ## Documentation
 
-- État de l'art et plan : [reports/piano_physical_synthesis.md](reports/piano_physical_synthesis.md)
-- Phase 0 (outillage, mesures CPU et précision) : [docs/phase0.md](docs/phase0.md)
-- Analyse de Salamander Grand (Yamaha C5) : [docs/salamander.md](docs/salamander.md)
-- Phase 1 (corde + marteau, calibrage) : [docs/phase1.md](docs/phase1.md)
-- Phase 2 (unissons couplés, polarisations, conductance du chevalet) : [docs/phase2.md](docs/phase2.md)
-- Phase 4 (table d'harmonie modale, rayonnement, stéréo) : [docs/phase4.md](docs/phase4.md)
-- Phase 3 (étouffoirs, pédales, résonance sympathique) : [docs/phase3.md](docs/phase3.md)
-- Phase 5 (bruits mécaniques, préréglages, temps réel, calibration) : [docs/phase5.md](docs/phase5.md)
-- Cadre en fonte et ceinture : [docs/frame_rim.md](docs/frame_rim.md)
-- Tenue des notes (chevalet, épaisseur de la table, pertes des cordes) : [docs/sustain.md](docs/sustain.md)
-- Dynamique, pédale et résonance sympathique : [docs/dynamics_pedal.md](docs/dynamics_pedal.md)
-- Comparaison avec Salamander, l'Iowa et un piano modélisé commercial : [docs/comparison.md](docs/comparison.md)
-- Pertes des cordes graves (désaccord d'unisson, mode piston de la caisse) : [docs/bass.md](docs/bass.md)
-- Changement de timbre avec la nuance (feutre) : [docs/timbre_dynamics.md](docs/timbre_dynamics.md)
-- Non-linéarité des cordes (partiels fantômes) : [docs/nonlinearity.md](docs/nonlinearity.md)
-- Présence de l'attaque (marteau à deux couches, prises de son) : [docs/presence.md](docs/presence.md)
-- Tenue après la première seconde (désaccord d'unisson, piston, pertes des cordes) : [docs/long_sustain.md](docs/long_sustain.md)
-- Rayonnement des fondamentales graves (rayonnement par l'accélération, bombe de la table) : [docs/bass_radiation.md](docs/bass_radiation.md)
-- Brillance de l'attaque et de la tenue (amortissement de la table, feutre, vitesse du marteau) : [docs/brightness.md](docs/brightness.md)
+- State of the art and plan: [reports/piano_physical_synthesis.md](reports/piano_physical_synthesis.md)
+- Phase 0 (tooling, CPU and precision measurements): [docs/phase0.md](docs/phase0.md)
+- Analysis of Salamander Grand (Yamaha C5): [docs/salamander.md](docs/salamander.md)
+- Phase 1 (string + hammer, calibration): [docs/phase1.md](docs/phase1.md)
+- Phase 2 (coupled unisons, polarisations, bridge conductance): [docs/phase2.md](docs/phase2.md)
+- Phase 4 (modal soundboard, radiation, stereo): [docs/phase4.md](docs/phase4.md)
+- Phase 3 (dampers, pedals, sympathetic resonance): [docs/phase3.md](docs/phase3.md)
+- Phase 5 (mechanical noises, presets, real time, calibration): [docs/phase5.md](docs/phase5.md)
+- Cast-iron frame and rim: [docs/frame_rim.md](docs/frame_rim.md)
+- Note sustain (bridge, soundboard thickness, string losses): [docs/sustain.md](docs/sustain.md)
+- Dynamics, pedal and sympathetic resonance: [docs/dynamics_pedal.md](docs/dynamics_pedal.md)
+- Comparison with Salamander, Iowa and a commercial modelled piano: [docs/comparison.md](docs/comparison.md)
+- Bass string losses (unison detuning, cabinet piston mode): [docs/bass.md](docs/bass.md)
+- Timbre change with dynamics (felt): [docs/timbre_dynamics.md](docs/timbre_dynamics.md)
+- String nonlinearity (phantom partials): [docs/nonlinearity.md](docs/nonlinearity.md)
+- Attack presence (two-layer hammer, microphone setups): [docs/presence.md](docs/presence.md)
+- Sustain after the first second (unison detuning, piston, string losses): [docs/long_sustain.md](docs/long_sustain.md)
+- Radiation of bass fundamentals (acceleration-driven radiation, soundboard crown): [docs/bass_radiation.md](docs/bass_radiation.md)
+- Brightness of attack and sustain (soundboard damping, felt, hammer velocity): [docs/brightness.md](docs/brightness.md)
 
-## Licence
+## License
 
 Copyright © 2026 Mathieu GRENET.
 
-Ce programme est un logiciel libre : vous pouvez le redistribuer et le modifier selon les termes de la GNU General Public License publiée par la Free Software Foundation, version 3 ou (à votre choix) toute version ultérieure. Il est distribué sans aucune garantie. Voir [LICENSE](LICENSE).
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed WITHOUT ANY WARRANTY. See [LICENSE](LICENSE).

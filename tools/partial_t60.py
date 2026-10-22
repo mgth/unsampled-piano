@@ -5,7 +5,7 @@ median by register and partial range.  tools/partial_t60.py name=dir …"""
 import os, subprocess, sys
 import numpy as np
 NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-REGS = [(21, 47, "grave"), (48, 71, "médium"), (72, 95, "aigu")]
+REGS = [(21, 47, "bass"), (48, 71, "middle"), (72, 95, "treble")]
 BANDS = [(1, 1), (2, 2), (3, 4), (5, 8), (9, 12)]
 def name(m): return NAMES[m % 12] + str(m // 12 - 1)
 def f0(m): return 440 * 2 ** ((m - 69) / 12)
@@ -38,7 +38,7 @@ def t60s(x, m, t0=0.3, t1=3.0, K=12):
 srcs = [a.split("=", 1) for a in sys.argv[1:]]
 res = {nm: {m: t60s(load(find(d, m)), m) for m in range(21, 97, 3) if find(d, m)} for nm, d in srcs}
 hdr = " ".join(f"k{a}" + (f"–{b}" if b > a else "") for a, b in BANDS)
-print(f"T60 effectif 0,3–3 s (s), médiane : {hdr}")
+print(f"effective T60 0.3–3 s (s), median: {hdr}")
 for lo, hi, lab in REGS:
     print(f"\n{lab}")
     for nm, _ in srcs:

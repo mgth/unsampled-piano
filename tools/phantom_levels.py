@@ -14,7 +14,7 @@ def b_law(name):
     if not os.path.exists(p): p = "out/compare/salamander.survey.csv"
     return pd.read_csv(p).query("layer == 13").groupby("midi")["B"].first()
 keys = [24, 27, 30, 33, 36, 39, 42, 45]
-print("touche  " + " ".join(f"{a.split('=')[0]:>12}" for a in ARGS))
+print("key    " + " ".join(f"{a.split('=')[0]:>12}" for a in ARGS))
 rows = []
 for m in keys:
     row = []
@@ -34,4 +34,4 @@ for m in keys:
         row.append(np.median(rel))
     rows.append(row)
     print(f"{name(m):6} " + " ".join(f"{v:12.1f}" for v in row))
-print("médiane " + " ".join(f"{v:12.1f}" for v in np.nanmedian(np.array(rows), axis=0)))
+print("median " + " ".join(f"{v:12.1f}" for v in np.nanmedian(np.array(rows), axis=0)))

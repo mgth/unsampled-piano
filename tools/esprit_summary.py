@@ -103,34 +103,34 @@ a.plot(note.midi, note.t60_prompt_k1, "o-", ms=4, label="prompt (k=1)")
 a.plot(note.midi, note.t60_after_k1, "s-", ms=4, label="aftersound (k=1)")
 a.plot(note.midi, note.t60_prompt, "o:", ms=3, label="prompt (k=1..6)")
 a.plot(note.midi, note.t60_after, "s:", ms=3, label="aftersound (k=1..6)")
-a.set_yscale("log"); a.set_xlabel("note MIDI"); a.set_ylabel("T60 (s)"); a.set_title("Double décroissance (médianes, couches ≥ 8)")
+a.set_yscale("log"); a.set_xlabel("MIDI note"); a.set_ylabel("T60 (s)"); a.set_title("Double decay (medians, layers ≥ 8)")
 a.legend(fontsize=8)
 a = ax[0, 1]
 a.plot(note.midi, note.after_db, "o-", ms=4)
-a.set_xlabel("note MIDI"); a.set_ylabel("dB / composante principale"); a.set_title("Niveau de l'aftersound (à t=0)")
+a.set_xlabel("MIDI note"); a.set_ylabel("dB / main component"); a.set_title("Aftersound level (at t=0)")
 a = ax[1, 0]
-a.plot(note.midi, note.spread, "o-", ms=4, label="étendue des composantes ≥ −20 dB")
-a.plot(note.midi, note.after_cents.abs(), "s-", ms=4, label="|écart| aftersound / principale")
-a.set_xlabel("note MIDI"); a.set_ylabel("cents"); a.set_title("Écarts de fréquence dans l'unisson (modes couplés)")
+a.plot(note.midi, note.spread, "o-", ms=4, label="spread of components ≥ −20 dB")
+a.plot(note.midi, note.after_cents.abs(), "s-", ms=4, label="|distance| aftersound / main")
+a.set_xlabel("MIDI note"); a.set_ylabel("cents"); a.set_title("Frequency spread in the unison (coupled modes)")
 a.legend(fontsize=8)
 a = ax[1, 1]
 ok = loud.dropna(subset=["dsig"])
 ok = ok[(ok.dsig > 0) & (ok.k <= 6)]
 sc = a.scatter(ok.freq, ok.dsig, c=ok.midi, s=6, cmap="viridis", alpha=0.6)
 a.set_xscale("log"); a.set_yscale("log")
-a.set_xlabel("fréquence du partiel (Hz)"); a.set_ylabel("Δσ = σ_prompt − σ_after (1/s)")
-a.set_title("Pertes induites par le chevalet (∝ N·Re Y)")
-fig.colorbar(sc, ax=a, label="note MIDI")
+a.set_xlabel("partial frequency (Hz)"); a.set_ylabel("Δσ = σ_prompt − σ_after (1/s)")
+a.set_title("Bridge-induced losses (∝ N·Re Y)")
+fig.colorbar(sc, ax=a, label="MIDI note")
 fig.tight_layout()
 fig.savefig(out / "esprit_summary.png", dpi=110)
 
 (out / "esprit_fitted.json").write_text(note.to_json(orient="records", indent=1))
 
-L = [f"# Composantes ESPRIT — {out.name}\n",
-     f"{c.file.nunique()} fichiers, {len(p)} partiels analysés, {len(c)} composantes.\n",
-     f"Aftersound trouvé pour {p[p.layer >= 8].t60_after.notna().mean():.0%} des partiels (couches ≥ 8). "
-     f"Stabilité entre couches de vélocité (IQR relatif du T60 d'aftersound, k=1..3) : médiane {note.after_t60_rel_iqr.median():.0%}.\n",
-     "| note | T60 prompt k=1 | T60 after k=1 | T60 prompt k≤6 | T60 after k≤6 | after dB | after cents | étendue cents | n ≥ −20 dB | IQR rel. | b1 corde | b2 corde | b1 chevalet | b2 chevalet |",
+L = [f"# ESPRIT components — {out.name}\n",
+     f"{c.file.nunique()} files, {len(p)} partials analysed, {len(c)} components.\n",
+     f"Aftersound found for {p[p.layer >= 8].t60_after.notna().mean():.0%} of partials (layers ≥ 8). "
+     f"Stability across velocity layers (relative IQR of the aftersound T60, k=1..3): median {note.after_t60_rel_iqr.median():.0%}.\n",
+     "| note | T60 prompt k=1 | T60 after k=1 | T60 prompt k≤6 | T60 after k≤6 | after dB | after cents | spread cents | n ≥ −20 dB | rel. IQR | b1 string | b2 string | b1 bridge | b2 bridge |",
      "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
 for _, r in note.iterrows():
     L.append(f"| {name(int(r.midi))} | {r.t60_prompt_k1:.1f} | {r.t60_after_k1:.1f} | {r.t60_prompt:.1f} | {r.t60_after:.1f} | "

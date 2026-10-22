@@ -1,71 +1,71 @@
-# Dynamique, pédale et résonance sympathique
+# Dynamics, pedal and sympathetic resonance
 
-État au 2026-10-22.
+Status as of 2026-10-22.
 
-## Retour d'écoute
+## Listening feedback
 
-Premières écoutes d'interprétations réelles (MAESTRO, Disklavier) : « Ça joue un peu comme un bûcheron, la courbe dynamique n'est pas bonne. Ça résonne très longtemps et fort : est-ce la pédale qui ne marche pas, ou ça joue trop fort ? »
+First listening to real performances (MAESTRO, Disklavier): “It plays a bit like a lumberjack, the dynamic curve isn't right. It resonates for a very long time and loudly: is it the pedal not working, or is it playing too loud?”
 
-Trois causes ont été trouvées ; aucune ne venait du timbre.
+Three causes were found; none came from the timbre.
 
-## 1. Vélocité MIDI → vitesse du marteau
+## 1. MIDI velocity → hammer speed
 
-L'ancienne loi (0,4 → 4 m/s, exponentielle) avait été ajustée sur les couches de Salamander. Mais la correspondance entre couches et vélocités de Salamander est celle d'un échantillonneur, pas une mesure.
+The old law (0.4 → 4 m/s, exponential) had been fitted on Salamander's layers. But the mapping between Salamander's layers and velocities is that of a sampler, not a measurement.
 
-Les pianos enregistreurs suivent une échelle logarithmique : vélocité = 52 + 25·log₂(v), avec v la vitesse du marteau en m/s. C'est la carte du Bösendorfer SE, et le Disklavier place 2 m/s vers 77 ([Goebl & Bresin, JASA 2003](https://iwk.mdw.ac.at/goebl/papers/Goebl-Bresin_JASA2003_reproAccuracy.pdf)). Cette carte va de 0,24 à 8 m/s. L'ancienne écrasait les deux bouts : à vélocité 20, 0,57 m/s au lieu de 0,41 ; à 110, 3,0 m/s au lieu de 5,0. Les nuances douces étaient trop fortes et les fortes pas assez, ce qui donnait un jeu uniforme.
+Reproducing pianos follow a logarithmic scale: velocity = 52 + 25·log₂(v), with v the hammer speed in m/s. This is the Bösendorfer SE map, and the Disklavier places 2 m/s around 77 ([Goebl & Bresin, JASA 2003](https://iwk.mdw.ac.at/goebl/papers/Goebl-Bresin_JASA2003_reproAccuracy.pdf)). This map runs from 0.24 to 8 m/s. The old one squashed both ends: at velocity 20, 0.57 m/s instead of 0.41; at 110, 3.0 m/s instead of 5.0. Soft dynamics were too loud and loud ones not loud enough, which made the playing uniform.
 
-- Premier défaut adopté : `VelocityLaw { vmin: 0.243, vmax: 8.0 }`. Après écoute comparative, il a été remplacé par un intermédiaire (voir plus bas).
-- L'ancienne loi reste disponible sous `VelocityLaw::SALAMANDER_LAYERS`.
-- À 127, un la0 seul culmine à −6,7 dBFS. Sur les six pièces, la crête maximale est −6,5 dBFS (Campanella).
+- First default adopted: `VelocityLaw { vmin: 0.243, vmax: 8.0 }`. After comparative listening, it was replaced by an intermediate one (see below).
+- The old law remains available as `VelocityLaw::SALAMANDER_LAYERS`.
+- At 127, a lone A0 peaks at −6.7 dBFS. Across the six pieces, the maximum peak is −6.5 dBFS (Campanella).
 
-## 2. Course morte de la pédale
+## 2. Pedal dead travel
 
-Les pianistes laissent le pied sur la pédale. Dans le Bach de MAESTRO, CC64 ne descend jamais sous 41, et 49 % du temps il est entre 64 et 90.
+Pianists rest their foot on the pedal. In the MAESTRO Bach, CC64 never drops below 41, and 49 % of the time it is between 64 and 90.
 
-L'ancien modèle levait complètement les étouffoirs dès 0,4 de course (CC 51), et à moitié dès CC 13. Le Bach entier était donc joué pédale enfoncée.
+The old model lifted the dampers fully from 0.4 of travel (CC 51), and halfway from CC 13. The whole Bach was therefore played with the pedal down.
 
-Sur un vrai piano, la pédale a une course morte avant de toucher la barre d'étouffoirs (`DamperLaw::pedal_free`).
+On a real piano, the pedal has some dead travel before it touches the damper rail (`DamperLaw::pedal_free`).
 
-Premier réglage (0,35 → 0,8 : demi-pédale vers CC 64, étouffoirs levés vers CC 102) : la résonance était maîtrisée, mais les notes paraissaient « étouffées sèchement, sans lien ». Le Bach passe la moitié du temps entre CC 64 et 90, zone que ce réglage traitait comme une demi-pédale. Or les fichiers enregistrés suivent la convention MIDI « pédale enfoncée à partir de 64 », celle que les auteurs de MAESTRO appliquent eux-mêmes.
+First setting (0.35 → 0.8: half-pedal around CC 64, dampers lifted around CC 102): the resonance was under control, but the notes seemed “dryly damped, disconnected”. The Bach spends half its time between CC 64 and 90, a zone this setting treated as half-pedal. Yet the recorded files follow the MIDI convention “pedal down from 64”, which the MAESTRO authors apply themselves.
 
-Réglage retenu, 0,3 → 0,55 :
+Chosen setting, 0.3 → 0.55:
 
 | CC64 | 30 | 40 | 45 | 50 | 55 | 60 | 64 | 70 |
 |---|---|---|---|---|---|---|---|---|
-| contact des étouffoirs | 1,00 | 0,91 | 0,69 | 0,49 | 0,32 | 0,17 | 0,08 | 0 |
+| damper contact | 1.00 | 0.91 | 0.69 | 0.49 | 0.32 | 0.17 | 0.08 | 0 |
 
-Ces valeurs restent des estimations, Yamaha ne publiant pas la correspondance.
+These values remain estimates, as Yamaha does not publish the mapping.
 
-**Non-linéarité du feutre** (`DamperLaw::contact_exponent` = 2,5). Le feutre était un frottement proportionnel au contact, réglé à l'absorption maximale. Un étouffoir posé à moitié amortissait donc déjà à 89 % du maximum : il n'y avait pas de vraie demi-pédale, et chaque note s'arrêtait net dès que l'étouffoir effleurait la corde.
+**Felt non-linearity** (`DamperLaw::contact_exponent` = 2.5). The felt was a friction proportional to contact, set to maximum absorption. A half-resting damper therefore already damped at 89 % of the maximum: there was no real half-pedal, and each note stopped dead as soon as the damper brushed the string.
 
-Le frottement suit maintenant le contact à la puissance 2,5, comme le feutre des marteaux de Stulov. Le taux d'amortissement d'un do4 vaut 49 % du maximum à mi-contact et 7 % à 0,2 de contact. Étouffoir posé, rien ne change : T60 de 0,11 s pour do4, 0,47 s pour mi1.
+Friction now follows contact to the power 2.5, like Stulov's hammer felt. The damping rate of a C4 is 49 % of the maximum at half contact and 7 % at 0.2 contact. With the damper resting, nothing changes: T60 of 0.11 s for C4, 0.47 s for E1.
 
-## 3. Niveau de la résonance sympathique
+## 3. Sympathetic resonance level
 
-`examples/sympathy_level.rs` mesure, pédale enfoncée, ce que les cordes à l'écoute ajoutent au son. Avec le couplage « physique » (gain 1) :
+`examples/sympathy_level.rs` measures, with the pedal down, what the listening strings add to the sound. With the “physical” coupling (gain 1):
 
-- un do4 seul gagnait +8 dB entre 1,5 et 3 s ;
-- un do2 gagnait +11 dB, et la corde do1 finissait plus forte que la note jouée ;
-- un accord do–mi–sol–do gagnait +6 dB dès l'attaque, et +10 dB ensuite.
+- a lone C4 gained +8 dB between 1.5 and 3 s;
+- a C2 gained +11 dB, and the C1 string ended up louder than the played note;
+- a C–E–G–C chord gained +6 dB from the attack, and +10 dB afterwards.
 
-Dans le Chopin, la résonance sympathique ajoutait 3,6 dB à l'ensemble.
+In the Chopin, sympathetic resonance added 3.6 dB to the whole.
 
-La cause est le couplage à sens unique (phase 3) : les cordes à l'écoute prennent leur excitation à la table sans lui retirer d'énergie. Quand des partiels coïncident, ce qui arrive aux octaves, elles grossissent bien au-delà de ce que permet un système passif. Le couplage dans les deux sens, retardé, était instable.
+The cause is the one-way coupling (phase 3): the listening strings take their excitation from the soundboard without taking energy away from it. When partials coincide, which happens at octaves, they grow well beyond what a passive system allows. Two-way coupling, delayed, was unstable.
 
-En attendant un couplage passif, `SympatheticLaw::gain` passe à 0,25. Ce n'est pas une mesure, c'est une compensation. Avec ce gain :
+Pending a passive coupling, `SympatheticLaw::gain` goes to 0.25. This is not a measurement, it is a compensation. With this gain:
 
-- un accord pédale enfoncée gagne +1,3, +2,5 puis +1,4 dB ;
-- une note seule reste à ±2 dB ;
-- le Chopin entier gagne 0,1 dB.
+- a chord with the pedal down gains +1.3, +2.5 then +1.4 dB;
+- a single note stays within ±2 dB;
+- the whole Chopin gains 0.1 dB.
 
-## Toucher : écoute comparative
+## Touch: comparative listening
 
-Les vélocités de Salamander viennent d'un échantillonneur, celles de MAESTRO d'un Disklavier. Les mesures seules ne disent pas quelle échelle convient à ces fichiers. Par rapport à Salamander, l'échelle Disklavier étend la dynamique : 30 dB du plus doux au plus fort au lieu de 21. Elle éclaircit aussi l'attaque des nuances fortes : centroïde ×1,4–1,7 au lieu de ×1,2–1,5. Les trois réglages `out/ab/*.toml` ont été départagés à l'écoute (A : Disklavier, B : Salamander, C : intermédiaire). Le choix s'est porté sur **C**, qui est devenu le réglage par défaut : `VelocityLaw { vmin: 0.3, vmax: 5.5 }`, avec 2 m/s vers la vélocité 84.
+Salamander's velocities come from a sampler, MAESTRO's from a Disklavier. Measurements alone do not tell which scale suits these files. Compared with Salamander, the Disklavier scale widens the dynamics: 30 dB from softest to loudest instead of 21. It also brightens the attack of loud dynamics: centroid ×1.4–1.7 instead of ×1.2–1.5. The three settings `out/ab/*.toml` were decided between by listening (A: Disklavier, B: Salamander, C: intermediate). The choice fell on **C**, which became the default setting: `VelocityLaw { vmin: 0.3, vmax: 5.5 }`, with 2 m/s around velocity 84.
 
-Après la correction du contact marteau–cordes ([comparison.md](comparison.md)), la loi a été recalibrée avec le marteau, sur la dynamique de Salamander et du piano commercial aux mêmes vélocités : 0,6–3,0 m/s. Ce choix fait par l'écoute est donc à refaire.
+After the hammer–string contact fix ([comparison.md](comparison.md)), the law was recalibrated together with the hammer, on the dynamics of Salamander and a commercial modelled piano at the same velocities: 0.6–3.0 m/s. This choice made by listening therefore needs redoing.
 
-## À faire
+## To do
 
-- **Couplage sympathique passif dans les deux sens.** Ce serait la vraie correction : la corde à l'écoute reprend de l'énergie à la table. Par exemple, une matrice de couplage instantanée restreinte aux paires de partiels proches, sans retard.
-- **Mesurer la course de pédale d'un Disklavier.** En l'enregistrant, on remplacerait les deux estimations ci-dessus.
-- **Tests de calibration sur Salamander.** Ils utilisent encore les vélocités des couches de l'échantillonneur (`piano-eval --velocities`). Pour comparer la dynamique, il faut maintenant passer `--vmin 0.4 --vmax 4`.
+- **Two-way passive sympathetic coupling.** This would be the real fix: the listening string takes energy back from the soundboard. For example, an instantaneous coupling matrix restricted to pairs of nearby partials, with no delay.
+- **Measure the pedal travel of a Disklavier.** Recording it would replace the two estimates above.
+- **Calibration tests on Salamander.** They still use the sampler's layer velocities (`piano-eval --velocities`). To compare dynamics, `--vmin 0.4 --vmax 4` must now be passed.

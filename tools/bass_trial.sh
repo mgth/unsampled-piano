@@ -22,6 +22,6 @@ for lo, hi in [(21, 47), (48, 71)]:
     row = []
     for a, b in [(1, 2), (3, 6), (7, 12)]:
         r = np.nanmedian([band(t, a, b) for t in refs])
-        row.append(f"k{a}–{b}: {band(m, a, b):5.1f} (réf. {r:4.1f})")
-    print(f"touches {lo}–{hi}: " + "  ".join(row))
+        row.append(f"k{a}–{b}: {band(m, a, b):5.1f} (ref. {r:4.1f})")
+    print(f"keys {lo}–{hi}: " + "  ".join(row))
 PY

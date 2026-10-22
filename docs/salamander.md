@@ -1,57 +1,57 @@
-# Analyse de Salamander Grand Piano V3
+# Analysis of Salamander Grand Piano V3
 
-Source : [sfzinstruments/SalamanderGrandPiano](https://github.com/sfzinstruments/SalamanderGrandPiano), Yamaha C5, licence CC-BY 3.0 Unported (vérifiée dans le fichier LICENSE du dépôt), 48 kHz / 24 bits, stéréo (analysée en mono : moyenne des canaux). Clone local dans `data/salamander/`, ignoré par git.
+Source: [sfzinstruments/SalamanderGrandPiano](https://github.com/sfzinstruments/SalamanderGrandPiano), Yamaha C5, CC-BY 3.0 Unported licence (checked in the repository's LICENSE file), 48 kHz / 24 bit, stereo (analysed in mono: average of the channels). Local clone in `data/salamander/`, ignored by git.
 
-Contenu : 30 notes (A0 à C8 par tierces mineures) × 16 couches de vélocité = 480 notes tenues jusqu'à extinction (25 s à A0, 3,6 s à C8). S'y ajoutent des bruits de relâchement (`rel1..88`), des résonances d'harmoniques (`harmL/S/V3*`) et des bruits de pédale (`pedalD/U*`), utiles pour les phases 3 et 5.
+Contents: 30 notes (A0 to C8 in minor thirds) × 16 velocity layers = 480 notes held until they die out (25 s at A0, 3.6 s at C8). In addition there are release noises (`rel1..88`), harmonic resonances (`harmL/S/V3*`) and pedal noises (`pedalD/U*`), useful for phases 3 and 5.
 
-Correspondance couche → vélocité MIDI (d'après `Data/notes.txt`) : 1 : 1–26, 2 : 27–34, 3 : 35–36, 4 : 37–43, 5 : 44–46, 6 : 47–50, 7 : 51–56, 8 : 57–64, 9 : 65–72, 10 : 73–80, 11 : 81–88, 12 : 89–96, 13 : 97–104, 14 : 105–112, 15 : 113–120, 16 : 121–127.
+Layer → MIDI velocity mapping (from `Data/notes.txt`): 1: 1–26, 2: 27–34, 3: 35–36, 4: 37–43, 5: 44–46, 6: 47–50, 7: 51–56, 8: 57–64, 9: 65–72, 10: 73–80, 11: 81–88, 12: 89–96, 13: 97–104, 14: 105–112, 15: 113–120, 16: 121–127.
 
-Reproduire :
+To reproduce:
 
 ```bash
 cargo run --release -p piano-analysis --bin piano-survey -- data/salamander/Samples --out out/salamander/survey.csv
 python3 -I tools/survey_summary.py out/salamander/survey.csv
 ```
 
-Sorties : `out/salamander/survey.csv` (une ligne par fichier et par partiel), `summary.md` (tableaux complets), `fitted.json` (lois ajustées), `summary.png`.
+Outputs: `out/salamander/survey.csv` (one row per file and per partial), `summary.md` (full tables), `fitted.json` (fitted laws), `summary.png`.
 
-![synthèse](img/salamander_summary.png)
+![summary](img/salamander_summary.png)
 
-## Ce qu'on en tire
+## What we learn from it
 
-**Inharmonicité : mesure fiable, première loi réelle.**
-- B ne dépend pas de la vélocité (coefficient de variation médian de 1,7 % entre couches), ce qui est cohérent avec une corde linéaire et valide l'estimateur.
-- La forme bi-exponentielle de Rigaud décrit très bien ce piano (écart rms de 0,07 en log B). Paramètres réajustés : aB = −0,1117, bB = −6,107, aT = 0,0886, bT = −13,495.
-- Ce Yamaha C5 est 10 à 25 % moins inharmonique que la moyenne de Rigaud au médium et dans l'aigu, et jusqu'à 2,3× moins dans le grave (A0 : 2,2e-4 contre 5,1e-4). Le minimum se situe vers F#2–A2 (≈ 7e-5), là où les cordes filées laissent la place aux cordes nues.
-- Conséquence : B doit être un paramètre par instrument, pas une constante de la littérature.
+**Inharmonicity: a reliable measurement, the first real law.**
+- B does not depend on velocity (median coefficient of variation of 1.7 % across layers), which is consistent with a linear string and validates the estimator.
+- Rigaud's bi-exponential form describes this piano very well (rms deviation of 0.07 in log B). Refitted parameters: aB = −0.1117, bB = −6.107, aT = 0.0886, bT = −13.495.
+- This Yamaha C5 is 10 to 25 % less inharmonic than Rigaud's average in the middle and treble, and up to 2.3× less in the bass (A0: 2.2e-4 versus 5.1e-4). The minimum lies around F#2–A2 (≈ 7e-5), where the wound strings give way to plain strings.
+- Consequence: B must be a per-instrument parameter, not a constant from the literature.
 
-**Accord étiré : courbe de Railsback retrouvée.**
-- De −15 cents à A0 à +23 cents à A7, en passant par environ 0 au médium. Cela concorde avec les corrections que l'auteur de la banque applique dans son SFZ (F#7 : +25 cents mesurés contre −27 de correction, A7 : +37 contre −38).
-- Anomalie : C8 sonne vers 4 410 Hz (≈ +90 cents) dès l'attaque, alors que la correction SFZ n'est que de −38 cents. Échantillon ou corde désaccordée : on l'exclut de la loi d'accord.
+**Stretched tuning: the Railsback curve recovered.**
+- From −15 cents at A0 to +23 cents at A7, passing through about 0 in the middle. This agrees with the corrections the bank's author applies in his SFZ (F#7: +25 cents measured versus −27 of correction, A7: +37 versus −38).
+- Anomaly: C8 sounds around 4,410 Hz (≈ +90 cents) from the attack onwards, whereas the SFZ correction is only −38 cents. Either the sample or the string is out of tune: we exclude it from the tuning law.
 
-**Décroissances : la double décroissance domine, et une seule loi de pertes ne suffit pas.**
-- La décroissance tardive est en médiane 4,5 fois plus lente que la précoce (interquartile 2,4–8,1). C'est le « prompt sound » et l'« aftersound » de Weinreich, dus au couplage des cordes d'unisson au chevalet.
-- Les enveloppes sont fortement modulées par les battements des unissons (écart médian à une droite : 5 dB). Une loi de pertes σ_k = b1 + b2·f_k² ajustée sur les pentes précoces n'explique qu'une petite partie de la variance (R² < 0,5 pour presque toutes les notes).
-- Tendance utilisable faute de mieux : log b1 = 0,0493·midi − 1,737 (b1 ≈ 0,5 s⁻¹ à A0, 3,4 à C4, 36 à C8).
-- Le modèle bi-exponentiel ne passe le filtre de qualité que pour 351 lignes partiel sur 4 631 : quand il passe, la composante lente est ≈ 30 dB sous la rapide (interquartile −38 à −23 dB). Le reste du temps, les battements empêchent l'ajustement.
-- Conséquence directe pour le plan : il faut séparer les composantes de chaque partiel (2 à 3 cordes légèrement désaccordées) par une méthode haute résolution (ESPRIT) pour mesurer les désaccords d'unisson et les amortissements individuels. La FFT n'y suffit pas. C'est aussi la preuve que la phase 2 (unissons couplés) est indispensable au réalisme.
+**Decays: double decay dominates, and a single loss law is not enough.**
+- The late decay is, in median, 4.5 times slower than the early one (interquartile 2.4–8.1). This is Weinreich's “prompt sound” and “aftersound”, caused by the coupling of the unison strings at the bridge.
+- The envelopes are strongly modulated by unison beating (median deviation from a straight line: 5 dB). A loss law σ_k = b1 + b2·f_k² fitted on the early slopes explains only a small part of the variance (R² < 0.5 for almost all notes).
+- A usable trend, for lack of anything better: log b1 = 0.0493·midi − 1.737 (b1 ≈ 0.5 s⁻¹ at A0, 3.4 at C4, 36 at C8).
+- The bi-exponential model passes the quality filter for only 351 partial rows out of 4,631: when it passes, the slow component is ≈ 30 dB below the fast one (interquartile −38 to −23 dB). The rest of the time, beating prevents the fit.
+- Direct consequence for the plan: the components of each partial (2 to 3 slightly detuned strings) must be separated by a high-resolution method (ESPRIT) to measure the unison detunings and individual dampings. The FFT is not enough for this. It is also proof that phase 2 (coupled unisons) is essential to realism.
 
-**Vélocité.**
-- 21,6 dB d'écart de crête entre les couches 1 et 16 (médiane sur les notes). C'est la plage de cette banque ; le manuel d'un piano modélisé commercial cite ≈ 50 dB pour un vrai piano, et la couche 1 couvre déjà les vélocités 1 à 26.
-- Le centroïde d'attaque (50 premières ms) passe de 484 Hz à 1 083 Hz (×2,3). C'est la cible de brillance pour le modèle de marteau de la phase 1 (raidissement du feutre avec la vitesse, exposant p).
+**Velocity.**
+- 21.6 dB peak difference between layers 1 and 16 (median over notes). This is the range of this bank; the manual of a commercial modelled piano cites ≈ 50 dB for a real piano, and layer 1 already covers velocities 1 to 26.
+- The attack centroid (first 50 ms) goes from 484 Hz to 1,083 Hz (×2.3). This is the brightness target for the phase 1 hammer model (felt stiffening with speed, exponent p).
 
-## Limites
+## Limitations
 
-- Mono (moyenne de deux micros) : des filtrages en peigne peuvent biaiser les niveaux de partiels, pas les fréquences.
-- Les T60 incluent la salle et la prise de son.
-- Les notes très aiguës (A7, C8) n'ont que 3 partiels mesurables, donc leur B est peu contraint.
-- Un seul piano : il faudra un second instrument (Iowa MIS, Steinway) pour séparer ce qui relève du modèle de ce qui relève du réglage.
+- Mono (average of two microphones): comb filtering may bias partial levels, not frequencies.
+- The T60 values include the room and the recording setup.
+- Very high notes (A7, C8) have only 3 measurable partials, so their B is poorly constrained.
+- A single piano: a second instrument (Iowa MIS, Steinway) will be needed to separate what belongs to the model from what belongs to the regulation.
 
-## Analyse haute résolution (ESPRIT en sous-bande)
+## High-resolution analysis (sub-band ESPRIT)
 
-Implémentation : `crates/piano-analysis/src/esprit.rs`. Pour chaque partiel, la bande voisine (±min(0,4·espacement, max(5 Hz, 7 cents))) est découpée dans une FFT longue et ramenée en bande de base. On applique ensuite ESPRIT (Hankel, SVD, invariance par décalage) jusqu'à 6 composantes amorties, puis on calcule les amplitudes par moindres carrés.
+Implementation: `crates/piano-analysis/src/esprit.rs`. For each partial, the neighbouring band (±min(0.4·spacing, max(5 Hz, 7 cents))) is cut out of a long FFT and shifted to baseband. ESPRIT (Hankel, SVD, shift invariance) is then applied for up to 6 damped components, after which the amplitudes are computed by least squares.
 
-Validation sur signaux synthétiques (tests unitaires) : un bichorde à 0,6 Hz d'écart, un tricorde à 0,45 Hz d'écart, et deux décroissances à fréquence identique (3 et 0,3 s⁻¹, à −28 dB). Tous sont retrouvés à 0,01 Hz près pour la fréquence, 5 % pour σ et 0,5 dB pour l'amplitude.
+Validation on synthetic signals (unit tests): a bichord 0.6 Hz apart, a trichord 0.45 Hz apart, and two decays at the same frequency (3 and 0.3 s⁻¹, at −28 dB). All are recovered to within 0.01 Hz in frequency, 5 % in σ and 0.5 dB in amplitude.
 
 ```bash
 cargo run --release -p piano-analysis --bin piano-survey -- data/salamander/Samples \
@@ -62,24 +62,24 @@ cargo run --release -p piano-analysis --bin piano-analyze -- data/salamander/Sam
 
 ![ESPRIT](img/salamander_esprit.png)
 
-Pour chaque partiel, on appelle « prompt » la composante la plus forte à t = 0, et « aftersound » la plus forte des composantes au moins 1,5 fois plus lentes (d'après le modèle de Weinreich : modes en phase et en opposition de phase de l'unisson couplé au chevalet). Tableaux complets : `out/salamander/esprit_summary.md`.
+For each partial, we call “prompt” the strongest component at t = 0, and “aftersound” the strongest of the components at least 1.5 times slower (following Weinreich's model: in-phase and anti-phase modes of the unison coupled at the bridge). Full tables: `out/salamander/esprit_summary.md`.
 
-**La double décroissance est la règle.**
-- On trouve un aftersound pour 86 % des partiels (couches ≥ 8).
-- Au médium (C3–C6) : il démarre à −14 dB (médiane) sous le prompt et dure 2,6 fois plus longtemps.
-- Dans le grave (A0–D#1) : il est plus faible (−27 à −32 dB).
-- C'est très reproductible. Exemple de C4, partiel 1, dans les couches 8 à 16 : l'aftersound est à 261,48 Hz, T60 ≈ 33 s, −22 dB à chaque fois. La composante rapide est environ 1 cent plus basse, comme le prédit la théorie des cordes couplées.
-- Sur l'ensemble du clavier, l'écart interquartile relatif du T60 d'aftersound entre couches est de 33 % en médiane.
+**Double decay is the rule.**
+- An aftersound is found for 86 % of partials (layers ≥ 8).
+- In the middle (C3–C6): it starts at −14 dB (median) below the prompt and lasts 2.6 times longer.
+- In the bass (A0–D#1): it is weaker (−27 to −32 dB).
+- It is highly reproducible. Example of C4, partial 1, in layers 8 to 16: the aftersound is at 261.48 Hz, T60 ≈ 33 s, −22 dB every time. The fast component is about 1 cent lower, as coupled-string theory predicts.
+- Across the whole keyboard, the relative interquartile range of the aftersound T60 across layers is 33 % in median.
 
-**Les écarts de fréquence dans l'unisson sont petits.**
-- L'étendue des composantes à plus de −20 dB va de 0,5 à 2 cents au médium (médiane 1,3) et de 3 à 5 cents dans l'aigu (médiane 4,0).
-- Attention : ce sont les fréquences des **modes couplés**, pas le désaccord brut des cordes. Le désaccord brut s'obtiendra en inversant le modèle de couplage au chevalet de la phase 2. Ces écarts serviront de cible.
+**Frequency differences within the unison are small.**
+- The spread of components above −20 dB ranges from 0.5 to 2 cents in the middle (median 1.3) and from 3 to 5 cents in the treble (median 4.0).
+- Caution: these are the frequencies of the **coupled modes**, not the raw detuning of the strings. The raw detuning will be obtained by inverting the phase 2 bridge coupling model. These differences will serve as a target.
 
-**Séparer pertes propres de la corde et pertes par le chevalet.**
-- Le mode antisymétrique (aftersound) charge très peu le chevalet. Son σ approche donc les pertes propres de la corde (air, viscoélasticité).
-- Δσ = σ_prompt − σ_after approche les pertes par le chevalet, proportionnelles à N·Re(Y_chevalet).
-- Δσ croît d'environ 0,2 s⁻¹ vers 100 Hz à environ 10 s⁻¹ vers 5–10 kHz (nuage en bas à droite de la figure). C'est une trace indirecte de la conductance de la table, la grandeur qui manque dans la littérature sous forme numérique.
-- Tendance des pertes propres : b1 ≈ exp(0,059·midi − 3,98) s⁻¹ (0,15 à A0, 0,5 à D#3, 3,5 à A5, 6,8 à A7) ; b2 ≈ 7e-8 s (médiane, notes ≥ A2).
-- La loi b1 + b2·f² reste un ajustement médiocre partiel par partiel (R² médian 0,31 pour la corde, 0,14 pour le chevalet). Les pertes réelles ne sont pas une fonction lisse de la fréquence : les résonances de la table modulent Re(Y). Le modèle devra prendre la conductance du chevalet en fonction de la fréquence plutôt qu'une loi en f². C'est un argument direct pour la table modale de la phase 4 couplée dès la phase 2.
+**Separating the string's own losses from losses through the bridge.**
+- The antisymmetric mode (aftersound) loads the bridge very little. Its σ therefore approximates the string's own losses (air, viscoelasticity).
+- Δσ = σ_prompt − σ_after approximates the losses through the bridge, proportional to N·Re(Y_bridge).
+- Δσ grows from about 0.2 s⁻¹ around 100 Hz to about 10 s⁻¹ around 5–10 kHz (cloud at the bottom right of the figure). This is an indirect trace of the soundboard conductance, the quantity missing from the literature in numerical form.
+- Trend of the string's own losses: b1 ≈ exp(0.059·midi − 3.98) s⁻¹ (0.15 at A0, 0.5 at D#3, 3.5 at A5, 6.8 at A7); b2 ≈ 7e-8 s (median, notes ≥ A2).
+- The b1 + b2·f² law remains a poor fit partial by partial (median R² 0.31 for the string, 0.14 for the bridge). Real losses are not a smooth function of frequency: the soundboard resonances modulate Re(Y). The model will need to take the bridge conductance as a function of frequency rather than an f² law. This is a direct argument for the phase 4 modal soundboard, coupled from phase 2 onwards.
 
-**Limites de cette analyse.** Le nombre de cordes par note n'est pas connu, donc N n'est pas séparé dans Δσ. Dans le grave, le fondamental est trop faible pour être analysé (A0–D#1). Les composantes au-delà de 3 par partiel (polarisations, modes de table) sont présentes mais pas interprétées.
+**Limitations of this analysis.** The number of strings per note is not known, so N is not separated out in Δσ. In the bass, the fundamental is too weak to be analysed (A0–D#1). Components beyond 3 per partial (polarisations, soundboard modes) are present but not interpreted.

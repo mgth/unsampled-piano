@@ -72,7 +72,7 @@ def score(mm, verbose=False):
         # The undamped top strings still ring from the preceding notes of a
         # recorded sequence: the quiet C7–C8 peaks are not their own. Their
         # partials 3–6 (8–25 kHz) sit at the references' noise level.
-        if v is None or key == "suraigu C7–C8|dyn" or key.startswith("suraigu C7–C8|attack"): continue
+        if v is None or key == "top treble C7–C8|dyn" or key.startswith("top treble C7–C8|attack"): continue
         srcs = ["salamander", "commercial"] if key.endswith("|dyn") else list(refs)
         vals = [np.array(refs[s][key], dtype=float) for s in srcs if refs[s].get(key) is not None]
         if not vals: continue

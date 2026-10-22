@@ -7,7 +7,7 @@ piano-survey CSVs when given) inharmonicity and partial decays.
 import os, subprocess, sys
 import numpy as np
 NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-REGS = [(21, 47, "grave A0–B2"), (48, 71, "médium C3–B4"), (72, 95, "aigu C5–B6"), (96, 108, "suraigu C7–C8")]
+REGS = [(21, 47, "bass A0–B2"), (48, 71, "middle C3–B4"), (72, 95, "treble C5–B6"), (96, 108, "top treble C7–C8")]
 def name(m): return NAMES[m % 12] + str(m // 12 - 1)
 def f0(m): return 440 * 2 ** ((m - 69) / 12)
 def load(path):
@@ -62,7 +62,7 @@ for nm, d, sv in sources:
 
 def table(title, fn, cols, layer=13, fmt="{:+6.1f}"):
     print(f"\n### {title}\n")
-    print("| registre | " + " | ".join(f"{nm}" for nm, _, _ in sources) + " |")
+    print("| register | " + " | ".join(f"{nm}" for nm, _, _ in sources) + " |")
     print("|---|" + "---|" * len(sources))
     for lo, hi, lab in REGS:
         cells = []
@@ -75,15 +75,15 @@ def table(title, fn, cols, layer=13, fmt="{:+6.1f}"):
         print(f"| {lab} | " + " | ".join(cells) + " |")
     print(f"\n{cols}")
 
-table("Tenue ff : niveau (dB) re crête à 0,3 / 1 / 2 / 3 s (passe-haut 0,7·f0)", lambda x, m: [env_levels(x, m)[i] for i in (1, 3, 4, 5)], "colonnes : 0,3 s, 1 s, 2 s, 3 s")
-table("Tenue mf : idem", lambda x, m: [env_levels(x, m)[i] for i in (1, 3, 4, 5)], "colonnes : 0,3 s, 1 s, 2 s, 3 s", layer=8)
-table("Timbre de l'attaque ff (0–60 ms) : partiels 2, 3, 4, 6, 8, 12 en dB re partiel 1", lambda x, m: partials(x, m, 0.0, 0.06)[[1, 2, 3, 5, 7, 11]], "")
-table("Timbre de la tenue ff (0,5–1 s) : partiels 2, 3, 4, 6, 8, 12 en dB re partiel 1", lambda x, m: partials(x, m, 0.5, 0.5)[[1, 2, 3, 5, 7, 11]], "")
-table("Timbre de l'attaque mf (0–60 ms)", lambda x, m: partials(x, m, 0.0, 0.06)[[1, 2, 3, 5, 7, 11]], "", layer=8)
-table("Brillance : centroïde / f0, attaque 0–50 ms | 0,5–1 s (ff)", lambda x, m: [centroid(x, m, 0.0, 0.05), centroid(x, m, 0.5, 0.5)], "", fmt="{:6.1f}")
+table("Sustain ff: level (dB) re peak at 0.3 / 1 / 2 / 3 s (high-pass 0.7·f0)", lambda x, m: [env_levels(x, m)[i] for i in (1, 3, 4, 5)], "columns: 0.3 s, 1 s, 2 s, 3 s")
+table("Sustain mf: same", lambda x, m: [env_levels(x, m)[i] for i in (1, 3, 4, 5)], "columns: 0.3 s, 1 s, 2 s, 3 s", layer=8)
+table("Attack timbre ff (0–60 ms): partials 2, 3, 4, 6, 8, 12 in dB re partial 1", lambda x, m: partials(x, m, 0.0, 0.06)[[1, 2, 3, 5, 7, 11]], "")
+table("Sustain timbre ff (0.5–1 s): partials 2, 3, 4, 6, 8, 12 in dB re partial 1", lambda x, m: partials(x, m, 0.5, 0.5)[[1, 2, 3, 5, 7, 11]], "")
+table("Attack timbre mf (0–60 ms)", lambda x, m: partials(x, m, 0.0, 0.06)[[1, 2, 3, 5, 7, 11]], "", layer=8)
+table("Brightness: centroid / f0, attack 0–50 ms | 0.5–1 s (ff)", lambda x, m: [centroid(x, m, 0.0, 0.05), centroid(x, m, 0.5, 0.5)], "", fmt="{:6.1f}")
 
-print("\n### Dynamique : crête ff − pp et ff − mf (dB) ; brillance d'attaque ff / pp\n")
-print("| registre | " + " | ".join(nm for nm, _, _ in sources) + " |")
+print("\n### Dynamics: peak ff − pp and ff − mf (dB); attack brightness ff / pp\n")
+print("| register | " + " | ".join(nm for nm, _, _ in sources) + " |")
 print("|---|" + "---|" * len(sources))
 for lo, hi, lab in REGS:
     cells = []
@@ -100,8 +100,8 @@ for lo, hi, lab in REGS:
 sv = [(nm, p) for nm, _, p in sources if p and os.path.exists(p)]
 if sv:
     import pandas as pd
-    print("\n### Inharmonicité B (médiane) et T60 des partiels 1–4 (début de décroissance, s)\n")
-    print("| registre | " + " | ".join(nm for nm, _ in sv) + " |")
+    print("\n### Inharmonicity B (median) and T60 of partials 1–4 (early decay, s)\n")
+    print("| register | " + " | ".join(nm for nm, _ in sv) + " |")
     print("|---|" + "---|" * len(sv))
     frames = {nm: pd.read_csv(p) for nm, p in sv}
     for lo, hi, lab in REGS:

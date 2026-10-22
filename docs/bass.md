@@ -1,68 +1,68 @@
-# Pertes des cordes graves
+# Bass string losses
 
-État au 2026-10-22.
+Status as of 2026-10-22.
 
-## Constat
+## Finding
 
-D'après la comparaison avec Salamander, l'Iowa et le piano commercial ([comparison.md](comparison.md)), la tenue du grave était déséquilibrée. La fondamentale dominait de 10 à 20 dB, et les partiels 7 à 12 s'éteignaient deux fois trop vite. Le résultat sonnait « en tonneau ».
+According to the comparison with Salamander, the Iowa and a commercial modelled piano ([comparison.md](comparison.md)), the bass sustain was unbalanced. The fundamental dominated by 10 to 20 dB, and partials 7 to 12 died out twice as fast as they should. The result sounded “barrel-like”.
 
-T60 médian des partiels, en ff, touches A0–B2 (outil `tools/bass_trial.sh`) :
+Median T60 of the partials, in ff, keys A0–B2 (tool `tools/bass_trial.sh`):
 
-| Partiels | Références | Modèle avant |
+| Partials | References | Model before |
 |---|---|---|
-| 1–2 | 7,4 s | 17,7 s |
-| 3–6 | 7,4 s | 8,1 s |
-| 7–12 | 6,8 s | 3,5 s |
+| 1–2 | 7.4 s | 17.7 s |
+| 3–6 | 7.4 s | 8.1 s |
+| 7–12 | 6.8 s | 3.5 s |
 
-## Diagnostic
+## Diagnosis
 
-Trois pistes ont été écartées.
+Three leads were ruled out.
 
-- **Pertes propres des cordes.** Elles donnent un T60 de 20 à 30 s, donc elles ne limitent rien (`examples/bass_budget.rs`).
-- **Conductance du chevalet.** Elle est proche de l'estimation tirée de Salamander : +1 à +2 dB en moyenne (`examples/bass_conductance.rs`).
-- **Masse du chevalet, sympathie, polarisation horizontale et rayonnement.** Aucun n'influe sur ces décroissances.
+- **The strings' own losses.** They give a T60 of 20 to 30 s, so they limit nothing (`examples/bass_budget.rs`).
+- **Bridge conductance.** It is close to the estimate derived from Salamander: +1 to +2 dB on average (`examples/bass_conductance.rs`).
+- **Bridge mass, sympathy, horizontal polarisation and radiation.** None of them affects these decays.
 
-`examples/partial_modes.rs` donne la vraie cause pour do2, partiel 8. Les deux modes principaux tiennent 8 s, mais ils ont le même poids et sont séparés de 0,3 Hz, car les deux cordes sont désaccordées d'environ 1 cent. Leurs battements creusent l'enveloppe vers 1,6 s, ce qui donne une décroissance apparente de 3,2 s. Les références mesurent un écart de fréquence entre composantes (`after_cents`) d'environ 0,4 cent dans le grave et le médium, contre 0,9 cent dans le modèle.
+`examples/partial_modes.rs` gives the real cause for C2, partial 8. The two main modes last 8 s, but they have the same weight and are 0.3 Hz apart, because the two strings are detuned by about 1 cent. Their beating hollows out the envelope around 1.6 s, which gives an apparent decay of 3.2 s. The references measure a frequency difference between components (`after_cents`) of about 0.4 cent in the bass and middle, versus 0.9 cent in the model.
 
-Les fondamentales graves (30–120 Hz) tombent sous le premier mode de la table encastrée, qui est vers 60 Hz. Là, une table seule n'absorbe presque rien. Sur un piano, la table, la ceinture et la caisse bougent aussi en bloc, ce qui fait un mode large et amorti qui absorbe ces fondamentales.
+The bass fundamentals (30–120 Hz) fall below the first mode of the clamped soundboard, which is around 60 Hz. There, a soundboard alone absorbs almost nothing. On a piano, the soundboard, the rim and the case also move as a block, which makes a broad, damped mode that absorbs these fundamentals.
 
-## Changements
+## Changes
 
-1. **Désaccord d'unisson jusqu'à do4** : `UnisonLaw::width_mid` passe de 1,0 à 0,35 cent, l'écart mesuré.
-2. **Mode piston** (`SoundboardParams::piston_*`). Il ajoute aux modes de la table un mode de forme uniforme, réglé sur les décroissances des partiels graves des trois références :
-   - fréquence 40 Hz, facteur de perte 0,7, masse effective 1,5 kg ;
-   - son rayonnement est réduit à 0,3, car quand toute la caisse bouge, l'air poussé au-dessus revient largement en dessous. Avec 1,0, la bande 0–100 Hz dépassait la référence de 4,6 dB ;
-   - c'est un mode équivalent : la masse de 1,5 kg n'est pas une mesure.
-3. **Plancher de pertes des cordes filées** maintenu à 0,2 s⁻¹. Avec 0,08, les partiels 3 à 6 tenaient trop longtemps.
+1. **Unison detuning up to C4**: `UnisonLaw::width_mid` goes from 1.0 to 0.35 cent, the measured difference.
+2. **Piston mode** (`SoundboardParams::piston_*`). It adds a uniformly shaped mode to the soundboard modes, tuned on the decays of the bass partials of the three references:
+   - frequency 40 Hz, loss factor 0.7, effective mass 1.5 kg;
+   - its radiation is reduced to 0.3, because when the whole case moves, the air pushed above largely comes back underneath. With 1.0, the 0–100 Hz band exceeded the reference by 4.6 dB;
+   - it is an equivalent mode: the 1.5 kg mass is not a measurement.
+3. **Loss floor of the wound strings** kept at 0.2 s⁻¹. With 0.08, partials 3 to 6 lasted too long.
 
-## Résultat
+## Result
 
-T60 médian des partiels :
+Median T60 of the partials:
 
-| Registre | Partiels | Références | Avant | Après |
+| Register | Partials | References | Before | After |
 |---|---|---|---|---|
-| grave (A0–B2) | 1–2 | 7,4 s | 17,7 s | 9,6 s |
-| grave (A0–B2) | 3–6 | 7,4 s | 8,1 s | 10,0 s |
-| grave (A0–B2) | 7–12 | 6,8 s | 3,5 s | 5,4 s |
-| médium (C3–B4) | 1–2 | 2,9 s | 3,3 s | 3,0 s |
-| médium (C3–B4) | 3–6 | 2,4 s | 1,8 s | 2,2 s |
-| médium (C3–B4) | 7–12 | 2,2 s | 1,2 s | 1,8 s |
+| bass (A0–B2) | 1–2 | 7.4 s | 17.7 s | 9.6 s |
+| bass (A0–B2) | 3–6 | 7.4 s | 8.1 s | 10.0 s |
+| bass (A0–B2) | 7–12 | 6.8 s | 3.5 s | 5.4 s |
+| middle (C3–B4) | 1–2 | 2.9 s | 3.3 s | 3.0 s |
+| middle (C3–B4) | 3–6 | 2.4 s | 1.8 s | 2.2 s |
+| middle (C3–B4) | 7–12 | 2.2 s | 1.2 s | 1.8 s |
 
-Spectre à long terme par rapport à Salamander (`tools/calibrate.sh`, `spectral_stats.txt`) :
+Long-term spectrum relative to Salamander (`tools/calibrate.sh`, `spectral_stats.txt`):
 
-| | 0–100 Hz | 100–200 Hz | 200–400 Hz | 6,4–20 kHz | erreur d'inclinaison | écart de profil |
+| | 0–100 Hz | 100–200 Hz | 200–400 Hz | 6.4–20 kHz | tilt error | profile deviation |
 |---|---|---|---|---|---|---|
-| Salamander | 11,8 | 14,0 | 5,3 | −23,4 | — | — |
-| avant | 11,9 | 17,3 | 6,6 | −14,1 | 3,5 dB | 6,3 dB |
-| après | 12,2 | 11,5 | 6,5 | −22,2 | 2,5 dB | 4,5 dB |
+| Salamander | 11.8 | 14.0 | 5.3 | −23.4 | — | — |
+| before | 11.9 | 17.3 | 6.6 | −14.1 | 3.5 dB | 6.3 dB |
+| after | 12.2 | 11.5 | 6.5 | −22.2 | 2.5 dB | 4.5 dB |
 
-- **Enveloppes** (`envelope_compare.py`). Le grave et le médium restent à moins de 2,5 dB de la référence jusqu'à 1 s. Ensuite, ils perdent 3 à 6 dB de trop à 2–3 s.
-- **Score du marteau.** Il passe de 1,9 à 2,2.
-- **Coût et tests.** Construction de l'instrument : 1,09 s. Les tests passent.
+- **Envelopes** (`envelope_compare.py`). The bass and middle stay within 2.5 dB of the reference up to 1 s. After that, they lose 3 to 6 dB too much at 2–3 s.
+- **Hammer score.** It goes from 1.9 to 2.2.
+- **Cost and tests.** Instrument construction: 1.09 s. The tests pass.
 
-## Ce qui reste
+## What remains
 
-- **Profil de la tenue du grave.** Les partiels 3 à 6 restent 10 à 15 dB sous les références par rapport à la fondamentale entre 0,5 et 1 s. Dans les références, la fondamentale grave chute d'environ 8 dB dès la première demi-seconde, une décroissance initiale rapide que le modèle n'a pas. Les fondamentales graves sont toutefois les mesures les plus dispersées des références : leur T60 va de 4,5 à 39 s selon la source et la note.
-- **Fin des notes du médium à 2–3 s**, un peu trop courte depuis le désaccord resserré.
+- **Bass sustain profile.** Partials 3 to 6 stay 10 to 15 dB below the references relative to the fundamental between 0.5 and 1 s. In the references, the bass fundamental drops by about 8 dB in the very first half-second, a fast initial decay that the model lacks. The bass fundamentals are, however, the most scattered measurements in the references: their T60 ranges from 4.5 to 39 s depending on the source and the note.
+- **End of middle notes at 2–3 s**, slightly too short since the tighter detuning.
 
-Mise à jour : le désaccord (1 cent), la masse du piston (6 kg) et les pertes propres ont été revus sur la tenue après 1 s ([long_sustain.md](long_sustain.md)).
+Update: the detuning (1 cent), the piston mass (6 kg) and the strings' own losses were revisited on the sustain after 1 s ([long_sustain.md](long_sustain.md)).

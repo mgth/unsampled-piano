@@ -1,85 +1,85 @@
-# Phase 3 — étouffoirs, pédales, résonance sympathique
+# Phase 3 — dampers, pedals, sympathetic resonance
 
-État au 2026-10-21. Les étouffoirs, les trois pédales et la résonance sympathique sont modélisés physiquement. Le passage par la table d'harmonie en a imposé une refonte importante.
+Status as of 2026-10-21. The dampers, the three pedals and sympathetic resonance are physically modelled. Routing through the soundboard required a major redesign.
 
-## Étouffoirs (`params::DamperLaw`, `voice.rs`)
+## Dampers (`params::DamperLaw`, `voice.rs`)
 
-Un feutre est un amortisseur de coefficient c posé sur la corde en x_d = 0,14·L, sur une largeur de 2 cm. Il ajoute au partiel k le taux de décroissance :
+A felt is a damper with coefficient c resting on the string at x_d = 0.14·L, over a width of 2 cm. It adds to partial k the decay rate:
 
 ```text
-σ_k = c·⟨sin²(kπx/L)⟩_feutre/(μL) · (2Z0/(c + 2Z0))²,   c = e·2Z0,   Z0 = √(Tμ)
+σ_k = c·⟨sin²(kπx/L)⟩_felt/(μL) · (2Z0/(c + 2Z0))²,   c = e·2Z0,   Z0 = √(Tμ)
 ```
 
-- Le dernier facteur traduit la désadaptation d'impédance : un feutre trop dur réfléchit au lieu d'absorber. L'absorption est maximale pour c = 2Z0.
-- La moyenne sur la largeur du feutre empêche les partiels qui ont un nœud au point de contact de sonner indéfiniment. C'est un défaut trouvé par le test du sostenuto.
-- e ∈ [0, 1] est le contact du feutre. Il suit sa cible avec une constante de 12 ms à la descente et de 5 ms à la levée.
-- Seules les touches jusqu'à E6 ont un étouffoir.
-- Côté calcul, le banc modal ne recalcule que la décroissance de chaque mode : une exponentielle par mode, sans trigonométrie (`ModalBank::set_damping`).
+- The last factor expresses the impedance mismatch: a felt that is too hard reflects instead of absorbing. Absorption is maximal for c = 2Z0.
+- Averaging over the felt width prevents partials that have a node at the contact point from ringing indefinitely. This is a defect found by the sostenuto test.
+- e ∈ [0, 1] is the felt contact. It follows its target with a time constant of 12 ms when lowering and 5 ms when lifting.
+- Only keys up to E6 have a damper.
+- Computationally, the modal bank recomputes only the decay of each mode: one exponential per mode, no trigonometry (`ModalBank::set_damping`).
 
-Résultats (tests `tests/pedals.rs`, T60 initial de l'énergie des cordes après le relâchement) :
+Results (tests `tests/pedals.rs`, initial T60 of the string energy after release):
 
-| Note | T60 initial | Commentaire |
+| Note | Initial T60 | Comment |
 |---|---|---|
-| E1 | 0,45 s | les étouffoirs graves sont moins efficaces, sans réglage |
-| C4 | 0,12 s | |
-| E7 | 0,86 s | pas d'étouffoir : ne change pas au relâchement |
+| E1 | 0.45 s | the bass dampers are less effective, without tuning |
+| C4 | 0.12 s | |
+| E7 | 0.86 s | no damper: does not change on release |
 
-Après cette chute rapide, une traîne plus lente subsiste : celle des partiels peu touchés par le feutre, comme sur un vrai piano.
+After this rapid drop, a slower tail remains: that of the partials barely touched by the felt, as on a real piano.
 
-## Pédales (`engine.rs`)
+## Pedals (`engine.rs`)
 
-- **Sustain (CC64 continu)** : la course de pédale fixe le contact de tous les étouffoirs dont la touche est relevée, e = ((0,4 − course)/0,4)^1,5. La demi-pédale est donc physique. Sur C4, le T60 après relâchement vaut 0,12 s pédale levée, 0,22 s à mi-course et 5,9 s pédale enfoncée.
-- **Sostenuto (CC66)** : il mémorise les touches enfoncées au moment où on appuie, et seules celles-là restent libres.
-- **Una corda (CC67 continu)** : le mécanisme se décale. Le marteau quitte la première corde, et la frappe ne porte plus que sur les autres (paramètre `hit` du solveur de contact). Il frappe aussi une zone de feutre plus douce : Q0 × (1 − 0,35). La corde non frappée n'est excitée que par le couplage au chevalet de la phase 2. Résultat sur C4 : −2,8 dB.
+- **Sustain (continuous CC64)**: the pedal travel sets the contact of all the dampers whose key is up, e = ((0.4 − travel)/0.4)^1.5. Half-pedalling is therefore physical. On C4, the T60 after release is 0.12 s with the pedal up, 0.22 s at half travel and 5.9 s with the pedal down.
+- **Sostenuto (CC66)**: it memorises the keys held down at the moment it is pressed, and only those stay free.
+- **Una corda (continuous CC67)**: the action shifts. The hammer leaves the first string, and the strike lands only on the others (`hit` parameter of the contact solver). It also strikes a softer area of felt: Q0 × (1 − 0.35). The unstruck string is excited only by the phase 2 bridge coupling. Result on C4: −2.8 dB.
 
-## Résonance sympathique
+## Sympathetic resonance
 
-### Architecture : un sens unique, inconditionnellement stable
+### Architecture: one-way, unconditionally stable
 
-Les cordes étant linéaires, leur mouvement est la somme de deux réponses :
-1. la réponse au marteau (banc *primaire*, dont le couplage propre au chevalet est déjà dans les modes couplés) ;
-2. la réponse au mouvement du chevalet dû aux *autres* touches (banc *secondaire*, mêmes modes).
+Since the strings are linear, their motion is the sum of two responses:
+1. the response to the hammer (*primary* bank, whose own bridge coupling is already in the coupled modes);
+2. the response to the bridge motion caused by the *other* keys (*secondary* bank, same modes).
 
-Seules les forces primaires font bouger le chevalet pour les cordes. Il n'y a donc aucune boucle de rétroaction : le système est stable pour tout gain, comme chez Bank, Zambon et Fontana (2010). Les deux réponses rayonnent. On néglige la résonance de second ordre, quand une corde excitée par sympathie en excite une troisième.
+Only the primary forces move the bridge for the strings. There is therefore no feedback loop: the system is stable for any gain, as in Bank, Zambon and Fontana (2010). Both responses radiate. Second-order resonance, where a sympathetically excited string excites a third one, is neglected.
 
-**Table unique multi-entrées / multi-sorties** (`board.rs`) :
-- Un seul banc de 1 083 modes avec 16 entrées (forces par zone du chevalet) et 18 sorties (2 micros, plus la vitesse du chevalet aux 16 points de zone).
-- Il remplace les 16 bancs de la phase 4.
-- Un second banc reçoit les forces sympathiques et ne sert qu'aux micros.
+**Single multi-input / multi-output board** (`board.rs`):
+- A single bank of 1,083 modes with 16 inputs (forces per bridge zone) and 18 outputs (2 microphones, plus the bridge velocity at the 16 zone points).
+- It replaces the 16 banks of phase 4.
+- A second bank receives the sympathetic forces and feeds only the microphones.
 
-**Excitation d'une corde par son extrémité mobile.** L'équation des ondes avec y(0, t) = u(t) donne la force modale exacte −(μL/kπ)·ü. Par corde et pour une entrée d'accélération réelle, le gain vaut i·2·dt/(kπ·ω_k).
+**Excitation of a string through its moving end.** The wave equation with y(0, t) = u(t) gives the exact modal force −(μL/kπ)·ü. Per string and for a real acceleration input, the gain is i·2·dt/(kπ·ω_k).
 
-Cette forme en accélération est indispensable. La forme w_k·u, proportionnelle au déplacement, n'est juste qu'à la résonance. Hors résonance, elle fait suivre aux modes le mouvement lent de la table, c'est-à-dire la déformée statique, et la somme sur k produit une force parasite énorme.
+This acceleration form is essential. The w_k·u form, proportional to displacement, is correct only at resonance. Off resonance, it makes the modes follow the slow motion of the soundboard, that is, its static deflection, and the sum over k produces an enormous spurious force.
 
-**Soustraction de soi.** L'entrée d'une touche contient sa propre contribution, déjà comptée dans ses modes couplés. Elle est retirée par une seconde entrée, sa propre force multipliée par le transfert rendu H du banc de table, évalué à la fréquence exacte de chaque mode couplé. Dans l'aigu, cette boucle propre est forte : sans soustraction, la réponse sympathique de E7 dépasserait sa vibration directe de 13 dB. Avec, elle reste 27 dB en dessous.
+**Self-subtraction.** The input of a key contains its own contribution, already counted in its coupled modes. It is removed by a second input, its own force multiplied by the rendered transfer H of the soundboard bank, evaluated at the exact frequency of each coupled mode. In the treble, this self loop is strong: without subtraction, the sympathetic response of E7 would exceed its direct vibration by 13 dB. With it, it stays 27 dB below.
 
-**Retard et phase.** La table est traitée après les cordes : leur entrée arrive donc avec un retard. Le moteur travaille en sous-blocs de 64 échantillons, avec des tampons circulaires qui rendent ce retard *exactement* constant (64,5 échantillons, en comptant la différence finie qui donne l'accélération). Chaque gain d'entrée est avancé de e^{iω·D} : à la fréquence du mode, le couplage garde sa phase physique.
+**Delay and phase.** The soundboard is processed after the strings, so their input arrives with a delay. The engine works in sub-blocks of 64 samples, with circular buffers that make this delay *exactly* constant (64.5 samples, counting the finite difference that gives the acceleration). Each input gain is advanced by e^{iω·D}: at the mode frequency, the coupling keeps its physical phase.
 
-**Cordes à l'écoute.**
-- Quand la pédale lève les étouffoirs, chaque touche reçoit une corde « à l'écoute ». Ces cordes sont créées 8 par sous-bloc, pour lisser le coût.
-- Elles ne font tourner que leurs partiels sous 5 kHz.
-- Les touches sans étouffoir écoutent en permanence.
+**Listening strings.**
+- When the pedal lifts the dampers, each key receives a “listening” string. These strings are created 8 per sub-block, to smooth the cost.
+- They run only their partials below 5 kHz.
+- Keys without a damper listen permanently.
 
-Résultat (pédale enfoncée, C3 bref) : énergie sympathique 3,0 pour l'octave C4, 1,7·10⁻² pour la douzième G4, 1,5·10⁻⁴ pour le demi-ton C#4. Dans la démo « halo », on mesure −45 dB après l'accord sans pédale, contre −28 dB avec.
+Result (pedal down, short C3): sympathetic energy 3.0 for the octave C4, 1.7·10⁻² for the twelfth G4, 1.5·10⁻⁴ for the semitone C#4. In the “halo” demo, we measure −45 dB after the chord without pedal, versus −28 dB with.
 
-### Erreurs trouvées en chemin
+### Mistakes found along the way
 
-1. **Boucle fermée retardée.** La première version (les cordes réinjectent dans la table qui les excite) divergeait avec deux cordes à l'écoute quelconques. Un retard d'un bloc fait tourner la phase du couplage, et la dissipation devient amplification. D'où le sens unique.
-2. **Bride passive.** Le couplage croisé entre polarisations calé en phase 2 (0,5·ε avec un couplage horizontal de 0,1·ε) violait ε_X² ≤ ε_V·ε_H : le chevalet n'était plus passif. Avec la table modale, certains modes avaient alors un amortissement *négatif*. Correction : couplage horizontal 0,3, croisé 0,5 (second meilleur réglage de la phase 2, score quasi identique), avec un écrêtage automatique (`passive_cross`). Un test vérifie que tous les modes de l'instrument complet décroissent.
-3. **Discrétisation de la table.** L'invariance impulsionnelle compte en entier, au premier échantillon, le saut de vitesse qu'un choc impose à chaque mode. Cela ajoutait une constante parasite par mode, et sur 1 000 modes la conductance rendue à 80 Hz était 20 fois trop forte. Un terme direct de correction est ajouté, au rendu comme dans le transfert H. Un test vérifie maintenant que la mobilité rendue reste à 8 % près de la mobilité continue.
-4. **Performance.** Le noyau multi-sorties était environ 30 fois trop lent. Le passer en deux passes (récurrence avec historique en L1, puis sorties en flux) ne suffisait pas : le code AVX-512 généré par LLVM pour ce noyau reste environ 10 fois plus lent que le code AVX2 sur Zen 5. La table tourne donc en AVX2.
+1. **Delayed closed loop.** The first version (the strings feed back into the soundboard that excites them) diverged with any two listening strings. A one-block delay rotates the phase of the coupling, and dissipation becomes amplification. Hence the one-way design.
+2. **Passivity constraint.** The cross-polarisation coupling tuned in phase 2 (0.5·ε with a horizontal coupling of 0.1·ε) violated ε_X² ≤ ε_V·ε_H: the bridge was no longer passive. With the modal soundboard, some modes then had *negative* damping. Fix: horizontal coupling 0.3, cross coupling 0.5 (second-best setting from phase 2, nearly identical score), with automatic clipping (`passive_cross`). A test checks that all modes of the complete instrument decay.
+3. **Soundboard discretisation.** Impulse invariance counts in full, at the first sample, the velocity jump that an impact imposes on each mode. This added a spurious constant per mode, and over 1,000 modes the rendered conductance at 80 Hz was 20 times too high. A direct correction term is added, in the rendering as in the transfer H. A test now checks that the rendered mobility stays within 8 % of the continuous mobility.
+4. **Performance.** The multi-output kernel was about 30 times too slow. Splitting it into two passes (recursion with history in L1, then streamed outputs) was not enough: the AVX-512 code generated by LLVM for this kernel remains about 10 times slower than the AVX2 code on Zen 5. The soundboard therefore runs in AVX2.
 
-## Coût
+## Cost
 
-Pire cas : clavier entier à vélocité 127, une note toutes les 30 ms, pédale enfoncée, 88 voix primaires et secondaires, deux bancs de table. On mesure **4,65× le temps réel, soit 22 % d'un cœur**, dont environ 9 % pour la sympathie. La construction de l'instrument prend 0,8 s, dont le transfert de soi calculé mode par mode.
+Worst case: whole keyboard at velocity 127, one note every 30 ms, pedal down, 88 primary and secondary voices, two soundboard banks. We measure **4.65× real time, i.e. 22 % of a core**, of which about 9 % is sympathy. Building the instrument takes 0.8 s, including the self transfer computed mode by mode.
 
-## Ce qui reste ouvert
+## What remains open
 
-- Le niveau absolu de la résonance sympathique n'est pas calé sur des mesures. Les échantillons « résonance au relâchement » de Salamander mêlent étouffoirs et sympathie. Le sens unique néglige la réaction en retour : il surestime un peu la réponse des cordes très couplées, celles de l'aigu.
-- Pas de bruits d'étouffoir ni de pédale : c'est la phase 5, mimétique.
-- La loi de demi-pédale (point de contact 0,4, exposant 1,5) est générique.
+- The absolute level of sympathetic resonance is not matched to measurements. Salamander's “release resonance” samples mix dampers and sympathy. The one-way design neglects the back-reaction: it slightly overestimates the response of very strongly coupled strings, those of the treble.
+- No damper or pedal noises: that is phase 5, mimetic.
+- The half-pedal law (contact point 0.4, exponent 1.5) is generic.
 
-## Démos et commandes
+## Demos and commands
 
 ```bash
 python3 -I tools/make_demo_midi.py out/demos
@@ -89,4 +89,4 @@ cargo run --release -p piano-core --example stress_cost
 cargo run --release -p piano-core --example sympathy_debug
 ```
 
-Démos rendues : `pedal_halo` (même accord sans puis avec pédale), `half_pedal` (relâchements pédale levée, à mi-course, enfoncée), `una_corda` (accord normal puis una corda), `sostenuto` (C2 tenu sous une mélodie étouffée).
+Rendered demos: `pedal_halo` (same chord without then with pedal), `half_pedal` (releases with pedal up, at half travel, down), `una_corda` (normal chord then una corda), `sostenuto` (C2 held under a damped melody).

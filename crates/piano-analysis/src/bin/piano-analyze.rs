@@ -79,8 +79,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     if a.esprit > 0 {
-        println!("\nComposantes (ESPRIT en sous-bande, amplitudes extrapolées au début du segment)");
-        println!("  k  rang   freq Hz   cents/princ.   T60 s   dB/princ.");
+        println!("\nComponents (sub-band ESPRIT, amplitudes extrapolated to the start of the segment)");
+        println!("  k  rank    freq Hz    cents/main   T60 s    dB/main");
         let seg = (0.05 * sr) as usize;
         let spec = esprit::SegmentSpectrum::new(tail, sr, seg, (tail.len() - seg.min(tail.len())).min((12.0 * sr) as usize));
         let dur = (spec.duration() - 0.3).clamp(0.4, 10.0);

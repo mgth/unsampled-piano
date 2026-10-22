@@ -1,98 +1,98 @@
-# Phase 2 — unissons couplés au chevalet
+# Phase 2 — unisons coupled at the bridge
 
-État au 2026-10-21. Chaque touche a 1 à 3 cordes, chacune avec ses deux polarisations, couplées par l'admittance du chevalet. On obtient la double décroissance (prompt sound / aftersound) et les battements, calés sur Salamander.
+Status as of 2026-10-21. Each key has 1 to 3 strings, each with its two polarisations, coupled through the bridge admittance. This gives the double decay (prompt sound / aftersound) and the beats, matched to Salamander.
 
-## Modèle
+## Model
 
-**Couplage de Weinreich** (`unison.rs`). Pour un partiel k, chaque oscillateur (corde j, polarisation verticale ou horizontale) suit ζ̇ = d·ζ avec d = −σ0 + iω. Le chevalet, qui bouge sous la somme des forces des cordes, renvoie la même excitation à toutes :
+**Weinreich coupling** (`unison.rs`). For a partial k, each oscillator (string j, vertical or horizontal polarisation) follows ζ̇ = d·ζ with d = −σ0 + iω. The bridge, which moves under the sum of the string forces, feeds the same excitation back to all of them:
 
 ```text
 A = diag(d) − ε_V·1_V·1_Vᵀ − ε_H·1_H·1_Hᵀ − ε_X·(1_V·1_Hᵀ + 1_H·1_Vᵀ),   ε_V = (T/L)·Y(f)
 ```
 
-- Re ε_V est la perte d'une corde au chevalet ; Im ε_V écarte les fréquences.
-- ε_H et ε_X valent 0,1·ε_V et 0,5·ε_V. La partie horizontale du chevalet est beaucoup plus raide, et le terme croisé (bascule du chevalet) transfère l'énergie entre polarisations.
-- A est complexe symétrique. Ses vecteurs propres se normalisent en Vᵀ·V = I, donc V⁻¹ = Vᵀ.
-- Solveur général jusqu'à 6×6, sans allocation : polynôme caractéristique de la matrice centrée (Faddeev–LeVerrier), racines de Durand–Kerner, affinage par itération inverse et quotient de Rayleigh.
-- Centrer est indispensable : les valeurs propres valent ~10⁴ rad/s mais ne diffèrent que de ~10⁻².
-- La table complète (88 notes, ≤ 768 modes couplés chacune) est précalculée en 33 ms à la création du moteur (`note_model.rs`). Une frappe ne fait que copier.
-- Sur tout le piano : |V_jm| ≤ 1,13, donc aucun point exceptionnel ni annulation catastrophique en f32.
+- Re ε_V is the loss of one string at the bridge; Im ε_V spreads the frequencies apart.
+- ε_H and ε_X equal 0.1·ε_V and 0.5·ε_V. The horizontal part of the bridge is much stiffer, and the cross term (bridge rocking) transfers energy between polarisations.
+- A is complex symmetric. Its eigenvectors are normalised so that Vᵀ·V = I, hence V⁻¹ = Vᵀ.
+- General solver up to 6×6, allocation-free: characteristic polynomial of the centred matrix (Faddeev–LeVerrier), Durand–Kerner roots, refinement by inverse iteration and Rayleigh quotient.
+- Centring is essential: the eigenvalues are ~10⁴ rad/s but differ only by ~10⁻².
+- The complete table (88 notes, ≤ 768 coupled modes each) is precomputed in 33 ms when the engine is created (`note_model.rs`). A strike only copies.
+- Over the whole piano: |V_jm| ≤ 1.13, so no exceptional point and no catastrophic cancellation in f32.
 
-**Rendu** (`voice.rs`, `modal.rs`).
-- Le banc SIMD fait tourner les modes couplés, avec des poids de sortie complexes : force au chevalet = Re(w·z).
-- Pendant le contact du marteau (quelques ms), le solveur fait évoluer les oscillateurs physiques non couplés : le couplage agit sur 1/|ε| ≈ 0,1–1 s.
-- À la fin du contact, l'état est rendu au banc par c = Vᵀ·ζ.
-- Une refrappe fait l'inverse : ζ = V·c.
+**Rendering** (`voice.rs`, `modal.rs`).
+- The SIMD bank runs the coupled modes, with complex output weights: bridge force = Re(w·z).
+- During hammer contact (a few ms), the solver evolves the uncoupled physical oscillators: the coupling acts over 1/|ε| ≈ 0.1–1 s.
+- At the end of contact, the state is handed back to the bank via c = Vᵀ·ζ.
+- A restrike does the reverse: ζ = V·c.
 
-## Une mesure physique tirée des enregistrements : la conductance du chevalet
+## A physical measurement drawn from the recordings: the bridge conductance
 
-Si le modèle est juste, la différence de décroissance entre prompt et aftersound mesurée par ESPRIT, Δσ = N·(T/L)·G(f), doit donner une conductance G = Δσ·L/(N·T) qui ne dépend que de la fréquence (`tools/bridge_conductance.py`).
+If the model is right, the difference in decay between prompt sound and aftersound measured by ESPRIT, Δσ = N·(T/L)·G(f), must give a conductance G = Δσ·L/(N·T) that depends only on frequency (`tools/bridge_conductance.py`).
 
 ![conductance](img/bridge_conductance.png)
 
-- Δσ varie de 0,1 à 30 s⁻¹. G, lui, est presque plat : G(f) ≈ 4,6·10⁻⁴·(f/1 kHz)^0,11 s/kg.
-- C'est le même ordre de grandeur que la mobilité moyenne mesurée sur une table par Ege et al. (2013), 1,3·10⁻³ s/kg.
-- La dispersion résiduelle, un facteur ≈ 2,5, est la signature attendue des modes de la table d'harmonie (phase 4).
-- Ce G mesuré sert directement de paramètre du modèle.
+- Δσ varies from 0.1 to 30 s⁻¹. G, on the other hand, is almost flat: G(f) ≈ 4.6·10⁻⁴·(f/1 kHz)^0.11 s/kg.
+- This is the same order of magnitude as the mean mobility measured on a soundboard by Ege et al. (2013), 1.3·10⁻³ s/kg.
+- The residual scatter, a factor ≈ 2.5, is the expected signature of the soundboard modes (phase 4).
+- This measured G is used directly as a model parameter.
 
-## Calibrage sur les statistiques ESPRIT
+## Calibration on the ESPRIT statistics
 
-Les rendus du modèle passent par exactement la même chaîne d'analyse que les enregistrements (`tools/unison_trial.sh` : `piano-eval --write-wav`, puis `piano-survey --esprit`, puis `esprit_summary.py`). Les recherches sur grille (`tools/unison_grid.py`, `tools/pol_grid.py`) ont fixé :
+The model renders go through exactly the same analysis chain as the recordings (`tools/unison_trial.sh`: `piano-eval --write-wav`, then `piano-survey --esprit`, then `esprit_summary.py`). The grid searches (`tools/unison_grid.py`, `tools/pol_grid.py`) set:
 
-| Paramètre | Valeur | Remarque |
+| Parameter | Value | Remark |
 |---|---|---|
-| Largeur d'unisson (écart entre cordes extrêmes) | 1 cent jusqu'à C4 → 5 cents à C8 | répartition irrégulière par note |
-| Im Y / Re Y | 1,5 | l'écart de fréquences dans l'unisson exige une partie imaginaire |
-| G (conductance) | mesurée, sans correction | le facteur ×0,7 ou ×1,6 dégrade le score |
-| Polarisation horizontale | couplage 0,1·ε, transfert 0,5·ε, +0,3 cent, rayonnement 10 %, marteau incliné 5 % | |
-| Pertes propres des cordes | loi de l'aftersound ESPRIT | `LossLaw::SALAMANDER_STRING` |
+| Unison width (spread between outermost strings) | 1 cent up to C4 → 5 cents at C8 | irregular distribution per note |
+| Im Y / Re Y | 1.5 | the frequency spread within the unison requires an imaginary part |
+| G (conductance) | measured, uncorrected | a factor of ×0.7 or ×1.6 degrades the score |
+| Horizontal polarisation | coupling 0.1·ε, transfer 0.5·ε, +0.3 cent, radiation 10 %, hammer tilted 5 % | |
+| Intrinsic string losses | ESPRIT aftersound law | `LossLaw::SALAMANDER_STRING` |
 
-![unissons](img/phase2_unison.png)
+![unisons](img/phase2_unison.png)
 
-**Écarts médians au modèle (couches ≥ 8, partiels k ≤ 12).**
+**Median deviations from the model (layers ≥ 8, partials k ≤ 12).**
 
-| Grandeur | Écart médian |
+| Quantity | Median deviation |
 |---|---|
-| T60 du prompt | 21 % |
-| T60 de l'aftersound | 27 % |
-| Niveau de l'aftersound | 2,1 dB |
-| Étendue en cents | 0,5 cent |
-| Notes à une corde (A0–D#1) : T60 de l'aftersound | 11 % |
-| Notes à une corde (A0–D#1) : niveau de l'aftersound | 1,7 dB |
+| Prompt T60 | 21 % |
+| Aftersound T60 | 27 % |
+| Aftersound level | 2.1 dB |
+| Spread in cents | 0.5 cent |
+| Single-string notes (A0–D#1): aftersound T60 | 11 % |
+| Single-string notes (A0–D#1): aftersound level | 1.7 dB |
 
-Sans la polarisation horizontale, ces notes n'ont aucun aftersound et le score global passe de 2,41 à 5,85.
+Without the horizontal polarisation, these notes have no aftersound at all and the overall score goes from 2.41 to 5.85.
 
-**Ce qui reste.**
-- Dans l'aigu, l'étendue mesurée en cents est irrégulière (accordage réel), celle du modèle lisse.
-- Dans l'aigu, l'aftersound de quelques notes (A6, C7, A7) tombe trop bas.
-- Le T60 du prompt des notes à une corde est 1,7× trop long : les pertes au chevalet des cordes filées graves ne suivent pas la loi T/L générique.
+**What remains.**
+- In the treble, the measured spread in cents is irregular (real tuning), the model's is smooth.
+- In the treble, the aftersound of a few notes (A6, C7, A7) drops too low.
+- The prompt T60 of single-string notes is 1.7× too long: the bridge losses of the wound bass strings do not follow the generic T/L law.
 
-## Comparaison spectrale
+## Spectral comparison
 
 ![phase 2](img/phase2_eval.png)
 
-- **Métrique de profil corrigée.** L'ancienne normalisait chaque profil sur son partiel le plus fort. Quand le suivi de partiels perdait ce partiel, tout le profil se décalait, d'où un 8,5 dB peu fiable en phase 1. La nouvelle compare les niveaux des partiels communs à une constante près.
-- **Suivi de partiels corrigé.** Le plancher du rejet des aberrants était de 0,05 cent. Il est relevé à 0,5 cent : le couplage au chevalet décale légèrement les partiels bas, comme sur un vrai piano.
-- Avec ces deux corrections, l'écart de profil médian est de **5,5 dB**. La configuration équivalente à la phase 1 donne 5,8 dB.
-- Par note, l'écart va de 2,9 à 7 dB dans le grave et le médium, et de 6 à 14 dB dans l'aigu (A7 : 14,3 dB).
-- Le reste est attendu de la table d'harmonie, du rayonnement et d'une vraie échelle de cordes.
-- Dynamique et brillance restent calées : centroïde ×1,59 en fortissimo contre ×1,51 pour la référence, ×0,69 contre ×0,65 en pianissimo. Le marteau n'a pas eu besoin d'être recalé.
+- **Profile metric corrected.** The old one normalised each profile to its strongest partial. When the partial tracker lost that partial, the whole profile shifted, hence an unreliable 8.5 dB in phase 1. The new one compares the levels of the common partials up to a constant.
+- **Partial tracking corrected.** The floor of the outlier rejection was 0.05 cent. It is raised to 0.5 cent: the bridge coupling slightly shifts the low partials, as on a real piano.
+- With these two corrections, the median profile deviation is **5.5 dB**. The configuration equivalent to phase 1 gives 5.8 dB.
+- Per note, the deviation ranges from 2.9 to 7 dB in the bass and middle, and from 6 to 14 dB in the treble (A7: 14.3 dB).
+- The rest is expected from the soundboard, radiation and a real string scale.
+- Dynamics and brightness remain matched: centroid ×1.59 in fortissimo versus ×1.51 for the reference, ×0.69 versus ×0.65 in pianissimo. The hammer did not need to be recalibrated.
 
-## Coût
+## Cost
 
-Clavier entier à vélocité 127, une note toutes les 30 ms, pédale enfoncée : 88 voix (256 à 768 modes couplés chacune) rendues 15,9 fois plus vite que le temps réel sur un seul thread, soit ≈ 6 % d'un cœur Zen 5. Le gain de sortie est abaissé de 6 dB : crête −1,2 dBFS dans ce pire cas.
+Whole keyboard at velocity 127, one note every 30 ms, pedal down: 88 voices (256 to 768 coupled modes each) rendered 15.9 times faster than real time on a single thread, i.e. ≈ 6 % of a Zen 5 core. The output gain is lowered by 6 dB: peak −1.2 dBFS in this worst case.
 
-## Pistes
+## Next steps
 
-1. **Phase 3** : étouffoirs physiques, demi-pédale, sostenuto, una corda (le marteau ne frappe que 2 des 3 cordes : déjà prévu par le champ `hit` du solveur), résonance sympathique par le chevalet.
-2. **Phase 4** : table d'harmonie modale. Elle remplacera la loi lisse G(f) par une vraie admittance avec ses pics et ses creux. C'est la principale source d'écart restante, en spectre comme en décroissance.
-3. Pertes spécifiques aux cordes filées graves, et échelle de cordes réelle.
+1. **Phase 3**: physical dampers, half-pedal, sostenuto, una corda (the hammer strikes only 2 of the 3 strings: already provided for by the solver's `hit` field), sympathetic resonance through the bridge.
+2. **Phase 4**: modal soundboard. It will replace the smooth law G(f) with a real admittance with its peaks and dips. This is the main remaining source of deviation, in spectrum as in decay.
+3. Losses specific to the wound bass strings, and a real string scale.
 
-## Commandes
+## Commands
 
 ```bash
 cargo test --workspace
-tools/unison_trial.sh essai --unison-mid=1.0 --bridge-b-over-g=1.5
+tools/unison_trial.sh trial --unison-mid=1.0 --bridge-b-over-g=1.5
 python3 -I tools/unison_grid.py
 python3 -I tools/pol_grid.py
 python3 -I tools/bridge_conductance.py out/salamander/components.csv

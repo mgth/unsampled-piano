@@ -1,147 +1,147 @@
-# Comparaison avec Salamander, l'Iowa et un piano modélisé commercial
+# Comparison with Salamander, the Iowa and a commercial modelled piano
 
-État au 2026-10-22.
+Status as of 2026-10-22.
 
-## Protocole
+## Protocol
 
-Chaque source joue la même série de notes : une touche sur trois à partir de la0 (les 30 notes de Salamander), aux vélocités 40, 60 et 100, rangées comme les couches 4, 8 et 13 de Salamander. La touche est tenue 4 s, et l'enregistrement est découpé en fichiers `<note>v<couche>.wav`.
+Each source plays the same series of notes: every third key starting from A0 (Salamander's 30 notes), at velocities 40, 60 and 100, filed like Salamander's layers 4, 8 and 13. The key is held for 4 s, and the recording is split into `<note>v<layer>.wav` files.
 
-| Source | Instrument | Prise de son |
+| Source | Instrument | Recording |
 |---|---|---|
-| Salamander | Yamaha C5, échantillons | couches de l'échantillonneur |
-| Iowa MIS (`data/iowa/`) | Steinway modèle B, pp/mf/ff | micros à 20 cm au-dessus des cordes |
-| Commercial | piano modélisé commercial, préréglage chargé, sans réverbération | joué en temps réel par `unsampled-piano --midi-out "<port>"`, enregistré par `jack_rec` |
-| Modèle | rendu hors ligne | sans salle |
+| Salamander | Yamaha C5, samples | sampler layers |
+| Iowa MIS (`data/iowa/`) | Steinway model B, pp/mf/ff | microphones 20 cm above the strings |
+| Commercial | commercial modelled piano, preset loaded, no reverb | played in real time by `unsampled-piano --midi-out "<port>"`, recorded by `jack_rec` |
+| Model | offline render | no room |
 
-Le piano commercial ne retombe au silence numérique qu'après le relâchement des touches : il n'y a donc pas de réverbération à soustraire.
+The commercial piano only falls back to digital silence after the keys are released: there is therefore no reverb to subtract.
 
-Outils, dans l'ordre d'utilisation :
-- `tools/note_sequence_midi.py` génère la séquence ;
-- `tools/split_notes.py` découpe et convertit ;
-- `tools/compare_sources.py` calcule tenue, profil des partiels, brillance et dynamique ;
-- `piano-survey` mesure inharmonicité et décroissances ;
-- `examples/hammer_stats.rs` donne le contact du marteau.
+Tools, in order of use:
+- `tools/note_sequence_midi.py` generates the sequence;
+- `tools/split_notes.py` splits and converts;
+- `tools/compare_sources.py` computes sustain, partial profile, brightness and dynamics;
+- `piano-survey` measures inharmonicity and decays;
+- `examples/hammer_stats.rs` gives the hammer contact.
 
-## Constats
+## Findings
 
-### 1. Le contact marteau–cordes des unissons était faux (cause principale)
+### 1. The hammer–string contact of the unisons was wrong (main cause)
 
-Les profils de partiels du modèle ne bougeaient presque pas quand on changeait la dureté du feutre (×8,6), son exposant ou son hystérésis. Le contact non plus : 5 ms et 15 N pour do4 ff, quelle que soit la dureté. La littérature (Askenfelt & Jansson, Chaigne & Askenfelt) donne environ 2 ms et plusieurs dizaines de newtons.
+The model's partial profiles barely moved when the felt hardness (×8.6), its exponent or its hysteresis were changed. Neither did the contact: 5 ms and 15 N for C4 ff, whatever the hardness. The literature (Askenfelt & Jansson, Chaigne & Askenfelt) gives about 2 ms and several tens of newtons.
 
-La cause : le solveur sommait les déplacements des 2 ou 3 cordes d'un unisson, et le feutre comprimait cette somme. Les cordes étaient donc en série, alors que sous un feutre elles sont en parallèle. Le marteau voyait des cordes N² fois trop souples (×4 pour deux cordes, ×9 pour trois). La calibration avait compensé comme elle pouvait : dureté 0,35, exposant −0,5.
+The cause: the solver summed the displacements of the 2 or 3 strings of a unison, and the felt compressed this sum. The strings were therefore in series, whereas under a felt they are in parallel. The hammer saw strings N² times too compliant (×4 for two strings, ×9 for three). The calibration had compensated as best it could: hardness 0.35, exponent −0.5.
 
-Correctif (appliqué, voir plus bas) : le feutre presse sur le déplacement moyen des cordes, chaque corde recevant sa part de la force. Contact obtenu :
+Fix (applied, see below): the felt presses on the mean displacement of the strings, each string receiving its share of the force. Resulting contact:
 
-| Note | Durée | Force |
+| Note | Duration | Force |
 |---|---|---|
-| do4 ff | 1,9 ms | 39 N |
-| do4 pp | 2,7 ms | 8 N |
-| la1 ff | 3,7 ms | 36 N |
+| C4 ff | 1.9 ms | 39 N |
+| C4 pp | 2.7 ms | 8 N |
+| A1 ff | 3.7 ms | 36 N |
 
-La dureté du feutre recommence à agir. Profil de l'attaque ff (partiels 2 et 3 en dB par rapport au partiel 1) :
+The felt hardness takes effect again. Profile of the ff attack (partials 2 and 3 in dB relative to partial 1):
 
-| Registre | Salamander | Iowa | Commercial | Avant | Corrigé |
+| Register | Salamander | Iowa | Commercial | Before | Fixed |
 |---|---|---|---|---|---|
-| grave | +6 / +3 | +9 / +14 | +4 / +3 | +2 / −6 | +10 / +8 |
-| médium | −2 / −13 | +5 / −3 | −2 / −6 | −11 / −10 | −3 / −10 |
-| aigu | −19 / −26 | −22 / −34 | −17 / −26 | −13 / −20 | −20 / −26 |
+| bass | +6 / +3 | +9 / +14 | +4 / +3 | +2 / −6 | +10 / +8 |
+| middle | −2 / −13 | +5 / −3 | −2 / −6 | −11 / −10 | −3 / −10 |
+| treble | −19 / −26 | −22 / −34 | −17 / −26 | −13 / −20 | −20 / −26 |
 
-Le timbre de l'attaque rejoint les références dans tous les registres : le grave et le médium s'éclaircissent, l'aigu, auparavant trop brillant, s'adoucit.
+The attack timbre now matches the references in all registers: the bass and middle get brighter, and the treble, previously too bright, softens.
 
-Reste à recalibrer :
-- dureté, exposant et carte des vélocités ;
-- niveau : +2 à +3 dB au grave et au médium, jusqu'à +8 dB à do6 ff ;
-- suraigu aux nuances douces : C8 pp et mf perdent 6 à 9 dB, et l'écart ff − pp monte à +36 dB contre +13 à +25 dB dans les références ;
+Still to recalibrate:
+- hardness, exponent and velocity map;
+- level: +2 to +3 dB in the bass and middle, up to +8 dB at C6 ff;
+- top treble at soft dynamics: C8 pp and mf lose 6 to 9 dB, and the ff − pp difference rises to +36 dB versus +13 to +25 dB in the references;
 - una corda.
 
-### 2. Dans le grave, les partiels supérieurs s'éteignent trop vite
+### 2. In the bass, the upper partials die out too quickly
 
-T60 médian (s) du début de décroissance, ff, partiels 1–4 / 5–12 :
+Median T60 (s) at the start of the decay, ff, partials 1–4 / 5–12:
 
-| Registre | Salamander | Iowa | Commercial | Modèle |
+| Register | Salamander | Iowa | Commercial | Model |
 |---|---|---|---|---|
-| grave | 9,5 / 6,8 | 6,5 / 5,1 | 9,5 / 7,7 | **12,8 / 3,9** |
-| médium | 2,6 / 2,3 | 2,0 / 1,3 | 2,9 / 2,6 | 2,1 / 1,3 |
-| aigu | 1,0 / 0,4 | 0,8 / 0,3 | 0,9 / 0,4 | 1,0 / 0,6 |
+| bass | 9.5 / 6.8 | 6.5 / 5.1 | 9.5 / 7.7 | **12.8 / 3.9** |
+| middle | 2.6 / 2.3 | 2.0 / 1.3 | 2.9 / 2.6 | 2.1 / 1.3 |
+| treble | 1.0 / 0.4 | 0.8 / 0.3 | 0.9 / 0.4 | 1.0 / 0.6 |
 
-Dans le grave, les fondamentales tiennent trop longtemps et les partiels 5 à 12 meurent deux fois trop vite. Pendant la tenue (0,5–1 s), la fondamentale domine donc de 10 à 20 dB : c'est le grave « en tonneau » et le son « doux ». Même corrigé, le contact ne rattrape pas cet écart : le profil de la tenue du grave reste entre −13 et −25 dB sur les partiels 4 à 12.
+In the bass, the fundamentals last too long and partials 5 to 12 die twice as fast as they should. During the sustain (0.5–1 s), the fundamental therefore dominates by 10 to 20 dB: this is the “barrel-like” bass and the “soft” sound. Even once fixed, the contact does not make up this gap: the bass sustain profile stays between −13 and −25 dB on partials 4 to 12.
 
-Il faut revoir la dépendance en fréquence des pertes des cordes graves : le plancher `b1_floor`, constant, est remplacé par des pertes qui croissent avec la fréquence pour les cordes filées. Il faut aussi revoir la conductance du chevalet grave entre 150 Hz et 1,5 kHz.
+The frequency dependence of the bass string losses needs revisiting: the constant `b1_floor` is replaced by losses that increase with frequency for the wound strings. The bass bridge conductance between 150 Hz and 1.5 kHz also needs revisiting.
 
-### 3. Le timbre change trop peu avec la nuance
+### 3. The timbre changes too little with dynamics
 
-Rapport de brillance de l'attaque ff/pp :
+ff/pp attack brightness ratio:
 
-| Registre | Iowa | Commercial | Modèle (avant ou corrigé) |
+| Register | Iowa | Commercial | Model (before or fixed) |
 |---|---|---|---|
-| grave | ×1,8 | ×2,1 | ×1,2 |
-| médium | ×1,5 | ×1,8 | ×1,25 |
+| bass | ×1.8 | ×2.1 | ×1.2 |
+| middle | ×1.5 | ×1.8 | ×1.25 |
 
-Le jeu sonne uniforme. C'est l'affaire de l'exposant et de l'hystérésis du feutre, à recalibrer une fois le contact corrigé, sur l'Iowa et le piano commercial : Salamander a lui-même un rapport plat (×1,2).
+The playing sounds uniform. This is a matter for the felt exponent and hysteresis, to be recalibrated once the contact is fixed, against the Iowa and the commercial piano: Salamander itself has a flat ratio (×1.2).
 
-### 4. Ce qui est déjà en place
+### 4. What is already in place
 
-- **Inharmonicité B** : 9e-5 au grave, 2,5e-4 au médium, 2e-3 à l'aigu, conforme aux trois références.
-- **Dynamique ff − mf** : 8 à 10 dB, entre Salamander et Iowa, proche du piano commercial.
-- **Tenue du grave et du médium** jusqu'à 1 s : dans la fourchette des références.
+- **Inharmonicity B**: 9e-5 in the bass, 2.5e-4 in the middle, 2e-3 in the treble, consistent with the three references.
+- **Dynamics ff − mf**: 8 to 10 dB, between Salamander and Iowa, close to the commercial piano.
+- **Bass and middle sustain** up to 1 s: within the range of the references.
 
-### 5. Écarts connus, non mesurés ici
+### 5. Known gaps, not measured here
 
-- Fin des notes aiguës entre 1 et 3 s, plus courte que Salamander et Iowa  ; le piano commercial est entre les deux.
-- Partiels fantômes et non-linéarités de la corde en jeu fort.
+- End of treble notes between 1 and 3 s, shorter than Salamander and Iowa; the commercial piano is in between.
+- Phantom partials and string non-linearities in loud playing.
 - Duplex.
-- Couplage sympathique passif.
+- Passive sympathetic coupling.
 
-## Recalibration du marteau (appliquée)
+## Hammer recalibration (applied)
 
-Le contact parallèle est dans `hammer.rs`, sans allocation : l'itérateur des modes est parcouru deux fois. Le marteau a ensuite été recalibré sur les trois références à la fois avec `tools/hammer_grid.sh` et `tools/hammer_score.py`. Le score est l'écart quadratique normalisé à la moyenne des références, avec pour tolérance leur dispersion, et au moins 3 dB. Il porte sur :
+The parallel contact is in `hammer.rs`, without allocation: the mode iterator is traversed twice. The hammer was then recalibrated against all three references at once with `tools/hammer_grid.sh` and `tools/hammer_score.py`. The score is the normalised quadratic deviation from the mean of the references, with their spread as the tolerance, and at least 3 dB. It covers:
 
-- le profil des partiels 2, 3, 4 et 6 à l'attaque, en ff et en mf ;
-- l'éclaircissement de l'attaque de pp à ff ;
-- la dynamique ff − pp et ff − mf, comparée à Salamander et au piano commercial seulement, car l'Iowa est joué en nuances et non en vélocités.
+- the profile of partials 2, 3, 4 and 6 at the attack, in ff and in mf;
+- the brightening of the attack from pp to ff;
+- the dynamics ff − pp and ff − mf, compared with Salamander and the commercial piano only, since the Iowa is played in dynamic markings rather than velocities.
 
 | | Score |
 |---|---|
-| avant | 9,3 |
-| contact corrigé, anciens réglages | 5,3 |
-| retenu | 1,9 |
+| before | 9.3 |
+| contact fixed, old settings | 5.3 |
+| chosen | 1.9 |
 
-Réglage retenu, environ 80 combinaisons essayées :
+Chosen setting, about 80 combinations tried:
 
-| Paramètre | Avant | Retenu |
+| Parameter | Before | Chosen |
 |---|---|---|
-| `hardness` | 0,35 | 0,7 |
-| `hardness_slope` | 0,02 | 0,05 (marteaux plus durs vers l'aigu) |
-| `p_offset` | −0,5 | +0,5 (p de 4,2 à 5,5, dans la plage de Stulov) |
-| `hysteresis` | 1 | 0,25 |
-| vélocité | 0,3–5,5 m/s | 0,6–3,0 m/s |
+| `hardness` | 0.35 | 0.7 |
+| `hardness_slope` | 0.02 | 0.05 (harder hammers towards the treble) |
+| `p_offset` | −0.5 | +0.5 (p from 4.2 to 5.5, within Stulov's range) |
+| `hysteresis` | 1 | 0.25 |
+| velocity | 0.3–5.5 m/s | 0.6–3.0 m/s |
 
-L'exposant +1 ou +2 gagnait 0,02 à 0,13 de score, mais sortait de la plage mesurée.
+An exponent of +1 or +2 gained 0.02 to 0.13 in score, but went outside the measured range.
 
-Sorties ramenées de −5,3 dB (`PRESSURE_GAIN` 1/22, `FORCE_GAIN` 1/440) : le Chopin garde sa crête de −18,5 dBFS, la Campanella monte à −14 dBFS. Tenue inchangée (`envelope_compare.py`).
+Outputs brought down by −5.3 dB (`PRESSURE_GAIN` 1/22, `FORCE_GAIN` 1/440): the Chopin keeps its peak of −18.5 dBFS, the Campanella rises to −14 dBFS. Sustain unchanged (`envelope_compare.py`).
 
-Contact obtenu, en durée et force de crête :
+Resulting contact, as duration and peak force:
 
 | Note | pp | ff |
 |---|---|---|
-| do4 | 2,4 ms, 11 N | 2,0 ms, 28 N |
-| la1 ff | — | 4,1 ms, 25 N |
-| do6 | 1,3 ms, 19 N | 1,1 ms, 45 N |
-| la7 | 0,8 ms, 36 N | 0,5 ms, 95 N |
+| C4 | 2.4 ms, 11 N | 2.0 ms, 28 N |
+| A1 ff | — | 4.1 ms, 25 N |
+| C6 | 1.3 ms, 19 N | 1.1 ms, 45 N |
+| A7 | 0.8 ms, 36 N | 0.5 ms, 95 N |
 
-Ce qui reste après recalibration :
+What remains after recalibration:
 
-- **Éclaircissement pp → ff trop faible** : ×1,14 au grave et au médium, contre ×1,2 à ×2,1 dans les références (moyenne ×1,5). Le resserrer élargirait encore la dynamique. Le modèle de feutre de Stulov seul ne donne pas assez de changement de timbre par décibel. Pistes : feutre à deux couches (cœur dur, surface douce), ou loi de raideur dépendant de la compression.
-- **Dynamique** un peu étroite au grave et au médium (6 à 7 dB pour ff − pp, contre 10) et un peu large au suraigu (16 contre 13).
-- **Partiel 4 du grave** 8 dB sous les références.
-- **Suraigu en mf** trop brillant (partiel 2 à −25 dB contre −35).
+- **pp → ff brightening too weak**: ×1.14 in the bass and middle, versus ×1.2 to ×2.1 in the references (mean ×1.5). Tightening it would widen the dynamics further. Stulov's felt model alone does not give enough timbre change per decibel. Leads: two-layer felt (hard core, soft surface), or a stiffness law depending on compression.
+- **Dynamics** slightly narrow in the bass and middle (6 to 7 dB for ff − pp, versus 10) and slightly wide in the top treble (16 versus 13).
+- **Bass partial 4** 8 dB below the references.
+- **Top treble in mf** too bright (partial 2 at −25 dB versus −35).
 
-## Priorités pour réduire l'écart
+## Priorities for closing the gap
 
-1. ~~Contact parallèle des unissons et recalibration du marteau~~ : fait.
-2. ~~Pertes des cordes graves~~ : fait en grande partie ([bass.md](bass.md)).
-3. **Changement de timbre avec la nuance** : le feutre est fait ([timbre_dynamics.md](timbre_dynamics.md)). Le grave demande la non-linéarité de la corde.
-4. Ensuite seulement, les ajouts de physique : non-linéarités de la corde, duplex, fin des notes aiguës, sympathie passive.
-5. ~~Tenue après la première seconde~~ : fait ([long_sustain.md](long_sustain.md)).
-6. ~~Rayonnement des fondamentales graves~~ : fait ([bass_radiation.md](bass_radiation.md)).
-7. Brillance de la tenue : en grande partie ([brightness.md](brightness.md)) ; reste le médium à 4–8 kHz.
+1. ~~Parallel unison contact and hammer recalibration~~: done.
+2. ~~Bass string losses~~: largely done ([bass.md](bass.md)).
+3. **Timbre change with dynamics**: the felt is done ([timbre_dynamics.md](timbre_dynamics.md)). The bass needs string non-linearity.
+4. Only then, the physics additions: string non-linearities, duplex, end of treble notes, passive sympathy.
+5. ~~Sustain after the first second~~: done ([long_sustain.md](long_sustain.md)).
+6. ~~Radiation of bass fundamentals~~: done ([bass_radiation.md](bass_radiation.md)).
+7. Sustain brightness: largely done ([brightness.md](brightness.md)); the middle at 4–8 kHz remains.

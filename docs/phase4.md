@@ -1,106 +1,106 @@
-# Phase 4 — table d'harmonie, rayonnement, micros
+# Phase 4 — soundboard, radiation, microphones
 
-État au 2026-10-21. La force au chevalet de chaque touche excite une table d'harmonie modale. Ses modes rayonnent vers deux micros (sortie stéréo), et la même table fournit l'admittance qui couple les cordes de chaque unisson.
+Status as of 2026-10-21. The bridge force of each key excites a modal soundboard. Its modes radiate to two microphones (stereo output), and the same soundboard provides the admittance that couples the strings of each unison.
 
-## Modèle
+## Model
 
-**Plaque** (`soundboard.rs`).
-- Plaque orthotrope (épicéa et barrages) de 1,7 × 1,3 m, encastrée dans la ceinture.
-- Fréquences par l'approximation de Warburton pour bords encastrés (m → m + ½), déformées approchées par des sinus normalisés en masse.
-- Facteur de pertes η = 2 % (Ege et al. 2013).
-- 1 083 modes sous 20 kHz, premier mode à 61 Hz, un mode tous les 21,6 Hz (Ege : 19,5 Hz).
-- Les bords simplement appuyés mettaient le premier mode à 27 Hz, pile sur la fondamentale de A0 : A0 ressortait alors 57 dB au-dessus de C4.
-- ρh/D fixe la densité modale ; ρh·D fixe le niveau de mobilité, calé sur les décroissances de Salamander (voir plus bas). Résultat : ρh = 7 kg/m², Dx = 3 825 N·m, Dy = 1 700 N·m, mobilité moyenne 9,4·10⁻⁴ s/kg, du même ordre que les 1,3·10⁻³ mesurés par Ege.
+**Plate** (`soundboard.rs`).
+- Orthotropic plate (spruce and ribs) of 1.7 × 1.3 m, clamped in the rim.
+- Frequencies from Warburton's approximation for clamped edges (m → m + ½), mode shapes approximated by mass-normalised sines.
+- Loss factor η = 2 % (Ege et al. 2013).
+- 1,083 modes below 20 kHz, first mode at 61 Hz, one mode every 21.6 Hz (Ege: 19.5 Hz).
+- Simply supported edges put the first mode at 27 Hz, right on the fundamental of A0: A0 then stood out 57 dB above C4.
+- ρh/D sets the modal density; ρh·D sets the mobility level, matched to the Salamander decays (see below). Result: ρh = 7 kg/m², Dx = 3,825 N·m, Dy = 1,700 N·m, mean mobility 9.4·10⁻⁴ s/kg, the same order as the 1.3·10⁻³ measured by Ege.
 
-**Admittance vue par les cordes.**
-- Y(x, ω) = Σ iω·Φ_n²/(ω_n² − ω² + iη·ω_n·ω), évaluée au point exact de chaque touche sur le chevalet (chevalet principal en ligne brisée, chevalet des basses séparé).
-- Une raideur série de 2·10⁷ N/m (pointes, chapeau du chevalet) y ajoute iω/k. C'est elle qui donne la partie réactive « ressort » que la phase 2 avait dû introduire comme Im Y = 1,5·Re Y.
-- Une masse locale du chevalet, Y/(1 + iω·m·Y), est disponible ; le calage la met à 0.
-- Le couplage ε = (T/L)·Y de chaque partiel porte maintenant les pics et creux de la table.
+**Admittance seen by the strings.**
+- Y(x, ω) = Σ iω·Φ_n²/(ω_n² − ω² + iη·ω_n·ω), evaluated at the exact point of each key on the bridge (main bridge as a broken line, separate bass bridge).
+- A series stiffness of 2·10⁷ N/m (bridge pins, bridge cap) adds iω/k. This is what provides the reactive “spring” part that phase 2 had to introduce as Im Y = 1.5·Re Y.
+- A local bridge mass, Y/(1 + iω·m·Y), is available; the calibration sets it to 0.
+- The coupling ε = (T/L)·Y of each partial now carries the peaks and dips of the soundboard.
 
-**Rayonnement** (`instrument.rs`).
-- Pour chaque mode et chaque micro, l'intégrale de Rayleigh (plaque bafflée) est calculée une fois, à la fréquence du mode, sur une grille de 1,5 cm : p = iωρ₀/(2π)·∫Φ·e^{−ikR}/R dS.
-- Deux micros à 1,5 m au-dessus de la table, réglables (`SoundboardParams::mics`).
+**Radiation** (`instrument.rs`).
+- For each mode and each microphone, the Rayleigh integral (baffled plate) is computed once, at the mode frequency, on a 1.5 cm grid: p = iωρ₀/(2π)·∫Φ·e^{−ikR}/R dS.
+- Two microphones 1.5 m above the soundboard, adjustable (`SoundboardParams::mics`).
 
-**Rendu** (`engine.rs`, `modal.rs`).
-- Les touches sont groupées en 16 zones du chevalet. Chaque zone pilote un banc SIMD des modes de la table : gain d'entrée Φ_n(x_zone)·T, et deux sorties complexes, une par micro.
-- Le noyau modal calcule désormais deux sorties dans la même passe (`process2`).
-- Un banc de zone sans entrée et devenu silencieux est mis en sommeil.
-- L'instrument (table des notes et données de la table) est précalculé en ≈ 0,35 s et partagé par `Arc` (`Engine::with_instrument`). C'est aussi la base pour reconstruire hors du thread audio quand un paramètre change.
-- Sortie stéréo (`process_stereo`), et mono = moyenne des deux micros.
+**Rendering** (`engine.rs`, `modal.rs`).
+- The keys are grouped into 16 bridge zones. Each zone drives a SIMD bank of the soundboard modes: input gain Φ_n(x_zone)·T, and two complex outputs, one per microphone.
+- The modal kernel now computes two outputs in the same pass (`process2`).
+- A zone bank with no input that has gone silent is put to sleep.
+- The instrument (note table and soundboard data) is precomputed in ≈ 0.35 s and shared via `Arc` (`Engine::with_instrument`). This is also the basis for rebuilding off the audio thread when a parameter changes.
+- Stereo output (`process_stereo`), and mono = average of the two microphones.
 
 ## Performance
 
-- **Piège trouvé.** Avec les poids de sortie complexes ajoutés en phase 2, un banc *piloté* (avec entrée) traité par groupes de 4 blocs de 16 modes déborde des registres : il devient environ 20 fois plus lent sur toutes les ISA (1,05 ns/mode·échantillon au lieu de 0,06). Les bancs pilotés sont désormais limités à des groupes de 2, et les bancs pilotés à double sortie à des groupes de 1 en AVX2.
-- **Pire cas** (clavier entier à vélocité 127, une note toutes les 30 ms, pédale enfoncée, 88 voix plus 16 bancs de table de 1 083 modes) : 4,64 s de son rendus en 0,85 s, dont 0,35 s de construction de l'instrument. Soit ≈ 9× le temps réel sur un seul thread, ≈ 11 % d'un cœur Zen 5.
+- **Pitfall found.** With the complex output weights added in phase 2, a *driven* bank (with input) processed in groups of 4 blocks of 16 modes overflows the registers: it becomes about 20 times slower on all ISAs (1.05 ns/mode·sample instead of 0.06). Driven banks are now limited to groups of 2, and dual-output driven banks to groups of 1 in AVX2.
+- **Worst case** (whole keyboard at velocity 127, one note every 30 ms, pedal down, 88 voices plus 16 soundboard banks of 1,083 modes): 4.64 s of sound rendered in 0.85 s, including 0.35 s of instrument construction. That is ≈ 9× real time on a single thread, ≈ 11 % of a Zen 5 core.
 
 ## Validation
 
-**Une prédiction non ajustée qui tombe juste.** La table n'a été contrainte que par sa densité modale et son niveau moyen de mobilité. La *distribution* de sa conductance au chevalet reproduit pourtant celle extraite des décroissances de Salamander.
+**An unfitted prediction that turns out right.** The soundboard was constrained only by its modal density and its mean mobility level. Yet the *distribution* of its conductance at the bridge reproduces the one extracted from the Salamander decays.
 
 ![admittance](img/soundboard_admittance.png)
 
-**Décroissances** : statistiques ESPRIT mesurées sur le son rayonné, exactement comme sur l'enregistrement (calage par `tools/coupling_grid.py`).
+**Decays**: ESPRIT statistics measured on the radiated sound, exactly as on the recording (calibration with `tools/coupling_grid.py`).
 
-| | Loi lisse, phase 2 (force au chevalet) | Table modale, phase 4 (son rayonné) |
+| | Smooth law, phase 2 (bridge force) | Modal soundboard, phase 4 (radiated sound) |
 |---|---|---|
-| T60 du prompt (écart médian) | 21 % | 49 % |
-| T60 de l'aftersound | 27 % | 52 % |
-| Niveau de l'aftersound | 2,1 dB | 2,0 dB |
-| Notes à une corde : niveau de l'aftersound | 1,7 dB | 1,1 dB |
-| Taux de détection de l'aftersound (écart) | 0,26 | 0,14 |
-| Score global | 2,41 | 2,93 |
+| Prompt T60 (median deviation) | 21 % | 49 % |
+| Aftersound T60 | 27 % | 52 % |
+| Aftersound level | 2.1 dB | 2.0 dB |
+| Single-string notes: aftersound level | 1.7 dB | 1.1 dB |
+| Aftersound detection rate (deviation) | 0.26 | 0.14 |
+| Overall score | 2.41 | 2.93 |
 
-![unissons](img/phase4_unison.png)
+![unisons](img/phase4_unison.png)
 
-- Les T60 sont un peu moins justes qu'avec la loi lisse : celle-ci avait été ajustée directement sur ces statistiques, alors que la table impose ses pics et creux.
-- La détection et les niveaux de l'aftersound sont meilleurs.
-- Le son analysé inclut maintenant la réverbération propre de la table.
+- The T60s are slightly less accurate than with the smooth law: the latter had been fitted directly to these statistics, whereas the soundboard imposes its peaks and dips.
+- Aftersound detection and levels are better.
+- The analysed sound now includes the soundboard's own reverberation.
 
-**Spectre** (`tools/spectral_stats.py`). On compare des statistiques, pas les partiels un à un : une table modale réaliste place ses résonances ailleurs que celles d'un autre piano, et une comparaison partiel par partiel la pénalise mécaniquement.
+**Spectrum** (`tools/spectral_stats.py`). We compare statistics, not partials one by one: a realistic modal soundboard places its resonances elsewhere than those of another piano, and a partial-by-partial comparison penalises it mechanically.
 
-| Bande (Hz) | 0–100 | 100–200 | 200–400 | 400–800 | 800–1,6 k | 1,6–3,2 k | 3,2–6,4 k | > 6,4 k | Fluctuation |
+| Band (Hz) | 0–100 | 100–200 | 200–400 | 400–800 | 800–1.6 k | 1.6–3.2 k | 3.2–6.4 k | > 6.4 k | Fluctuation |
 |---|---|---|---|---|---|---|---|---|---|
-| Salamander | +11,8 | +14,0 | +5,3 | +1,0 | +0,7 | −0,6 | −12,2 | −23,4 | 5,3 dB |
-| Sans table (phase 2) | +6,0 | +9,9 | +2,0 | +0,5 | −1,0 | +0,2 | −1,3 | −9,9 | 3,8 dB |
-| Avec table (phase 4) | +13,3 | +8,3 | +2,5 | +1,5 | −0,4 | +0,7 | −1,8 | −10,0 | 6,7 dB |
+| Salamander | +11.8 | +14.0 | +5.3 | +1.0 | +0.7 | −0.6 | −12.2 | −23.4 | 5.3 dB |
+| Without soundboard (phase 2) | +6.0 | +9.9 | +2.0 | +0.5 | −1.0 | +0.2 | −1.3 | −9.9 | 3.8 dB |
+| With soundboard (phase 4) | +13.3 | +8.3 | +2.5 | +1.5 | −0.4 | +0.7 | −1.8 | −10.0 | 6.7 dB |
 
-Niveaux en dB, relatifs à la médiane des partiels de chaque note.
-- La table corrige le déficit de l'extrême grave.
-- Elle apporte la rugosité spectrale d'un vrai piano : sans elle, le spectre est trop lisse.
-- La dynamique et la brillance en fonction de la vélocité restent calées : centroïde ×0,65 / ×1,59 contre ×0,65 / ×1,51 pour la référence.
+Levels in dB, relative to the median of the partials of each note.
+- The soundboard corrects the deficit in the extreme bass.
+- It brings the spectral roughness of a real piano: without it, the spectrum is too smooth.
+- Dynamics and brightness as a function of velocity remain matched: centroid ×0.65 / ×1.59 versus ×0.65 / ×1.51 for the reference.
 
 ![phase 4](img/phase4_eval.png)
 
-## Problème ouvert : trop d'aigus au-dessus de 3 kHz
+## Open problem: too much treble above 3 kHz
 
-Entre 3,2 et 6,4 kHz, la référence est 10 dB sous le modèle ; au-delà, 13 dB. Par note, l'écart de pente croît de +4 dB/octave à C4 à +8–20 dB/octave dans l'aigu. Ce qui a été testé et écarté :
+Between 3.2 and 6.4 kHz, the reference is 10 dB below the model; above that, 13 dB. Per note, the slope deviation grows from +4 dB/octave at C4 to +8–20 dB/octave in the treble. What was tested and ruled out:
 
-| Mécanisme | Outil | Effet |
+| Mechanism | Tool | Effect |
 |---|---|---|
-| Masse du chevalet | `tools/board_grid.py` | améliore un peu au-dessus de 6,4 kHz, mais dégrade les décroissances |
-| Pertes de la table croissant avec la fréquence | `tools/board_grid.py` | négligeable |
-| Hystérésis du feutre ×3 | `tools/board_grid.py` | négligeable |
-| Largeur de contact ×2 | `tools/board_grid.py` | négligeable |
-| Hauteur des micros | `tools/board_grid.py` | négligeable |
-| Feutre beaucoup plus doux dans l'aigu (Q0 ÷50 à C8) | `tools/voicing_grid.py` | l'écart ne bouge presque pas |
-| Décroissances des partiels aigus | — | le modèle décroît plutôt *plus vite* que la référence |
+| Bridge mass | `tools/board_grid.py` | improves slightly above 6.4 kHz, but degrades the decays |
+| Soundboard losses increasing with frequency | `tools/board_grid.py` | negligible |
+| Felt hysteresis ×3 | `tools/board_grid.py` | negligible |
+| Contact width ×2 | `tools/board_grid.py` | negligible |
+| Microphone height | `tools/board_grid.py` | negligible |
+| Much softer felt in the treble (Q0 ÷50 at C8) | `tools/voicing_grid.py` | the deviation barely moves |
+| Decays of the high partials | — | the model actually decays *faster* than the reference |
 
-Pistes restantes, par ordre de vraisemblance :
-1. La localisation de la vibration entre les barrages au-dessus de ~1 kHz (Ege 2013). La plaque homogène ne la représente pas, et elle réduit la mobilité et le rayonnement du chevalet aigu.
-2. Une vraie échelle de cordes : longueurs, points de frappe et tensions de l'aigu, pour l'instant génériques.
-3. La loi héréditaire complète du feutre de Stulov, plutôt que l'hystérésis linéarisée.
-4. La chaîne d'enregistrement de Salamander (micros, salle, égalisation éventuelle). Un second piano de référence (Iowa MIS) dirait ce qui relève du modèle et ce qui relève de cet enregistrement.
+Remaining leads, in order of likelihood:
+1. Localisation of the vibration between the ribs above ~1 kHz (Ege 2013). The homogeneous plate does not represent it, and it reduces the mobility and radiation of the treble bridge.
+2. A real string scale: lengths, striking points and tensions in the treble, currently generic.
+3. Stulov's complete hereditary felt law, rather than the linearised hysteresis.
+4. The Salamander recording chain (microphones, room, possible equalisation). A second reference piano (Iowa MIS) would tell what belongs to the model and what belongs to this recording.
 
-## Commandes
+## Commands
 
 ```bash
 cargo run --release -p piano-core --example soundboard_admittance > out/admittance.csv
 cargo run --release -p piano-core --example build_time
-cargo run --release -p piano-render -- note out/c4.wav --note 60 --velocity 90 --hold 8   # WAV stéréo
-tools/unison_trial.sh essai --series-stiffness=2e7
+cargo run --release -p piano-render -- note out/c4.wav --note 60 --velocity 90 --hold 8   # stereo WAV
+tools/unison_trial.sh trial --series-stiffness=2e7
 python3 -I tools/coupling_grid.py
-python3 -I tools/spectral_stats.py ref_et_modele=out/salamander/eval_phase4.csv
+python3 -I tools/spectral_stats.py ref_and_model=out/salamander/eval_phase4.csv
 ```
 
-> Note (phase 3) : les 16 bancs de zones ont été remplacés par un banc unique multi-entrées / multi-sorties qui fournit aussi la vitesse du chevalet. Un terme direct corrige l'invariance impulsionnelle : sans lui, la conductance rendue hors résonance était fausse dans le grave. La polarisation a été rendue passive. Voir [phase3.md](phase3.md).
+> Note (phase 3): the 16 zone banks have been replaced by a single multi-input / multi-output bank that also provides the bridge velocity. A direct term corrects the impulse invariance: without it, the rendered off-resonance conductance was wrong in the bass. The polarisation has been made passive. See [phase3.md](phase3.md).

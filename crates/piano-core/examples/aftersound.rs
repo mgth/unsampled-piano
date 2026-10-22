@@ -70,7 +70,7 @@ fn main() {
         cnt[r] += 1;
         println!("{note:3} {line}");
     }
-    for (r, lab) in ["grave", "médium", "aigu", "suraigu"].iter().enumerate() {
+    for (r, lab) in ["bass", "middle", "treble", "top treble"].iter().enumerate() {
         if cnt[r] > 0 {
             println!("{lab:8} mean env k1–6 at 1/2/3 s: {:6.1} {:6.1} {:6.1}", acc[r][0] / cnt[r] as f64, acc[r][1] / cnt[r] as f64, acc[r][2] / cnt[r] as f64);
         }

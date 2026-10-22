@@ -7,7 +7,7 @@ the references).  tools/band_score.py ref=dir … -- name=dir …"""
 import os, subprocess, sys
 import numpy as np
 NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-REGS = [(21, 47, "grave"), (48, 71, "médium"), (72, 95, "aigu")]
+REGS = [(21, 47, "bass"), (48, 71, "middle"), (72, 95, "treble")]
 CEN = [1000, 2000, 4000, 8000]
 TIMES = (0.05, 0.6)
 def name(m): return NAMES[m % 12] + str(m // 12 - 1)
@@ -39,12 +39,12 @@ args = sys.argv[1:]; cut = args.index("--")
 refs = [profile(a.split("=", 1)[1]) for a in args[:cut]]
 target = {lab: np.mean([r[lab] for r in refs], 0) for _, _, lab in REGS}
 print(f"{'':10}" + "".join(f"{lab:>34}" for _, _, lab in REGS) + "   rms")
-print(f"{'':10}" + "".join("   att 1k  2k  4k  8k | ten 1k  2k  4k  8k"[:34].rjust(34) for _ in REGS))
+print(f"{'':10}" + "".join("   att 1k  2k  4k  8k | sus 1k  2k  4k  8k"[:34].rjust(34) for _ in REGS))
 for a in args[cut + 1:]:
     nm, d = a.split("=", 1); p = profile(d); gaps = []
     cells = ""
     for _, _, lab in REGS:
         g = p[lab] - target[lab]
         cells += "  " + " ".join(f"{v:+4.0f}" for v in g[0]) + " |" + " ".join(f"{v:+4.0f}" for v in g[1])
-        gaps += list(g[:, :3].ravel()) if lab == "aigu" else list(g.ravel())
+        gaps += list(g[:, :3].ravel()) if lab == "treble" else list(g.ravel())
     print(f"{nm:10}{cells}  {np.sqrt(np.mean(np.square(gaps))):5.1f}")

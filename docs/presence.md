@@ -1,76 +1,76 @@
-# Présence et attaque : marteau à deux couches, prises de son
+# Presence and attack: two-layer hammer, microphone placement
 
-État au 2026-10-22.
+Status as of 2026-10-22.
 
-## Retour d'écoute
+## Listening feedback
 
-« La version du piano commercial est plus percussive, et la nôtre donne l'impression de jouer piano fermé. »
+“The version from the commercial modelled piano is more percussive, and ours sounds like playing with the lid closed.”
 
-## Mesure
+## Measurement
 
-`tools/presence.py` compare deux choses sur la séquence de comparaison :
-- **la percussivité** : crête sur 5 ms moins le niveau entre 150 et 300 ms ;
-- **la part d'énergie par bande** à l'attaque (0–60 ms) et dans la tenue.
+`tools/presence.py` compares two things on the comparison sequence:
+- **percussiveness**: peak over 5 ms minus the level between 150 and 300 ms;
+- **the energy share per band** in the attack (0–60 ms) and in the sustain.
 
-La percussivité du modèle était normale : 6 à 7 dB au grave et au médium, comme les références. Ce qui manquait, c'étaient les aigus de l'attaque du grave et du médium. Attaque ff du grave, en dB :
+The model's percussiveness was normal: 6 to 7 dB in the bass and middle, like the references. What was missing was the high frequencies in the attack of the bass and middle. Bass ff attack, in dB:
 
 | | 1–2 kHz | 2–4 kHz | 4–8 kHz |
 |---|---|---|---|
 | Commercial | −10 | −17 | −29 |
 | Iowa | −8 | −20 | −45 |
 | Salamander | −17 | −27 | −57 |
-| Modèle | −25 | −43 | −78 |
+| Model | −25 | −43 | −78 |
 
 ## Causes
 
-1. **Le feutre calibré pour l'éclaircissement selon la nuance** ([timbre_dynamics.md](timbre_dynamics.md)) était très souple et très non linéaire (dureté 0,1, p + 2). Il coupait les aigus : au grave, −63 dB à 4–8 kHz contre −44 avec le feutre nominal. La calibration ne regardait que jusqu'au partiel 12, soit environ 3 kHz au médium.
-   - La force du marteau sur le chevalet manquait déjà d'aigus.
-   - Le rayonnement de la table en retire ensuite 5 à 10 dB.
-   - Les autres changements (mode piston, unissons, non-linéarité) n'y sont pour rien.
-2. **La prise de son.** Les micros concert à 1 m de haut étaient sous la réflexion du couvercle, ce qui retirait environ 10 dB à 2–4 kHz au médium. Les micros au-dessus de la table, à 1,5 m, sont eux aussi plus sombres que des micros proches.
+1. **The felt calibrated for brightening with dynamics** ([timbre_dynamics.md](timbre_dynamics.md)) was very soft and very nonlinear (hardness 0.1, p + 2). It cut the high frequencies: in the bass, −63 dB at 4–8 kHz versus −44 with the nominal felt. The calibration only looked up to partial 12, i.e. about 3 kHz in the middle.
+   - The hammer force on the bridge already lacked high frequencies.
+   - Soundboard radiation then removes another 5 to 10 dB.
+   - The other changes (piston mode, unisons, nonlinearity) play no part.
+2. **The microphone placement.** The concert microphones at 1 m height sat below the lid reflection, which removed about 10 dB at 2–4 kHz in the middle. The microphones above the soundboard, at 1.5 m, are also darker than close microphones.
 
-## Changements
+## Changes
 
-**Score.** `tools/hammer_score.py` mesure maintenant la présence de l'attaque, c'est-à-dire la part d'énergie à 2–4 kHz et à 4–8 kHz, en ff et en mf, par registre.
+**Score.** `tools/hammer_score.py` now measures attack presence, i.e. the energy share at 2–4 kHz and at 4–8 kHz, at ff and mf, per register.
 
-**Marteau à deux couches** (`hammer.rs`, `felt()`) : F(u) = Q·u^p + Q_c·(u − d)₊^p_c. C'est un feutre de surface sur un cœur dur. Le schéma quadratisé reste passif (g = F/√(2V), hystérésis α·dF/dt), et les tests de conservation et de décroissance d'énergie passent avec le cœur. L'écrasement mesuré va de 0,35 à 1,2 mm (`examples/contact_stats.rs`) ; le cœur est placé entre pp et ff.
+**Two-layer hammer** (`hammer.rs`, `felt()`): F(u) = Q·u^p + Q_c·(u − d)₊^p_c. This is a surface felt over a hard core. The quadratised scheme stays passive (g = F/√(2V), hysteresis α·dF/dt), and the energy conservation and decay tests pass with the core. The measured compression ranges from 0.35 to 1.2 mm (`examples/contact_stats.rs`); the core is placed between pp and ff.
 
-Paramètres retenus (grilles `tools/core_grid.sh`) :
+Selected parameters (grids `tools/core_grid.sh`):
 
-| Paramètre | Valeur |
+| Parameter | Value |
 |---|---|
-| `hardness` | 0,2 (surface) |
-| `p_offset` | 0 (p de Stulov, 3,7 à 5) |
-| `hysteresis` | 0,6 |
-| `core_hardness` | 30 (× Q0 de Stulov de la touche) |
-| `core_p` | 2,5 |
-| `core_depth_bass` / `core_depth_treble` | 0,7 / 0,4 mm |
-| `hardness_slope` / `hardness_slope_bass` | 0,02 / 0,02 |
+| `hardness` | 0.2 (surface) |
+| `p_offset` | 0 (Stulov's p, 3.7 to 5) |
+| `hysteresis` | 0.6 |
+| `core_hardness` | 30 (× the key's Stulov Q0) |
+| `core_p` | 2.5 |
+| `core_depth_bass` / `core_depth_treble` | 0.7 / 0.4 mm |
+| `hardness_slope` / `hardness_slope_bass` | 0.02 / 0.02 |
 | `p_bass` | 0 |
-| vélocité | 0,5–3,5 m/s |
+| velocity | 0.5–3.5 m/s |
 
-**Préréglages.**
-- `concert.toml` : micros relevés à 2 m.
-- `proche.toml` (nouveau) : micros à 40 cm au-dessus de la table, couvercle à 35°. C'est le plus proche de l'équilibre des références.
-- `output_gain_db` (nouveau paramètre) égalise le volume entre prises : +3,4 dB pour concert, −9,6 dB pour proche. La crête du Chopin reste à −18,8 dBFS dans les deux.
+**Presets.**
+- `concert.toml`: microphones raised to 2 m.
+- `close.toml` (new): microphones 40 cm above the soundboard, lid at 35°. This is the closest to the references' balance.
+- `output_gain_db` (new parameter) equalises the loudness between microphone setups: +3.4 dB for `concert`, −9.6 dB for `close`. The Chopin peak stays at −18.8 dBFS in both.
 
-## Résultat
+## Result
 
-Score du marteau, avec la présence : 3,23 → 1,54. Attaque ff, part d'énergie (dB) :
+Hammer score, with presence: 3.23 → 1.54. ff attack, energy share (dB):
 
-| | Grave 2–4 kHz | Grave 4–8 kHz | Médium 2–4 kHz | Médium 4–8 kHz |
+| | Bass 2–4 kHz | Bass 4–8 kHz | Middle 2–4 kHz | Middle 4–8 kHz |
 |---|---|---|---|---|
-| références (moyenne) | −21,5 | −43,8 | −19,1 | −36,6 |
-| modèle avant | −36,5 | −68,5 | −24,3 | −42,0 |
-| modèle après (micros au-dessus de la table) | −24,6 | −36,4 | −23,9 | −37,8 |
-| modèle après, préréglage proche | −23,8 | −38,4 | −25,9 | −42,2 |
+| references (mean) | −21.5 | −43.8 | −19.1 | −36.6 |
+| model before | −36.5 | −68.5 | −24.3 | −42.0 |
+| model after (microphones above the soundboard) | −24.6 | −36.4 | −23.9 | −37.8 |
+| model after, `close` preset | −23.8 | −38.4 | −25.9 | −42.2 |
 
-- **Éclaircissement pp → ff** (pente, cible +6,1 au grave, +17,4 au médium) : grave +5,5 → +4,0 dB, médium +15,5 → +13,3 dB. C'est le prix de la présence. Le marteau à deux couches rend la brillance du ff, mais aussi un peu celle du pp.
-- **Dynamique ff − pp** : 7,7 dB au grave, 9,0 au médium, 13,6 à l'aigu.
-- **Coût CPU** : inchangé, 37 % d'un cœur au pire.
+- **pp → ff brightening** (slope, target +6.1 in the bass, +17.4 in the middle): bass +5.5 → +4.0 dB, middle +15.5 → +13.3 dB. This is the price of presence. The two-layer hammer gives the ff its brilliance, but also gives some to the pp.
+- **ff − pp dynamics**: 7.7 dB in the bass, 9.0 in the middle, 13.6 in the treble.
+- **CPU cost**: unchanged, 37 % of one core at worst.
 
-## Ce qui reste
+## What remains
 
-- **Le piano commercial reste plus brillant que les deux vrais pianos** au-dessus de 4 kHz (−29 dB au grave contre −45 et −57). Le modèle se cale sur la moyenne des trois.
-- **Éclaircissement du grave et du médium** encore 2 à 4 dB sous les références.
-- **Aigu** un peu trop contrasté entre pp et ff (13,6 contre 12,2 dB).
+- **The commercial piano remains brighter than the two real pianos** above 4 kHz (−29 dB in the bass versus −45 and −57). The model aims at the mean of the three.
+- **Brightening of the bass and middle** still 2 to 4 dB below the references.
+- **Treble** slightly too contrasted between pp and ff (13.6 versus 12.2 dB).

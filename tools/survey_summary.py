@@ -106,28 +106,28 @@ fig, ax = plt.subplots(2, 2, figsize=(12, 8))
 mm = np.arange(21, 109)
 a = ax[0, 0]
 a.errorbar(per_note.midi, per_note.B_med, yerr=[per_note.B_med - per_note.B_q1, per_note.B_q3 - per_note.B_med],
-           fmt="o", ms=4, label="Salamander (médiane des couches)")
-a.plot(mm, rigaud(mm, *RIGAUD_REF), "--", label="Rigaud 2013 (moyenne pianos)")
-a.plot(mm, rigaud(mm, *rig_fit), "-", label="ajustement Salamander")
-a.set_yscale("log"); a.set_xlabel("note MIDI"); a.set_ylabel("B"); a.set_title("Inharmonicité"); a.legend(fontsize=8)
+           fmt="o", ms=4, label="Salamander (median over layers)")
+a.plot(mm, rigaud(mm, *RIGAUD_REF), "--", label="Rigaud 2013 (mean of pianos)")
+a.plot(mm, rigaud(mm, *rig_fit), "-", label="Salamander fit")
+a.set_yscale("log"); a.set_xlabel("MIDI note"); a.set_ylabel("B"); a.set_title("Inharmonicity"); a.legend(fontsize=8)
 a = ax[0, 1]
 a.plot(per_note.midi, per_note.cents, "o-", ms=4)
 a.axhline(0, color="gray", lw=0.5)
-a.set_xlabel("note MIDI"); a.set_ylabel("cents / ET 440"); a.set_title("Accord (f0 virtuel ajusté)")
+a.set_xlabel("MIDI note"); a.set_ylabel("cents / ET 440"); a.set_title("Tuning (fitted virtual f0)")
 a = ax[1, 0]
 for k in (1, 2, 3, 6):
     g = loud[loud.k == k].groupby("midi").t60_early.median()
     a.plot(g.index, g.values, "o-", ms=3, label=f"k={k}")
 a.plot(mm, 6.9078 / (np.exp(np.polyval(pb1, mm)) + b2_med * (440 * 2 ** ((mm - 69) / 12)) ** 2), "k--",
-       label="loi ajustée k=1")
-a.set_yscale("log"); a.set_xlabel("note MIDI"); a.set_ylabel("T60 précoce (s)"); a.set_title("Décroissance (couches ≥ 8)")
+       label="fitted law k=1")
+a.set_yscale("log"); a.set_xlabel("MIDI note"); a.set_ylabel("early T60 (s)"); a.set_title("Decay (layers ≥ 8)")
 a.legend(fontsize=8)
 a = ax[1, 1]
 a2 = a.twinx()
-a.plot(vel.layer, vel.peak, "o-", label="crête dBFS")
-a2.plot(vel.layer, vel.centroid, "s-", color="C1", label="centroïde attaque")
-a.set_xlabel("couche de vélocité"); a.set_ylabel("crête (dBFS)"); a2.set_ylabel("centroïde (Hz)")
-a.set_title("Dynamique (médiane sur les notes)")
+a.plot(vel.layer, vel.peak, "o-", label="peak dBFS")
+a2.plot(vel.layer, vel.centroid, "s-", color="C1", label="attack centroid")
+a.set_xlabel("velocity layer"); a.set_ylabel("peak (dBFS)"); a2.set_ylabel("centroid (Hz)")
+a.set_title("Dynamics (median over notes)")
 fig.tight_layout()
 fig.savefig(outdir / "summary.png", dpi=110)
 
@@ -143,25 +143,25 @@ fitted = {
 (outdir / "fitted.json").write_text(json.dumps(fitted, indent=1))
 
 L = []
-L.append(f"# Relevé {csv.parent.name}\n")
-L.append(f"{notes.file.nunique()} fichiers, {notes.midi.nunique()} notes, {notes.layer.nunique()} couches.\n")
-L.append("## Inharmonicité\n")
-L.append(f"Loi de Rigaud réajustée : aB={rig_fit[0]:.4f}, bB={rig_fit[1]:.3f}, aT={rig_fit[2]:.4f}, bT={rig_fit[3]:.3f} "
-         f"(écart rms {rig_rms:.2f} en log B). Dispersion de B entre couches de vélocité (médiane des CV) : {spread:.1%}.\n")
-L.append("| note | f0 Hz | cents/ET | B médian | B Rigaud réf. | partiels |")
+L.append(f"# Survey {csv.parent.name}\n")
+L.append(f"{notes.file.nunique()} files, {notes.midi.nunique()} notes, {notes.layer.nunique()} layers.\n")
+L.append("## Inharmonicity\n")
+L.append(f"Refitted Rigaud law: aB={rig_fit[0]:.4f}, bB={rig_fit[1]:.3f}, aT={rig_fit[2]:.4f}, bT={rig_fit[3]:.3f} "
+         f"(rms error {rig_rms:.2f} in log B). Spread of B across velocity layers (median CV): {spread:.1%}.\n")
+L.append("| note | f0 Hz | cents/ET | median B | B Rigaud ref. | partials |")
 L.append("|---|---|---|---|---|---|")
 for _, r in per_note.iterrows():
     L.append(f"| {name(int(r.midi))} | {r.f0:.2f} | {r.cents:+.1f} | {r.B_med:.2e} | {rigaud(r.midi, *RIGAUD_REF):.2e} | {int(r.np)} |")
-L.append("\n## Pertes (décroissance précoce, couches ≥ 8)\n")
-L.append(f"σ_k ≈ b1(note) + b2·f_k² ; log b1 = {pb1[0]:.4f}·midi {pb1[1]:+.3f} ; b2 médian = {b2_med:.2e}.\n")
-L.append("| note | b1 (1/s) | b2 | R² | T60 k=1 (s) | T60 tardif / précoce (médiane) |")
+L.append("\n## Losses (early decay, layers ≥ 8)\n")
+L.append(f"σ_k ≈ b1(note) + b2·f_k² ; log b1 = {pb1[0]:.4f}·midi {pb1[1]:+.3f} ; median b2 = {b2_med:.2e}.\n")
+L.append("| note | b1 (1/s) | b2 | R² | T60 k=1 (s) | late / early T60 (median) |")
 L.append("|---|---|---|---|---|---|")
 for _, r in loss.iterrows():
     L.append(f"| {name(int(r.midi))} | {r.b1:.3f} | {r.b2:.2e} | {r.r2:.2f} | {r.t60_k1:.1f} | {ratio.get(r.midi, np.nan):.2f} |")
-L.append("\n## Vélocité\n")
-L.append(f"Écart de crête entre couche 1 et 16 : {dyn_range:.1f} dB (médiane sur les notes). "
-         f"Rapport des centroïdes d'attaque couche 16 / couche 1 : ×{centroid_ratio:.2f}.\n")
-L.append("| couche | crête dBFS | centroïde Hz |")
+L.append("\n## Velocity\n")
+L.append(f"Peak difference between layers 1 and 16: {dyn_range:.1f} dB (median over notes). "
+         f"Attack centroid ratio layer 16 / layer 1: ×{centroid_ratio:.2f}.\n")
+L.append("| layer | peak dBFS | centroid Hz |")
 L.append("|---|---|---|")
 for _, r in vel.iterrows():
     L.append(f"| {int(r.layer)} | {r.peak:.1f} | {r.centroid:.0f} |")
