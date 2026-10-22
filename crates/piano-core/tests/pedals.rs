@@ -74,7 +74,7 @@ fn dampers_stop_mid_notes_faster_than_bass_and_skip_the_top() {
 #[test]
 fn half_pedal_damps_partially() {
     let t60 = |pedal: u8| string_t60(&[(0.0, cc(64, pedal)), (0.01, on(60, 100)), (0.5, off(60))], 0.5, 60);
-    let (up, half, down) = (t60(0), t60(40), t60(127));
+    let (up, half, down) = (t60(0), t60(50), t60(127));
     eprintln!("C4 T60 after release: pedal up {up:.2} s, half {half:.2} s, down {down:.2} s");
     assert!(up < half && half < down, "{up} {half} {down}");
 }

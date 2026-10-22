@@ -63,6 +63,11 @@ pub struct SoundboardParams {
     /// plate sets its value at C4). Applied to the shapes through which the
     /// strings drive the board, so the board also answers less to them.
     pub impedance_slope: f64,
+    /// The same slope below C4 (the bass side of the board). 0: a bass side
+    /// as mobile as the board's middle; a positive slope made its low modes
+    /// boom (+13 dB at 100–200 Hz over Salamander, "a barrel"), and the
+    /// wound strings' own losses (`LossLaw::b1_floor`) set the bass decays.
+    pub impedance_slope_bass: f64,
     /// Highest mode kept (Hz).
     pub f_max: f64,
     /// Bridge as a polyline in normalised plate coordinates, from C8 down to
@@ -134,6 +139,7 @@ impl SoundboardParams {
         // Calibrated on the decay envelopes of Salamander (docs/tenue.md):
         // ×4.6 at C8, ×0.4 at A0 relative to C4.
         impedance_slope: 0.035,
+        impedance_slope_bass: 0.0,
         f_max: 20_000.0,
         // Main bridge at equal steps of the main range (C8, ≈ F6, ≈ G#4,
         // ≈ C#3, F1): x follows the speaking length of the 2 m scale from
@@ -350,7 +356,8 @@ impl Soundboard {
         let (a, b) = (p.bridge_point_at(n - 0.5, main), p.bridge_point_at(n + 0.5, main));
         let per_key = ((a.0 - b.0).hypot(a.1 - b.1)).max(1e-3);
         const K: usize = 9;
-        let taper = (-0.5 * p.impedance_slope * (n - 60.0)).exp();
+        let slope = if n < 60.0 { p.impedance_slope_bass } else { p.impedance_slope };
+        let taper = (-0.5 * slope * (n - 60.0)).exp();
         self.modes
             .iter()
             .map(|md| {

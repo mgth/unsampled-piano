@@ -70,14 +70,19 @@ pub struct LossLaw {
     pub b1_slope: f64,
     pub b1_offset: f64,
     pub b2: f64,
+    /// Added to b1 below `wound_until` (wound strings: friction of the
+    /// copper winding), fading out over the octave above it. 0.2 s⁻¹ puts
+    /// the bass decay envelopes within 1 dB of Salamander (docs/tenue.md),
+    /// of the order of its ESPRIT aftersound rates there (0.15–0.18).
     pub b1_floor: f64,
+    pub wound_until: u8,
 }
 
 
 impl LossLaw {
     /// Early ("prompt") decay of single partials, Salamander survey. A single
     /// string per note cannot reproduce the two-stage decay (Phase 2).
-    pub const SALAMANDER_EARLY: Self = Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0 };
+    pub const SALAMANDER_EARLY: Self = Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48 };
     /// Intrinsic string losses: law of the ESPRIT aftersound (no bridge
     /// losses), scaled ×0.45 by the decay calibration of the full instrument
     /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. The
@@ -85,10 +90,11 @@ impl LossLaw {
     /// (docs/tenue.md): the upper partials decay at the measured rate and
     /// most of the excess above 6 kHz goes; 2e-7 would shorten the treble
     /// fundamentals.
-    pub const SALAMANDER_STRING: Self = Self { b1_slope: 0.0590, b1_offset: -4.782, b2: 1.0e-7, b1_floor: 0.0 };
+    pub const SALAMANDER_STRING: Self = Self { b1_slope: 0.0590, b1_offset: -4.782, b2: 1.0e-7, b1_floor: 0.2, wound_until: 48 };
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
-        self.b1_floor + (self.b1_slope * note as f64 + self.b1_offset).exp() + self.b2 * freq * freq
+        let wound = ((self.wound_until as f64 + 12.0 - note as f64) / 12.0).clamp(0.0, 1.0);
+        self.b1_floor * wound + (self.b1_slope * note as f64 + self.b1_offset).exp() + self.b2 * freq * freq
     }
 }
 
@@ -237,6 +243,11 @@ pub struct DamperLaw {
     pub width: f64,
     /// c_max / (2·Z0): 1 is the impedance-matched, most absorbing felt.
     pub strength: f64,
+    /// Felt nonlinearity: the dashpot grows as contact^exponent (felt
+    /// compression, as Stulov's p for hammers). With 1, a damper barely
+    /// touching already absorbed 89 % of the full rate at half contact:
+    /// no real half pedal, and an abrupt stop as the damper lands.
+    pub contact_exponent: f64,
     /// Highest key with a damper.
     pub highest_note: u8,
     /// Sustain-pedal travel (0–1): lost motion before the dampers start to
@@ -257,10 +268,13 @@ impl DamperLaw {
         position: 0.14,
         width: 0.02,
         strength: 1.0,
+        contact_exponent: 2.5,
         highest_note: 88,
-        // Half pedal around CC64 = 64, dampers off from ≈ 100.
-        pedal_free: 0.35,
-        pedal_contact: 0.8,
+        // Dampers resting up to CC64 ≈ 38, half pedal near 50, off from
+        // ≈ 70: recorded performances follow the MIDI convention "down from
+        // 64" (MAESTRO's own processing), with the half pedal below it.
+        pedal_free: 0.3,
+        pedal_contact: 0.55,
         pedal_curve: 1.5,
         fall_time: 0.012,
         lift_time: 0.005,
@@ -282,7 +296,7 @@ impl DamperLaw {
     /// Decay-rate factor g(c) such that σ_k = g·shape(k).
     pub fn rate(&self, engagement: f64, tension: f64, mu: f64, length: f64) -> f64 {
         let z0 = (tension * mu).sqrt();
-        let c = engagement * self.strength * 2.0 * z0;
+        let c = engagement.max(0.0).powf(self.contact_exponent) * self.strength * 2.0 * z0;
         let m = 2.0 * z0 / (c + 2.0 * z0);
         c / (mu * length) * m * m
     }
@@ -431,7 +445,7 @@ pub struct VelocityLaw {
 }
 
 impl VelocityLaw {
-    pub const DEFAULT: Self = Self { vmin: 0.243, vmax: 8.0 };
+    pub const DEFAULT: Self = Self { vmin: 0.3, vmax: 5.5 };
     /// Fit of the Salamander layers (sampler velocity ranges), 1.4 dB rms.
     pub const SALAMANDER_LAYERS: Self = Self { vmin: 0.4, vmax: 4.0 };
 

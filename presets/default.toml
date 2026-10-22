@@ -10,8 +10,8 @@ hysteresis = 1.0
 contact_width_scale = 1.0
 
 [velocity]
-vmin = 0.243
-vmax = 8.0
+vmin = 0.3
+vmax = 5.5
 
 [inharmonicity]
 a_bass = -0.111714
@@ -30,7 +30,8 @@ c = -3.708095
 b1_slope = 0.059
 b1_offset = -4.782
 b2 = 0.0000001
-b1_floor = 0.0
+b1_floor = 0.2
+wound_until = 48
 
 [scale]
 len_c8 = 0.052
@@ -73,6 +74,7 @@ bridge_stiffness = 470.0
 bridge_line_mass = 0.6
 bridge_spread = 0.3
 impedance_slope = 0.035
+impedance_slope_bass = 0.0
 f_max = 20000.0
 treble_bridge = [
     [
@@ -132,9 +134,10 @@ lid_transmission = 0.1
 position = 0.14
 width = 0.02
 strength = 1.0
+contact_exponent = 2.5
 highest_note = 88
-pedal_free = 0.35
-pedal_contact = 0.8
+pedal_free = 0.3
+pedal_contact = 0.55
 pedal_curve = 1.5
 fall_time = 0.012
 lift_time = 0.005

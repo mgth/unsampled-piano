@@ -87,3 +87,17 @@ Les réglages ont été choisis sur une grille. Pour chaque essai : calibration 
 - **Graves.** Les partiels de 300 à 700 Hz décroissent environ 2 fois trop vite, ceux sous 300 Hz environ 2 fois trop lentement.
 - **Una corda.** Le gain d'arrière-résonance n'est plus reproduit en moyenne : il varie de −7 à +7 dB selon la note. Le couplage d'unisson est plus faible depuis ces changements. Le test vérifie seulement que la tenue n'est pas perdue.
 - **Limites du modèle de table.** Le gradient d'impédance et l'étalement du chevalet sont des modèles équivalents. Une table d'épaisseur variable, avec barres et chevalet en poutre couplés, demanderait des modes calculés numériquement (éléments finis) au lieu des modes analytiques.
+
+## Retour d'écoute : grave « comme dans un tonneau » (2026-10-22)
+
+Le gradient d'impédance s'appliquait aussi côté grave. Il rendait la table 2 à 2,5 fois plus mobile sous les basses que sous do4, et renforçait donc ses résonances graves. Dans la bande 100–200 Hz, le modèle dépassait Salamander de 12,8 dB (26,8 contre 14,0), contre 9,7 dB avant ces changements.
+
+Il est désormais séparé en deux (`impedance_slope_bass` = 0, `impedance_slope` = 0,035 côté aigu). Les décroissances du grave sont reprises par les pertes propres des cordes filées : `LossLaw::b1_floor` = 0,2 s⁻¹ sous `wound_until` = 48, s'estompant sur l'octave au-dessus. C'est l'ordre de grandeur des taux ESPRIT de l'arrière-résonance du grave dans Salamander (0,15–0,18).
+
+| | 0–100 Hz | 100–200 Hz | 200–400 Hz | 400–800 Hz | erreur d'inclinaison |
+|---|---|---|---|---|---|
+| Salamander | 11,8 | 14,0 | 5,3 | 1,0 | — |
+| avant | 13,0 | 26,8 | 8,3 | 4,1 | 5,3 dB |
+| après | 11,9 | 17,3 | 6,6 | 1,8 | 3,5 dB |
+
+Enveloppes du grave (A0–B2) : entre −0,9 et +0,8 dB de la référence de 0,1 à 3 s, contre +2,1 à +2,8 dB après 2 s auparavant.
