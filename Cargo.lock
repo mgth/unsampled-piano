@@ -1311,6 +1311,7 @@ dependencies = [
 name = "piano-host"
 version = "0.1.0"
 dependencies = [
+ "midly",
  "piano-core",
  "serde",
  "toml",
@@ -1334,7 +1335,6 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "hound",
- "midly",
  "piano-core",
  "piano-host",
 ]

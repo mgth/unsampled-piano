@@ -1,5 +1,6 @@
 //! Host-side helpers shared by the renderer and the real-time player:
-//! instrument presets (TOML) and decoding of raw MIDI messages.
+//! instrument presets (TOML), decoding of raw MIDI messages and reading of
+//! standard MIDI files.
 
 use piano_core::params::PianoModel;
 use piano_core::Event;
@@ -35,6 +36,51 @@ pub fn decode_midi(msg: &[u8]) -> Option<Event> {
         0xB0 => Some(Event::Control { cc: a, value: b }),
         _ => None,
     }
+}
+
+/// Reads a standard MIDI file: all tracks and channels merged, tempo map
+/// applied; returns (time in seconds, event), sorted by time.
+pub fn read_midi_file(path: &Path) -> Result<Vec<(f64, Event)>, String> {
+    use midly::{MetaMessage, MidiMessage, Smf, Timing, TrackEventKind};
+    let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let smf = Smf::parse(&data).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut evs: Vec<(u64, usize, TrackEventKind)> = Vec::new();
+    for (ti, track) in smf.tracks.iter().enumerate() {
+        let mut tick = 0u64;
+        for e in track {
+            tick += e.delta.as_int() as u64;
+            evs.push((tick, ti, e.kind));
+        }
+    }
+    evs.sort_by_key(|e| (e.0, e.1));
+    let (tpb, fixed_tick_s) = match smf.header.timing {
+        Timing::Metrical(t) => (t.as_int() as f64, None),
+        Timing::Timecode(fps, sub) => (1.0, Some(1.0 / (fps.as_f32() as f64 * sub as f64))),
+    };
+    let mut us_per_beat = 500_000.0;
+    let (mut last_tick, mut time) = (0u64, 0.0f64);
+    let mut out = Vec::new();
+    for (tick, _, kind) in evs {
+        let dt = (tick - last_tick) as f64;
+        time += fixed_tick_s.unwrap_or(us_per_beat * 1e-6 / tpb) * dt;
+        last_tick = tick;
+        match kind {
+            TrackEventKind::Meta(MetaMessage::Tempo(t)) => us_per_beat = t.as_int() as f64,
+            TrackEventKind::Midi { message, .. } => {
+                let ev = match message {
+                    MidiMessage::NoteOn { key, vel } => Event::NoteOn { note: key.as_int(), velocity: vel.as_int() },
+                    MidiMessage::NoteOff { key, vel } => Event::NoteOff { note: key.as_int(), velocity: vel.as_int() },
+                    MidiMessage::Controller { controller, value } => {
+                        Event::Control { cc: controller.as_int(), value: value.as_int() }
+                    }
+                    _ => continue,
+                };
+                out.push((time, ev));
+            }
+            _ => {}
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

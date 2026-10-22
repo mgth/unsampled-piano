@@ -10,8 +10,8 @@ hysteresis = 1.0
 contact_width_scale = 1.0
 
 [velocity]
-vmin = 0.4
-vmax = 4.0
+vmin = 0.243
+vmax = 8.0
 
 [inharmonicity]
 a_bass = -0.111714
@@ -133,7 +133,8 @@ position = 0.14
 width = 0.02
 strength = 1.0
 highest_note = 88
-pedal_contact = 0.4
+pedal_free = 0.35
+pedal_contact = 0.8
 pedal_curve = 1.5
 fall_time = 0.012
 lift_time = 0.005
@@ -141,7 +142,7 @@ lift_time = 0.005
 [sympathetic]
 enabled = true
 max_freq = 5000.0
-gain = 1.0
+gain = 0.25
 self_cancel = true
 
 [noise]

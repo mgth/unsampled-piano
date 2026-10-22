@@ -10,6 +10,8 @@ Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cor
 # jouer depuis un clavier MIDI (PipeWire natif, priorité temps réel)
 cargo run --release -p piano-play -- --list
 cargo run --release -p piano-play -- --buffer 128 [--preset presets/concert.toml]
+# jouer des fichiers MIDI à la suite (timing à l'échantillon près ; --from saute le début)
+cargo run --release -p piano-play -- --buffer 128 --file data/midi/*.mid
 
 # rendu hors ligne (WAV stéréo)
 cargo run --release -p piano-render -- midi morceau.mid out/morceau.wav
@@ -20,6 +22,14 @@ cargo run --release -p piano-render -- dump-preset presets/mon_piano.toml
 tools/calibrate.sh data/salamander/Samples out/calib
 
 cargo test --workspace
+```
+
+## Interprétations de référence
+
+Les fichiers de `data/midi/` sont tirés de [MAESTRO v3](https://magenta.tensorflow.org/datasets/maestro) (Google Magenta, CC BY-NC-SA 4.0) : des pianistes du Piano-e-Competition enregistrés sur Disklavier, avec la vélocité réelle des touches et les pédales. `data/` n'est pas versionné ; pour les retrouver :
+
+```bash
+curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/magentadata/datasets/maestro/v3.0.0/maestro-v3.0.0-midi.zip
 ```
 
 ## Crates
@@ -46,3 +56,4 @@ cargo test --workspace
 - Phase 5 (bruits mécaniques, préréglages, temps réel, calibration) : [docs/phase5.md](docs/phase5.md)
 - Cadre en fonte et ceinture : [docs/cadre_ceinture.md](docs/cadre_ceinture.md)
 - Tenue des notes (chevalet, épaisseur de la table, pertes des cordes) : [docs/tenue.md](docs/tenue.md)
+- Dynamique, pédale et résonance sympathique : [docs/dynamique_pedale.md](docs/dynamique_pedale.md)

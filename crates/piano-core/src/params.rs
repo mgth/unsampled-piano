@@ -239,7 +239,11 @@ pub struct DamperLaw {
     pub strength: f64,
     /// Highest key with a damper.
     pub highest_note: u8,
-    /// Sustain-pedal travel (0–1) at which the dampers leave the strings.
+    /// Sustain-pedal travel (0–1): lost motion before the dampers start to
+    /// lift (`pedal_free`), and travel at which they have left the strings
+    /// (`pedal_contact`). Pianists rest the foot on the pedal: recorded
+    /// performances (Disklavier, MAESTRO) seldom drop below CC64 ≈ 40.
+    pub pedal_free: f64,
     pub pedal_contact: f64,
     /// Shape of the contact versus pedal travel below that point.
     pub pedal_curve: f64,
@@ -254,7 +258,9 @@ impl DamperLaw {
         width: 0.02,
         strength: 1.0,
         highest_note: 88,
-        pedal_contact: 0.4,
+        // Half pedal around CC64 = 64, dampers off from ≈ 100.
+        pedal_free: 0.35,
+        pedal_contact: 0.8,
         pedal_curve: 1.5,
         fall_time: 0.012,
         lift_time: 0.005,
@@ -262,7 +268,8 @@ impl DamperLaw {
 
     /// Contact (0 lifted … 1 resting) imposed by the sustain pedal alone.
     pub fn pedal_engagement(&self, travel: f64) -> f64 {
-        ((self.pedal_contact - travel) / self.pedal_contact).clamp(0.0, 1.0).powf(self.pedal_curve)
+        let span = (self.pedal_contact - self.pedal_free).max(1e-6);
+        ((self.pedal_contact - travel) / span).clamp(0.0, 1.0).powf(self.pedal_curve)
     }
 
     /// Mean of sin²(kπx/L) over the pad: 1/2 − cos(2kπ·pos)·sinc(kπ·w/L)/2.
@@ -330,14 +337,20 @@ pub struct SympatheticLaw {
     pub enabled: bool,
     /// Strings that only listen run their partials below this frequency.
     pub max_freq: f64,
-    /// Scale on the bridge-to-string gain (1 = physical).
+    /// Scale on the bridge-to-string gain (1 = the one-way physical
+    /// coupling). The listening strings take no energy from the board, so
+    /// at coinciding partials (octaves) they grow far beyond what a passive
+    /// two-way system allows: with 1, a pedalled chord gained +10 dB and a
+    /// sub-octave string outgrew the played note. 0.25 leaves a halo of
+    /// +1 to +2.5 dB on a pedalled chord (examples/sympathy_level.rs); a
+    /// compensation, not a measurement.
     pub gain: f64,
     /// Cancel each key's own contribution to its bridge input.
     pub self_cancel: bool,
 }
 
 impl SympatheticLaw {
-    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 1.0, self_cancel: true };
+    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 0.25, self_cancel: true };
 }
 
 /// Partial frequency of a stiff string: f_k = k·f0·sqrt(1 + B·k²).
@@ -405,8 +418,11 @@ impl NoteParams {
 }
 
 /// MIDI velocity → hammer speed: exponential from `vmin` (velocity 1) to
-/// `vmax` (velocity 127), m/s. Fits the Salamander dynamics curve (1.4 dB
-/// rms over 16 layers).
+/// `vmax` (velocity 127), m/s. The default is the logarithmic map of the
+/// recording pianos (Goebl & Bresin 2003: velocity = 52 + 25·log2(v m/s),
+/// 2 m/s ↔ 77 on the Disklavier), so that recorded performances (MAESTRO)
+/// keep their dynamics; the earlier fit on Salamander's sampler layers
+/// (0.4–4 m/s) compressed both ends.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct VelocityLaw {
@@ -415,7 +431,9 @@ pub struct VelocityLaw {
 }
 
 impl VelocityLaw {
-    pub const DEFAULT: Self = Self { vmin: 0.4, vmax: 4.0 };
+    pub const DEFAULT: Self = Self { vmin: 0.243, vmax: 8.0 };
+    /// Fit of the Salamander layers (sampler velocity ranges), 1.4 dB rms.
+    pub const SALAMANDER_LAYERS: Self = Self { vmin: 0.4, vmax: 4.0 };
 
     pub fn hammer_speed(&self, velocity: u8) -> f64 {
         let t = (velocity.clamp(1, 127) as f64 - 1.0) / 126.0;
