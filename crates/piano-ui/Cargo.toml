@@ -1,0 +1,15 @@
+[package]
+name = "piano-ui"
+description = "egui interface of the instrument: every parameter, presets, rebuild status. Only egui: the standalone player and the plugin provide the window."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+piano-core = { workspace = true, features = ["serde"] }
+piano-host.workspace = true
+piano-params.workspace = true
+egui.workspace = true
+
+[dev-dependencies]
+eframe.workspace = true

@@ -2,7 +2,7 @@
 //! bounded under abuse (all keys, all velocities, fast repetitions, pedal).
 
 use assert_no_alloc::{assert_no_alloc, AllocDisabler};
-use piano_core::{Engine, EngineConfig, Event, TimedEvent};
+use piano_core::{Engine, EngineConfig, Event, LiveParam, TimedEvent};
 
 #[global_allocator]
 static A: AllocDisabler = AllocDisabler;
@@ -21,6 +21,12 @@ fn torture(engine: &mut Engine, blocks: usize) -> Vec<f32> {
         }
         if i % 50 == 0 {
             events.push(TimedEvent { frame: 0, event: Event::Control { cc: 64, value: if i % 100 == 0 { 127 } else { 0 } } });
+            events.sort_by_key(|e| e.frame);
+        }
+        if i % 40 == 20 {
+            let id = LiveParam::ALL[i / 40 % LiveParam::ALL.len()];
+            let value = id.get(&engine.instrument().model) as f32 * if i % 80 == 20 { 0.5 } else { 1.0 };
+            events.push(TimedEvent { frame: 3, event: Event::Param { id, value } });
             events.sort_by_key(|e| e.frame);
         }
         assert_no_alloc(|| engine.process(&events, blk));

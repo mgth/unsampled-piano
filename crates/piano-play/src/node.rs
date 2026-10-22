@@ -52,8 +52,9 @@ impl jack::ProcessHandler for Process {
                 }
             },
             |time, e| {
-                let (b, n) = encode(e);
-                let _ = writer.write(&RawMidi { time, bytes: &b[..n] });
+                if let Some(b) = encode(e) {
+                    let _ = writer.write(&RawMidi { time, bytes: &b });
+                }
             },
         );
         Control::Continue

@@ -1,0 +1,10 @@
+[package]
+name = "piano-params"
+description = "Parameter registry of the instrument (paths, ids, ranges, live or rebuild) and the control interface shared by the UI, MIDI and plugin hosts."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+piano-core = { workspace = true, features = ["serde"] }
+toml.workspace = true

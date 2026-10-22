@@ -126,12 +126,14 @@ impl Player {
     }
 }
 
-/// Raw MIDI (channel 1) of an event, for the mirror output.
-pub fn encode(e: Event) -> ([u8; 3], usize) {
+/// Raw MIDI (channel 1) of an event, for the mirror output; None for the
+/// engine's own events (parameter changes).
+pub fn encode(e: Event) -> Option<[u8; 3]> {
     match e {
-        Event::NoteOn { note, velocity } => ([0x90, note & 0x7f, velocity & 0x7f], 3),
-        Event::NoteOff { note, velocity } => ([0x80, note & 0x7f, velocity & 0x7f], 3),
-        Event::Control { cc, value } => ([0xb0, cc & 0x7f, value & 0x7f], 3),
-        Event::AllNotesOff => ([0xb0, 123, 0], 3),
+        Event::NoteOn { note, velocity } => Some([0x90, note & 0x7f, velocity & 0x7f]),
+        Event::NoteOff { note, velocity } => Some([0x80, note & 0x7f, velocity & 0x7f]),
+        Event::Control { cc, value } => Some([0xb0, cc & 0x7f, value & 0x7f]),
+        Event::AllNotesOff => Some([0xb0, 123, 0]),
+        Event::Param { .. } => None,
     }
 }

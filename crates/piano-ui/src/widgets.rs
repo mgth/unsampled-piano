@@ -1,0 +1,158 @@
+//! A parameter row (slider with edit gestures, reset, live/rebuild mark) and
+//! a per-key curve.
+
+use egui::{Color32, Pos2, RichText, Sense, Stroke, Ui, Vec2};
+use piano_core::params::PianoModel;
+use piano_params::{Kind, Param, PianoControl, Value};
+
+use crate::sections::Curve;
+
+/// One grid row: label, value, reset, kind. Edits go to `control` as a
+/// gesture (a drag is one begin/end pair; typed values are a whole one).
+pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn PianoControl) {
+    let m = &p.meta;
+    let modified = value.is_some_and(|v| v != p.default);
+    let text = RichText::new(&m.label);
+    let label = ui.label(if modified { text.color(ui.visuals().strong_text_color()) } else { text });
+    label.on_hover_ui(|ui| {
+        ui.label(RichText::new(&p.path).monospace());
+        ui.label(format!("Default: {}", show(p.default.as_f64())));
+        if !m.curated {
+            ui.label(RichText::new("Range guessed from the default value").weak());
+        }
+    });
+    let Some(mut v) = value else {
+        ui.label(RichText::new("off in this model").weak());
+        ui.label("");
+        ui.label("");
+        return;
+    };
+    let r = match &mut v {
+        Value::Float(x) => ui.add(
+            egui::Slider::new(x, m.min..=m.max)
+                .logarithmic(m.log)
+                .clamping(egui::SliderClamping::Never)
+                .suffix(if m.unit.is_empty() { String::new() } else { format!(" {}", m.unit) })
+                .custom_formatter(|v, _| show(v)),
+        ),
+        Value::Int(x) => ui.add(
+            egui::Slider::new(x, m.min as i64..=m.max as i64)
+                .clamping(egui::SliderClamping::Never)
+                .suffix(if m.unit.is_empty() { String::new() } else { format!(" {}", m.unit) }),
+        ),
+        Value::Bool(x) => ui.checkbox(x, ""),
+    };
+    if r.drag_started() {
+        control.begin_edit(&p.path);
+    }
+    if r.changed() {
+        if r.dragged() || r.drag_started() || r.drag_stopped() {
+            control.set(&p.path, v);
+        } else {
+            control.begin_edit(&p.path);
+            control.set(&p.path, v);
+            control.end_edit(&p.path);
+        }
+    }
+    if r.drag_stopped() {
+        control.end_edit(&p.path);
+    }
+    let reset = ui.add_visible(v != p.default, egui::Button::new("↺").small()).on_hover_text("Back to the default");
+    if reset.clicked() {
+        control.begin_edit(&p.path);
+        control.set(&p.path, p.default);
+        control.end_edit(&p.path);
+    }
+    kind_mark(ui, matches!(p.kind, Kind::Live(_)));
+}
+
+/// Filled green dot: applied while playing; hollow: rebuilds the instrument.
+pub fn kind_mark(ui: &mut Ui, live: bool) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(12.0), Sense::hover());
+    let c = rect.center();
+    if live {
+        ui.painter().circle_filled(c, 4.0, LIVE);
+    } else {
+        ui.painter().circle_stroke(c, 3.5, Stroke::new(1.0, ui.visuals().weak_text_color()));
+    }
+    resp.on_hover_text(if live { "Applied while playing" } else { "Rebuilds the instrument" })
+}
+
+pub const LIVE: Color32 = Color32::from_rgb(90, 190, 110);
+
+/// Four significant digits; scientific outside 1e-3…1e5.
+pub fn show(v: f64) -> String {
+    let a = v.abs();
+    if v == 0.0 {
+        "0".into()
+    } else if !(1e-3..1e5).contains(&a) {
+        format!("{v:.3e}")
+    } else {
+        let decimals = (3 - a.log10().floor() as i32).max(0) as usize;
+        let s = format!("{v:.decimals$}");
+        if s.contains('.') { s.trim_end_matches('0').trim_end_matches('.').into() } else { s }
+    }
+}
+
+pub fn note_name(n: u8) -> String {
+    const NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    format!("{}{}", NAMES[n as usize % 12], n as i32 / 12 - 1)
+}
+
+/// The law of `model` across its x range, over the default model's (faint).
+pub fn curve(ui: &mut Ui, c: &Curve, model: &PianoModel, reference: &PianoModel, width: f32) {
+    let ys = |m: &PianoModel| -> Vec<f64> { (c.x.0..=c.x.1).map(|x| (c.f)(m, x)).collect() };
+    let (cur, def) = (ys(model), ys(reference));
+    let tf = |y: f64| if c.log { y.max(1e-300).log10() } else { y };
+    let (lo, hi) = cur.iter().chain(&def).map(|&y| tf(y)).filter(|y| y.is_finite()).fold((f64::MAX, f64::MIN), |(lo, hi), y| (lo.min(y), hi.max(y)));
+    let (lo, hi) = if hi - lo < 1e-12 { (lo - 0.5, hi + 0.5) } else { (lo, hi) };
+
+    ui.vertical(|ui| {
+        ui.label(RichText::new(if c.unit.is_empty() { c.title.to_string() } else { format!("{} ({})", c.title, c.unit) }).small());
+        let (resp, painter) = ui.allocate_painter(Vec2::new(width, 110.0), Sense::hover());
+        let rect = resp.rect;
+        let vis = ui.visuals();
+        painter.rect_stroke(rect, 2.0, Stroke::new(1.0, vis.widgets.noninteractive.bg_stroke.color), egui::StrokeKind::Inside);
+        let inner = rect.shrink(4.0);
+        let n = cur.len().max(2) - 1;
+        let pt = |i: usize, y: f64| {
+            let fx = i as f32 / n as f32;
+            let fy = ((tf(y) - lo) / (hi - lo)) as f32;
+            Pos2::new(inner.left() + fx * inner.width(), inner.bottom() - fy * inner.height())
+        };
+        let line = |ys: &[f64]| ys.iter().enumerate().map(|(i, &y)| pt(i, y)).filter(|p| p.y.is_finite()).collect::<Vec<_>>();
+        painter.add(egui::Shape::line(line(&def), Stroke::new(1.0, vis.weak_text_color())));
+        painter.add(egui::Shape::line(line(&cur), Stroke::new(1.5, vis.selection.stroke.color)));
+        let font = egui::FontId::proportional(10.0);
+        let txt = vis.weak_text_color();
+        let back = |t: f64| if c.log { 10f64.powf(t) } else { t };
+        painter.text(inner.left_top(), egui::Align2::LEFT_TOP, show(back(hi)), font.clone(), txt);
+        painter.text(inner.left_bottom(), egui::Align2::LEFT_BOTTOM, show(back(lo)), font.clone(), txt);
+        if let Some(pos) = resp.hover_pos() {
+            let i = (((pos.x - inner.left()) / inner.width()).clamp(0.0, 1.0) * n as f32).round() as usize;
+            let x = c.x.0 + i as u8;
+            let p = pt(i, cur[i]);
+            painter.line_segment([Pos2::new(p.x, inner.top()), Pos2::new(p.x, inner.bottom())], Stroke::new(1.0, txt));
+            painter.circle_filled(p, 3.0, vis.selection.stroke.color);
+            let xs = if c.x == (1, 127) { format!("vel {x}") } else { note_name(x) };
+            let label = format!("{xs}: {}", show(cur[i]));
+            let anchor = if p.x > inner.center().x { egui::Align2::RIGHT_TOP } else { egui::Align2::LEFT_TOP };
+            painter.text(Pos2::new(p.x + if p.x > inner.center().x { -4.0 } else { 4.0 }, inner.top()), anchor, label, font, vis.text_color());
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formatting() {
+        assert_eq!(show(0.012), "0.012");
+        assert_eq!(show(440.0), "440");
+        assert_eq!(show(1.0e-7), "1.000e-7");
+        assert_eq!(show(-3.708095), "-3.708");
+        assert_eq!(note_name(60), "C4");
+        assert_eq!(note_name(21), "A0");
+    }
+}
