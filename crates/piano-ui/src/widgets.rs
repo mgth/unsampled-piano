@@ -85,7 +85,7 @@ fn midi_button(ui: &mut Ui, p: &Param, control: &mut dyn PianoControl) {
     let r = ui.add(egui::Button::new(text.small()).selected(waiting).frame(waiting || cc.is_some()));
     let r = r.on_hover_text(match cc {
         Some(_) => "Click to learn another controller, right-click to remove",
-        None => "Click, then move a knob or fader",
+        None => "Click, then move a knob or fader over part of its travel",
     });
     if r.clicked() {
         if waiting { learn.cancel() } else { learn.learn(&p.path) }

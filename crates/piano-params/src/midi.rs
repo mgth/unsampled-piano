@@ -138,6 +138,10 @@ pub enum CcAction {
     Set { path: String, value: Value, live: bool },
 }
 
+/// Travel (CC steps) after which the controller moved is learnt: an X/Y
+/// joystick sends both axes, the one not aimed at only jitters.
+pub const LEARN_TRAVEL: u16 = 12;
+
 /// The map being edited, the parameter waiting for a controller, and
 /// whether the audio thread's table is stale.
 pub struct MidiLearn {
@@ -145,20 +149,24 @@ pub struct MidiLearn {
     map: MidiMap,
     learning: Option<String>,
     dirty: bool,
+    /// Last value of each controller, and its travel since learning began.
+    last: [Option<u8>; 128],
+    travel: [u16; 128],
 }
 
 impl MidiLearn {
     pub fn new(map: MidiMap) -> Self {
-        Self { registry: Registry::new(), map, learning: None, dirty: true }
+        Self { registry: Registry::new(), map, learning: None, dirty: true, last: [None; 128], travel: [0; 128] }
     }
 
     pub fn map(&self) -> &MidiMap {
         &self.map
     }
 
-    /// The next controller moved will drive `path`.
+    /// The next controller moved over [`LEARN_TRAVEL`] will drive `path`.
     pub fn learn(&mut self, path: &str) {
         self.learning = Some(path.into());
+        self.travel = [0; 128];
     }
 
     pub fn cancel(&mut self) {
@@ -189,10 +197,17 @@ impl MidiLearn {
 
     /// A CC received (non-real-time side, every one the audio side saw).
     pub fn on_cc(&mut self, cc: u8, value: u8) -> CcAction {
-        if let Some(path) = self.learning.take_if(|_| !reserved(cc)) {
-            self.map.assign(&self.registry, cc, &path);
-            self.dirty = true;
-            return CcAction::Learnt { cc, path };
+        let (cc, value) = (cc & 0x7f, value.min(127));
+        let step = self.last[cc as usize].map_or(0, |l| l.abs_diff(value) as u16);
+        self.last[cc as usize] = Some(value);
+        if self.learning.is_some() && !reserved(cc) {
+            self.travel[cc as usize] += step;
+            if self.travel[cc as usize] >= LEARN_TRAVEL {
+                let path = self.learning.take().expect("learning");
+                self.map.assign(&self.registry, cc, &path);
+                self.dirty = true;
+                return CcAction::Learnt { cc, path };
+            }
         }
         let Some(m) = self.map.for_cc(cc) else { return CcAction::None };
         let Some(p) = self.registry.get(&m.path) else { return CcAction::None };
@@ -215,6 +230,32 @@ impl MidiLearn {
 mod tests {
     use super::*;
 
+    /// Turns a controller from 0 to 40 (enough to be learnt).
+    fn turn(l: &mut MidiLearn, cc: u8) {
+        for v in (0..=40).step_by(4) {
+            l.on_cc(cc, v);
+        }
+    }
+
+    #[test]
+    fn joystick_axis_moved_most_is_learnt() {
+        let mut l = MidiLearn::new(MidiMap::default());
+        // Joystick resting at (70, 40), no return to centre; X is reported first.
+        l.on_cc(16, 70);
+        l.on_cc(17, 40);
+        l.learn("hardness");
+        // Aiming at Y: X jitters by a few steps on the way.
+        for (x, y) in [(71, 44), (69, 48), (72, 52), (70, 56)] {
+            assert_eq!(l.on_cc(16, x), CcAction::None);
+            if let CcAction::Learnt { cc, .. } = l.on_cc(17, y) {
+                assert_eq!(cc, 17);
+                assert_eq!(l.map().for_path("hardness").map(|m| m.cc), Some(17));
+                return;
+            }
+        }
+        panic!("Y never learnt");
+    }
+
     #[test]
     fn learn_then_drive() {
         let mut l = MidiLearn::new(MidiMap::default());
@@ -222,7 +263,9 @@ mod tests {
         l.learn("output_gain_db");
         // Pedals are not learnt, and a pedal moved meanwhile is no action.
         assert_eq!(l.on_cc(64, 127), CcAction::None);
-        assert_eq!(l.on_cc(21, 5), CcAction::Learnt { cc: 21, path: "output_gain_db".into() });
+        assert_eq!(l.on_cc(64, 0), CcAction::None);
+        assert_eq!(l.on_cc(21, 5), CcAction::None);
+        assert_eq!(l.on_cc(21, 30), CcAction::Learnt { cc: 21, path: "output_gain_db".into() });
         assert_eq!(l.learning(), None);
         let routes = l.take_routes().expect("map changed");
         assert!(l.take_routes().is_none());
@@ -238,7 +281,7 @@ mod tests {
     fn rebuild_parameters_and_one_to_one() {
         let mut l = MidiLearn::new(MidiMap::default());
         l.learn("hardness");
-        l.on_cc(1, 0);
+        turn(&mut l, 1);
         // Rebuild parameters stay off the audio thread's table.
         assert_eq!(l.take_routes().unwrap(), RouteTable::default());
         match l.on_cc(1, 127) {
@@ -250,11 +293,11 @@ mod tests {
         assert!((mid - 0.04).abs() < 1e-12);
         // Learning another parameter on CC 1 takes it over.
         l.learn("hysteresis");
-        l.on_cc(1, 3);
+        turn(&mut l, 1);
         assert_eq!(l.map().mappings.len(), 1);
         assert_eq!(l.map().for_cc(1).map(|m| m.path.as_str()), Some("hysteresis"));
         l.learn("hysteresis");
-        l.on_cc(2, 3);
+        turn(&mut l, 2);
         assert_eq!(l.map().mappings.len(), 1);
         assert_eq!(l.map().for_path("hysteresis").map(|m| m.cc), Some(2));
     }
@@ -264,9 +307,9 @@ mod tests {
         let reg = Registry::new();
         let mut l = MidiLearn::new(MidiMap::default());
         l.learn("damper.highest_note");
-        l.on_cc(30, 0);
+        turn(&mut l, 30);
         l.learn("sympathetic.enabled");
-        l.on_cc(31, 0);
+        turn(&mut l, 31);
         assert!(matches!(l.on_cc(30, 64), CcAction::Set { value: Value::Int(_), .. }));
         assert!(matches!(l.on_cc(31, 100), CcAction::Set { value: Value::Bool(true), .. }));
         let text = l.map().to_toml();

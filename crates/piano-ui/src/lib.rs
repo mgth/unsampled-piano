@@ -72,7 +72,7 @@ impl PianoUi {
             if let Some(path) = &learning {
                 let label = self.registry.get(path).map_or(path.as_str(), |p| p.meta.label.as_str());
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(format!("Move a controller for \u{201c}{label}\u{201d}…")).color(widgets::LIVE));
+                    ui.label(RichText::new(format!("Move a controller over part of its travel for \u{201c}{label}\u{201d}…")).color(widgets::LIVE));
                     if ui.small_button("Cancel").clicked() {
                         control.midi().map(|l| l.cancel());
                     }
