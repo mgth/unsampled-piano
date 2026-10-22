@@ -14,7 +14,7 @@ Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cor
 # réglages personnels par défaut dans ~/.config/piano/play.toml, par ex.
 # device = "Stereo DJ X-Fade:In B")
 cargo run --release -p piano-play -- --list
-cargo run --release -p piano-play -- --buffer 128 [--preset presets/concert.toml]
+cargo run --release -p piano-play -- --buffer 128 [--preset presets/proche.toml | presets/concert.toml]
 # jouer des fichiers MIDI à la suite (timing à l'échantillon près ; --from saute le début)
 cargo run --release -p piano-play -- --buffer 128 --file data/midi/*.mid
 
@@ -66,3 +66,4 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 - Pertes des cordes graves (désaccord d'unisson, mode piston de la caisse) : [docs/graves.md](docs/graves.md)
 - Changement de timbre avec la nuance (feutre) : [docs/timbre_nuance.md](docs/timbre_nuance.md)
 - Non-linéarité des cordes (partiels fantômes) : [docs/non_linearite.md](docs/non_linearite.md)
+- Présence de l'attaque (marteau à deux couches, prises de son) : [docs/presence.md](docs/presence.md)

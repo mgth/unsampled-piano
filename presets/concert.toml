@@ -1,5 +1,10 @@
 # Concert set-up: lid open at 35°, a pair of microphones 1.6 m in front of
-# the opening at 1 m above the board, in the default hall.
+# the opening, 2 m above the board (at 1 m they sat under the lid's
+# reflection and lost 10 dB at 2–4 kHz in the middle, docs/presence.md),
+# in the default hall.
+# Level: same loudness as the earlier 1 m set-up.
+output_gain_db = 3.4
+
 [soundboard]
 lid_angle = 35.0
-mics = [[0.55, -1.6, 1.0], [1.25, -1.6, 1.0]]
+mics = [[0.55, -1.6, 2.0], [1.25, -1.6, 2.0]]

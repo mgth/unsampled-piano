@@ -30,6 +30,17 @@ def metrics(d):
             br.append(np.log(centroid(a, m, 0, 0.05) / centroid(c, m, 0, 0.05)))
             d1.append(peak_db(a) - peak_db(c)); d2.append(peak_db(a) - peak_db(b))
         out[f"{lab}|bright"] = float(np.mean(br)) if br else None
+        # Presence of the attack: share of energy (dB) at 2–4 and 4–8 kHz in
+        # the first 60 ms, ff and mf.
+        for l, tag in ((13, "ff"), (8, "mf")):
+            hf = []
+            for m in ks:
+                x = get(m, l)
+                if x is None: continue
+                s0 = onset(x); seg = x[s0:s0 + 2880]
+                S = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2; f = np.fft.rfftfreq(len(seg), 1 / 48000); tot = S.sum()
+                hf.append([10 * np.log10(S[(f >= a) & (f < b)].sum() / tot + 1e-12) for a, b in ((2000, 4000), (4000, 8000))])
+            out[f"{lab}|hf_{tag}"] = np.mean(hf, axis=0).tolist() if hf else None
         # Brightening by partial: gain ff − pp of partials ≥ 6 minus that of
         # partials 1–2 (0–100 ms, absolute levels).
         sl = []
@@ -58,12 +69,14 @@ refs = json.load(open(ARGS[0]))
 def score(mm, verbose=False):
     errs = []
     for key, v in mm.items():
-        if v is None: continue
+        # The undamped top strings still ring from the preceding notes of a
+        # recorded sequence: the quiet C7–C8 peaks are not their own.
+        if v is None or key == "suraigu C7–C8|dyn": continue
         srcs = ["salamander", "commercial"] if key.endswith("|dyn") else list(refs)
         vals = [np.array(refs[s][key], dtype=float) for s in srcs if refs[s].get(key) is not None]
         if not vals: continue
         vals = np.array(vals); tgt = np.nanmean(vals, axis=0)
-        tol = np.maximum(np.nanstd(vals, axis=0), 0.15 if key.endswith("|bright") else 4.0 if key.endswith("|slope") else 3.0)
+        tol = np.maximum(np.nanstd(vals, axis=0), 0.15 if key.endswith("|bright") else 4.0 if ("|slope" in key or "|hf_" in key) else 3.0)
         e = ((np.array(v, dtype=float) - tgt) / tol) ** 2
         e = e[np.isfinite(e)]
         errs.extend(e.tolist())

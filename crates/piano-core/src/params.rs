@@ -501,7 +501,7 @@ pub struct VelocityLaw {
 }
 
 impl VelocityLaw {
-    pub const DEFAULT: Self = Self { vmin: 0.6, vmax: 3.0 };
+    pub const DEFAULT: Self = Self { vmin: 0.5, vmax: 3.5 };
     /// Fit of the Salamander layers (sampler velocity ranges), 1.4 dB rms.
     pub const SALAMANDER_LAYERS: Self = Self { vmin: 0.4, vmax: 4.0 };
 
@@ -541,17 +541,29 @@ pub struct PianoModel {
     pub rim: crate::structure::RimParams,
     /// Felt softening when the una corda pedal shifts the action fully.
     pub una_corda_softening: f64,
+    /// Output level (dB): close microphones hear the piano louder than
+    /// distant ones; presets set it to keep a comparable loudness.
+    pub output_gain_db: f64,
     /// Multiplies Stulov's Q0 (felt hardness / voicing).
     pub hardness: f64,
     /// Extra hardness growth per key around C4: Q0 ×= e^{slope·(n − 40)}
     /// (voicing; Stulov's fit grows as e^{0.045·n}).
     pub hardness_slope: f64,
-    /// Added to Stulov's exponent p (Russell: 2–4, Stulov: 3.7–5). The
-    /// default +2 (p ≈ 5.7–7) is beyond single-layer felt: it stands for a
-    /// layered hammer (soft top felt over a hard underfelt), whose
-    /// stiffness rises faster than any single power law; with the low
-    /// hardness it gives the pp→ff brightening of the references
-    /// (docs/timbre_nuance.md).
+    /// The same slope below key 40 (C4): bass hammers are large and soft.
+    pub hardness_slope_bass: f64,
+    /// Hard hammer core (two-layer felt): stiffness relative to Stulov's Q0
+    /// of the key (0: single layer), exponent, and depth of the top felt
+    /// (mm) in the bass (A0) and the treble (C8), linear in between.
+    pub core_hardness: f64,
+    pub core_p: f64,
+    pub core_depth_bass: f64,
+    pub core_depth_treble: f64,
+    /// Extra felt exponent in the bass, growing linearly from C4 to A0:
+    /// bass hammers have a soft surface over a very hard core, round at pp,
+    /// biting at ff.
+    pub p_bass: f64,
+    /// Added to Stulov's exponent p (Russell: 2–4, Stulov: 3.7–5) of the
+    /// top felt; the layered hammer is modelled by the core below.
     pub p_offset: f64,
     /// Multiplies Stulov's hysteresis time α.
     pub hysteresis: f64,
@@ -580,13 +592,23 @@ impl Default for PianoModel {
             frame: crate::structure::FrameParams::GRAND_2M,
             rim: crate::structure::RimParams::GRAND_2M,
             una_corda_softening: 0.6,
+            output_gain_db: 0.0,
             // Calibrated on Salamander's absolute attack brightness and its
             // growth with velocity (tools/attack_grid.py), once the strike
             // point was measured from the agraffe: soft felt, Stulov's
             // exponent −0.5, slightly harder towards the treble.
-            hardness: 0.1,
+            hardness: 0.2,
             hardness_slope: 0.02,
-            p_offset: 2.0,
+            hardness_slope_bass: 0.02,
+            p_bass: 0.0,
+            // Two-layer hammer (docs/presence.md): soft top felt (0.2 × Stulov)
+            // over a core 30 × Stulov reached between pp and ff, 0.7 mm deep
+            // in the bass, 0.4 mm in the treble.
+            core_hardness: 30.0,
+            core_p: 2.5,
+            core_depth_bass: 0.7,
+            core_depth_treble: 0.4,
+            p_offset: 0.0,
             hysteresis: 0.6,
             contact_width_scale: 1.0,
         }
@@ -605,8 +627,16 @@ impl PianoModel {
         let contact_width = (0.008 - 0.004 * (m - 21.0) / 87.0) * self.contact_width_scale;
         let mut hammer = hammer_stulov(note);
         let key = note as f64 - 20.0;
-        hammer.q0 *= self.hardness * (self.hardness_slope * (key - 40.0)).exp();
-        hammer.p += self.p_offset;
+        let slope = if key < 40.0 { self.hardness_slope_bass } else { self.hardness_slope };
+        // The core keeps Stulov's stiffness of the key, whatever the voicing
+        // of the top felt.
+        let base_q0 = hammer.q0;
+        hammer.q0 *= self.hardness * (slope * (key - 40.0)).exp();
+        hammer.p += self.p_offset + self.p_bass * ((40.0 - key) / 39.0).max(0.0);
+        hammer.core_q = self.core_hardness * base_q0;
+        hammer.core_p = self.core_p;
+        let t = ((key - 1.0) / 87.0).clamp(0.0, 1.0);
+        hammer.core_depth = (self.core_depth_bass + (self.core_depth_treble - self.core_depth_bass) * t) * 1e-3;
         hammer.alpha *= self.hysteresis;
         NoteParams {
             f0,
@@ -633,11 +663,20 @@ pub struct HammerParams {
     pub q0: f64,
     /// Hysteresis time α (s) of F = Q0·[u^p + α·d(u^p)/dt].
     pub alpha: f64,
+    /// Hard core under the top felt: once the felt is compressed by
+    /// `core_depth` (m), it adds Q_core·(u − depth)^p_core (Q_core in
+    /// N/mm^p_core). Q_core = 0: single-layer felt.
+    pub core_q: f64,
+    pub core_p: f64,
+    pub core_depth: f64,
 }
 
 pub fn hammer_stulov(note: u8) -> HammerParams {
     let n = (note as f64 - 20.0).clamp(1.0, 88.0);
     HammerParams {
+        core_q: 0.0,
+        core_p: 2.5,
+        core_depth: 1e-3,
         mass_kg: (11.074 - 0.074 * n + 1e-4 * n * n) * 1e-3,
         p: 3.7 + 0.015 * n,
         q0: 183.0 * (0.045 * n).exp(),

@@ -72,6 +72,12 @@ pub struct ContactSolver {
     dt: f64,
     mass: f64,
     q_si: f64,
+    /// Hard core: stiffness (SI), exponent, depth (m) of the top felt.
+    core_q_si: f64,
+    core_p: f64,
+    core_depth: f64,
+    /// Largest felt compression of the episode (m).
+    max_u: f64,
     p: f64,
     alpha: f64,
     lambda: f64,
@@ -108,6 +114,10 @@ impl ContactSolver {
             dt: 1.0 / sample_rate,
             mass: 0.0,
             q_si: 0.0,
+            core_q_si: 0.0,
+            core_p: 2.5,
+            core_depth: 1e-3,
+            max_u: 0.0,
             p: 0.0,
             alpha: 0.0,
             lambda: 0.0,
@@ -126,6 +136,27 @@ impl ContactSolver {
 
     pub fn is_active(&self) -> bool {
         self.active
+    }
+
+    /// Largest felt compression of the current/last episode (m).
+    pub fn max_compression(&self) -> f64 {
+        self.max_u
+    }
+
+    /// Felt law at compression u > 0: potential energy, force, stiffness.
+    /// Top felt Q·u^p, plus the core Q_c·(u − d)^p_c beyond the depth d.
+    #[inline]
+    fn felt(&self, u: f64) -> (f64, f64, f64) {
+        let up = u.powf(self.p);
+        let (mut v, mut f, mut k) = (self.q_si * up * u / (self.p + 1.0), self.q_si * up, self.q_si * self.p * up / u);
+        let d = u - self.core_depth;
+        if self.core_q_si > 0.0 && d > 0.0 {
+            let dp = d.powf(self.core_p);
+            v += self.core_q_si * dp * d / (self.core_p + 1.0);
+            f += self.core_q_si * dp;
+            k += self.core_q_si * self.core_p * dp / d;
+        }
+        (v, f, k)
     }
 
     /// Peak force of the current/last episode (N).
@@ -206,6 +237,10 @@ impl ContactSolver {
         self.mass = h.mass_kg;
         self.q_si = h.q_si();
         self.p = h.p;
+        self.core_q_si = h.core_q * 1000f64.powf(h.core_p);
+        self.core_p = h.core_p;
+        self.core_depth = h.core_depth;
+        self.max_u = 0.0;
         // Passivity must not depend on parameters: hysteresis only dissipates.
         self.alpha = h.alpha.max(0.0);
         self.lambda = lambda + dt * dt / self.mass;
@@ -274,11 +309,12 @@ impl ContactSolver {
         let u_prev = self.x1 - self.w1;
 
         // Quadratised felt law and linearised hysteresis at u[n].
+        // g = F/√(2V) (= √(Q(p+1)/2)·u^((p−1)/2) for a single power law),
+        // hysteresis α·dF/dt linearised.
         let (g, eta) = if u_now > 0.0 {
-            let up = u_now.powf(self.p - 1.0);
-            let g = (self.q_si * (self.p + 1.0) / 2.0).sqrt() * u_now.powf((self.p - 1.0) / 2.0);
-            let eta = self.q_si * self.alpha * self.p * up / (2.0 * dt);
-            (g, eta)
+            let (v, f, k) = self.felt(u_now);
+            let g = if v > 0.0 { f / (2.0 * v).sqrt() } else { 0.0 };
+            (g, self.alpha * k / (2.0 * dt))
         } else {
             (0.0, 0.0)
         };
@@ -289,6 +325,7 @@ impl ContactSolver {
             f = 0.0;
         }
         let u_next = u_star - f * self.lambda;
+        self.max_u = self.max_u.max(u_next);
         if !clamped {
             self.psi += g * (u_next - u_prev) / 2.0;
         }
@@ -425,10 +462,12 @@ mod tests {
 
     #[test]
     fn heavy_string_matches_rigid_surface_contact() {
-        // A very heavy string behaves like a rigid wall: Stulov's closed form.
+        // A very heavy string behaves like a rigid wall: Stulov's closed form
+        // (single-layer felt: no core).
         let (modes, mut np) = setup(60, 0.0);
         np.mu *= 1e6;
         np.hammer.alpha = 0.0;
+        np.hammer.core_q = 0.0;
         for v in [1.0, 4.0] {
             let mut s = ContactSolver::new(512, 48_000.0);
             s.strike(&np, v, 1, modes.iter().copied());

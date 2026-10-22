@@ -263,6 +263,7 @@ impl Engine {
     /// host block, which starts `offset` samples before this sub-block.
     fn sub_block(&mut self, events: &[TimedEvent], offset: usize, left: &mut [f32], right: &mut [f32]) {
         let len = left.len();
+        let out_gain = 10f32.powf(self.inst.model.output_gain_db as f32 / 20.0);
         self.update_dampers(len);
         self.add_listeners();
         for r in self.region.iter_mut().chain(self.region_sym.iter_mut()).chain(self.region_agraffe.iter_mut()) {
@@ -296,8 +297,8 @@ impl Engine {
             None => {
                 for r in &self.region {
                     for ((l, rr), x) in left.iter_mut().zip(right.iter_mut()).zip(&r[..len]) {
-                        *l += FORCE_GAIN * x;
-                        *rr += FORCE_GAIN * x;
+                        *l += out_gain * FORCE_GAIN * x;
+                        *rr += out_gain * FORCE_GAIN * x;
                     }
                 }
             }
@@ -330,7 +331,7 @@ impl Engine {
                     }
                 }
                 for x in left.iter_mut().chain(right.iter_mut()) {
-                    *x *= PRESSURE_GAIN;
+                    *x *= out_gain * PRESSURE_GAIN;
                 }
                 if let Some(room) = self.room.as_mut() {
                     room.process(left, right);
@@ -582,6 +583,12 @@ pub fn hammer_velocity(cfg: &EngineConfig, velocity: u8) -> f64 {
 /// Contact duration (s) and peak force (N) of one strike on a string at
 /// rest. Allocates: analysis use only.
 pub fn strike_stats(cfg: &EngineConfig, note: u8, velocity: u8, oversample: Option<usize>) -> (f64, f64) {
+    let (t, f, _) = strike_stats_full(cfg, note, velocity, oversample);
+    (t, f)
+}
+
+/// Contact duration (s), peak force (N) and largest felt compression (m).
+pub fn strike_stats_full(cfg: &EngineConfig, note: u8, velocity: u8, oversample: Option<usize>) -> (f64, f64, f64) {
     let board = cfg.model.soundboard.map(crate::soundboard::Soundboard::new);
     let nm = crate::note_model::NoteModel::build(&cfg.model, board.as_ref(), None, note, cfg.sample_rate, MAX_MODES);
     let mut v = Voice::new(cfg.sample_rate, cfg.max_block);
@@ -592,5 +599,5 @@ pub fn strike_stats(cfg: &EngineConfig, note: u8, velocity: u8, oversample: Opti
     while v.contact.is_active() {
         v.contact.run(&mut out, None);
     }
-    (v.contact.contact_time(), v.contact.max_force())
+    (v.contact.contact_time(), v.contact.max_force(), v.contact.max_compression())
 }
