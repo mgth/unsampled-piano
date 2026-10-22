@@ -58,7 +58,7 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
     if r.drag_stopped() {
         control.end_edit(&p.path);
     }
-    let reset = ui.add_visible(v != p.default, egui::Button::new("↺").small()).on_hover_text("Back to the default");
+    let reset = reset_button(ui, v != p.default).on_hover_text("Back to the default");
     if reset.clicked() {
         control.begin_edit(&p.path);
         control.set(&p.path, p.default);
@@ -98,6 +98,39 @@ fn midi_button(ui: &mut Ui, p: &Param, control: &mut dyn PianoControl) {
             }
         });
     }
+}
+
+/// A circular arrow, drawn rather than a glyph (the plugin's fonts lack
+/// one); empty space of the same size when hidden, to keep the column.
+fn reset_button(ui: &mut Ui, visible: bool) -> egui::Response {
+    let size = Vec2::splat(ui.spacing().interact_size.y);
+    let sense = if visible { Sense::click() } else { Sense::hover() };
+    let (rect, resp) = ui.allocate_exact_size(size, sense);
+    if !visible || !ui.is_rect_visible(rect) {
+        return resp;
+    }
+    let style = ui.style().interact(&resp);
+    if resp.hovered() {
+        ui.painter().rect_filled(rect, 3.0, style.bg_fill);
+    }
+    let stroke = Stroke::new(1.5, style.fg_stroke.color);
+    let (c, r) = (rect.center(), 0.28 * rect.height());
+    // Three quarters of a circle, from the top clockwise to the left.
+    let start = -std::f32::consts::FRAC_PI_2;
+    let points: Vec<Pos2> = (0..=24)
+        .map(|i| start + 1.5 * std::f32::consts::PI * i as f32 / 24.0)
+        .map(|a| c + r * Vec2::angled(a))
+        .collect();
+    ui.painter().add(egui::Shape::line(points, stroke));
+    // Arrowhead at the open end (the top), pointing along the arc.
+    let tip = c + r * Vec2::angled(start);
+    let h = 0.55 * r;
+    ui.painter().add(egui::Shape::convex_polygon(
+        vec![tip + Vec2::new(h, 0.0), tip + Vec2::new(-0.4 * h, -0.8 * h), tip + Vec2::new(-0.4 * h, 0.8 * h)],
+        style.fg_stroke.color,
+        Stroke::NONE,
+    ));
+    resp
 }
 
 /// Filled green dot: applied while playing; hollow: rebuilds the instrument.
