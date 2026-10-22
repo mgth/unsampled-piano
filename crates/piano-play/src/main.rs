@@ -40,7 +40,7 @@ struct Args {
     #[arg(long)]
     host: Option<String>,
     /// Name of the graph node.
-    #[arg(long, default_value = "piano")]
+    #[arg(long, default_value = "unsampled-piano")]
     name: String,
     /// Connect the MIDI mirror output to the graph's MIDI inputs whose name
     /// contains this (node backend), e.g. another synthesiser.
@@ -361,8 +361,8 @@ impl Supervisor {
     }
 }
 
-/// The MIDI controller map, `$XDG_CONFIG_HOME/piano/midi.toml` (else
-/// `~/.config/piano/midi.toml`): the player's controllers, kept apart
+/// The MIDI controller map, `$XDG_CONFIG_HOME/unsampled-piano/midi.toml` (else
+/// `~/.config/unsampled-piano/midi.toml`): the player's controllers, kept apart
 /// from the instrument presets.
 struct MidiMapFile {
     path: Option<PathBuf>,
@@ -401,12 +401,12 @@ impl MidiMapFile {
     }
 }
 
-/// `$XDG_CONFIG_HOME/piano`, else `~/.config/piano`.
+/// `$XDG_CONFIG_HOME/unsampled-piano`, else `~/.config/unsampled-piano`.
 fn config_dir() -> Option<PathBuf> {
     std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
-        .map(|d| d.join("piano"))
+        .map(|d| d.join("unsampled-piano"))
 }
 
 /// The preset file, reloaded when its modification time changes.
@@ -528,8 +528,8 @@ fn file_timeline(args: &Args, sr: f64) -> Result<(Vec<(u64, Event)>, Vec<(f64, S
     Ok((timeline, pieces, t0))
 }
 
-/// Personal defaults from `$XDG_CONFIG_HOME/piano/play.toml` (else
-/// `~/.config/piano/play.toml`), used for what the command line leaves out:
+/// Personal defaults from `$XDG_CONFIG_HOME/unsampled-piano/play.toml` (else
+/// `~/.config/unsampled-piano/play.toml`), used for what the command line leaves out:
 /// `device`, `midi`, `midi_out`, `name`, `preset`, `presets` (strings),
 /// `buffer`, `gain_db` (numbers), `ui` (boolean).
 fn apply_user_config(args: &mut Args) {

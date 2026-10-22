@@ -11,7 +11,7 @@ Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cor
 # stéréo, entrée MIDI (timing à l'échantillon) et sortie MIDI miroir de ce qu'il
 # joue ; il se branche sur la sortie par défaut et sur le premier clavier
 # (--midi / --device pour choisir, --host pipewire pour l'ancien mode cpal ;
-# réglages personnels par défaut dans ~/.config/piano/play.toml, par ex.
+# réglages personnels par défaut dans ~/.config/unsampled-piano/play.toml, par ex.
 # device = "Stereo DJ X-Fade:In B")
 cargo run --release -p piano-play -- --list
 cargo run --release -p piano-play -- --buffer 128 [--preset presets/proche.toml | presets/concert.toml]
