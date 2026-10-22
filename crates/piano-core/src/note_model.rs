@@ -280,11 +280,9 @@ impl PianoTable {
         sample_rate: f64,
         max_modes: usize,
     ) -> Self {
-        Self {
-            notes: (21u8..=108)
-                .map(|n| NoteModel::build(model, board, board_modes, n, sample_rate, max_modes))
-                .collect(),
-        }
+        // Independent keys: built in parallel (≈ 0.5 s on one core).
+        let notes = crate::par::map(88, |i| NoteModel::build(model, board, board_modes, 21 + i as u8, sample_rate, max_modes));
+        Self { notes }
     }
 
     pub fn get(&self, note: u8) -> &NoteModel {

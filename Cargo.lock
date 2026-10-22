@@ -2926,6 +2926,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "piano-control"
+version = "0.1.0"
+dependencies = [
+ "assert_no_alloc",
+ "piano-core",
+ "piano-params",
+ "rtrb",
+]
+
+[[package]]
 name = "piano-core"
 version = "0.1.0"
 dependencies = [
@@ -2972,8 +2982,10 @@ dependencies = [
  "cpal",
  "jack",
  "midir",
+ "piano-control",
  "piano-core",
  "piano-host",
+ "piano-params",
  "rtrb",
  "toml",
 ]

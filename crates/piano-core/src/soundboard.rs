@@ -496,9 +496,8 @@ impl Soundboard {
             }
         }
         let ds = dx * dy;
-        self.modes
-            .iter()
-            .map(|md| {
+        crate::par::map(self.modes.len(), |i| {
+                let md = &self.modes[i];
                 let k = md.omega / C0;
                 let pre = C64::new(0.0, md.omega * RHO0 / TAU);
                 let mut acc = [C64::ZERO; 2];
@@ -528,7 +527,6 @@ impl Soundboard {
                 }
                 [pre * acc[0], pre * acc[1]]
             })
-            .collect()
     }
 
     /// Modal density (modes per Hz) between f1 and f2.
