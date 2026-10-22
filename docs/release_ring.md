@@ -58,6 +58,40 @@ Starting the increase at F#6 alone, only on the undamped strings, barely shorten
 - **Unchanged**: treble sustain (C5–B6), hammer score (0.51), attack and sustain brightness. The 1 kHz sustain band of the treble only drops for F#6 and A6, where it lies below the fundamental and holds nothing but sympathetic ring.
 - **Tests and CPU**: unchanged.
 
+## Bass: the partials with a node under the damper
+
+Listening report: "the resonance that trails after the bass is released really drags on, for several seconds; the commercial piano has it too, but it stops within a second. It happens up to G3, not above."
+
+Partial by partial, 0.3–1.3 s after the release of A0–C3, the model's partials 7, 14 and 21 (and partly 8, 15 and 22) were only 0–16 dB down, while all the others were 50–110 dB down. The commercial piano damps all of its partials alike, 25–39 dB down for the strongest.
+
+The damper sits at 0.14·L, almost exactly on a node of partial 7 (1/7 ≈ 0.143), and on nodes of partials 14 and 21:
+
+- ⟨sin²⟩ over the 2 cm pad is 0.012 for partial 7 of C2, against about 0.5 for the others;
+- that partial thus gets 2 % of the full damping, and its T60 after the release is 8–9 s instead of 0.2 s;
+- the narrower the pad relative to the string, the worse: hence the bass up to C3. From D#3 on, nothing escaped.
+
+Widening the pad enough would take 9 cm, which is not realistic. On a real piano no partial escapes:
+
+- the felt is crushed over a length of string;
+- it presses on 2–3 strings whose relative contact points differ;
+- it also brakes the sideways motion.
+
+New `damper.node_floor`: every partial gets at least this share of a fully exposed partial's rate. The damper shape becomes floor + (1 − floor)·⟨sin²⟩.
+
+| node_floor | A0 | C1 | D#1 | F#1 | C2 | F#2 | C3 |
+|---|---|---|---|---|---|---|---|
+| 0 (before) | 0 | −1 | −5 | −1 | −13 | −5 | −13 |
+| 0.1 | −16 | −21 | −28 | −29 | −59 | −65 | −69 |
+| **0.15** | −23 | −31 | −40 | −45 | −68 | −65 | −68 |
+| 0.2 | −31 | −41 | −50 | −54 | −67 | −65 | −67 |
+| commercial piano | −39 | −33 | −25 | −31 | −31 | −26 | −38 |
+
+The table gives the strongest surviving partial 0.3–1.3 s after the release, in dB re its level just before.
+
+With 0.15, the 350–700 Hz band of the bass runs and chords on the release test falls from −35/−46 dB (0.3–1.3 s / 1.3–2.3 s after the release) to below −100 dB. The commercial piano is at −53/−75 to −60/−96, its reverberation included. The pedal tests, half pedal included, still pass.
+
+The fundamental of A2 (110 Hz) still keeps −20 dB for about a second: it sits on the board's first mode (109 Hz), which rings on after the strings stop (T60 ≈ 1 s).
+
 ## What remains
 
 - **Staccato top notes** (G6, C7): just after the release they are still 15 to 20 dB above the commercial piano's. Their prompt decay (ESPRIT 0.5 s) is slower than in the references (0.3–0.5 s).

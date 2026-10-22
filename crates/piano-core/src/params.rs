@@ -258,6 +258,13 @@ pub struct DamperLaw {
     /// Width of the felt pad (m): partials with a node under the damper
     /// are still damped by the rest of the pad.
     pub width: f64,
+    /// Share of the full rate every partial gets at least: the felt is
+    /// crushed over a length of string, presses on 2–3 strings whose
+    /// contact points differ, and brakes the sideways motion too, so no
+    /// partial escapes it. Without it the partials with a node under the
+    /// pad (7, 14, 21 at 0.14·L) rang on for seconds after the release in
+    /// the bass (docs/release_ring.md).
+    pub node_floor: f64,
     /// c_max / (2·Z0): 1 is the impedance-matched, most absorbing felt.
     pub strength: f64,
     /// Felt nonlinearity: the dashpot grows as contact^exponent (felt
@@ -285,6 +292,10 @@ impl DamperLaw {
     pub const GRAND: Self = Self {
         position: 0.14,
         width: 0.02,
+        // 15 % of a fully exposed partial's rate: the node partials of the
+        // bass (7 at A0–C3) die 23–45 dB down within 1.3 s of the release,
+        // as on a commercial modelled piano (−25 to −39 dB).
+        node_floor: 0.15,
         strength: 1.0,
         contact_exponent: 2.5,
         highest_note: 90,
@@ -308,7 +319,9 @@ impl DamperLaw {
     pub fn shape(&self, k: u32, length: f64) -> f64 {
         let a = k as f64 * std::f64::consts::PI * self.width / length;
         let sinc = if a > 1e-9 { a.sin() / a } else { 1.0 };
-        0.5 - 0.5 * (2.0 * k as f64 * std::f64::consts::PI * self.position).cos() * sinc
+        let pad = 0.5 - 0.5 * (2.0 * k as f64 * std::f64::consts::PI * self.position).cos() * sinc;
+        // ⟨sin²⟩ peaks at 1: the floor is a share of a fully exposed partial.
+        self.node_floor + (1.0 - self.node_floor) * pad
     }
 
     /// Decay-rate factor g(c) such that σ_k = g·shape(k).

@@ -148,6 +148,7 @@ lid_transmission = 0.1
 [damper]
 position = 0.14
 width = 0.02
+node_floor = 0.15
 strength = 1.0
 contact_exponent = 2.5
 highest_note = 90
