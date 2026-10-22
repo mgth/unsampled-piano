@@ -72,7 +72,7 @@ pub struct LossLaw {
     pub b2: f64,
     /// Added to b1 below `wound_until` (wound strings: friction of the
     /// copper winding), fading out over the octave above it. 0.2 s⁻¹ puts
-    /// the bass decay envelopes within 1 dB of Salamander (docs/tenue.md),
+    /// the bass decay envelopes within 1 dB of Salamander (docs/sustain.md),
     /// of the order of its ESPRIT aftersound rates there (0.15–0.18).
     pub b1_floor: f64,
     pub wound_until: u8,
@@ -87,10 +87,10 @@ impl LossLaw {
     /// losses), scaled down by the decay calibration of the full instrument
     /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. b1
     /// was lowered again (×0.65 at C4, ×0.5 at F#6) on the sustain after
-    /// 1 s of a commercial modelled piano, Iowa and Salamander (docs/tenue_longue.md): the
+    /// 1 s of a commercial modelled piano, Iowa and Salamander (docs/long_sustain.md): the
     /// slow components of the treble fundamentals last 7–9 s there. The
     /// frequency term b2 = 1e-7 was set with the bridge spreading
-    /// (docs/tenue.md): the upper partials decay at the measured rate and
+    /// (docs/sustain.md): the upper partials decay at the measured rate and
     /// most of the excess above 6 kHz goes; 2e-7 would shorten the treble
     /// fundamentals.
     pub const SALAMANDER_STRING: Self = Self { b1_slope: 0.055, b1_offset: -5.1, b2: 1.0e-7, b1_floor: 0.2, wound_until: 48 };
@@ -124,9 +124,9 @@ impl UnisonLaw {
     /// statistics of Salamander (tools/unison_grid.py); width up to C4 1
     /// cent: the aftersound of the bass and middle then sits 1–1.5 cent from
     /// the prompt sound and 13–17 dB below it, as in the commercial piano, Iowa and
-    /// Salamander (docs/tenue_longue.md; 0.35 cent left it 10 dB too weak
+    /// Salamander (docs/long_sustain.md; 0.35 cent left it 10 dB too weak
     /// and the notes died after 1 s); hit spread ±20 % set on the
-    /// aftersound level of the treble (docs/tenue.md).
+    /// aftersound level of the treble (docs/sustain.md).
     pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
@@ -498,7 +498,7 @@ impl NoteParams {
 /// keep their dynamics; the earlier fit on Salamander's sampler layers
 /// (0.4–4 m/s) compressed both ends. 0.6–4.2 m/s (velocity 77 ↔ 1.94 m/s)
 /// was set with the felt on the brightness of attack and sustain
-/// (docs/brillance.md); 0.5–3.5 left the middle register dull.
+/// (docs/brightness.md); 0.5–3.5 left the middle register dull.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct VelocityLaw {
@@ -613,7 +613,7 @@ impl Default for PianoModel {
             // Two-layer hammer (docs/presence.md): soft top felt (0.2 × Stulov)
             // over a core 30 × Stulov reached between pp and ff, 0.8 mm deep
             // in the bass, 0.57 mm at C4, 0.4 mm in the treble (bass depth
-            // set on the brightness, docs/brillance.md).
+            // set on the brightness, docs/brightness.md).
             core_hardness: 30.0,
             core_p: 2.5,
             core_depth_bass: 0.8,

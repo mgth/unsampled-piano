@@ -8,7 +8,7 @@ Comparé à un piano modélisé commercial, à l'Iowa et à Salamander, le modè
 
 ## Mesure
 
-Protocole de [comparaison.md](comparaison.md) : une touche sur trois, vélocités 40, 60 et 100, touche tenue 4 s, prise proche (`presets/proche.toml`), sans salle ni bruits. Chaque essai est rendu puis découpé avec les outils de cette comparaison.
+Protocole de [comparison.md](comparison.md) : une touche sur trois, vélocités 40, 60 et 100, touche tenue 4 s, prise proche (`presets/proche.toml`), sans salle ni bruits. Chaque essai est rendu puis découpé avec les outils de cette comparaison.
 
 Outils ajoutés :
 - `tools/partial_decay.py` : niveau des partiels 1 à 12 à 0,1, 0,5, 1, 2 et 3 s ;
@@ -32,7 +32,7 @@ L'écart de fréquence entre ces deux composantes trahit la cause. Mesuré de la
 | grave | 1,50 | 1,28 | 1,54 | 0,66 |
 | médium | 0,65 | 0,99 | 0,78 | 0,48 |
 
-Le désaccord d'unisson, ramené à 0,35 cent pour [graves.md](graves.md), était trop serré. Si le désaccord est petit devant le couplage par le chevalet, le mode en opposition de phase ne fait presque pas bouger le chevalet, donc il ne rayonne pas.
+Le désaccord d'unisson, ramené à 0,35 cent pour [bass.md](bass.md), était trop serré. Si le désaccord est petit devant le couplage par le chevalet, le mode en opposition de phase ne fait presque pas bouger le chevalet, donc il ne rayonne pas.
 
 ### Grave : un mode piston trop absorbant
 
@@ -90,5 +90,5 @@ Autres mesures :
 ## Ce qui reste
 
 - **Fin du grave** : encore 2 à 3 dB sous les références à 3 s.
-- **Spectre de la tenue du grave** : la fondamentale y domine plus qu'avant, d'environ 3 dB. Partiel 2 à +4 dB par rapport au partiel 1 entre 0,5 et 1 s, contre +14 dB dans les références. La cause est le rayonnement : la bande 63 Hz est la plus forte du modèle à l'attaque, alors qu'elle est 3 à 15 dB sous la plus forte dans les références. Traité depuis : [rayonnement_grave.md](rayonnement_grave.md).
+- **Spectre de la tenue du grave** : la fondamentale y domine plus qu'avant, d'environ 3 dB. Partiel 2 à +4 dB par rapport au partiel 1 entre 0,5 et 1 s, contre +14 dB dans les références. La cause est le rayonnement : la bande 63 Hz est la plus forte du modèle à l'attaque, alors qu'elle est 3 à 15 dB sous la plus forte dans les références. Traité depuis : [bass_radiation.md](bass_radiation.md).
 - **Durée du son « prompt »** : un peu longue dans le grave (13 s contre 8 à 11 s) et le médium (4,8 s contre 2,9 à 3,7 s), alors que l'enveloppe est juste.

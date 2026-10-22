@@ -71,7 +71,7 @@ pub struct SoundboardParams {
     /// 100–200 Hz over Salamander, "a barrel"); a slightly negative one
     /// (stiffer bass side, ×2.2 at A0) keeps the bass sustain once the
     /// crown has packed the low modes between 150 and 300 Hz
-    /// (docs/rayonnement_grave.md).
+    /// (docs/bass_radiation.md).
     pub impedance_slope_bass: f64,
     /// Highest mode kept (Hz).
     pub f_max: f64,
@@ -151,22 +151,22 @@ impl SoundboardParams {
         // Wood and radiation damping grow with frequency: η = 0.02·(1 +
         // f/2500 Hz). The share of its energy the board radiates falls as
         // 1/η; the earlier corner at 700 Hz (13 % at 4 kHz) muffled the
-        // 2–8 kHz bands (docs/brillance.md).
+        // 2–8 kHz bands (docs/brightness.md).
         loss_corner: 2500.0,
         bridge_mass: 0.0,
         series_stiffness: 2e7,
         // Maple, ≈ 3 × 2.5 cm; spread over 0.3 bending wavelength (set with
-        // the ESPRIT decays of the upper partials, docs/tenue.md).
+        // the ESPRIT decays of the upper partials, docs/sustain.md).
         bridge_stiffness: 470.0,
         bridge_line_mass: 0.6,
         bridge_spread: 0.3,
-        // Calibrated on the decay envelopes of Salamander (docs/tenue.md):
+        // Calibrated on the decay envelopes of Salamander (docs/sustain.md):
         // ×4.6 at C8, ×0.4 at A0 relative to C4.
         impedance_slope: 0.035,
         impedance_slope_bass: -0.03,
         f_max: 20_000.0,
-        // A broad mode near 40 Hz (docs/graves.md). Mass set on the late
-        // sustain of the bass (docs/tenue_longue.md): with 1.5 kg it took
+        // A broad mode near 40 Hz (docs/bass.md). Mass set on the late
+        // sustain of the bass (docs/long_sustain.md): with 1.5 kg it took
         // 37 dB from the 63 Hz band between 0.3 and 3 s (references 6–21).
         piston_freq: 40.0,
         piston_loss: 0.7,
@@ -176,7 +176,7 @@ impl SoundboardParams {
         // fundamentals 25–30 dB over the references below 40 Hz.
         piston_radiation: 0.03,
         // Set on the third-octave balance of the bass keys (commercial piano, Iowa,
-        // Salamander, docs/rayonnement_grave.md): first mode 61 → 109 Hz.
+        // Salamander, docs/bass_radiation.md): first mode 61 → 109 Hz.
         crown_freq: 90.0,
         // Main bridge at equal steps of the main range (C8, ≈ F6, ≈ G#4,
         // ≈ C#3, F1): x follows the speaking length of the 2 m scale from

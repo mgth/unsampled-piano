@@ -23,7 +23,7 @@ La percussivité du modèle était normale : 6 à 7 dB au grave et au médium, c
 
 ## Causes
 
-1. **Le feutre calibré pour l'éclaircissement selon la nuance** ([timbre_nuance.md](timbre_nuance.md)) était très souple et très non linéaire (dureté 0,1, p + 2). Il coupait les aigus : au grave, −63 dB à 4–8 kHz contre −44 avec le feutre nominal. La calibration ne regardait que jusqu'au partiel 12, soit environ 3 kHz au médium.
+1. **Le feutre calibré pour l'éclaircissement selon la nuance** ([timbre_dynamics.md](timbre_dynamics.md)) était très souple et très non linéaire (dureté 0,1, p + 2). Il coupait les aigus : au grave, −63 dB à 4–8 kHz contre −44 avec le feutre nominal. La calibration ne regardait que jusqu'au partiel 12, soit environ 3 kHz au médium.
    - La force du marteau sur le chevalet manquait déjà d'aigus.
    - Le rayonnement de la table en retire ensuite 5 à 10 dB.
    - Les autres changements (mode piston, unissons, non-linéarité) n'y sont pour rien.

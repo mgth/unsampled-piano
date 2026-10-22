@@ -139,9 +139,9 @@ Ce qui reste après recalibration :
 ## Priorités pour réduire l'écart
 
 1. ~~Contact parallèle des unissons et recalibration du marteau~~ : fait.
-2. ~~Pertes des cordes graves~~ : fait en grande partie ([graves.md](graves.md)).
-3. **Changement de timbre avec la nuance** : le feutre est fait ([timbre_nuance.md](timbre_nuance.md)). Le grave demande la non-linéarité de la corde.
+2. ~~Pertes des cordes graves~~ : fait en grande partie ([bass.md](bass.md)).
+3. **Changement de timbre avec la nuance** : le feutre est fait ([timbre_dynamics.md](timbre_dynamics.md)). Le grave demande la non-linéarité de la corde.
 4. Ensuite seulement, les ajouts de physique : non-linéarités de la corde, duplex, fin des notes aiguës, sympathie passive.
-5. ~~Tenue après la première seconde~~ : fait ([tenue_longue.md](tenue_longue.md)).
-6. ~~Rayonnement des fondamentales graves~~ : fait ([rayonnement_grave.md](rayonnement_grave.md)).
-7. Brillance de la tenue : en grande partie ([brillance.md](brillance.md)) ; reste le médium à 4–8 kHz.
+5. ~~Tenue après la première seconde~~ : fait ([long_sustain.md](long_sustain.md)).
+6. ~~Rayonnement des fondamentales graves~~ : fait ([bass_radiation.md](bass_radiation.md)).
+7. Brillance de la tenue : en grande partie ([brightness.md](brightness.md)) ; reste le médium à 4–8 kHz.

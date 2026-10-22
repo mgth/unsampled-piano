@@ -24,7 +24,7 @@ pub const SUB_BLOCK: usize = 64;
 /// delay plus the half sample of the backward difference.
 const INPUT_DELAY: f64 = SUB_BLOCK as f64 + 0.5;
 /// Output scaling without soundboard: bridge force (N) to full scale.
-/// Lowered by 2.7 dB with the faster hammer law (docs/brillance.md), same
+/// Lowered by 2.7 dB with the faster hammer law (docs/brightness.md), same
 /// loudness for recorded performances.
 const FORCE_GAIN: f32 = 1.0 / 600.0;
 /// Output scaling with soundboard: pressure at the mics (Pa) to full scale.

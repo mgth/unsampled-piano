@@ -56,7 +56,7 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 
 ## Documentation
 
-- État de l'art et plan : [reports/Synthèse physique de piano.md](reports/Synthèse%20physique%20de%20piano.md)
+- État de l'art et plan : [reports/piano_physical_synthesis.md](reports/piano_physical_synthesis.md)
 - Phase 0 (outillage, mesures CPU et précision) : [docs/phase0.md](docs/phase0.md)
 - Analyse de Salamander Grand (Yamaha C5) : [docs/salamander.md](docs/salamander.md)
 - Phase 1 (corde + marteau, calibrage) : [docs/phase1.md](docs/phase1.md)
@@ -64,17 +64,17 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 - Phase 4 (table d'harmonie modale, rayonnement, stéréo) : [docs/phase4.md](docs/phase4.md)
 - Phase 3 (étouffoirs, pédales, résonance sympathique) : [docs/phase3.md](docs/phase3.md)
 - Phase 5 (bruits mécaniques, préréglages, temps réel, calibration) : [docs/phase5.md](docs/phase5.md)
-- Cadre en fonte et ceinture : [docs/cadre_ceinture.md](docs/cadre_ceinture.md)
-- Tenue des notes (chevalet, épaisseur de la table, pertes des cordes) : [docs/tenue.md](docs/tenue.md)
-- Dynamique, pédale et résonance sympathique : [docs/dynamique_pedale.md](docs/dynamique_pedale.md)
-- Comparaison avec Salamander, l'Iowa et un piano modélisé commercial : [docs/comparaison.md](docs/comparaison.md)
-- Pertes des cordes graves (désaccord d'unisson, mode piston de la caisse) : [docs/graves.md](docs/graves.md)
-- Changement de timbre avec la nuance (feutre) : [docs/timbre_nuance.md](docs/timbre_nuance.md)
-- Non-linéarité des cordes (partiels fantômes) : [docs/non_linearite.md](docs/non_linearite.md)
+- Cadre en fonte et ceinture : [docs/frame_rim.md](docs/frame_rim.md)
+- Tenue des notes (chevalet, épaisseur de la table, pertes des cordes) : [docs/sustain.md](docs/sustain.md)
+- Dynamique, pédale et résonance sympathique : [docs/dynamics_pedal.md](docs/dynamics_pedal.md)
+- Comparaison avec Salamander, l'Iowa et un piano modélisé commercial : [docs/comparison.md](docs/comparison.md)
+- Pertes des cordes graves (désaccord d'unisson, mode piston de la caisse) : [docs/bass.md](docs/bass.md)
+- Changement de timbre avec la nuance (feutre) : [docs/timbre_dynamics.md](docs/timbre_dynamics.md)
+- Non-linéarité des cordes (partiels fantômes) : [docs/nonlinearity.md](docs/nonlinearity.md)
 - Présence de l'attaque (marteau à deux couches, prises de son) : [docs/presence.md](docs/presence.md)
-- Tenue après la première seconde (désaccord d'unisson, piston, pertes des cordes) : [docs/tenue_longue.md](docs/tenue_longue.md)
-- Rayonnement des fondamentales graves (rayonnement par l'accélération, bombe de la table) : [docs/rayonnement_grave.md](docs/rayonnement_grave.md)
-- Brillance de l'attaque et de la tenue (amortissement de la table, feutre, vitesse du marteau) : [docs/brillance.md](docs/brillance.md)
+- Tenue après la première seconde (désaccord d'unisson, piston, pertes des cordes) : [docs/long_sustain.md](docs/long_sustain.md)
+- Rayonnement des fondamentales graves (rayonnement par l'accélération, bombe de la table) : [docs/bass_radiation.md](docs/bass_radiation.md)
+- Brillance de l'attaque et de la tenue (amortissement de la table, feutre, vitesse du marteau) : [docs/brightness.md](docs/brightness.md)
 
 ## Licence
 

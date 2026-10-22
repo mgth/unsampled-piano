@@ -57,7 +57,7 @@ Volume inchangé : la Campanella culmine à −15 dBFS, le Chopin à −18,7 dBF
 
 ## Éclaircissement du grave (2026-10-22)
 
-Les partiels fantômes ([non_linearite.md](non_linearite.md)), à leur niveau mesuré, n'apportaient que +0,1 dB d'éclaircissement. La cause principale est ailleurs.
+Les partiels fantômes ([nonlinearity.md](nonlinearity.md)), à leur niveau mesuré, n'apportaient que +0,1 dB d'éclaircissement. La cause principale est ailleurs.
 
 Le marteau du grave frappe une corde lourde : environ 0,03 kg/m, deux cordes pour do2. Avec la dureté de feutre du médium, il ne s'enfonce que d'environ 1 mm, même ff. Le feutre ne filtre alors qu'au-dessus de 2 kHz. Entre 150 Hz et 1,5 kHz, où vivent les partiels 6 à 12 du grave, le contact est un choc linéaire entre la masse du marteau et la corde : sa forme ne dépend pas de la vitesse. Les vrais marteaux du grave sont gros et moelleux, et leur feutre filtre plus bas, d'autant moins que la frappe est forte.
 

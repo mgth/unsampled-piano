@@ -55,7 +55,7 @@ Mesurés avec `cargo run --release -p piano-core --example structure_levels`, à
 | C6 (84) | −18 · −13 · −13 dB | −38 · −35 · −35 dB |
 | C7 (96) | −15 · −25 · −28 dB | −40 · −46 · −42 dB |
 
-Ces valeurs ont été remesurées après la recalibration de la tenue ([tenue.md](tenue.md)). Avant, le cadre était 3 à 10 dB plus bas dans l'aigu. Depuis, la table, plus raide sous l'aigu, rayonne moins les cordes aiguës, qui gardent leur énergie plus longtemps. Le cadre reste inchangé : en proportion, il pèse donc davantage.
+Ces valeurs ont été remesurées après la recalibration de la tenue ([sustain.md](sustain.md)). Avant, le cadre était 3 à 10 dB plus bas dans l'aigu. Depuis, la table, plus raide sous l'aigu, rayonne moins les cordes aiguës, qui gardent leur énergie plus longtemps. Le cadre reste inchangé : en proportion, il pèse donc davantage.
 
 - **Le cadre** s'entend dans l'aigu comme un léger éclat métallique, jusqu'à −13 dB à C6. Quand un partiel tombe sur une résonance du cadre, celui-ci peut prolonger un peu ce partiel.
 - **La ceinture** reste 36 à 45 dB sous la note : un fond grave à peine perceptible.

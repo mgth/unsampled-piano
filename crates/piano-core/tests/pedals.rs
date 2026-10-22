@@ -99,7 +99,7 @@ fn sostenuto_holds_only_the_keys_down_when_pressed() {
 /// strikes 2 of 3 strings, which favours the slow out-of-phase modes (longer
 /// aftersound, Weinreich). The model does not reproduce the level drop of a
 /// real grand (see docs/phase5.md). Since the bridge spreading and the board
-/// taper (docs/tenue.md) weakened the unison coupling, the aftersound gain is
+/// taper (docs/sustain.md) weakened the unison coupling, the aftersound gain is
 /// note-dependent (−7 to +7 dB) and about nil on average: the test only
 /// checks that the sustain is not lost, over several keys.
 #[test]

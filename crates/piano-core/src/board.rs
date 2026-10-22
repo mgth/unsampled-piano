@@ -410,7 +410,7 @@ pub fn mic_differentiator(omega: f64, sample_rate: f64) -> crate::complex::C64 {
 /// modal velocity made every mode radiate at its resonance's rate even when
 /// driven far below it: under a bass fundamental, the quasi-static motion
 /// of the modes above radiated ×ω_n/ω too much (+20–30 dB below 50 Hz,
-/// docs/rayonnement_grave.md). The weights are divided by the engine's
+/// docs/bass_radiation.md). The weights are divided by the engine's
 /// differentiator at the mode frequency: unchanged at resonance, ∝ ω below.
 pub fn to_acceleration_weights(modes: &mut [BoardMode], sample_rate: f64) {
     for m in modes {
