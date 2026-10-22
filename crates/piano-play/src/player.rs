@@ -4,7 +4,8 @@
 //! timeline, and reports every event it plays (MIDI mirror). No allocation,
 //! no lock.
 
-use piano_core::{Engine, Event, TimedEvent};
+use piano_control::EngineSlot;
+use piano_core::{Event, TimedEvent};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
@@ -25,7 +26,8 @@ pub struct Stats {
 }
 
 pub struct Player {
-    engine: Engine,
+    /// Current engine, and the replaced ones finishing their notes.
+    engine: EngineSlot,
     sample_rate: f64,
     /// File events (absolute sample, event), sorted.
     timeline: Vec<(u64, Event)>,
@@ -41,7 +43,7 @@ pub struct Player {
 
 impl Player {
     pub fn new(
-        engine: Engine,
+        engine: EngineSlot,
         sample_rate: f64,
         timeline: Vec<(u64, Event)>,
         queue: Option<rtrb::Consumer<Event>>,
@@ -122,6 +124,7 @@ impl Player {
         st.load_sum.fetch_add(l4, Ordering::Relaxed);
         st.callbacks.fetch_add(1, Ordering::Relaxed);
         st.voices.store(self.engine.active_voices() as u32, Ordering::Relaxed);
+        self.engine.report_load(load as f32);
         st.clock.store(self.clock, Ordering::Relaxed);
     }
 }

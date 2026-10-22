@@ -15,6 +15,8 @@ Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cor
 # device = "Stereo DJ X-Fade:In B")
 cargo run --release -p piano-play -- --list
 cargo run --release -p piano-play -- --buffer 128 [--preset presets/proche.toml | presets/concert.toml]
+# le préréglage est surveillé : modifié pendant le jeu, l'instrument est
+# reconstruit en arrière-plan (≈ 0,1 s) sans couper les notes tenues
 # jouer des fichiers MIDI à la suite (timing à l'échantillon près ; --from saute le début)
 cargo run --release -p piano-play -- --buffer 128 --file data/midi/*.mid
 
@@ -43,6 +45,9 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 |---|---|
 | `piano-core` | moteur DSP, sans dépendance (feature `serde` pour les préréglages) |
 | `piano-host` | préréglages TOML, décodage MIDI |
+| `piano-params` | registre des paramètres (chemins, plages, live ou reconstruction), apprentissage MIDI, trait `PianoControl` |
+| `piano-control` | pilotage d'un instrument qui joue : paramètres live, reconstruction en arrière-plan et échange de moteur sans couper les notes (lecteur autonome et plugin) |
+| `piano-ui` | interface egui sur `PianoControl` |
 | `piano-play` | application temps réel : nœud PipeWire/JACK (audio, MIDI in, MIDI miroir), ou cpal + midir |
 | `piano-render` | rendu hors ligne déterministe MIDI → WAV |
 | `piano-analysis` | analyse : partiels, B, décroissances, ESPRIT, distances spectrales |

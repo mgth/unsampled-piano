@@ -13,8 +13,8 @@ mod player;
 
 use clap::Parser;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use piano_core::instrument::Instrument;
-use piano_core::{Engine, EngineConfig, Event};
+use piano_core::{EngineConfig, Event};
+use piano_params::PianoControl;
 use player::{Player, Stats, MAX_BLOCK};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -123,12 +123,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(p) => piano_host::load_preset(p)?,
         None => Default::default(),
     };
-    eprintln!("building the instrument at {sr} Hz…");
-    let t = Instant::now();
-    let inst = Arc::new(Instrument::new(model, sr));
-    eprintln!("built in {:.2} s", t.elapsed().as_secs_f64());
     let cfg = EngineConfig { sample_rate: sr, max_block: MAX_BLOCK, model, ..Default::default() };
-    let engine = Engine::with_instrument(cfg, inst);
+    let (mut control, engine) = piano_control::new(model, cfg);
+    eprintln!("instrument built at {sr} Hz in {:.0} ms", control.status().last_build.unwrap_or_default().as_secs_f64() * 1e3);
+    let mut watch = args.preset.clone().map(PresetWatch::new);
 
     let (timeline, pieces, end_s) = file_timeline(&args, sr)?;
     for (start, name, len) in &pieces {
@@ -255,8 +253,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut next_piece = 0;
+    let mut last_report = Instant::now();
+    let mut was_rebuilding = false;
     loop {
-        std::thread::sleep(Duration::from_secs(1));
+        // MIDI learn and preset edits, every 50 ms; the report every second.
+        std::thread::sleep(Duration::from_millis(50));
+        control.poll();
+        if let Some(w) = watch.as_mut()
+            && let Some(m) = w.changed()
+        {
+            eprintln!("preset changed: rebuilding the instrument (notes keep playing)");
+            control.load(m);
+        }
+        let st = control.status();
+        if was_rebuilding && !st.rebuilding {
+            match &st.error {
+                Some(e) => eprintln!("rebuild failed: {e}"),
+                None => eprintln!("instrument rebuilt in {:.0} ms", st.last_build.unwrap_or_default().as_secs_f64() * 1e3),
+            }
+        }
+        was_rebuilding = st.rebuilding;
+        if last_report.elapsed() < Duration::from_secs(1) {
+            continue;
+        }
+        last_report = Instant::now();
         let now = stats.clock.load(Ordering::Relaxed) as f64 / sr;
         while next_piece < pieces.len() && now >= pieces[next_piece].0 {
             eprintln!("▶ {}", pieces[next_piece].1);
@@ -270,6 +290,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let avg = stats.load_sum.swap(0, Ordering::Relaxed) as f64 / n as f64 / 100.0;
         let max = stats.load_max.swap(0, Ordering::Relaxed) as f64 / 100.0;
         eprintln!("CPU load avg {avg:5.1} %  max {max:5.1} %  voices {:3}", stats.voices.load(Ordering::Relaxed));
+    }
+}
+
+/// The preset file, reloaded when its modification time changes.
+struct PresetWatch {
+    path: PathBuf,
+    stamp: Option<std::time::SystemTime>,
+}
+
+impl PresetWatch {
+    fn new(path: PathBuf) -> Self {
+        let stamp = Self::stamp(&path);
+        Self { path, stamp }
+    }
+
+    fn stamp(path: &PathBuf) -> Option<std::time::SystemTime> {
+        std::fs::metadata(path).and_then(|m| m.modified()).ok()
+    }
+
+    /// The new model when the file changed and parses (else reports why).
+    fn changed(&mut self) -> Option<piano_core::params::PianoModel> {
+        let stamp = Self::stamp(&self.path);
+        if stamp == self.stamp {
+            return None;
+        }
+        self.stamp = stamp;
+        match piano_host::load_preset(&self.path) {
+            Ok(m) => Some(m),
+            Err(e) => {
+                eprintln!("preset not reloaded: {e}");
+                None
+            }
+        }
     }
 }
 

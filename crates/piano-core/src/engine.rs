@@ -215,6 +215,21 @@ impl Engine {
         self.voices.iter().filter(|v| v.active).count()
     }
 
+    /// Voices actually sounding: struck or set ringing, not the strings
+    /// that only listen while their dampers are lifted (O(modes)).
+    pub fn sounding_voices(&self) -> usize {
+        self.voices.iter().filter(|v| v.active && v.energy() >= SILENCE_ENERGY).count()
+    }
+
+    /// Takes the live parameters ([`LiveParam`]) of `model`, as if each had
+    /// been sent as an [`Event::Param`] (an engine built from an older
+    /// model catches up with the edits made meanwhile).
+    pub fn set_live(&mut self, model: &PianoModel) {
+        for &p in LiveParam::ALL {
+            p.set(&mut self.live, p.get(model));
+        }
+    }
+
     pub fn active_modes(&self) -> usize {
         let board = if self.board_awake { self.board.as_ref().map_or(0, |b| b.len()) } else { 0 };
         let board_sym = if self.board_sym_awake { self.board_sym.as_ref().map_or(0, |b| b.len()) } else { 0 };

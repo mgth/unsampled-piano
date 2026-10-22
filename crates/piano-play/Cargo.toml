@@ -8,6 +8,8 @@ publish.workspace = true
 [dependencies]
 piano-core.workspace = true
 piano-host.workspace = true
+piano-control.workspace = true
+piano-params.workspace = true
 cpal = { workspace = true, features = ["pipewire", "jack", "realtime"] }
 midir.workspace = true
 rtrb.workspace = true
