@@ -72,6 +72,8 @@ impl Meta {
 fn label(path: &str) -> String {
     let name = path.rsplit('.').next().unwrap_or(path);
     let (word, index) = name.split_at(name.find('[').unwrap_or(name.len()));
+    // The unit is shown with the value.
+    let word = ["_hz", "_db", "_cents"].iter().find_map(|u| word.strip_suffix(u)).unwrap_or(word);
     let mut s = word.replace('_', " ");
     if let Some(c) = s.get(..1) {
         s.replace_range(..1, &c.to_uppercase());
@@ -121,5 +123,6 @@ mod tests {
     fn labels() {
         assert_eq!(label("soundboard.treble_bridge[2][1]"), "Treble bridge [2][1]");
         assert_eq!(label("damper.fall_time"), "Fall time");
+        assert_eq!(label("nonlinear.max_long_hz"), "Max long");
     }
 }

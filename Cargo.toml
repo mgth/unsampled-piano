@@ -13,6 +13,7 @@ piano-analysis = { path = "crates/piano-analysis" }
 piano-eval = { path = "crates/piano-eval" }
 piano-host = { path = "crates/piano-host" }
 piano-params = { path = "crates/piano-params" }
+piano-ui = { path = "crates/piano-ui" }
 hound = "3.5"
 midly = "0.5"
 realfft = "3.5"
@@ -27,6 +28,8 @@ midir = "0.11"
 rtrb = "0.4"
 criterion = "0.8"
 assert_no_alloc = "1.1"
+egui = "0.36.2"
+eframe = { version = "0.36.2", default-features = false, features = ["glow", "default_fonts", "x11", "wayland", "accesskit"] }
 
 [profile.release]
 codegen-units = 1

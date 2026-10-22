@@ -104,6 +104,20 @@ impl Registry {
     pub fn by_id(&self, id: u32) -> Option<&Param> {
         self.by_id.get(&id).map(|&i| &self.params[i])
     }
+
+    /// Every parameter's value in `model`, indexed like [`Self::params`]
+    /// (one serialisation, for displays refreshed every frame).
+    pub fn read(&self, model: &PianoModel) -> Vec<Option<Value>> {
+        let mut leaves = Vec::new();
+        flatten(&to_toml(model), String::new(), &mut leaves);
+        let mut values = vec![None; self.params.len()];
+        for (path, v) in leaves {
+            if let Some(&i) = self.by_path.get(&path) {
+                values[i] = Some(v);
+            }
+        }
+        values
+    }
 }
 
 impl Default for Registry {
@@ -237,6 +251,8 @@ mod tests {
             let m = set(&model, &p.path, v).unwrap_or_else(|e| panic!("{e}"));
             assert_eq!(get(&m, &p.path), Some(v), "{}", p.path);
         }
+        let values = reg.read(&model);
+        assert!(reg.params().iter().zip(&values).all(|(p, v)| *v == Some(p.default)));
     }
 
     #[test]
