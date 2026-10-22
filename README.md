@@ -1,4 +1,4 @@
-# piano
+# Unsampled Piano
 
 Piano virtuel par modélisation physique, temps réel depuis MIDI, en Rust. Aucun sample dans la production du son (les enregistrements ne servent qu'à l'analyse et à la calibration).
 

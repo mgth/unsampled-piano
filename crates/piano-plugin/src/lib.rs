@@ -82,7 +82,7 @@ impl Drop for Piano {
 }
 
 impl Plugin for Piano {
-    const NAME: &'static str = "Physical Piano";
+    const NAME: &'static str = "Unsampled Piano";
     const VENDOR: &'static str = "mgth";
     const URL: &'static str = "https://github.com/mgth/piano";
     const EMAIL: &'static str = "";
@@ -197,7 +197,7 @@ impl Plugin for Piano {
 }
 
 impl ClapPlugin for Piano {
-    const CLAP_ID: &'static str = "fr.mgth.physical-piano";
+    const CLAP_ID: &'static str = "fr.mgth.unsampled-piano";
     const CLAP_DESCRIPTION: Option<&'static str> = Some("Physical model of a grand piano");
     const CLAP_MANUAL_URL: Option<&'static str> = None;
     const CLAP_SUPPORT_URL: Option<&'static str> = None;
@@ -205,7 +205,7 @@ impl ClapPlugin for Piano {
 }
 
 impl Vst3Plugin for Piano {
-    const VST3_CLASS_ID: [u8; 16] = *b"MgthPhysPiano001";
+    const VST3_CLASS_ID: [u8; 16] = *b"MgthUnsmpPiano01";
     const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] = &[Vst3SubCategory::Instrument, Vst3SubCategory::Piano];
 }
 

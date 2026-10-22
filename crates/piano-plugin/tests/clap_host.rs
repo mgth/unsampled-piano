@@ -49,7 +49,7 @@ fn render(seconds: f64, gain_db: Option<f64>) -> Vec<f32> {
     let entry = unsafe { PluginEntry::load(plugin_path()) }.expect("plugin loads");
     let factory = entry.get_plugin_factory().expect("plugin factory");
     let descriptor = factory.plugin_descriptors().next().expect("one plugin");
-    assert_eq!(descriptor.id().unwrap().to_bytes(), b"fr.mgth.physical-piano");
+    assert_eq!(descriptor.id().unwrap().to_bytes(), b"fr.mgth.unsampled-piano");
     let id = descriptor.id().unwrap().to_owned();
     let mut instance = PluginInstance::<Host>::new(|_| Shared, |_| (), &entry, &id, &host_info).expect("instance");
     let config = PluginAudioConfiguration { sample_rate: SR, min_frames_count: 1, max_frames_count: BLOCK as u32 };
