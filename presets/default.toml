@@ -3,10 +3,10 @@
 
 a4 = 440.0
 una_corda_softening = 0.6
-hardness = 0.7
-hardness_slope = 0.05
-p_offset = 0.5
-hysteresis = 0.25
+hardness = 0.1
+hardness_slope = 0.02
+p_offset = 2.0
+hysteresis = 0.6
 contact_width_scale = 1.0
 
 [velocity]

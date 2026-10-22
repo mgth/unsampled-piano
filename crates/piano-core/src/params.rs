@@ -491,7 +491,12 @@ pub struct PianoModel {
     /// Extra hardness growth per key around C4: Q0 ×= e^{slope·(n − 40)}
     /// (voicing; Stulov's fit grows as e^{0.045·n}).
     pub hardness_slope: f64,
-    /// Added to Stulov's exponent p (Russell: 2–4, Stulov: 3.7–5).
+    /// Added to Stulov's exponent p (Russell: 2–4, Stulov: 3.7–5). The
+    /// default +2 (p ≈ 5.7–7) is beyond single-layer felt: it stands for a
+    /// layered hammer (soft top felt over a hard underfelt), whose
+    /// stiffness rises faster than any single power law; with the low
+    /// hardness it gives the pp→ff brightening of the references
+    /// (docs/timbre_nuance.md).
     pub p_offset: f64,
     /// Multiplies Stulov's hysteresis time α.
     pub hysteresis: f64,
@@ -523,10 +528,10 @@ impl Default for PianoModel {
             // growth with velocity (tools/attack_grid.py), once the strike
             // point was measured from the agraffe: soft felt, Stulov's
             // exponent −0.5, slightly harder towards the treble.
-            hardness: 0.7,
-            hardness_slope: 0.05,
-            p_offset: 0.5,
-            hysteresis: 0.25,
+            hardness: 0.1,
+            hardness_slope: 0.02,
+            p_offset: 2.0,
+            hysteresis: 0.6,
             contact_width_scale: 1.0,
         }
     }

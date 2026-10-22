@@ -62,3 +62,4 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 - Dynamique, pédale et résonance sympathique : [docs/dynamique_pedale.md](docs/dynamique_pedale.md)
 - Comparaison avec Salamander, Iowa et Commercial : [docs/comparaison.md](docs/comparaison.md)
 - Pertes des cordes graves (désaccord d'unisson, mode piston de la caisse) : [docs/graves.md](docs/graves.md)
+- Changement de timbre avec la nuance (feutre) : [docs/timbre_nuance.md](docs/timbre_nuance.md)

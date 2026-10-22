@@ -30,6 +30,25 @@ def metrics(d):
             br.append(np.log(centroid(a, m, 0, 0.05) / centroid(c, m, 0, 0.05)))
             d1.append(peak_db(a) - peak_db(c)); d2.append(peak_db(a) - peak_db(b))
         out[f"{lab}|bright"] = float(np.mean(br)) if br else None
+        # Brightening by partial: gain ff − pp of partials ≥ 6 minus that of
+        # partials 1–2 (0–100 ms, absolute levels).
+        sl = []
+        for m in (ks if hi < 72 else []):
+            a, c = get(m, 13), get(m, 4)
+            if a is None or c is None: continue
+            def prof(x):
+                s0 = onset(x); n = 4800; N = 4 * n
+                S = np.abs(np.fft.rfft(x[s0:s0 + n] * np.hanning(n), N)); f = np.fft.rfftfreq(N, 1 / 48000)
+                out = []
+                for k in range(1, 13):
+                    fk = k * f0(m) * np.sqrt(1 + 4e-4 * k * k * (1 if m > 60 else 0.3))
+                    w = (f > fk * 0.95) & (f < fk * 1.07)
+                    out.append(20 * np.log10(S[w].max() + 1e-12) if w.any() and fk < 18000 else np.nan)
+                return np.array(out)
+            g = prof(a) - prof(c)
+            if np.isfinite(g[:2]).all() and np.isfinite(g[5:]).sum() >= 2:
+                sl.append(np.nanmean(g[5:]) - np.mean(g[:2]))
+        out[f"{lab}|slope"] = float(np.mean(sl)) if sl else None
         out[f"{lab}|dyn"] = [float(np.mean(d1)), float(np.mean(d2))] if d1 else None
     return out
 if ARGS[0] == "--refs":
@@ -44,7 +63,7 @@ def score(mm, verbose=False):
         vals = [np.array(refs[s][key], dtype=float) for s in srcs if refs[s].get(key) is not None]
         if not vals: continue
         vals = np.array(vals); tgt = np.nanmean(vals, axis=0)
-        tol = np.maximum(np.nanstd(vals, axis=0), 0.15 if key.endswith("|bright") else 3.0)
+        tol = np.maximum(np.nanstd(vals, axis=0), 0.15 if key.endswith("|bright") else 4.0 if key.endswith("|slope") else 3.0)
         e = ((np.array(v, dtype=float) - tgt) / tol) ** 2
         e = e[np.isfinite(e)]
         errs.extend(e.tolist())
