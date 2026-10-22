@@ -602,25 +602,26 @@ impl Default for PianoModel {
             rim: crate::structure::RimParams::GRAND_2M,
             una_corda_softening: 0.6,
             output_gain_db: 0.0,
-            // Calibrated on Salamander's absolute attack brightness and its
-            // growth with velocity (tools/attack_grid.py), once the strike
-            // point was measured from the agraffe: soft felt, Stulov's
-            // exponent −0.5, slightly harder towards the treble.
-            hardness: 0.2,
+            // Top felt 0.3 × Stulov, slightly harder towards the treble, with
+            // the core shallower at C4 and less hysteresis: the middle's ff
+            // goes further into the core with a steeper pulse (C4 ff: 44 N,
+            // 1.9 ms). 0.2 left the middle dull at 2–8 kHz
+            // (docs/middle_highs.md).
+            hardness: 0.3,
             hardness_slope: 0.02,
             hardness_slope_bass: 0.02,
             p_bass: 0.0,
-            // Two-layer hammer (docs/presence.md): soft top felt (0.2 × Stulov)
-            // over a core 30 × Stulov reached between pp and ff, 0.8 mm deep
-            // in the bass, 0.57 mm at C4, 0.4 mm in the treble (bass depth
-            // set on the brightness, docs/brightness.md).
+            // Two-layer hammer (docs/presence.md): top felt over a core
+            // 30 × Stulov reached between mf and ff, 0.8 mm deep in the bass,
+            // 0.45 mm at C4, 0.4 mm in the treble (docs/brightness.md,
+            // docs/middle_highs.md).
             core_hardness: 30.0,
             core_p: 2.5,
             core_depth_bass: 0.8,
-            core_depth_mid: 0.5655,
+            core_depth_mid: 0.45,
             core_depth_treble: 0.4,
             p_offset: 0.0,
-            hysteresis: 0.6,
+            hysteresis: 0.3,
             contact_width_scale: 1.0,
         }
     }

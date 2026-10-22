@@ -144,4 +144,4 @@ What remains after recalibration:
 4. Only then, the physics additions: string non-linearities, duplex, end of treble notes, passive sympathy.
 5. ~~Sustain after the first second~~: done ([long_sustain.md](long_sustain.md)).
 6. ~~Radiation of bass fundamentals~~: done ([bass_radiation.md](bass_radiation.md)).
-7. Sustain brightness: largely done ([brightness.md](brightness.md)); the middle at 4–8 kHz remains.
+7. ~~Sustain brightness~~: done ([brightness.md](brightness.md), [middle_highs.md](middle_highs.md)); the bass remains too bright at 4–8 kHz.

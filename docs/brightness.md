@@ -86,7 +86,7 @@ Other measurements:
 
 ## What remains
 
-- **Middle at 4–8 kHz**: still 4 to 9 dB below the references, in the attack as well as during the sustain. Neither the felt (hardness, depth, core) nor the soundboard fixes it without brightening the mf or the other registers. Leads:
+- **Middle at 4–8 kHz** (since addressed: [middle_highs.md](middle_highs.md)): was still 4 to 9 dB below the references, in the attack as well as during the sustain. Neither the felt (hardness, depth, core) nor the soundboard fixes it without brightening the mf or the other registers. Leads:
   - the shape of the contact pulse, with a surface felt whose stiffness grows faster with compression;
   - the duplex resonances.
 - **Bass at 8 kHz**: 9 dB above the references in the attack.
