@@ -4,6 +4,7 @@ description = "Offline analysis of piano tones (partials, inharmonicity, decays,
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 realfft.workspace = true

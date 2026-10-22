@@ -4,6 +4,7 @@ description = "Throughput and numerical-precision experiments for the modal core
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 piano-core.workspace = true

@@ -4,6 +4,7 @@ description = "Host-side helpers: TOML presets, MIDI message decoding, MIDI file
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 piano-core = { workspace = true, features = ["serde"] }

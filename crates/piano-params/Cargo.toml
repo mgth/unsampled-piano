@@ -4,6 +4,7 @@ description = "Parameter registry of the instrument (paths, ids, ranges, live or
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 piano-core = { workspace = true, features = ["serde"] }

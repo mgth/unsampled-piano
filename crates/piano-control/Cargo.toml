@@ -4,6 +4,7 @@ description = "Live control of a playing instrument: parameter edits, background
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 piano-core.workspace = true

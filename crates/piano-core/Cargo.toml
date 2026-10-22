@@ -4,6 +4,7 @@ description = "Framework-agnostic DSP engine of the physical piano (no plugin/ho
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [features]
 serde = ["dep:serde"]

@@ -4,6 +4,7 @@ description = "Real-time standalone player: a PipeWire graph node (audio, MIDI i
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 piano-core.workspace = true

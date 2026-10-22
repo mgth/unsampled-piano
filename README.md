@@ -75,3 +75,9 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 - Tenue après la première seconde (désaccord d'unisson, piston, pertes des cordes) : [docs/tenue_longue.md](docs/tenue_longue.md)
 - Rayonnement des fondamentales graves (rayonnement par l'accélération, bombe de la table) : [docs/rayonnement_grave.md](docs/rayonnement_grave.md)
 - Brillance de l'attaque et de la tenue (amortissement de la table, feutre, vitesse du marteau) : [docs/brillance.md](docs/brillance.md)
+
+## Licence
+
+Copyright © 2026 Mathieu GRENET.
+
+Ce programme est un logiciel libre : vous pouvez le redistribuer et le modifier selon les termes de la GNU General Public License publiée par la Free Software Foundation, version 3 ou (à votre choix) toute version ultérieure. Il est distribué sans aucune garantie. Voir [LICENSE](LICENSE).

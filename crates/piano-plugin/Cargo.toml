@@ -4,6 +4,7 @@ description = "The physical piano as a CLAP and VST3 instrument plugin (nice-plu
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [lib]
 # cdylib: the plugin; lib: tests.
