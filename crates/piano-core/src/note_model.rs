@@ -40,6 +40,36 @@ pub struct NoteModel {
     pub has_damper: bool,
     /// Modes run by a string that only listens (partials < max_freq).
     pub n_listen: usize,
+    /// Geometric nonlinearity (phantom partials), when enabled for the key.
+    pub longitudinal: Option<Longitudinal>,
+}
+
+/// Precomputed longitudinal model of a key (see [`params::StringNonlinearity`]).
+///
+/// The slope of string j is y' = Σ_k a_k·cos(kπx/L), a_k = (kπ/L)·q_k. The
+/// stretching drives longitudinal mode n (shape sin(nπx/L), modal mass μL/2)
+/// with F_n = −(EA·nπ/8)·(Σ_{j+k=n} a_j·a_k + 2·Σ_k a_k·a_{k+n}), and the
+/// mode pushes on the bridge with EA·(nπ/L)·ξ_n. The voice tracks each
+/// partial's mean vertical displacement from the coupled modes' states.
+pub struct Longitudinal {
+    /// Partials used (k = 1..n_part), their slope factor kπ/L.
+    pub slope: Vec<f32>,
+    /// Weight of each coupled mode (index k_idx·n_osc + m) in the mean
+    /// vertical displacement of its partial, complex.
+    pub weights: Vec<(f32, f32)>,
+    /// Pole of each partial (its strongest mode) per sample.
+    pub pole_re: Vec<f32>,
+    pub pole_im: Vec<f32>,
+    /// Longitudinal modes: pole, input gain (generalised force → state, all
+    /// the strings), output weight (state → board force, with the coupling).
+    pub long_pole: Vec<(f32, f32)>,
+    pub long_gain: Vec<f32>,
+    pub long_out: Vec<f32>,
+    /// Gating: E·A/4 (tension change per squared slope, N) and coupling.
+    pub ea4: f32,
+    pub coupling: f32,
+    /// One-pole high-pass pole on the board force (bridge moment).
+    pub hp_pole: f32,
 }
 
 impl NoteModel {
@@ -149,7 +179,8 @@ impl NoteModel {
             }
             clusters.push(cl);
         }
-        Self { note, params: np, n_osc, clusters, phys, modes, region, has_damper, n_listen }
+        let longitudinal = longitudinal(model, &np, n_osc, &clusters, &modes, note, sample_rate);
+        Self { note, params: np, n_osc, clusters, phys, modes, region, has_damper, n_listen, longitudinal }
     }
 
     /// Damper decay-rate factor at contact `engagement` (0 lifted, 1 resting).
@@ -159,6 +190,81 @@ impl NoteModel {
         }
         model.damper.rate(engagement, self.params.tension, self.params.mu, self.params.length)
     }
+}
+
+/// Longitudinal model of a key, or None when disabled or above `max_note`.
+fn longitudinal(
+    model: &PianoModel,
+    np: &NoteParams,
+    n_osc: usize,
+    clusters: &[Cluster],
+    modes: &[ModeSpec],
+    note: u8,
+    sample_rate: f64,
+) -> Option<Longitudinal> {
+    let nl = &model.nonlinear;
+    if !nl.enabled || note > nl.max_note || clusters.is_empty() {
+        return None;
+    }
+    use std::f64::consts::{PI, TAU};
+    let dt = 1.0 / sample_rate;
+    let ns = np.strings;
+    // Steel core from the inharmonicity: B = π³·E·d⁴/(64·T·L²).
+    let d4 = 64.0 * np.b * np.tension * np.length * np.length / (PI.powi(3) * nl.young);
+    let ea = nl.young * PI * d4.sqrt() / 4.0;
+    let c_long = (ea / np.mu).sqrt();
+    let n_part = clusters
+        .iter()
+        .enumerate()
+        .take_while(|(i, _)| modes[i * n_osc].freq_hz < nl.max_partial_hz)
+        .count()
+        .min(48);
+    let n_long = (1..=16).take_while(|&n| n as f64 * c_long / (2.0 * np.length) < nl.max_long_hz.min(0.45 * sample_rate)).count();
+    if n_part < 2 || n_long == 0 {
+        return None;
+    }
+    let mut vert = [0.0; MAX_OSC];
+    vert[..ns].fill(1.0 / ns as f64);
+    let mut weights = Vec::with_capacity(n_part * n_osc);
+    let (mut pole_re, mut pole_im) = (Vec::with_capacity(n_part), Vec::with_capacity(n_part));
+    for (ki, cl) in clusters.iter().take(n_part).enumerate() {
+        let mut best = (0.0, (1.0f32, 0.0f32));
+        for m in 0..n_osc {
+            let w = cl.output_weight(m, &vert);
+            weights.push((w.re as f32, w.im as f32));
+            let md = &modes[ki * n_osc + m];
+            if w.norm() > best.0 {
+                let p = C64::polar((-md.sigma * dt).exp(), TAU * md.freq_hz * dt);
+                best = (w.norm(), (p.re as f32, p.im as f32));
+            }
+        }
+        pole_re.push(best.1 .0);
+        pole_im.push(best.1 .1);
+    }
+    let slope = (1..=n_part).map(|k| (k as f64 * PI / np.length) as f32).collect();
+    let m_long = np.mu * np.length / 2.0;
+    let (mut long_pole, mut long_gain, mut long_out) = (Vec::new(), Vec::new(), Vec::new());
+    for n in 1..=n_long {
+        let w = TAU * n as f64 * c_long / (2.0 * np.length);
+        let sigma = 0.5 * nl.long_loss * w;
+        let p = C64::polar((-sigma * dt).exp(), w * dt);
+        long_pole.push((p.re as f32, p.im as f32));
+        // ζ ← p·ζ + F·dt/(m·ω), ξ = Im ζ; F_n per unit of the bracket.
+        long_gain.push((-(ea * n as f64 * PI / 8.0) * ns as f64 * dt / (m_long * w)) as f32);
+        long_out.push((nl.coupling * ea * n as f64 * PI / np.length) as f32);
+    }
+    Some(Longitudinal {
+        slope,
+        weights,
+        pole_re,
+        pole_im,
+        long_pole,
+        long_gain,
+        long_out,
+        ea4: (ea / 4.0) as f32,
+        coupling: nl.coupling as f32,
+        hp_pole: (-std::f64::consts::TAU * nl.coupling_corner * dt).exp() as f32,
+    })
 }
 
 /// All 128 MIDI keys (out-of-range keys are clamped to the piano compass).

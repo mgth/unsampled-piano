@@ -78,7 +78,8 @@ enum Backend {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
+    let mut args = Args::parse();
+    apply_user_config(&mut args);
     let midi_in = midir::MidiInput::new("piano-play")?;
     if args.list {
         let host = pick_host(args.host.as_deref().filter(|h| *h != "node"))?;
@@ -163,10 +164,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Some(w) => Some(w.clone()),
                 None => default_sink_prefix().map(|p| format!("{p}:")),
             };
-            let sinks: Vec<&String> = match &prefix {
+            let mut sinks: Vec<&String> = match &prefix {
                 Some(p) => audio_inputs.iter().filter(|x| x.contains(p.as_str())).collect(),
                 None => Vec::new(),
             };
+            if sinks.is_empty() && args.device.is_some() {
+                // The configured output is not running: the default sink.
+                let fallback = default_sink_prefix().map(|p| format!("{p}:"));
+                eprintln!("  output {:?} not found, using the default sink {fallback:?}", args.device.as_deref().unwrap_or(""));
+                if let Some(p) = fallback {
+                    sinks = audio_inputs.iter().filter(|x| x.contains(p.as_str())).collect();
+                }
+            }
             match sinks.as_slice() {
                 [] => eprintln!("  no output found ({prefix:?}): connect {} / {} in the graph", names.left, names.right),
                 [one] => {
@@ -348,6 +357,51 @@ fn file_timeline(args: &Args, sr: f64) -> Result<(Vec<(u64, Event)>, Vec<(f64, S
         t0 += len + GAP_S;
     }
     Ok((timeline, pieces, t0))
+}
+
+/// Personal defaults from `$XDG_CONFIG_HOME/piano/play.toml` (else
+/// `~/.config/piano/play.toml`), used for what the command line leaves out:
+/// `device`, `midi`, `midi_out`, `name`, `preset` (strings), `buffer`,
+/// `gain_db` (numbers).
+fn apply_user_config(args: &mut Args) {
+    let dir = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")));
+    let Some(path) = dir.map(|d| d.join("piano").join("play.toml")) else { return };
+    let Ok(text) = std::fs::read_to_string(&path) else { return };
+    let table: toml::Table = match text.parse() {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("{}: {e}", path.display());
+            return;
+        }
+    };
+    let cli: Vec<String> = std::env::args().collect();
+    let given = |flag: &str| cli.iter().any(|a| a == flag || a.starts_with(&format!("{flag}=")));
+    let string = |k: &str| table.get(k).and_then(|v| v.as_str()).map(str::to_string);
+    let number = |k: &str| table.get(k).and_then(|v| v.as_float().or(v.as_integer().map(|i| i as f64)));
+    if !given("--device") {
+        args.device = args.device.take().or(string("device"));
+    }
+    if !given("--midi") {
+        args.midi = args.midi.take().or(string("midi"));
+    }
+    if !given("--midi-out") {
+        args.midi_out = args.midi_out.take().or(string("midi_out"));
+    }
+    if !given("--preset") {
+        args.preset = args.preset.take().or(string("preset").map(PathBuf::from));
+    }
+    if let (false, Some(n)) = (given("--name"), string("name")) {
+        args.name = n;
+    }
+    if let (false, Some(b)) = (given("--buffer"), number("buffer")) {
+        args.buffer = b as u32;
+    }
+    if let (false, Some(g)) = (given("--gain-db"), number("gain_db")) {
+        args.gain_db = g as f32;
+    }
+    eprintln!("defaults from {}", path.display());
 }
 
 /// MIDI input ports of the graph containing `want`.

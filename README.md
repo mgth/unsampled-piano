@@ -10,7 +10,9 @@ Chaîne physique : marteau en feutre (contact passif quadratisé) → 1 à 3 cor
 # jouer : le piano devient un nœud du graphe PipeWire (API JACK) avec sortie
 # stéréo, entrée MIDI (timing à l'échantillon) et sortie MIDI miroir de ce qu'il
 # joue ; il se branche sur la sortie par défaut et sur le premier clavier
-# (--midi / --device pour choisir, --host pipewire pour l'ancien mode cpal)
+# (--midi / --device pour choisir, --host pipewire pour l'ancien mode cpal ;
+# réglages personnels par défaut dans ~/.config/piano/play.toml, par ex.
+# device = "Stereo DJ X-Fade:In B")
 cargo run --release -p piano-play -- --list
 cargo run --release -p piano-play -- --buffer 128 [--preset presets/concert.toml]
 # jouer des fichiers MIDI à la suite (timing à l'échantillon près ; --from saute le début)
@@ -63,3 +65,4 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 - Comparaison avec Salamander, Iowa et Commercial : [docs/comparaison.md](docs/comparaison.md)
 - Pertes des cordes graves (désaccord d'unisson, mode piston de la caisse) : [docs/graves.md](docs/graves.md)
 - Changement de timbre avec la nuance (feutre) : [docs/timbre_nuance.md](docs/timbre_nuance.md)
+- Non-linéarité des cordes (partiels fantômes) : [docs/non_linearite.md](docs/non_linearite.md)

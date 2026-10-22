@@ -152,6 +152,16 @@ max_freq = 5000.0
 gain = 0.25
 self_cancel = true
 
+[nonlinear]
+enabled = true
+young = 200000000000.0
+max_note = 64
+max_partial_hz = 5000.0
+max_long_hz = 8000.0
+long_loss = 0.005
+coupling = 0.3
+coupling_corner = 1000.0
+
 [noise]
 keybed = 0.25
 damper_mass = 0.007

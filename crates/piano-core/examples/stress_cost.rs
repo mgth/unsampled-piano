@@ -39,6 +39,9 @@ fn main() {
     c.model.sympathetic.max_freq = 2000.0;
     run("sympathy below 2 kHz", c);
     let mut c = base;
+    c.model.nonlinear.enabled = false;
+    run("no string nonlinearity", c);
+    let mut c = base;
     c.model.frame.enabled = false;
     run("no frame", c);
     let mut c = base;

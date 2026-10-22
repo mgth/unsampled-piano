@@ -1328,6 +1328,7 @@ dependencies = [
  "piano-core",
  "piano-host",
  "rtrb",
+ "toml",
 ]
 
 [[package]]

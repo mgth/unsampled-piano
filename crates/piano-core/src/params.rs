@@ -347,6 +347,59 @@ impl NoiseLaw {
     }
 }
 
+/// Geometric nonlinearity of the strings (Bank & Sujbert 2005): a string
+/// vibrating with a large amplitude stretches, which drives its
+/// longitudinal modes with the products of the transverse partials (sum and
+/// difference frequencies: the "phantom partials"); their force on the
+/// bridge reaches the board. It grows as the amplitude squared: the bass
+/// brightens and growls at ff. One-way (the transverse motion is linear).
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct StringNonlinearity {
+    pub enabled: bool,
+    /// Young's modulus of the steel core (Pa); the core diameter follows
+    /// from the inharmonicity, EA = E·π·d²/4 with B = π³E·d⁴/(64·T·L²).
+    pub young: f64,
+    /// Highest key computed, partials and longitudinal modes kept (Hz).
+    pub max_note: u8,
+    pub max_partial_hz: f64,
+    pub max_long_hz: f64,
+    /// Loss factor of the longitudinal modes.
+    pub long_loss: f64,
+    /// Share of the longitudinal force at the bridge that drives the board
+    /// (string angle over the bridge, bridge rocking).
+    pub coupling: f64,
+    /// The longitudinal force pulls the bridge in the board's plane, where
+    /// the board is stiff; it bends the board through its moment about the
+    /// bridge foot, which grows with the board's wavenumber: low-frequency
+    /// (quasi-static) tension changes hardly reach it. First-order high-pass
+    /// at this corner (Hz).
+    pub coupling_corner: f64,
+}
+
+impl Default for StringNonlinearity {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+impl StringNonlinearity {
+    pub const DEFAULT: Self = Self {
+        enabled: true,
+        young: 2.0e11,
+        // Above E4 the first longitudinal mode passes 4 kHz and little is
+        // left; above 8 kHz the longitudinal modes add nothing audible.
+        max_note: 64,
+        max_partial_hz: 5000.0,
+        max_long_hz: 8000.0,
+        long_loss: 0.005,
+        // Phantom partials at the level of the references (≈ −28 dB below
+        // the transverse partials in the bass at ff, tools/phantom_levels.py).
+        coupling: 0.3,
+        coupling_corner: 1000.0,
+    };
+}
+
 /// Sympathetic resonance through the bridge.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
@@ -477,6 +530,8 @@ pub struct PianoModel {
     pub soundboard: Option<crate::soundboard::SoundboardParams>,
     pub damper: DamperLaw,
     pub sympathetic: SympatheticLaw,
+    /// Longitudinal modes driven by the transverse motion (phantom partials).
+    pub nonlinear: StringNonlinearity,
     pub noise: NoiseLaw,
     /// The room around the piano (early reflections and reverberation).
     pub room: crate::room::RoomParams,
@@ -519,6 +574,7 @@ impl Default for PianoModel {
             soundboard: Some(crate::soundboard::SoundboardParams::GRAND_2M),
             damper: DamperLaw::GRAND,
             sympathetic: SympatheticLaw::DEFAULT,
+            nonlinear: StringNonlinearity::DEFAULT,
             noise: NoiseLaw::DEFAULT,
             room: crate::room::RoomParams::CONCERT_HALL,
             frame: crate::structure::FrameParams::GRAND_2M,

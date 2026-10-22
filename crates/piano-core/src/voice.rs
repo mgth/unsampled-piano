@@ -50,7 +50,22 @@ pub struct Voice {
     force: Vec<f32>,
     force_ring: Vec<f32>,
     x2: Vec<f32>,
+    /// Geometric nonlinearity: complex displacement of each partial (mean
+    /// over the strings), its slope this sample, longitudinal mode states.
+    nl_re: Vec<f32>,
+    nl_im: Vec<f32>,
+    nl_a: Vec<f32>,
+    nl_long: Vec<(f32, f32)>,
+    /// Samples since the hammer left the strings, for the onset ramp.
+    nl_age: u32,
+    nl_ramp: u32,
+    /// High-pass state (previous input, output).
+    nl_hp: (f32, f32),
 }
+
+/// Below this tension modulation (N, times the coupling) the longitudinal
+/// modes are not computed.
+const NL_SILENCE: f32 = 1e-4;
 
 /// Ring length for the delayed signals (power of two ≥ 2·SUB_BLOCK).
 pub const RING: usize = 1024;
@@ -73,6 +88,16 @@ impl Voice {
             force: vec![0.0; max_block],
             force_ring: vec![0.0; RING],
             x2: vec![0.0; max_block],
+            nl_re: vec![0.0; 64],
+            nl_im: vec![0.0; 64],
+            nl_a: vec![0.0; 64],
+            nl_long: vec![(0.0, 0.0); 16],
+            nl_age: 0,
+            // The stretching builds up while the hammer pushes: 2 ms ramp
+            // from the hand-over (a step would ring the high longitudinal
+            // modes like a click).
+            nl_ramp: (0.002 * sample_rate) as u32,
+            nl_hp: (0.0, 0.0),
         }
     }
 
@@ -98,6 +123,8 @@ impl Voice {
         self.sym.reset();
         self.force.fill(0.0);
         self.force_ring.fill(0.0);
+        self.nl_long.fill((0.0, 0.0));
+        self.nl_hp = (0.0, 0.0);
         self.struck = false;
         self.sostenuto = false;
     }
@@ -134,6 +161,7 @@ impl Voice {
     }
 
     fn hand_over(&mut self, nm: &NoteModel) {
+        self.nl_age = 0;
         let n = nm.n_osc;
         for (ki, cl) in nm.clusters.iter().enumerate() {
             let zeta: [C64; MAX_OSC] =
@@ -174,12 +202,19 @@ impl Voice {
                 self.hand_over(nm);
             }
         }
+        // Partial displacements at the start of the free segment (the bank
+        // states), for the longitudinal modes.
+        let nl = nm.longitudinal.as_ref().filter(|_| self.struck && start < n);
+        let nl_on = nl.is_some_and(|lg| self.nl_start(lg, nm.n_osc));
         if start < n && !self.bank.is_empty() {
             if with_agraffe {
                 self.bank.process2(None, &mut self.force[from + start..to], &mut self.agraffe[start..n]);
             } else {
                 self.bank.process(None, &mut self.force[from + start..to]);
             }
+        }
+        if let (true, Some(lg)) = (nl_on, nl) {
+            self.nl_run(lg, from + start, to);
         }
         if let Some(out_agraffe) = out_agraffe {
             for (o, a) in out_agraffe.iter_mut().zip(&self.agraffe[..n]) {
@@ -207,6 +242,98 @@ impl Voice {
         }
         for (o, x) in out_sym.iter_mut().zip(f.iter()) {
             *o += x;
+        }
+    }
+
+    /// Reads each partial's mean vertical displacement from the bank; false
+    /// (and the longitudinal modes cleared) when the stretching is too small
+    /// to matter.
+    fn nl_start(&mut self, lg: &crate::note_model::Longitudinal, n_osc: usize) -> bool {
+        let np = lg.slope.len();
+        let mut s2 = 0.0f32;
+        for k in 0..np {
+            let (mut re, mut im) = (0.0f32, 0.0f32);
+            for m in 0..n_osc {
+                let i = k * n_osc + m;
+                let (zr, zi) = self.bank.state(i);
+                let (wr, wi) = lg.weights[i];
+                re += wr * zr as f32 - wi * zi as f32;
+                im += wr * zi as f32 + wi * zr as f32;
+            }
+            self.nl_re[k] = re;
+            self.nl_im[k] = im;
+            let a = lg.slope[k];
+            s2 += a * a * (re * re + im * im);
+        }
+        let long_e: f32 = self.nl_long[..lg.long_pole.len()].iter().map(|z| z.0 * z.0 + z.1 * z.1).sum();
+        // Estimated board force: coupling · tension modulation (N).
+        if lg.coupling * lg.ea4 * s2 < NL_SILENCE && long_e < 1e-24 {
+            self.nl_long.fill((0.0, 0.0));
+            return false;
+        }
+        true
+    }
+
+    /// Adds the longitudinal force on the bridge to `force[a..b]`, advancing
+    /// the partial displacements freely from the segment's start.
+    fn nl_run(&mut self, lg: &crate::note_model::Longitudinal, a: usize, b: usize) {
+        let np = lg.slope.len();
+        let nl = lg.long_pole.len();
+        for t in a..b {
+            // Structure of arrays: vectorises.
+            let (re, im, a) = (&mut self.nl_re[..np], &mut self.nl_im[..np], &mut self.nl_a[..np]);
+            let (pr, pi, sl) = (&lg.pole_re[..np], &lg.pole_im[..np], &lg.slope[..np]);
+            for k in 0..np {
+                let (x, y) = (re[k], im[k]);
+                a[k] = sl[k] * x;
+                re[k] = pr[k] * x - pi[k] * y;
+                im[k] = pr[k] * y + pi[k] * x;
+            }
+            let a_k = &self.nl_a[..np];
+            let ramp = if self.nl_age < self.nl_ramp {
+                let x = self.nl_age as f32 / self.nl_ramp as f32;
+                0.5 - 0.5 * (std::f32::consts::PI * x).cos()
+            } else {
+                1.0
+            };
+            self.nl_age = self.nl_age.saturating_add(1);
+            let mut out = 0.0f32;
+            for n in 1..=nl {
+                // Σ_{j+k=n} a_j·a_k (j, k ≥ 1) + 2·Σ_k a_k·a_{k+n}.
+                let mut sum = 0.0f32;
+                for j in 1..n.min(np + 1) {
+                    if n - j <= np {
+                        sum += a_k[j - 1] * a_k[n - j - 1];
+                    }
+                }
+                // 8 independent accumulators: vectorisable (a single float
+                // sum cannot be reordered by the compiler).
+                let mut acc = [0.0f32; 8];
+                if n < np {
+                    let (x, y) = (&a_k[..np - n], &a_k[n..np]);
+                    let ((cx, rx), (cy, ry)) = (x.as_chunks::<8>(), y.as_chunks::<8>());
+                    for (u, v) in cx.iter().zip(cy) {
+                        for l in 0..8 {
+                            acc[l] += u[l] * v[l];
+                        }
+                    }
+                    for (u, v) in rx.iter().zip(ry) {
+                        acc[0] += u * v;
+                    }
+                }
+                let diff = ((acc[0] + acc[4]) + (acc[1] + acc[5])) + ((acc[2] + acc[6]) + (acc[3] + acc[7]));
+                let f = ramp * lg.long_gain[n - 1] * (sum + 2.0 * diff);
+                let (zr, zi) = self.nl_long[n - 1];
+                let (pr, pi) = lg.long_pole[n - 1];
+                let z = (pr * zr - pi * zi + f, pr * zi + pi * zr);
+                self.nl_long[n - 1] = z;
+                out += lg.long_out[n - 1] * z.1;
+            }
+            // y = r·(y + x − x₋₁): first-order high-pass (bridge moment).
+            let (x1, y1) = self.nl_hp;
+            let y = lg.hp_pole * (y1 + out - x1);
+            self.nl_hp = (out, y);
+            self.force[t] += y;
         }
     }
 

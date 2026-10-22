@@ -13,3 +13,4 @@ midir.workspace = true
 rtrb.workspace = true
 clap.workspace = true
 jack = "0.13"
+toml.workspace = true
