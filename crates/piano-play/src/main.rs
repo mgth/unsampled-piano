@@ -279,7 +279,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let presets = args.presets.clone().or_else(|| args.preset.as_ref().and_then(|p| p.parent()).map(Path::to_path_buf));
     let presets = presets.or_else(|| Some(PathBuf::from("presets")).filter(|p| p.is_dir()));
     let preset = args.preset.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().into_owned());
-    window::run(control, repaint, presets, preset, &format!("Piano — {}", args.name))?;
+    window::run(control, repaint, presets, preset, &if args.name == "unsampled-piano" { "Unsampled Piano".to_string() } else { format!("Unsampled Piano — {}", args.name) })?;
     Ok(())
 }
 

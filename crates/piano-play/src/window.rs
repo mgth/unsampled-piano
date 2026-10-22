@@ -48,11 +48,11 @@ pub fn run(
             .with_inner_size([1100.0, 760.0])
             .with_min_inner_size([760.0, 480.0])
             .with_title(title)
-            .with_app_id("piano"),
+            .with_app_id("unsampled-piano"),
         ..Default::default()
     };
     eframe::run_native(
-        "piano",
+        "unsampled-piano",
         options,
         Box::new(move |cc| {
             let _ = repaint.set(cc.egui_ctx.clone());
