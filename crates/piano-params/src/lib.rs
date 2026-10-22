@@ -8,6 +8,7 @@
 //! event while playing) or needs the instrument rebuilt.
 
 mod control;
+mod help;
 mod meta;
 pub mod midi;
 
@@ -16,6 +17,7 @@ use std::collections::HashMap;
 use piano_core::params::PianoModel;
 pub use piano_core::LiveParam;
 pub use control::{PianoControl, Status};
+pub use help::{help, Help};
 pub use meta::Meta;
 
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -3,7 +3,8 @@
 //!   cargo run -p piano-ui --example demo [preset-folder]
 //! PIANO_UI_PAGE=<title> opens a page; PIANO_UI_LOAD=<preset.toml> starts
 //! from a preset; PIANO_UI_MAP=<cc>=<path>,… maps controllers and
-//! PIANO_UI_LEARN=<path> starts learning one; PIANO_UI_SHOT=<file.ppm> saves the
+//! PIANO_UI_LEARN=<path> starts learning one; PIANO_UI_ABOUT=<path> shows
+//! a parameter's help; PIANO_UI_SHOT=<file.ppm> saves the
 //! window once drawn, then quits (visual checks).
 use std::sync::mpsc;
 
@@ -33,6 +34,9 @@ fn main() -> eframe::Result {
     let mut ui = PianoUi::new(presets);
     if let Ok(page) = std::env::var("PIANO_UI_PAGE") {
         ui.open_page(&page);
+    }
+    if let Ok(path) = std::env::var("PIANO_UI_ABOUT") {
+        ui.show_help(&path);
     }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1100.0, 760.0]).with_title("Piano"),

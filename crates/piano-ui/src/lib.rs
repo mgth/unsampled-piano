@@ -26,6 +26,8 @@ pub struct PianoUi {
     section: Vec<usize>,
     page: usize,
     search: String,
+    /// Parameter whose help is shown (registry index).
+    about: Option<usize>,
     /// Preset folder (TOML files), when the host has one: either flat, or
     /// `instruments/<family>/*.toml` and `listening/*.toml`.
     presets: Option<PathBuf>,
@@ -62,7 +64,18 @@ impl PianoUi {
     pub fn new(presets: Option<PathBuf>) -> Self {
         let registry = Registry::new();
         let section = registry.params().iter().map(|p| section_of(&p.path)).collect();
-        Self { registry, section, page: 0, search: String::new(), presets, preset_name: String::new(), listening_names: Default::default(), message: None, load: LoadMeter::default() }
+        Self {
+            registry,
+            section,
+            page: 0,
+            search: String::new(),
+            about: None,
+            presets,
+            preset_name: String::new(),
+            listening_names: Default::default(),
+            message: None,
+            load: LoadMeter::default(),
+        }
     }
 
     /// The preset shown as loaded (its file name without `.toml`): in the
@@ -79,6 +92,11 @@ impl PianoUi {
             }
         }
         self.preset_name = name.into();
+    }
+
+    /// Shows the help of the parameter at `path`, if it exists.
+    pub fn show_help(&mut self, path: &str) {
+        self.about = self.registry.params().iter().position(|p| p.path == path);
     }
 
     /// Opens the page with this title (case-insensitive), or "MIDI".
@@ -173,6 +191,23 @@ impl PianoUi {
             });
         });
 
+        if let Some(i) = self.about {
+            let mut open = true;
+            egui::Panel::right("piano-about").resizable(true).default_size(320.0).min_size(220.0).show(ui, |ui| {
+                ui.add_space(6.0);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    open = !ui.small_button("Close").clicked();
+                });
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    let p = &self.registry.params()[i];
+                    widgets::about(ui, p, piano_params::get(&model, &p.path));
+                });
+            });
+            if !open {
+                self.about = None;
+            }
+        }
+
         egui::CentralPanel::default().show(ui, |ui| {
             egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
                 if self.page == MIDI_PAGE && self.search.is_empty() {
@@ -238,7 +273,9 @@ impl PianoUi {
                     ui.end_row();
                     last = g;
                 }
-                widgets::param_row(ui, &params[i], values[i], control);
+                if widgets::param_row(ui, &params[i], values[i], control) {
+                    self.about = if self.about == Some(i) { None } else { Some(i) };
+                }
                 ui.end_row();
             }
         });

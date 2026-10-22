@@ -9,24 +9,32 @@ use crate::sections::Curve;
 
 /// One grid row: label, value, reset, kind. Edits go to `control` as a
 /// gesture (a drag is one begin/end pair; typed values are a whole one).
-pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn PianoControl) {
+/// True when the label was clicked (to show the parameter's help).
+pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn PianoControl) -> bool {
     let m = &p.meta;
     let modified = value.is_some_and(|v| v != p.default);
     let text = RichText::new(&m.label);
-    let label = ui.label(if modified { text.color(ui.visuals().strong_text_color()) } else { text });
+    let label = ui.add(egui::Label::new(if modified { text.color(ui.visuals().strong_text_color()) } else { text }).sense(Sense::click()));
+    let clicked = label.clicked();
     label.on_hover_ui(|ui| {
-        ui.label(RichText::new(&p.path).monospace());
-        ui.label(format!("Default: {}", show(p.default.as_f64())));
+        ui.set_max_width(340.0);
+        if let Some(h) = piano_params::help(&p.path) {
+            ui.label(h.what);
+            ui.add_space(4.0);
+        }
+        ui.label(RichText::new(&p.path).monospace().weak());
+        ui.label(RichText::new(format!("Default: {}", show(p.default.as_f64()))).weak());
         if !m.curated {
             ui.label(RichText::new("Range guessed from the default value").weak());
         }
+        ui.label(RichText::new("Click for details").small().weak());
     });
     let Some(mut v) = value else {
         ui.label(RichText::new("off in this model").weak());
         for _ in 0..3 {
             ui.label("");
         }
-        return;
+        return clicked;
     };
     let r = match &mut v {
         Value::Float(x) => ui.add(
@@ -66,6 +74,27 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
     }
     kind_mark(ui, matches!(p.kind, Kind::Live(_)));
     midi_button(ui, p, control);
+    clicked
+}
+
+/// The help of a parameter: what it does on the piano, then how the model
+/// implements it (folded).
+pub fn about(ui: &mut Ui, p: &Param, value: Option<Value>) {
+    ui.horizontal(|ui| {
+        kind_mark(ui, matches!(p.kind, Kind::Live(_)));
+        ui.heading(&p.meta.label);
+    });
+    ui.label(RichText::new(&p.path).monospace().weak());
+    let unit = if p.meta.unit.is_empty() { String::new() } else { format!(" {}", p.meta.unit) };
+    let now = value.map_or("off in this model".into(), |v| format!("{}{unit}", show(v.as_f64())));
+    ui.label(RichText::new(format!("{now} (default {}{unit})", show(p.default.as_f64()))).weak());
+    ui.add_space(8.0);
+    let Some(h) = piano_params::help(&p.path) else { return };
+    ui.label(h.what);
+    ui.add_space(8.0);
+    egui::CollapsingHeader::new("Under the hood").id_salt("about-how").default_open(true).show(ui, |ui| {
+        ui.label(h.how);
+    });
 }
 
 /// The controller mapped to `p` ("CC 21"); click to learn one (again to
