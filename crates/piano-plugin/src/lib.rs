@@ -84,7 +84,7 @@ impl Drop for Piano {
 impl Plugin for Piano {
     const NAME: &'static str = "Unsampled Piano";
     const VENDOR: &'static str = "mgth";
-    const URL: &'static str = "https://github.com/mgth/piano";
+    const URL: &'static str = "https://github.com/mgth/unsampled-piano";
     const EMAIL: &'static str = "";
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
