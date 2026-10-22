@@ -31,10 +31,12 @@ impl HostHandlers for Host {
     type AudioProcessor<'a> = ();
 }
 
-/// The cdylib next to this test's binary (target/<profile>/).
+/// The cdylib next to this test's binary (target/<profile>/): .so, .dll
+/// or .dylib.
 fn plugin_path() -> std::path::PathBuf {
     let exe = std::env::current_exe().unwrap();
-    exe.parent().and_then(|d| d.parent()).unwrap().join("libpiano_plugin.so")
+    let name = format!("{}piano_plugin{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
+    exe.parent().and_then(|d| d.parent()).unwrap().join(name)
 }
 
 /// Why the built plugin cannot be tested, if so: missing, or older than a

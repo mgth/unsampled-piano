@@ -31,6 +31,18 @@ tools/calibrate.sh data/salamander/Samples out/calib
 cargo test --workspace
 ```
 
+## Plugin
+
+CLAP and VST3 instrument, "Unsampled Piano". The live parameters (output gain, pedal and damper behaviour, velocity curve, mechanical noises) are automatable host parameters; the rest of the instrument and the MIDI-learnt controllers are saved with the project, and editing them rebuilds the instrument in the background without cutting the notes.
+
+Builds for Linux, Windows and macOS (universal) come from the `Plugin` workflow of GitHub Actions: run it from the Actions tab, or push a `v*` tag to attach the bundles to a release. Locally:
+
+```bash
+cargo xtask bundle piano-plugin --release   # target/bundled/Unsampled Piano.{clap,vst3}
+tools/install-plugin.sh                      # Linux: into ~/.clap and ~/.vst3
+cargo build -p piano-plugin && cargo test -p piano-plugin   # loads the .clap as a host would
+```
+
 ## Reference performances
 
 The files in `data/midi/` come from [MAESTRO v3](https://magenta.tensorflow.org/datasets/maestro) (Google Magenta, CC BY-NC-SA 4.0): Piano-e-Competition pianists recorded on a Disklavier, with the actual key velocities and pedals. `data/` is not under version control; to retrieve them:
@@ -48,6 +60,8 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 | `piano-params` | parameter registry (paths, ranges, live or rebuild), MIDI learn, `PianoControl` trait |
 | `piano-control` | control of a playing instrument: live parameters, background rebuild and engine swap without cutting notes (standalone player and plugin) |
 | `piano-ui` | egui interface on top of `PianoControl` |
+| `piano-plugin` | CLAP and VST3 instrument plugin (nice-plug), with the `piano-ui` editor |
+| `xtask` | plugin bundles for the current platform (`cargo xtask bundle piano-plugin --release`) |
 | `piano-play` | real-time application (`unsampled-piano` binary): PipeWire/JACK node (audio, MIDI in, MIDI mirror), or cpal + midir |
 | `piano-render` | deterministic offline MIDI → WAV rendering (`unsampled-piano-render` binary) |
 | `piano-analysis` | analysis: partials, B, decays, ESPRIT, spectral distances |

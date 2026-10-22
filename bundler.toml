@@ -1,0 +1,3 @@
+# Names of the plugin bundles written by `cargo xtask bundle`.
+[piano-plugin]
+name = "Unsampled Piano"
