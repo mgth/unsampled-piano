@@ -6,7 +6,46 @@
 import Figure from './Figure.astro';
 import { BOARD, TREBLE_BRIDGE, BASS_BRIDGE, planView } from '../../lib/geometry';
 import { def, fmt } from '../../lib/params';
-import { preset, presetTitle } from '../../lib/presets';
+import { preset, presetSummary, presetTitle } from '../../lib/presets';
+import type { Lang } from '../../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
+
+const T = {
+  en: {
+    label: 'Microphones · from above, to scale',
+    caption:
+      'The soundboard (copper) with its two bridges, the keyboard at the bottom, treble on the right — the audience sits on that side, where the lid opens. Each microphone is labelled with its height above the board. Close microphones hear a detailed, dry piano; distant ones let the board blend and the room take over.',
+    tabs: 'Microphone set-up',
+    aria: 'Plan view of the piano with the microphone positions of each set-up',
+    defaultTitle: 'Model default',
+    defaultNote: 'The default instrument: lid removed, two omnis 1.5 m above the board',
+    soundboard: (a: string, b: string) => `soundboard ${a} × ${b} m`,
+    keyboard: 'keyboard · bass ← → treble',
+    lid: (deg: number) => `lid open ${deg}°`,
+    cardioids: ' · cardioids',
+    omnis: ' · omnis',
+    audience: 'audience',
+  },
+  fr: {
+    label: 'Micros · vus de dessus, à l’échelle',
+    caption:
+      'La table d’harmonie (cuivre) avec ses deux chevalets, le clavier en bas, l’aigu à droite — le public est de ce côté, celui où s’ouvre le couvercle. Chaque micro porte sa hauteur au-dessus de la table. Des micros proches entendent un piano détaillé et sec ; des micros éloignés laissent la table se fondre et la salle prendre le dessus.',
+    tabs: 'Placement des micros',
+    aria: 'Vue en plan du piano avec la position des micros de chaque placement',
+    defaultTitle: 'Défaut du modèle',
+    defaultNote: 'L’instrument par défaut : couvercle retiré, deux omnis 1.5 m au-dessus de la table',
+    soundboard: (a: string, b: string) => `table d’harmonie ${a} × ${b} m`,
+    keyboard: 'clavier · grave ← → aigu',
+    lid: (deg: number) => `couvercle ouvert ${deg}°`,
+    cardioids: ' · cardioïdes',
+    omnis: ' · omnis',
+    audience: 'public',
+  },
+}[lang];
 
 const { a, b } = BOARD;
 const v = planView(104, 236, 236);
@@ -24,8 +63,9 @@ const fromPreset = (name: string): Setup => {
   const sb = p.values.soundboard;
   const rel = sb.mics_relative;
   return {
-    title: presetTitle(name),
-    note: p.summary.split(/(?<=[.:])\s/)[0].replace(/[.:]$/, ''),
+    title: presetTitle(name, lang),
+    // The summary's first sentence or heading ("Close miking: …").
+    note: presetSummary(p, lang).split(/(?<=[.:])\s/)[0].replace(/\s*[.:]$/, ''),
     lid: sb.lid_angle,
     pattern: sb.mic_pattern,
     mics: sb.mics.map(([x, y, z]: number[]) => (rel ? [x * a, y * b, z] : [x, y, z])),
@@ -36,8 +76,8 @@ const setups: Setup[] = [
   fromPreset('concert'),
   fromPreset('audience_lid_closed'),
   {
-    title: 'Model default',
-    note: 'The default instrument: lid removed, two omnis 1.5 m above the board',
+    title: T.defaultTitle,
+    note: T.defaultNote,
     lid: def('soundboard.lid_angle'),
     pattern: def('soundboard.mic_pattern'),
     mics: [0, 1].map((m) => [0, 1, 2].map((c) => def(`soundboard.mics[${m}][${c}]`)) as [number, number, number]),
@@ -49,26 +89,26 @@ const cy = v.Y(center[0]);
 ---
 
 <Figure
-  label="Microphones · from above, to scale"
-  caption="The soundboard (copper) with its two bridges, the keyboard at the bottom, treble on the right — the audience sits on that side, where the lid opens. Each microphone is labelled with its height above the board. Close microphones hear a detailed, dry piano; distant ones let the board blend and the room take over."
+  label={T.label}
+  caption={T.caption}
 >
   <div class="micplan" data-micplan>
-    <div class="mp-tabs" role="tablist" aria-label="Microphone set-up">
+    <div class="mp-tabs" role="tablist" aria-label={T.tabs}>
       {setups.map((s, i) => (
         <button type="button" role="tab" aria-selected={i === 0 ? 'true' : 'false'} data-set={i}>{s.title}</button>
       ))}
     </div>
-    <svg viewBox="0 0 480 306" role="img" aria-label="Plan view of the piano with the microphone positions of each set-up">
+    <svg viewBox="0 0 480 306" role="img" aria-label={T.aria}>
       <rect class="dg-board" x={v.X(b)} y={v.Y(a)} width={b * v.s} height={a * v.s} rx="3"></rect>
       <path d={line(TREBLE_BRIDGE)} fill="none" stroke="var(--up-copper)" stroke-width="3" stroke-linecap="round"></path>
       <path d={line(BASS_BRIDGE)} fill="none" stroke="var(--up-copper)" stroke-width="3" stroke-linecap="round"></path>
-      <text class="dg-text" x={v.X(b) + 6} y={v.Y(a) + 14}>soundboard {fmt(a)} × {fmt(b)} m</text>
+      <text class="dg-text" x={v.X(b) + 6} y={v.Y(a) + 14}>{T.soundboard(fmt(a), fmt(b))}</text>
       <g>
         <rect x={v.X(b)} y={v.Y(-0.06)} width={b * v.s} height={0.26 * v.s} rx="2" fill="var(--up-ivory)" opacity="0.85"></rect>
         {Array.from({ length: 26 }, (_, i) => (
           <line x1={v.X(b) + ((i + 1) * b * v.s) / 27} x2={v.X(b) + ((i + 1) * b * v.s) / 27} y1={v.Y(-0.06)} y2={v.Y(-0.32)} stroke="#9c9586" stroke-width="0.6"></line>
         ))}
-        <text class="dg-text dg-mid" x={v.X(b / 2)} y={v.Y(-0.32) + 13}>keyboard · bass ← → treble</text>
+        <text class="dg-text dg-mid" x={v.X(b / 2)} y={v.Y(-0.32) + 13}>{T.keyboard}</text>
       </g>
 
       {[0, 1, 2].map((i) => (
@@ -83,7 +123,7 @@ const cy = v.Y(center[0]);
           {s.lid > 0 && (
             <g>
               <rect x={v.X(b)} y={v.Y(a)} width={b * Math.cos((s.lid * Math.PI) / 180) * v.s} height={a * v.s} fill="rgba(156,163,178,0.12)" stroke="var(--up-text-muted)" stroke-dasharray="5 4"></rect>
-              <text class="dg-text" x={v.X(b) + 6} y={v.Y(0) - 8}>lid open {s.lid}°</text>
+              <text class="dg-text" x={v.X(b) + 6} y={v.Y(0) - 8}>{T.lid(s.lid)}</text>
             </g>
           )}
           {s.mics.map(([x, y, z], m) => {
@@ -111,11 +151,11 @@ const cy = v.Y(center[0]);
               </g>
             );
           })}
-          <text class="dg-label" x="14" y="300">{s.note}{s.pattern < 1 ? ' · cardioids' : ' · omnis'}</text>
+          <text class="dg-label" x="14" y="300">{s.note}{s.pattern < 1 ? T.cardioids : T.omnis}</text>
         </g>
       ))}
       <path d={`M${v.X(-1.25)} 40 h40`} stroke="var(--up-text-muted)" marker-end="url(#mp-arr)"></path>
-      <text class="dg-text" x={v.X(-1.25)} y="32">audience</text>
+      <text class="dg-text" x={v.X(-1.25)} y="32">{T.audience}</text>
       <defs>
         <marker id="mp-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
           <path d="M0 0 10 5 0 10z" fill="var(--up-text-muted)"></path>

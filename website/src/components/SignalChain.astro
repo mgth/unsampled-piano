@@ -4,30 +4,71 @@
 // radiates to two microphones, the room adds its echoes. Frame and rim hang
 // off the chain (one way). Every node links to its parameter page; the wires
 // carry moving dashes, and a pulse travels the whole chain like a note.
+import { localePath, type Lang } from '../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
+
+const T = {
+  en: {
+    aria: 'Signal chain: MIDI, hammer, strings, soundboard, microphones, room, with dampers and the frame and rim on the side',
+    engine: 'the instrument · computed, never played back',
+    nodes: [
+      ['MIDI', 'velocity · pedals'],
+      ['hammer', 'nonlinear felt'],
+      ['strings', '1–3 · 2 polarisations'],
+      ['soundboard', 'modal plate'],
+      ['mics', 'Rayleigh · lid'],
+      ['room', 'images · FDN'],
+    ],
+    wires: ['speed', 'force', 'bridge', 'pressure', 'echoes'],
+    dampers: ['dampers', 'felt dashpots'],
+    frame: ['frame · rim', 'one way'],
+  },
+  fr: {
+    aria: 'Chaîne du signal : MIDI, marteau, cordes, table d’harmonie, micros, salle, avec sur le côté les étouffoirs, le cadre et la ceinture',
+    engine: 'l’instrument · calculé, jamais rejoué',
+    nodes: [
+      ['MIDI', 'vélocité · pédales'],
+      ['marteau', 'feutre non linéaire'],
+      ['cordes', '1–3 · 2 polarisations'],
+      ['table', 'plaque modale'],
+      ['micros', 'Rayleigh · couvercle'],
+      ['salle', 'images · FDN'],
+    ],
+    wires: ['vitesse', 'force', 'chevalet', 'pression', 'échos'],
+    dampers: ['étouffoirs', 'amortisseurs feutre'],
+    frame: ['cadre · ceinture', 'sens unique'],
+  },
+}[lang];
+
+const node = (i: number, x: number, href: string) => ({ x, title: T.nodes[i][0], sub: T.nodes[i][1], href: localePath(lang, href) });
 const nodes = [
-  { x: 10, title: 'MIDI', sub: 'velocity · pedals', href: '/docs/parameters/player/' },
-  { x: 128, title: 'hammer', sub: 'nonlinear felt', href: '/docs/parameters/hammer/' },
-  { x: 246, title: 'strings', sub: '1–3 · 2 polarisations', href: '/docs/parameters/strings/' },
-  { x: 364, title: 'soundboard', sub: 'modal plate', href: '/docs/parameters/soundboard/' },
-  { x: 482, title: 'mics', sub: 'Rayleigh · lid', href: '/docs/parameters/microphones/' },
-  { x: 600, title: 'room', sub: 'images · FDN', href: '/docs/parameters/room/' },
+  node(0, 10, '/docs/parameters/player/'),
+  node(1, 128, '/docs/parameters/hammer/'),
+  node(2, 246, '/docs/parameters/strings/'),
+  node(3, 364, '/docs/parameters/soundboard/'),
+  node(4, 482, '/docs/parameters/microphones/'),
+  node(5, 600, '/docs/parameters/room/'),
 ];
 const W = 104;
 const Y = 70;
 const H = 62;
 const wires = nodes.slice(1).map((n, i) => [nodes[i].x + W, n.x]);
-const labels = ['speed', 'force', 'bridge', 'pressure', 'echoes'];
+const labels = T.wires;
 const side = [
-  { x: 246, title: 'dampers', sub: 'felt dashpots', href: '/docs/parameters/dampers/', y: 168, from: 298, fromY: Y + H },
-  { x: 364, title: 'frame · rim', sub: 'one way', href: '/docs/parameters/frame-rim/', y: 168, from: 416, fromY: Y + H },
+  { x: 246, title: T.dampers[0], sub: T.dampers[1], href: localePath(lang, '/docs/parameters/dampers/'), y: 168, from: 298, fromY: Y + H },
+  { x: 364, title: T.frame[0], sub: T.frame[1], href: localePath(lang, '/docs/parameters/frame-rim/'), y: 168, from: 416, fromY: Y + H },
 ];
 ---
 
 <div class="chain" data-reveal>
   <div class="chain-scroll">
-    <svg viewBox="0 0 716 236" role="img" aria-label="Signal chain: MIDI, hammer, strings, soundboard, microphones, room, with dampers and the frame and rim on the side">
+    <svg viewBox="0 0 716 236" role="img" aria-label={T.aria}>
       <rect x="118" y="26" width="592" height="190" rx="16" class="engine-box"></rect>
-      <text x="414" y="46" class="engine-label">the instrument · computed, never played back</text>
+      <text x="414" y="46" class="engine-label">{T.engine}</text>
 
       {wires.map(([x1, x2], i) => (
         <g>
@@ -45,7 +86,7 @@ const side = [
       {[...nodes.map((n) => ({ ...n, y: Y, h: H, t: 28, s: 46 })), ...side.map((n) => ({ ...n, h: 40, t: 17, s: 31 }))].map((n) => (
         <a href={n.href} class="node">
           <rect x={n.x} y={n.y} width={W} height={n.h} rx="11"></rect>
-          <text x={n.x + W / 2} y={n.y + n.t} class="node-title">{n.title}</text>
+          <text x={n.x + W / 2} y={n.y + n.t} class="node-title" style={n.title.length > 12 ? 'font-size: 12.5px' : undefined}>{n.title}</text>
           <text x={n.x + W / 2} y={n.y + n.s} class="node-sub">{n.sub}</text>
         </a>
       ))}

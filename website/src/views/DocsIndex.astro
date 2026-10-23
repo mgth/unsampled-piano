@@ -1,0 +1,108 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import FeatureCard from '../components/FeatureCard.astro';
+import { docsOf } from '../lib/docs';
+import { langOf, localePath } from '../i18n';
+
+// The docs index, English or French.
+const lang = langOf(Astro.url);
+const L = (p: string) => localePath(lang, p);
+const docs = await docsOf(lang);
+const T = {
+  en: {
+    title: 'Documentation',
+    description:
+      'How to install and play Unsampled Piano, drive it from MIDI and the command line, how its physics works — and every parameter, with diagrams.',
+    eyebrow: 'Docs &amp; guides',
+    head: 'Lift the lid',
+    lede: 'How to get it playing, how to drive it, and what is going on inside. Something missing or wrong? The site lives in the repository — an issue or a pull request is the best way to say so.',
+    read: 'Read',
+    params: 'Parameter reference',
+    paramsHead: 'Every page of the interface',
+    paramsCta: 'Parameters',
+  },
+  fr: {
+    title: 'Documentation',
+    description:
+      'Installer Unsampled Piano et en jouer, le piloter en MIDI et en ligne de commande, comprendre sa physique — et chaque paramètre, avec des schémas.',
+    eyebrow: 'Docs et guides',
+    head: 'Soulevez le couvercle',
+    lede: 'Comment le faire jouer, comment le piloter, et ce qui se passe à l’intérieur. Quelque chose manque ou cloche ? Le site vit dans le dépôt — une issue ou une pull request est la meilleure façon de le dire.',
+    read: 'Lire',
+    params: 'Référence des paramètres',
+    paramsHead: 'Chaque page de l’interface',
+    paramsCta: 'Paramètres',
+  },
+}[lang];
+const guides = docs.filter((d) => d.data.section === 'Guides');
+const params = docs.filter((d) => d.data.section === 'Parameters');
+---
+
+<BaseLayout title={T.title} description={T.description}>
+  <section class="section">
+    <div class="container">
+      <header class="docs-index-head">
+        <p class="eyebrow" set:html={T.eyebrow} />
+        <h1>{T.head}</h1>
+        <p class="docs-index-lede">{T.lede}</p>
+      </header>
+
+      <div class="docs-index-grid">
+        {guides.map((entry, i) => (
+          <FeatureCard title={entry.data.title} href={L(`/docs/${entry.id}/`)} cta={T.read} icon={entry.data.icon} reveal={i * 60}>
+            <p>{entry.data.description}</p>
+          </FeatureCard>
+        ))}
+      </div>
+
+      <header class="docs-index-head docs-index-params">
+        <p class="eyebrow"><a href={L('/docs/parameters/')}>{T.params}</a></p>
+        <h2>{T.paramsHead}</h2>
+      </header>
+      <div class="docs-index-grid three">
+        {params.map((entry, i) => (
+          <FeatureCard title={entry.data.title} href={L(`/docs/${entry.id}/`)} cta={T.paramsCta} icon={entry.data.icon} reveal={i * 40}>
+            <p>{entry.data.description}</p>
+          </FeatureCard>
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .docs-index-head {
+    max-width: 60ch;
+    margin-bottom: 40px;
+  }
+  .docs-index-head h1 {
+    margin-top: 10px;
+    font-size: clamp(2rem, 5vw, 2.8rem);
+  }
+  .docs-index-params {
+    margin-top: clamp(48px, 7vw, 80px);
+    margin-bottom: 28px;
+  }
+  .docs-index-params h2 {
+    margin-top: 10px;
+    font-size: clamp(1.5rem, 3.4vw, 2rem);
+  }
+  .docs-index-lede {
+    margin-top: 16px;
+    color: var(--up-text-muted);
+    font-size: 1.1rem;
+  }
+  .docs-index-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .docs-index-grid.three {
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  }
+  @media (max-width: 680px) {
+    .docs-index-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

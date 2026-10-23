@@ -3,6 +3,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse } from 'smol-toml';
+import fr from '../data/presets.fr.json';
+import type { Lang } from '../i18n';
 
 // Astro runs dev/build from the website folder; the presets sit beside it.
 const ROOT = path.resolve('../presets');
@@ -48,5 +50,12 @@ export const preset = (kind: 'listening' | 'instruments', name: string) => {
   return p;
 };
 
-/** "concert_hall" → "Concert hall". */
-export const presetTitle = (name: string) => (name.charAt(0).toUpperCase() + name.slice(1)).replace(/_/g, ' ');
+// French titles and summaries, by file stem (src/data/presets.fr.json).
+const FR: Record<string, { title: string; summary: string } | undefined> = fr;
+
+/** "concert_hall" → "Concert hall" ("Salle de concert" in French). */
+export const presetTitle = (name: string, lang: Lang = 'en') =>
+  (lang === 'fr' && FR[name]?.title) || (name.charAt(0).toUpperCase() + name.slice(1)).replace(/_/g, ' ');
+
+/** The comment at the top of a preset, in `lang`. */
+export const presetSummary = (p: Preset, lang: Lang = 'en') => (lang === 'fr' && FR[p.name]?.summary) || p.summary;

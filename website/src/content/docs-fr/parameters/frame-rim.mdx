@@ -1,0 +1,41 @@
+---
+title: Cadre et ceinture
+description: La plaque en fonte et la paroi de bois de la caisse — les pièces qui tiennent le piano, et qui sonnent un peu, elles aussi.
+order: 109
+icon: frame
+section: Parameters
+page: Frame & rim
+---
+import FrameRim from '../../../components/diagrams/FrameRim.astro';
+
+Les cordes d'un piano à queue tirent, au total, avec près de vingt tonnes. Un **cadre en fonte**
+(la plaque) encaisse cette charge, et une épaisse **ceinture** en bois lamellé — la paroi courbe
+de la caisse — tient la table d'harmonie par son bord. Ni l'un ni l'autre n'est fait pour sonner,
+mais tous deux vibrent, et on les entend : une petite couleur métallique pour le cadre, un peu
+de corps dans le grave et le médium pour la ceinture.
+
+<FrameRim lang="fr" />
+
+## Le cadre
+
+Le cadre est modélisé avec la même mécanique modale que la table : une plaque isotrope encastrée
+(`frame.a`, `frame.b`, `rho_h`, `stiffness`, `loss_factor`), excitée aux agrafes par la force des
+cordes, et qui rayonne depuis sa propre hauteur au-dessus de la table. Seul son métal rayonne —
+`solidity` est la part de son contour qui n'est pas ajourée — et sa face inférieure annule en
+grande partie sa face supérieure à travers ces ouvertures (`back_gain`). Par défaut, son premier
+mode tombe vers 150 Hz.
+
+## La ceinture
+
+La ceinture est un anneau qui suit le pourtour de la table, fléchissant hors de son plan et se
+tordant (théorie de Love pour les poutres courbes), excité par les forces qu'exercent sur elle
+les bords de la table encastrée. Ses quatre faces rayonnent — la face intérieure à moitié cachée
+sous la table (`inner_gain`). Ses dimensions (`height`, `thickness`, `top`) et son érable lamellé
+(`young`, `shear`, `density`) fixent ses modes ; `k_max` et `f_max` limitent le nombre de modes
+calculés.
+
+Tous deux fonctionnent **dans un seul sens** : le cadre et la ceinture tirent leur mouvement des
+cordes et de la table, mais ne le leur renvoient pas ; ils colorent donc le son sans changer la
+durée des notes. `frame.gain` et `rim.gain` dosent ce qu'ils rayonnent (1 est la valeur
+physique). Les calculs sont détaillés dans
+[docs/frame_rim.md](https://github.com/mgth/unsampled-piano/blob/main/docs/frame_rim.md).

@@ -9,6 +9,12 @@ import Figure from './Figure.astro';
 import { BOARD } from '../../lib/geometry';
 import { def, fmt } from '../../lib/params';
 import { preset } from '../../lib/presets';
+import type { Lang } from '../../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
 
 const { b } = BOARD;
 const concert = preset('listening', 'concert').values.soundboard;
@@ -45,21 +51,53 @@ const S = 92;
 const X = (y: number) => 300 - y * S;
 const Y = (z: number) => 222 - z * S;
 const pt = ([y, z]: [number, number]) => `${X(y).toFixed(1)} ${Y(z).toFixed(1)}`;
+
+const presence = '<a href="https://github.com/mgth/unsampled-piano/blob/main/docs/presence.md">docs/presence.md</a>';
+const T = {
+  en: {
+    label: 'Lid · section across the keyboard',
+    caption: `The lid, hinged on the bass side ${fmt(hinge[1])} m above the board and open at ${concert.lid_angle}° as in the concert set-up, reflects part of the sound towards the audience (<code>lid_reflection</code> = ${fmt(def('soundboard.lid_reflection'))}). At 1 m up, where the concert pair first stood, a microphone sits in that beam (and lost 10 dB at 2–4 kHz in the middle register, ${presence}); at 2 m it is above it. Each patch of the board gets an image path through the lid whenever the reflection reaches a microphone; a microphone behind the lid only gets <code>lid_transmission</code>. No diffraction is modelled.`,
+    aria: 'Section of the grand piano with the lid open, showing direct and reflected sound paths to a microphone',
+    soundboard: 'soundboard',
+    hinge: 'hinge',
+    lid: (deg: number) => `lid ${deg}°`,
+    mic: (m: string) => `concert mic, ${m} m${highMissed ? ': above the reflection' : ''}`,
+    low: "at 1 m: in the lid's beam",
+    bass: 'bass side',
+    treble: 'treble side · audience',
+    direct: 'direct',
+    offLid: 'off the lid',
+  },
+  fr: {
+    label: 'Couvercle · coupe en travers du clavier',
+    caption: `Le couvercle, articulé côté grave ${fmt(hinge[1])} m au-dessus de la table et ouvert à ${concert.lid_angle}° comme dans le réglage concert, renvoie une partie du son vers le public (<code>lid_reflection</code> = ${fmt(def('soundboard.lid_reflection'))}). À 1 m de haut, là où se tenait d’abord la paire concert, un micro se trouve dans ce faisceau (et perdait 10 dB entre 2 et 4 kHz dans le médium, ${presence}) ; à 2 m, il est au-dessus. Chaque portion de la table reçoit un trajet image par le couvercle dès que la réflexion atteint un micro ; un micro derrière le couvercle ne reçoit que <code>lid_transmission</code>. La diffraction n’est pas modélisée.`,
+    aria: 'Coupe du piano à queue couvercle ouvert, montrant les trajets direct et réfléchi du son vers un micro',
+    soundboard: 'table d’harmonie',
+    hinge: 'charnière',
+    lid: (deg: number) => `couvercle ${deg}°`,
+    mic: (m: string) => `micro concert, ${m} m${highMissed ? ' : hors du reflet' : ''}`,
+    low: 'à 1 m : dans le reflet',
+    bass: 'côté grave',
+    treble: 'côté aigu · public',
+    direct: 'direct',
+    offLid: 'réfléchi par le couvercle',
+  },
+}[lang];
 ---
 
 <Figure
-  label="Lid · section across the keyboard"
-  caption={`The lid, hinged on the bass side ${fmt(hinge[1])} m above the board and open at ${concert.lid_angle}° as in the concert set-up, reflects part of the sound towards the audience (<code>lid_reflection</code> = ${fmt(def('soundboard.lid_reflection'))}). At 1 m up, where the concert pair first stood, a microphone sits in that beam (and lost 10 dB at 2–4 kHz in the middle register, <a href="https://github.com/mgth/unsampled-piano/blob/main/docs/presence.md">docs/presence.md</a>); at 2 m it is above it. Each patch of the board gets an image path through the lid whenever the reflection reaches a microphone; a microphone behind the lid only gets <code>lid_transmission</code>. No diffraction is modelled.`}
+  label={T.label}
+  caption={T.caption}
 >
-  <svg viewBox="0 0 480 250" role="img" aria-label="Section of the grand piano with the lid open, showing direct and reflected sound paths to a microphone">
+  <svg viewBox="0 0 480 250" role="img" aria-label={T.aria}>
     <rect x={X(b) - 8} y={Y(0)} width={b * S + 16} height="22" rx="3" fill="#2a2018" stroke="#5a3a1e"></rect>
     <line x1={X(b)} x2={X(0)} y1={Y(0)} y2={Y(0)} stroke="var(--up-copper)" stroke-width="4" stroke-linecap="round"></line>
-    <text class="dg-text dg-mid" x={X(b / 2)} y={Y(0) + 15} style="fill:#c9a27c">soundboard</text>
+    <text class="dg-text dg-mid" x={X(b / 2)} y={Y(0) + 15} style="fill:#c9a27c">{T.soundboard}</text>
     <line x1={X(b)} x2={X(b)} y1={Y(0)} y2={Y(hinge[1])} stroke="#5a3a1e" stroke-width="3"></line>
     <path d={`M${pt(hinge)} L${pt(lidEnd)}`} stroke="var(--up-text-bright)" stroke-width="4" stroke-linecap="round"></path>
     <circle cx={X(hinge[0])} cy={Y(hinge[1])} r="3.5" fill="var(--up-text-muted)"></circle>
-    <text class="dg-text" x={X(hinge[0]) - 8} y={Y(hinge[1]) + 4} text-anchor="end">hinge</text>
-    <text class="dg-label dg-end" x={X(lidEnd[0]) - 6} y={Y(lidEnd[1]) - 8}>lid {concert.lid_angle}°</text>
+    <text class="dg-text" x={X(hinge[0]) - 8} y={Y(hinge[1]) + 4} text-anchor="end">{T.hinge}</text>
+    <text class="dg-label dg-end" x={X(lidEnd[0]) - 6} y={Y(lidEnd[1]) - 8}>{T.lid(concert.lid_angle)}</text>
     <path d={`M${X(hinge[0]) - 40} ${Y(hinge[1])} A40 40 0 0 1 ${X(hinge[0] + 40 * u[0] / S)} ${Y(hinge[1] + 40 * u[1] / S)}`} class="dg-faint"></path>
 
     {sources.map((src, i) => (
@@ -71,17 +109,17 @@ const pt = ([y, z]: [number, number]) => `${X(y).toFixed(1)} ${Y(z).toFixed(1)}`
     {sources.map((src) => <circle cx={X(src[0])} cy={Y(0)} r="3" fill="var(--up-accent-light)"></circle>)}
 
     <circle cx={X(mic[0])} cy={Y(mic[1])} r="7.5" fill="#0b0f18" stroke="#6cb8ff" stroke-width="2"></circle>
-    <text class="dg-text dg-end" x={X(mic[0]) - 12} y={Y(mic[1]) + 4} style="fill:#6cb8ff">concert mic, {fmt(mic[1])} m{highMissed ? ': above the reflection' : ''}</text>
+    <text class="dg-text dg-end" x={X(mic[0]) - 12} y={Y(mic[1]) + 4} style="fill:#6cb8ff">{T.mic(fmt(mic[1]))}</text>
     <circle cx={X(low[0])} cy={Y(low[1])} r="7.5" fill="#0b0f18" stroke="#6cb8ff" stroke-width="2" stroke-dasharray="3 2"></circle>
-    <text class="dg-text dg-end" x={X(low[0]) + 8} y={Y(low[1]) + 22} style="fill:#6cb8ff">at 1 m: in the lid's beam</text>
+    <text class="dg-text dg-end" x={X(low[0]) + 8} y={Y(low[1]) + 22} style="fill:#6cb8ff">{T.low}</text>
     <line class="dg-faint" x1="20" x2="470" y1={Y(0) + 22} y2={Y(0) + 22}></line>
-    <text class="dg-text" x="24" y={Y(0) + 18}>bass side</text>
-    <text class="dg-text dg-end" x="466" y={Y(0) + 18}>treble side · audience</text>
+    <text class="dg-text" x="24" y={Y(0) + 18}>{T.bass}</text>
+    <text class="dg-text dg-end" x="466" y={Y(0) + 18}>{T.treble}</text>
     <g class="legend">
       <line x1="24" x2="44" y1="18" y2="18" class="ray-direct" stroke-dasharray="none"></line>
-      <text class="dg-text" x="50" y="21">direct</text>
+      <text class="dg-text" x="50" y="21">{T.direct}</text>
       <line x1="100" x2="120" y1="18" y2="18" class="ray-lid" stroke-dasharray="none"></line>
-      <text class="dg-text" x="126" y="21">off the lid</text>
+      <text class="dg-text" x="126" y="21">{T.offLid}</text>
     </g>
   </svg>
 </Figure>

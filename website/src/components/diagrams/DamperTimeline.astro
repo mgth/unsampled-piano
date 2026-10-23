@@ -5,10 +5,16 @@
 // the note's level. Schematic timing; a playhead sweeps it.
 import Figure from './Figure.astro';
 import { def, fmt } from '../../lib/params';
+import type { Lang } from '../../i18n';
 
-const T = 6;
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
+
+const SPAN = 6;
 const X0 = 70, X1 = 466;
-const sx = (t: number) => X0 + (t / T) * (X1 - X0);
+const sx = (t: number) => X0 + (t / SPAN) * (X1 - X0);
 const lanes = { key: 30, pedal: 64, contact: 110, level: 186 };
 
 const notes = [
@@ -21,7 +27,7 @@ const fall = 0.12; // drawn slower than the real damper fall_time, to be seen
 const up = (t: number) =>
   (notes.some((n) => t >= n.on && t < n.off) ? 1 : 0) || (t >= pedal.down && t < pedal.up ? 1 : 0);
 // Contact: 1 resting, 0 lifted.
-const contact = Array.from({ length: 601 }, (_, i) => (i / 600) * T).map((t) => [t, up(t) ? 0 : 1]);
+const contact = Array.from({ length: 601 }, (_, i) => (i / 600) * SPAN).map((t) => [t, up(t) ? 0 : 1]);
 const contactPath = contact.map(([t, c], i) => `${i ? 'L' : 'M'}${sx(t).toFixed(1)} ${(lanes.contact - 18 * (1 - c)).toFixed(1)}`).join(' ');
 
 // Level in dB: a strike jumps to 0, rings at −8 dB/s, falls fast once the damper lands.
@@ -29,8 +35,8 @@ const level: [number, number][] = [];
 let db = -60;
 let damped = 0;
 for (let i = 0; i <= 600; i++) {
-  const t = (i / 600) * T;
-  const dt = T / 600;
+  const t = (i / 600) * SPAN;
+  const dt = SPAN / 600;
   if (notes.some((n) => Math.abs(t - n.on) < dt / 2)) db = 0;
   const free = up(t);
   damped = free ? 0 : damped + dt;
@@ -40,18 +46,42 @@ for (let i = 0; i <= 600; i++) {
 }
 const LV = 46;
 const levelPath = level.map(([t, d], i) => `${i ? 'L' : 'M'}${sx(t).toFixed(1)} ${(lanes.level - LV * (1 + d / 60)).toFixed(1)}`).join(' ');
+
+const fallMs = fmt(def('damper.fall_time') * 1000);
+const T = {
+  en: {
+    label: 'Dampers over time',
+    caption: `First note: released without pedal, its damper falls back on the string (<code>fall_time</code> = ${fallMs} ms, drawn slower here) and the sound stops. Second note: the pedal was down, so releasing the key changes nothing until the pedal comes up. How firmly the felt grips (<code>strength</code>) and how the damping grows as it settles (<code>contact_exponent</code>) shape the end of each note.`,
+    aria: 'Timeline of keys, pedal, damper contact and note level',
+    key: 'key',
+    pedal: 'pedal',
+    damper: 'damper',
+    onString: 'on string',
+    level: 'level',
+  },
+  fr: {
+    label: 'Les étouffoirs dans le temps',
+    caption: `Première note : relâchée sans pédale, son étouffoir retombe sur la corde (<code>fall_time</code> = ${fallMs} ms, dessiné plus lentement ici) et le son s’arrête. Seconde note : la pédale était enfoncée, relâcher la touche ne change donc rien jusqu’à ce que la pédale remonte. La fermeté avec laquelle le feutre serre la corde (<code>strength</code>) et la façon dont l’amortissement croît à mesure qu’il se pose (<code>contact_exponent</code>) façonnent la fin de chaque note.`,
+    aria: 'Chronologie des touches, de la pédale, du contact des étouffoirs et du niveau de la note',
+    key: 'touche',
+    pedal: 'pédale',
+    damper: 'étouffoir',
+    onString: 'sur la corde',
+    level: 'niveau',
+  },
+}[lang];
 ---
 
 <Figure
-  label="Dampers over time"
-  caption={`First note: released without pedal, its damper falls back on the string (<code>fall_time</code> = ${fmt(def('damper.fall_time') * 1000)} ms, drawn slower here) and the sound stops. Second note: the pedal was down, so releasing the key changes nothing until the pedal comes up. How firmly the felt grips (<code>strength</code>) and how the damping grows as it settles (<code>contact_exponent</code>) shape the end of each note.`}
+  label={T.label}
+  caption={T.caption}
 >
-  <svg viewBox="0 0 480 200" role="img" aria-label="Timeline of keys, pedal, damper contact and note level">
-    <text class="dg-text" x="10" y={lanes.key + 4}>key</text>
-    <text class="dg-text" x="10" y={lanes.pedal + 4}>pedal</text>
-    <text class="dg-text" x="10" y={lanes.contact - 4}>damper</text>
-    <text class="dg-text" x="10" y={lanes.contact + 8} font-size="8.5">on string</text>
-    <text class="dg-text" x="10" y={lanes.level - 22}>level</text>
+  <svg viewBox="0 0 480 200" role="img" aria-label={T.aria}>
+    <text class="dg-text" x="10" y={lanes.key + 4}>{T.key}</text>
+    <text class="dg-text" x="10" y={lanes.pedal + 4}>{T.pedal}</text>
+    <text class="dg-text" x="10" y={lanes.contact - 4}>{T.damper}</text>
+    <text class="dg-text" x="10" y={lanes.contact + 8} font-size="8.5">{T.onString}</text>
+    <text class="dg-text" x="10" y={lanes.level - 22}>{T.level}</text>
     {[lanes.key, lanes.pedal].map((y) => <line class="dg-faint" x1={X0} x2={X1} y1={y + 8} y2={y + 8}></line>)}
     {notes.map((n) => (
       <rect x={sx(n.on)} y={lanes.key - 8} width={sx(n.off) - sx(n.on)} height="16" rx="3" fill="var(--up-ivory)"></rect>

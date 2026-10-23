@@ -17,7 +17,8 @@ npm run dev        # http://localhost:4321
 | `npm run build` | Production build to `dist/` |
 | `npm run preview` | Serve the built `dist/` locally |
 | `npm run check` | Type-check + validate content frontmatter |
-| `npm run params` | Regenerate `src/data/params.json` from the code (needs cargo) |
+| `npm run params` | Regenerate `src/data/params.json` from the code (needs cargo), then check the French texts |
+| `npm run check-fr` | List French parameter texts that are missing or translated from an older English text |
 | `npm run demos` | Render the home page's audio clips again (needs cargo, ffmpeg, lame) |
 | `npm run deploy` | Build, then upload `dist/` to o2switch over FTP |
 
@@ -44,6 +45,21 @@ npm run dev        # http://localhost:4321
 - **Guides and parameter pages** — Markdown/MDX in `src/content/docs/`. A parameter page names its
   interface page in `page:` and lives in `docs/parameters/`; its parameter list, its screenshot
   and its table of contents entries are added by the route.
+
+## English and French
+
+English is at the root, French under `/fr/`; every page exists in both (`src/i18n.ts`).
+
+- Pages are thin route files in `src/pages/` and `src/pages/fr/` around shared views in `src/views/`;
+  the chrome's strings are in `src/i18n.ts`, each diagram keeps its own `{ en, fr }` strings and
+  takes `lang`.
+- Guides and parameter pages: `src/content/docs-fr/` mirrors `src/content/docs/` file for file
+  (same names, so the same URLs under `/fr/`); a French page passes `lang="fr"` to its diagrams.
+- Parameter labels and help: `src/data/params.fr.json`, keyed by path. Each help entry records a
+  hash of the English text it was translated from; `npm run check-fr` lists what is missing or
+  stale after `npm run params`, and `node scripts/check-fr.mjs --stamp` records the hashes once a
+  translation is updated. Missing French falls back to English.
+- Preset titles and summaries: `src/data/presets.fr.json`.
 
 ## Deploying to o2switch (FTP)
 

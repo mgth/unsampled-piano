@@ -1,0 +1,806 @@
+---
+import { Image } from 'astro:assets';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import GlowBackground from '../components/GlowBackground.astro';
+import FeatureCard from '../components/FeatureCard.astro';
+import DonateButton from '../components/DonateButton.astro';
+import SignalChain from '../components/SignalChain.astro';
+import HeroString from '../components/HeroString.astro';
+import DocIcon from '../components/DocIcon.astro';
+import DemoPlayer from '../components/DemoPlayer.astro';
+import { SITE, repoFile } from '../site';
+import { COUNTS } from '../lib/params';
+import { docsOf } from '../lib/docs';
+import { langOf, localePath } from '../i18n';
+import interfaceShot from '../assets/interface.png';
+
+// The home page, English or French (src/pages/index.astro, src/pages/fr/index.astro).
+const lang = langOf(Astro.url);
+const L = (p: string) => localePath(lang, p);
+const docs = await docsOf(lang);
+const guides = docs.filter((d) => d.data.section === 'Guides');
+const paramPages = docs.filter((d) => d.data.section === 'Parameters');
+
+const T = {
+  en: {
+    eyebrow: 'a piano with no samples in it',
+    tagline:
+      'Every note is computed while you play: a felt hammer hits stiff steel strings, the strings shake a spruce soundboard, the board pushes the air towards two microphones in a hall. Physics in real time, from MIDI, in Rust.',
+    download: 'Download',
+    explore: 'Explore the parameters',
+    source: 'or read the source &rarr;',
+    platforms: 'Standalone for Linux, Windows &amp; macOS · CLAP &amp; VST3 plugin · GPL-3.0',
+    listen: {
+      eyebrow: 'Hear it',
+      title: 'Every sound below was computed, not recorded',
+      sub: (cli: string) =>
+        `Rendered from MIDI by <a href="${cli}"><code>unsampled-piano-render</code></a>: the default instrument and hall, lid open, heard through the concert microphones unless said otherwise. Nothing added afterwards but a level and the MP3 encoding.`,
+      cliAnchor: '#unsampled-piano-render--offline-rendering',
+      clair: {
+        title: 'Clair de lune — the opening',
+        body: 'The first fourteen bars, up to the <em>tempo rubato</em>: pianissimo, the tempo breathing with each phrase, the pedal changed on every harmony so the undamped strings ring along.',
+        cut: 'cut after bar 14 and rendered here. This clip and the microphone pair below are shared under the same licence.',
+      },
+      etude: {
+        title: 'Étude op. 10 no. 12 — “Revolutionary”',
+        body: 'Allegro con fuoco: the left hand races over the whole keyboard under octaves in the right, from the opening crash to the first fortissimo. Twenty-eight bars and the chord that ends them.',
+        cut: 'cut after the first beat of bar 29 and rendered here. This clip is shared under the same licence.',
+      },
+      credit: 'MIDI file by Bernd Krüger',
+      licensed: 'licensed',
+      pedal: {
+        eyebrow: 'Sustain pedal',
+        title: 'Lift the dampers',
+        body: 'The same short chord twice, released at once: first with the dampers down, then with the pedal held. The second time every free string answers through the bridge.',
+      },
+      dynamics: {
+        eyebrow: 'Velocity',
+        title: 'Pianissimo to fortissimo',
+        body: 'One chord at four velocities. The felt stiffens the harder it is squeezed, so a faster hammer brings out more upper partials: loud is not just louder.',
+      },
+      mics: {
+        eyebrow: 'Microphones',
+        title: 'Close, or from the hall',
+        close: 'Close',
+        concert: 'Concert',
+        body: 'The first bars of <em>Clair de lune</em>, the same performance through two microphone set-ups: a pair 40 cm above the soundboard, or a spaced pair two metres up in front of the open lid. Switch while it plays.',
+      },
+      note: (script: string) =>
+        `<em>Clair de lune</em> and the étude come from MIDI files sequenced by hand, tempo and dynamics included, by Bernd Krüger; the pedal and velocity tests were written for this page. Every clip can be rendered again bit for bit with <a href="${script}" rel="noopener"><code>website/scripts/render-demos.sh</code></a>.`,
+    },
+    aboutTitle: 'No recordings. Just the piano’s physics.',
+    aboutMore: 'How it works, and what isn’t right yet &rarr;',
+    aboutLede:
+      'Sampled pianos replay recordings; Unsampled Piano <strong>builds the instrument</strong> and lets it ring. Strings and soundboard are thousands of coupled modes, each a damped oscillator; the hammer is a nonlinear felt spring; the sound you hear is what two microphones pick up from a vibrating board, in a room. Change a string’s tension or the lid’s angle and the piano changes — because there is nothing else to change.',
+    points: [
+      'Half pedal, sympathetic resonance, beating unisons, phantom partials: not effects, consequences.',
+      'Grands and uprights from one engine — action, case, lid, wall behind the board.',
+      'Edit any parameter while playing: the instrument rebuilds in the background without cutting notes.',
+      'Calibrated on recordings of real pianos, step by step, every step documented.',
+    ],
+    numbers: 'In numbers',
+    stats: [
+      ['samples', 'not one byte of recorded sound'],
+      ['parameters', 'every one a physical quantity'],
+      ['live', 'automatable while you play'],
+      ['keys', '× up to 3 strings × 2 polarisations'],
+    ],
+    piecesTitle: 'Three ways to play it',
+    standalone: {
+      title: 'Standalone',
+      cta: 'Get started',
+      lede: 'An application with its interface, for a keyboard and an audio interface.',
+      items: [
+        'Linux: a PipeWire/JACK graph node with MIDI in and a MIDI mirror out',
+        'Windows: WASAPI or ASIO; macOS: CoreAudio, universal',
+        'Sample-accurate MIDI, MIDI files back to back',
+      ],
+    },
+    plugin: {
+      title: 'Plugin',
+      cta: 'Automation',
+      anchor: '#plugin-automation',
+      lede: 'The same engine and interface, inside your DAW.',
+      items: [
+        'Live parameters are host parameters: automate the pedals’ behaviour, the velocity curve, the noises',
+        'The whole instrument and the learnt controllers saved with the project',
+      ],
+    },
+    render: {
+      title: 'Offline renderer',
+      cta: 'Command line',
+      lede: 'MIDI in, stereo WAV out — deterministic, bit for bit.',
+      items: ['Render pieces, single notes or sweeps of the whole keyboard', 'Compare two presets on the very same performance'],
+    },
+    ifaceEyebrow: 'The interface',
+    ifaceTitle: 'Every knob is a piece of the piano',
+    ifaceSub: `${COUNTS.total} parameters, no macros: felt hardness, string tension, board stiffness, lid angle, wall absorption. Each comes with what it is on a real piano and how the model does it; each page has a sketch drawn from your settings.`,
+    ifaceCta: 'Parameter reference',
+    ifaceAlt: 'The interface, Strings page: the C4 string, its partials, and per-key losses, string length and unison spread',
+    ifacePages: 'Parameter pages',
+    measuredEyebrow: 'Measured, not guessed',
+    measuredTitle: 'Fitted on real pianos, one hypothesis at a time',
+    measured1:
+      'The defaults come from measurements: partial frequencies and decay rates of every note of a recorded Yamaha C5 (ESPRIT analysis), a second recorded set for the spread between pianos, and a commercial modelled piano for timbre at every dynamic, pedalling and the range of instruments. Each change starts as a hypothesis, gets measured, and lands with its numbers.',
+    measured2: (readme: string, gaps: string) =>
+      `The write-ups are in the repository — inharmonicity, bridge conductance, sustain, phantom partials, the lid, uprights — <a href="${readme}" rel="noopener">over twenty of them</a>. And where the model still falls short, <a href="${gaps}">the docs say so</a>.`,
+    gapsAnchor: '#honestly-what-is-not-right-yet',
+    docsTitle: 'Docs &amp; guides',
+    docsSub: 'Install it, play it, drive it from MIDI, and find out what’s inside.',
+    read: 'Read',
+    supportTitle: 'Keep the strings ringing',
+    supportSub: `Unsampled Piano is free software under ${SITE.license} — a nights-and-weekends project, not a product. If it gave you a good evening at the keyboard, a coffee keeps it going.`,
+  },
+  fr: {
+    eyebrow: 'un piano sans le moindre échantillon',
+    tagline:
+      'Chaque note est calculée pendant que vous jouez : un marteau de feutre frappe des cordes d’acier raides, les cordes font vibrer une table d’harmonie en épicéa, la table pousse l’air vers deux micros dans une salle. De la physique en temps réel, depuis le MIDI, en Rust.',
+    download: 'Télécharger',
+    explore: 'Explorer les paramètres',
+    source: 'ou lire le code &rarr;',
+    platforms: 'Application pour Linux, Windows et macOS · plugin CLAP et VST3 · GPL-3.0',
+    listen: {
+      eyebrow: 'Écouter',
+      title: 'Tout ce qui suit a été calculé, pas enregistré',
+      sub: (cli: string) =>
+        `Rendu depuis le MIDI par <a href="${cli}"><code>unsampled-piano-render</code></a> : l’instrument et la salle par défaut, couvercle ouvert, entendus par les micros de concert sauf mention contraire. Rien d’ajouté ensuite, sinon un niveau et l’encodage MP3.`,
+      cliAnchor: '#unsampled-piano-render--rendu-hors-ligne',
+      clair: {
+        title: 'Clair de lune — le début',
+        body: 'Les quatorze premières mesures, jusqu’au <em>tempo rubato</em> : pianissimo, un tempo qui respire avec chaque phrase, la pédale changée à chaque harmonie pour que les cordes libres résonnent avec.',
+        cut: 'coupé après la mesure 14 et rendu ici. Cet extrait et la paire de micros ci-dessous sont diffusés sous la même licence.',
+      },
+      etude: {
+        title: 'Étude op. 10 n°\u00a012 — «\u00a0Révolutionnaire\u00a0»',
+        body: 'Allegro con fuoco : la main gauche dévale tout le clavier sous les octaves de la main droite, du fracas initial jusqu’au premier fortissimo. Vingt-huit mesures et l’accord qui les conclut.',
+        cut: 'coupé après le premier temps de la mesure 29 et rendu ici. Cet extrait est diffusé sous la même licence.',
+      },
+      credit: 'Fichier MIDI de Bernd Krüger',
+      licensed: 'sous licence',
+      pedal: {
+        eyebrow: 'Pédale forte',
+        title: 'Lever les étouffoirs',
+        body: 'Le même accord bref, deux fois, relâché aussitôt : d’abord étouffoirs baissés, puis pédale enfoncée. La seconde fois, toutes les cordes libres répondent à travers le chevalet.',
+      },
+      dynamics: {
+        eyebrow: 'Vélocité',
+        title: 'Du pianissimo au fortissimo',
+        body: 'Un accord à quatre vélocités. Le feutre durcit à mesure qu’on l’écrase : un marteau plus rapide fait ressortir les partiels aigus. Fort, ce n’est pas seulement plus fort.',
+      },
+      mics: {
+        eyebrow: 'Micros',
+        title: 'De près, ou depuis la salle',
+        close: 'De près',
+        concert: 'Concert',
+        body: 'Les premières mesures de <em>Clair de lune</em>, la même interprétation par deux prises de son : un couple à 40 cm au-dessus de la table, ou un couple espacé à deux mètres de haut devant le couvercle ouvert. Passez de l’un à l’autre pendant l’écoute.',
+      },
+      note: (script: string) =>
+        `<em>Clair de lune</em> et l’étude viennent de fichiers MIDI saisis à la main, tempo et nuances compris, par Bernd Krüger ; les essais de pédale et de vélocité ont été écrits pour cette page. Chaque extrait peut être rendu à nouveau, au bit près, avec <a href="${script}" rel="noopener"><code>website/scripts/render-demos.sh</code></a>.`,
+    },
+    aboutTitle: 'Aucun enregistrement. Juste la physique du piano.',
+    aboutMore: 'Comment ça marche, et ce qui ne va pas encore &rarr;',
+    aboutLede:
+      'Les pianos échantillonnés rejouent des enregistrements ; Unsampled Piano <strong>construit l’instrument</strong> et le laisse sonner. Cordes et table d’harmonie sont des milliers de modes couplés, chacun un oscillateur amorti ; le marteau est un ressort de feutre non linéaire ; ce que vous entendez, c’est ce que deux micros captent d’une table qui vibre, dans une salle. Changez la tension d’une corde ou l’angle du couvercle, et le piano change — parce qu’il n’y a rien d’autre à changer.',
+    points: [
+      'Demi-pédale, résonance sympathique, battements des chœurs, partiels fantômes : pas des effets, des conséquences.',
+      'Pianos à queue et pianos droits avec un seul moteur — mécanique, caisse, couvercle, mur derrière la table.',
+      'Modifiez n’importe quel paramètre en jouant : l’instrument se reconstruit en arrière-plan sans couper les notes.',
+      'Calibré sur des enregistrements de vrais pianos, pas à pas, chaque étape documentée.',
+    ],
+    numbers: 'En chiffres',
+    stats: [
+      ['échantillons', 'pas un octet de son enregistré'],
+      ['paramètres', 'chacun une grandeur physique'],
+      ['en direct', 'automatisables pendant le jeu'],
+      ['touches', '× jusqu’à 3 cordes × 2 polarisations'],
+    ],
+    piecesTitle: 'Trois façons d’en jouer',
+    standalone: {
+      title: 'Application',
+      cta: 'Premiers pas',
+      lede: 'Une application avec son interface, pour un clavier et une carte son.',
+      items: [
+        'Linux : un nœud du graphe PipeWire/JACK, avec entrée MIDI et sortie MIDI miroir',
+        'Windows : WASAPI ou ASIO ; macOS : CoreAudio, universel',
+        'MIDI précis à l’échantillon, fichiers MIDI à la suite',
+      ],
+    },
+    plugin: {
+      title: 'Plugin',
+      cta: 'Automation',
+      anchor: '#automation-dans-le-plugin',
+      lede: 'Le même moteur et la même interface, dans votre DAW.',
+      items: [
+        'Les paramètres en direct sont des paramètres de l’hôte : automatisez le comportement des pédales, la courbe de vélocité, les bruits',
+        'L’instrument entier et les contrôleurs appris sont enregistrés avec le projet',
+      ],
+    },
+    render: {
+      title: 'Rendu hors ligne',
+      cta: 'Ligne de commande',
+      lede: 'MIDI en entrée, WAV stéréo en sortie — déterministe, au bit près.',
+      items: ['Rendez des morceaux, des notes isolées ou des balayages de tout le clavier', 'Comparez deux presets sur exactement la même interprétation'],
+    },
+    ifaceEyebrow: 'L’interface',
+    ifaceTitle: 'Chaque bouton est une pièce du piano',
+    ifaceSub: `${COUNTS.total} paramètres, aucune macro : dureté du feutre, tension des cordes, raideur de la table, angle du couvercle, absorption des murs. Chacun dit ce qu’il est sur un vrai piano et comment le modèle le traite ; chaque page a un croquis dessiné d’après vos réglages.`,
+    ifaceCta: 'Référence des paramètres',
+    ifaceAlt: 'L’interface, page Strings : la corde de C4, ses partiels, et par touche les pertes, la longueur des cordes et l’écart des chœurs',
+    ifacePages: 'Pages de paramètres',
+    measuredEyebrow: 'Mesuré, pas deviné',
+    measuredTitle: 'Ajusté sur de vrais pianos, une hypothèse à la fois',
+    measured1:
+      'Les valeurs par défaut viennent de mesures : fréquences des partiels et taux d’amortissement de chaque note d’un Yamaha C5 enregistré (analyse ESPRIT), un second jeu d’enregistrements pour l’écart entre pianos, et un piano modélisé commercial pour le timbre à chaque nuance, le jeu de pédale et la gamme d’instruments. Chaque changement part d’une hypothèse, se mesure, et arrive avec ses chiffres.',
+    measured2: (readme: string, gaps: string) =>
+      `Les comptes rendus sont dans le dépôt — inharmonicité, conductance du chevalet, tenue, partiels fantômes, couvercle, pianos droits — <a href="${readme}" rel="noopener">plus d’une vingtaine</a> (en anglais). Et là où le modèle est encore en défaut, <a href="${gaps}">la doc le dit</a>.`,
+    gapsAnchor: '#honnêtement--ce-qui-ne-va-pas-encore',
+    docsTitle: 'Docs et guides',
+    docsSub: 'L’installer, en jouer, le piloter en MIDI, et découvrir ce qu’il y a dedans.',
+    read: 'Lire',
+    supportTitle: 'Que les cordes continuent de sonner',
+    supportSub: `Unsampled Piano est un logiciel libre sous ${SITE.license} — un projet de soirées et de week-ends, pas un produit. S’il vous a offert une belle soirée au clavier, un café l’aide à continuer.`,
+  },
+}[lang];
+
+// owner/repo for the live stars badge in the hero.
+const githubRepo = new URL(SITE.github).pathname.slice(1);
+
+const stats = [0, COUNTS.total, COUNTS.live, 88].map((n, i) => ({ n, label: T.stats[i][0], note: T.stats[i][1] }));
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: SITE.name,
+  description: SITE.description,
+  inLanguage: lang,
+  applicationCategory: 'MultimediaApplication',
+  operatingSystem: 'Linux, Windows, macOS',
+  license: 'https://www.gnu.org/licenses/gpl-3.0.html',
+  url: Astro.site?.toString(),
+  downloadUrl: new URL(L('/download/'), Astro.site).toString(),
+  sameAs: [SITE.github],
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+};
+---
+
+<BaseLayout jsonLd={jsonLd}>
+  {/* ---------- 1. Hero ---------- */}
+  <section class="hero">
+    <GlowBackground />
+    <div class="container hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow">{T.eyebrow}</p>
+        <h1 class="hero-title glow-text">Unsampled<br /><span>Piano</span></h1>
+        <p class="hero-tagline">{T.tagline}</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href={L('/download/')}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"></path>
+            </svg>
+            {T.download}
+          </a>
+          <a class="btn btn-secondary" href={L('/docs/parameters/')}>{T.explore}</a>
+          <a class="hero-source" href={SITE.github} rel="noopener" set:html={T.source} />
+          <a class="hero-stars" href={SITE.github} rel="noopener" data-stars data-repo={githubRepo} hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2.5l2.94 5.95 6.57.96-4.76 4.63 1.13 6.54L12 17.5l-5.88 3.08 1.13-6.54-4.76-4.63 6.57-.96z"></path>
+            </svg>
+            <span data-stars-count></span>
+          </a>
+        </div>
+        <p class="hero-platforms" set:html={T.platforms} />
+      </div>
+
+      <div class="hero-visual">
+        <HeroString lang={lang} />
+      </div>
+    </div>
+  </section>
+
+  {/* ---------- 2. Hear it ---------- */}
+  <section class="section section-alt" id="listen">
+    <div class="container">
+      <div class="listen-head" data-reveal>
+        <p class="eyebrow">{T.listen.eyebrow}</p>
+        <h2 class="section-title">{T.listen.title}</h2>
+        <p class="section-sub" set:html={T.listen.sub(L('/docs/command-line/') + T.listen.cliAnchor)} />
+      </div>
+      <div class="listen-grid">
+        {
+          [
+            { clip: 'clair', eyebrow: 'Claude Debussy', t: T.listen.clair },
+            { clip: 'etude', eyebrow: 'Frédéric Chopin', t: T.listen.etude },
+          ].map((d, i) => (
+            <DemoPlayer title={d.t.title} eyebrow={d.eyebrow} sources={[{ clip: d.clip }]} featured reveal={i * 90}>
+              <p set:html={d.t.body} />
+              <p class="demo-credit">
+                {T.listen.credit}, <a href="http://www.piano-midi.de" rel="noopener">piano-midi.de</a>, {T.listen.licensed}{' '}
+                <a href="https://creativecommons.org/licenses/by-sa/3.0/de/deed.en" rel="license noopener">CC BY-SA 3.0 DE</a>; {d.t.cut}
+              </p>
+            </DemoPlayer>
+          ))
+        }
+        <DemoPlayer title={T.listen.pedal.title} eyebrow={T.listen.pedal.eyebrow} sources={[{ clip: 'pedal' }]} reveal={0}>
+          <p>{T.listen.pedal.body}</p>
+        </DemoPlayer>
+        <DemoPlayer title={T.listen.dynamics.title} eyebrow={T.listen.dynamics.eyebrow} sources={[{ clip: 'dynamics' }]} reveal={90}>
+          <p>{T.listen.dynamics.body}</p>
+        </DemoPlayer>
+        <DemoPlayer
+          title={T.listen.mics.title}
+          eyebrow={T.listen.mics.eyebrow}
+          sources={[
+            { clip: 'mics-close', label: T.listen.mics.close },
+            { clip: 'mics-concert', label: T.listen.mics.concert },
+          ]}
+          reveal={180}
+        >
+          <p set:html={T.listen.mics.body} />
+        </DemoPlayer>
+      </div>
+      <p class="listen-note" data-reveal set:html={T.listen.note(repoFile('website/scripts/render-demos.sh'))} />
+    </div>
+  </section>
+
+  {/* ---------- 3. What it is ---------- */}
+  <section class="section" id="about">
+    <div class="container about-inner">
+      <div class="about-head" data-reveal>
+        <h2 class="section-title">{T.aboutTitle}</h2>
+        <p class="about-more">
+          <a href={L('/docs/how-it-works/')} set:html={T.aboutMore} />
+        </p>
+      </div>
+      <div class="about-body" data-reveal style="--reveal-delay: 120ms">
+        <p class="about-lede" set:html={T.aboutLede} />
+        <ul class="about-points">
+          {T.points.map((p) => <li><span class="dot"></span>{p}</li>)}
+        </ul>
+      </div>
+
+      <SignalChain lang={lang} />
+    </div>
+  </section>
+
+  {/* ---------- 4. Numbers ---------- */}
+  <section class="stats-band" aria-label={T.numbers}>
+    <div class="container stats">
+      {
+        stats.map((s, i) => (
+          <div class="stat" data-reveal style={`--reveal-delay: ${i * 90}ms`}>
+            <strong data-count={s.n}>{s.n}</strong>
+            <span class="stat-label">{s.label}</span>
+            <span class="stat-note">{s.note}</span>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  {/* ---------- 5. The pieces ---------- */}
+  <section class="section section-alt" id="pieces">
+    <div class="container">
+      <h2 class="section-title" data-reveal>{T.piecesTitle}</h2>
+      <div class="grid-3">
+        {[
+          { c: T.standalone, eyebrow: 'unsampled-piano', href: L('/docs/getting-started/') },
+          { c: T.plugin, eyebrow: 'CLAP · VST3', href: L(`/docs/midi/${T.plugin.anchor}`) },
+          { c: T.render, eyebrow: 'unsampled-piano-render', href: L('/docs/command-line/') },
+        ].map(({ c, eyebrow, href }, i) => (
+          <FeatureCard title={c.title} eyebrow={eyebrow} href={href} cta={c.cta} reveal={i * 100}>
+            <p>{c.lede}</p>
+            <ul>{c.items.map((x) => <li>{x}</li>)}</ul>
+          </FeatureCard>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  {/* ---------- 6. Every knob ---------- */}
+  <section class="section" id="interface">
+    <div class="container knobs-inner">
+      <div class="knobs-head" data-reveal>
+        <p class="eyebrow">{T.ifaceEyebrow}</p>
+        <h2 class="section-title">{T.ifaceTitle}</h2>
+        <p class="section-sub">{T.ifaceSub}</p>
+        <a class="btn btn-secondary knobs-cta" href={L('/docs/parameters/')}>{T.ifaceCta}</a>
+      </div>
+      <div class="knobs-shot glow" data-reveal style="--reveal-delay: 120ms">
+        <Image src={interfaceShot} alt={T.ifaceAlt} widths={[640, 960, 1375]} sizes="(max-width: 980px) 92vw, 700px" />
+      </div>
+      <nav class="knob-pages" aria-label={T.ifacePages}>
+        {
+          paramPages.map((p, i) => (
+            <a href={L(`/docs/${p.id}/`)} class="knob-page" data-reveal style={`--reveal-delay: ${i * 40}ms`}>
+              <DocIcon name={p.data.icon} />
+              <span>{p.data.title}</span>
+            </a>
+          ))
+        }
+      </nav>
+    </div>
+  </section>
+
+  {/* ---------- 7. Measured ---------- */}
+  <section class="section section-alt" id="measured">
+    <div class="container measured-inner">
+      <div data-reveal>
+        <p class="eyebrow">{T.measuredEyebrow}</p>
+        <h2 class="section-title">{T.measuredTitle}</h2>
+      </div>
+      <div class="measured-body" data-reveal style="--reveal-delay: 120ms">
+        <p>{T.measured1}</p>
+        <p set:html={T.measured2(repoFile('README.md#documentation'), L(`/docs/how-it-works/${T.gapsAnchor}`))} />
+      </div>
+    </div>
+  </section>
+
+  {/* ---------- 8. Docs ---------- */}
+  <section class="section" id="docs">
+    <div class="container">
+      <h2 class="section-title" data-reveal set:html={T.docsTitle} />
+      <p class="section-sub" data-reveal>{T.docsSub}</p>
+      <div class="grid-docs">
+        {
+          guides.map((entry, i) => (
+            <FeatureCard title={entry.data.title} href={L(`/docs/${entry.id}/`)} cta={T.read} icon={entry.data.icon} reveal={i * 70}>
+              <p>{entry.data.description}</p>
+            </FeatureCard>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  {/* ---------- 9. Support ---------- */}
+  <section class="section section-alt" id="support">
+    <div class="container support-inner" data-reveal>
+      <h2 class="section-title">{T.supportTitle}</h2>
+      <p class="section-sub">{T.supportSub}</p>
+      <DonateButton />
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { fetchGitHubJson } from '../scripts/github';
+
+  // Live GitHub star count in the hero. Stays hidden on any failure — the
+  // "read the source" link already covers the destination.
+  async function loadStars() {
+    const el = document.querySelector<HTMLElement>('[data-stars]');
+    if (!el || el.dataset.loaded || !el.dataset.repo) return;
+    try {
+      const repo = await fetchGitHubJson(`/repos/${el.dataset.repo}`);
+      const n = repo?.stargazers_count;
+      if (typeof n !== 'number' || n === 0) return;
+      const count = el.querySelector('[data-stars-count]');
+      if (!count) return;
+      count.textContent = String(n);
+      el.setAttribute('aria-label', `${n} stars on GitHub`);
+      el.dataset.loaded = '1';
+      el.hidden = false;
+    } catch {
+      // Rate-limited or offline — keep the badge hidden.
+    }
+  }
+
+  // Numbers count up the first time they scroll into view.
+  function initCounts() {
+    const els = document.querySelectorAll<HTMLElement>('.stat [data-count]:not([data-counted])');
+    if (!els.length || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const el = e.target as HTMLElement;
+        io.unobserve(el);
+        el.dataset.counted = '1';
+        const end = Number(el.dataset.count);
+        const t0 = performance.now();
+        const step = (now: number) => {
+          const u = Math.min(1, (now - t0) / 1200);
+          el.textContent = String(Math.round(end * (1 - (1 - u) ** 3)));
+          if (u < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }
+    });
+    els.forEach((el) => io.observe(el));
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    loadStars();
+    initCounts();
+  });
+  loadStars();
+  initCounts();
+</script>
+
+<style>
+  /* Hero */
+  .hero {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--up-border);
+    background: radial-gradient(120% 100% at 30% 0%, var(--up-bg-radial-from), var(--up-bg-radial-to) 70%);
+  }
+  .hero-inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    align-items: center;
+    gap: clamp(32px, 6vw, 72px);
+    padding-block: clamp(56px, 10vw, 108px);
+  }
+  .hero-title {
+    margin: 14px 0 0;
+    font-size: clamp(3rem, 8.4vw, 5rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .hero-title span {
+    color: var(--up-accent);
+  }
+  .hero-tagline {
+    margin-top: 22px;
+    max-width: 34ch;
+    font-size: clamp(1.08rem, 2.2vw, 1.25rem);
+  }
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 18px;
+    margin-top: 32px;
+  }
+  .hero-source {
+    font-size: 0.95rem;
+    color: var(--up-text-muted);
+  }
+  .hero-stars {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid var(--up-border);
+    border-radius: 999px;
+    font-family: var(--up-font-mono);
+    font-size: 0.82rem;
+    color: var(--up-text-muted);
+  }
+  .hero-stars svg {
+    color: #ffc861;
+  }
+  .hero-stars[hidden] {
+    display: none;
+  }
+  .hero-platforms {
+    margin-top: 22px;
+    font-family: var(--up-font-mono);
+    font-size: 0.76rem;
+    color: var(--up-text-muted);
+  }
+
+  /* Shared section bits */
+  .section-alt {
+    background: linear-gradient(180deg, rgba(29, 36, 51, 0.32), transparent);
+    border-block: 1px solid var(--up-border);
+  }
+  .section-title {
+    font-size: clamp(1.6rem, 3.6vw, 2.2rem);
+  }
+  .section-sub {
+    margin-top: 12px;
+    max-width: 60ch;
+    color: var(--up-text-muted);
+  }
+  .about-inner,
+  .measured-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    gap: clamp(24px, 5vw, 72px);
+    align-items: start;
+  }
+  .about-more {
+    margin-top: 16px;
+    font-size: 0.92rem;
+  }
+  .about-lede {
+    font-size: 1.12rem;
+  }
+  .about-points {
+    list-style: none;
+    margin: 26px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+  }
+  .about-points li {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    color: var(--up-text-muted);
+  }
+  .dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--up-accent);
+    box-shadow: 0 0 10px var(--up-accent);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .dot {
+      animation: dot-pulse 3.6s ease-in-out infinite;
+    }
+  }
+  @keyframes dot-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 7px var(--up-accent);
+    }
+    50% {
+      box-shadow: 0 0 16px var(--up-accent);
+    }
+  }
+
+  /* Numbers */
+  .stats-band {
+    border-block: 1px solid var(--up-border);
+    background:
+      repeating-linear-gradient(90deg, rgba(242, 181, 68, 0.035) 0 1px, transparent 1px 44px),
+      rgba(20, 27, 43, 0.6);
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+    padding-block: clamp(32px, 5vw, 52px);
+  }
+  .stat {
+    display: grid;
+    gap: 2px;
+  }
+  .stat strong {
+    font-family: var(--up-font-display);
+    font-size: clamp(2.2rem, 5vw, 3.2rem);
+    line-height: 1;
+    color: var(--up-accent-light);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 22px rgba(242, 181, 68, 0.35);
+  }
+  .stat-label {
+    font-family: var(--up-font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--up-text-bright);
+  }
+  .stat-note {
+    font-size: 0.86rem;
+    color: var(--up-text-muted);
+  }
+
+  .grid-3 {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+  .grid-docs {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 18px;
+  }
+
+  /* Interface */
+  .knobs-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: clamp(24px, 5vw, 64px);
+    align-items: center;
+  }
+  .knobs-head .section-title {
+    margin-top: 12px;
+  }
+  .knobs-cta {
+    margin-top: 24px;
+  }
+  .knobs-shot {
+    border-radius: var(--up-radius);
+    overflow: hidden;
+    border: 1px solid var(--up-border-strong);
+  }
+  .knobs-shot :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .knob-pages {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .knob-page {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--up-border);
+    background: rgba(242, 181, 68, 0.04);
+    color: var(--up-text);
+    font-family: var(--up-font-display);
+    font-size: 0.92rem;
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+  }
+  .knob-page :global(.doc-icon) {
+    width: 18px;
+    height: 18px;
+    color: var(--up-accent);
+  }
+  .knob-page:hover {
+    color: var(--up-text-bright);
+    border-color: var(--up-accent);
+    background: rgba(242, 181, 68, 0.1);
+    transform: translateY(-2px);
+  }
+
+  /* Hear it */
+  .listen-grid {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 20px;
+  }
+  .listen-grid > :global(.demo) {
+    grid-column: span 2;
+  }
+  .listen-grid > :global(.demo-featured) {
+    grid-column: span 3;
+  }
+  .listen-note {
+    margin-top: 22px;
+    font-size: 0.86rem;
+    color: var(--up-text-muted);
+  }
+
+  .measured-body p + p {
+    margin-top: 1.1em;
+  }
+
+  .support-inner {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .support-inner .section-sub {
+    margin-inline: auto;
+    margin-bottom: 28px;
+  }
+
+  @media (max-width: 980px) {
+    .hero-inner,
+    .about-inner,
+    .measured-inner,
+    .knobs-inner {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+    }
+    .grid-3,
+    .listen-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .listen-grid > :global(.demo),
+    .listen-grid > :global(.demo-featured) {
+      grid-column: auto;
+    }
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+</style>

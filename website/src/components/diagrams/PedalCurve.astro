@@ -4,6 +4,12 @@
 // the point runs along the curve and the damper above the string lifts with it.
 import Figure from './Figure.astro';
 import { def, fmt } from '../../lib/params';
+import type { Lang } from '../../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
 
 const free = def('damper.pedal_free');
 const full = def('damper.pedal_contact');
@@ -31,24 +37,53 @@ const lift = sweep.map((t) => `0,${(-14 * (1 - contact(t))).toFixed(2)}`).join('
 const press = sweep.map((t) => `${(t * 14).toFixed(2)} 330 172`).join(';');
 const travelBar = sweep.map((t) => (t * (X1 - X0)).toFixed(1)).join(';');
 const DUR = '6s';
+
+const T = {
+  en: {
+    label: 'Sustain pedal · damper contact',
+    caption: `Contact of the dampers with the strings (1: resting, 0: lifted) against pedal travel. The first ${Math.round(free * 100)} % does nothing (lost motion: <code>pedal_free</code>); the dampers have left the strings at ${Math.round(full * 100)} % (<code>pedal_contact</code>); between the two, the half pedal, shaped by <code>pedal_curve</code> = ${fmt(k)}. All three are live.`,
+    aria: 'Damper contact against sustain pedal travel, with the half-pedal zone shaded',
+    lost: 'lost motion',
+    half: 'half pedal',
+    off: 'dampers off',
+    contact: 'contact',
+    travel: 'pedal travel (CC 64)',
+    moves: 'what moves',
+    damper: 'damper',
+    pedal: 'pedal',
+  },
+  fr: {
+    label: 'Pédale forte · contact des étouffoirs',
+    caption: `Contact des étouffoirs avec les cordes (1 : au repos, 0 : levés) selon la course de la pédale. Les premiers ${Math.round(free * 100)} % ne font rien (course morte : <code>pedal_free</code>) ; les étouffoirs ont quitté les cordes à ${Math.round(full * 100)} % (<code>pedal_contact</code>) ; entre les deux, la demi-pédale, façonnée par <code>pedal_curve</code> = ${fmt(k)}. Tous trois agissent en direct.`,
+    aria: 'Contact des étouffoirs selon la course de la pédale forte, avec la zone de demi-pédale ombrée',
+    lost: 'course morte',
+    half: 'demi-pédale',
+    off: 'étouffoirs levés',
+    contact: 'contact',
+    travel: 'course de la pédale (CC 64)',
+    moves: 'ce qui bouge',
+    damper: 'étouffoir',
+    pedal: 'pédale',
+  },
+}[lang];
 ---
 
 <Figure
-  label="Sustain pedal · damper contact"
-  caption={`Contact of the dampers with the strings (1: resting, 0: lifted) against pedal travel. The first ${Math.round(free * 100)} % does nothing (lost motion: <code>pedal_free</code>); the dampers have left the strings at ${Math.round(full * 100)} % (<code>pedal_contact</code>); between the two, the half pedal, shaped by <code>pedal_curve</code> = ${fmt(k)}. All three are live.`}
+  label={T.label}
+  caption={T.caption}
 >
-  <svg viewBox="0 0 480 205" role="img" aria-label="Damper contact against sustain pedal travel, with the half-pedal zone shaded">
+  <svg viewBox="0 0 480 205" role="img" aria-label={T.aria}>
     <rect x={sx(0)} y={Y0} width={sx(free) - sx(0)} height={Y1 - Y0} fill="rgba(156,163,178,0.06)"></rect>
     <rect x={sx(free)} y={Y0} width={sx(full) - sx(free)} height={Y1 - Y0} fill="rgba(242,181,68,0.1)"></rect>
     <rect x={sx(full)} y={Y0} width={sx(1) - sx(full)} height={Y1 - Y0} fill="rgba(111,211,154,0.07)"></rect>
-    <text class="dg-text dg-mid" x={(sx(0) + sx(free)) / 2} y={Y0 + 12} font-size="9">lost motion</text>
-    <text class="dg-hl dg-mid" x={(sx(free) + sx(full)) / 2} y={Y0 + 12} font-size="9">half pedal</text>
-    <text class="dg-text dg-mid" x={(sx(full) + sx(1)) / 2} y={Y0 + 12} font-size="9" style="fill: var(--up-positive)">dampers off</text>
+    <text class="dg-text dg-mid" x={(sx(0) + sx(free)) / 2} y={Y0 + 12} font-size="9">{T.lost}</text>
+    <text class="dg-hl dg-mid" x={(sx(free) + sx(full)) / 2} y={Y0 + 12} font-size="9">{T.half}</text>
+    <text class="dg-text dg-mid" x={(sx(full) + sx(1)) / 2} y={Y0 + 12} font-size="9" style="fill: var(--up-positive)">{T.off}</text>
     <path class="dg-faint" d={`M${X0} ${Y0}V${Y1}H${X1}`}></path>
     {[0, 0.5, 1].map((c) => <text class="dg-text dg-end" x={X0 - 6} y={sy(c) + 3}>{c}</text>)}
     {[0, 0.25, 0.5, 0.75, 1].map((t) => <text class="dg-text dg-mid" x={sx(t)} y={Y1 + 14}>{t * 100}%</text>)}
-    <text class="dg-text" x={X0 - 6} y={Y0 - 8} text-anchor="end" font-size="9">contact</text>
-    <text class="dg-text dg-mid" x={(X0 + X1) / 2} y={Y1 + 27} font-size="9">pedal travel (CC 64)</text>
+    <text class="dg-text" x={X0 - 6} y={Y0 - 8} text-anchor="end" font-size="9">{T.contact}</text>
+    <text class="dg-text dg-mid" x={(X0 + X1) / 2} y={Y1 + 27} font-size="9">{T.travel}</text>
     <path class="dg-string" d={curve}></path>
     <rect x={X0} y={Y1 - 3} height="3" fill="var(--up-accent)" opacity="0.7">
       <animate attributeName="width" values={travelBar} keyTimes={keyTimes} dur={DUR} repeatCount="indefinite"></animate>
@@ -58,7 +93,7 @@ const DUR = '6s';
     </circle>
 
     <!-- The scene: a string, its damper, the pedal. -->
-    <text class="dg-title" x="318" y={Y0 - 8}>what moves</text>
+    <text class="dg-title" x="318" y={Y0 - 8}>{T.moves}</text>
     <line class="dg-string" x1="322" y1="96" x2="466" y2="96"></line>
     <circle cx="322" cy="96" r="3.5" fill="var(--up-ivory)"></circle>
     <circle cx="466" cy="96" r="3.5" fill="var(--up-copper)"></circle>
@@ -66,7 +101,7 @@ const DUR = '6s';
       <animateTransform attributeName="transform" type="translate" values={lift} keyTimes={keyTimes} dur={DUR} repeatCount="indefinite"></animateTransform>
       <rect x="382" y="58" width="5" height="26" fill="#6b7280"></rect>
       <rect x="370" y="82" width="30" height="12" rx="2" class="dg-felt"></rect>
-      <text class="dg-text" x="406" y="76">damper</text>
+      <text class="dg-text" x="406" y="76">{T.damper}</text>
     </g>
     <path class="dg-ink" d="M318 172 H342"></path>
     <g>
@@ -74,6 +109,6 @@ const DUR = '6s';
       <path d="M330 172 L392 172 L400 166 L406 168 L398 176 L330 176 Z" fill="#c9a24a" stroke="#f2b544" stroke-width="0.8"></path>
     </g>
     <circle cx="330" cy="174" r="3" fill="var(--up-text-muted)"></circle>
-    <text class="dg-text" x="412" y="182">pedal</text>
+    <text class="dg-text" x="412" y="182">{T.pedal}</text>
   </svg>
 </Figure>

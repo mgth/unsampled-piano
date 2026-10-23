@@ -3,7 +3,9 @@
 // path, its interface page, live or rebuild, default, range and help, and
 // each page's per-key curves evaluated on the default instrument.
 import data from '../data/params.json';
+import fr from '../data/params.fr.json';
 import { repoFile } from '../site';
+import type { Lang } from '../i18n';
 
 export type Scalar = number | boolean;
 
@@ -80,8 +82,8 @@ export function fmt(x: number): string {
   return String(+x.toPrecision(4));
 }
 
-export function fmtValue(p: Param, v: Scalar = p.default): string {
-  if (typeof v === 'boolean') return v ? 'on' : 'off';
+export function fmtValue(p: Param, v: Scalar = p.default, lang: Lang = 'en'): string {
+  if (typeof v === 'boolean') return lang === 'fr' ? (v ? 'activé' : 'désactivé') : v ? 'on' : 'off';
   if (isNote(p)) return `${v} (${noteName(v)})`;
   return fmt(v) + (p.unit && !p.unit.startsWith('/') ? ` ${p.unit}` : p.unit);
 }
@@ -126,6 +128,27 @@ export function pageEntries(page: string): { group: string; entries: Entry[] }[]
     }));
 }
 
+// French texts (src/data/params.fr.json): labels by path, help by path
+// without indices, curve, page and group titles by their English name. A
+// missing entry falls back to English; scripts/check-fr.mjs lists them,
+// and flags the ones whose English text changed since they were translated.
+interface Fr {
+  labels: Record<string, string>;
+  help: Record<string, { what: string; how: string; src?: string }>;
+  curves: Record<string, string>;
+  pages: Record<string, string>;
+  groups: Record<string, string>;
+}
+const FR = fr as Fr;
+
+export const paramLabel = (p: Param, lang: Lang = 'en') => (lang === 'fr' && FR.labels[p.path]) || p.label;
+export const paramWhat = (p: Param, lang: Lang = 'en') =>
+  (lang === 'fr' && FR.help[stripIndices(p.path)]?.what) || p.what;
+export const paramHow = (p: Param, lang: Lang = 'en') =>
+  (lang === 'fr' && FR.help[stripIndices(p.path)]?.how) || p.how;
+export const curveLabel = (title: string, lang: Lang = 'en') => (lang === 'fr' && FR.curves[title]) || title;
+export const pageLabel = (page: string, lang: Lang = 'en') => (lang === 'fr' && FR.pages[page]) || page;
+
 const GROUP_TITLES: Record<string, string> = {
   general: 'General',
   velocity: 'Velocity',
@@ -145,7 +168,16 @@ const GROUP_TITLES: Record<string, string> = {
   rim: 'Rim',
   room: 'Room',
 };
-export const groupTitle = (g: string) => GROUP_TITLES[g] ?? g;
+export const groupTitle = (g: string, lang: Lang = 'en') =>
+  (lang === 'fr' && FR.groups[g]) || GROUP_TITLES[g] || g;
+
+// Sub-sections whose generic title would mislead on their interface page.
+const PAGE_GROUPS: Record<Lang, Record<string, Record<string, string>>> = {
+  en: { Player: { damper: 'Sustain pedal' }, Microphones: { soundboard: 'Microphones and lid' } },
+  fr: { Player: { damper: 'Pédale forte' }, Microphones: { soundboard: 'Micros et couvercle' } },
+};
+/** Title of a group of parameters as shown on `page`. */
+export const sectionTitle = (page: string, g: string, lang: Lang = 'en') => PAGE_GROUPS[lang][page]?.[g] ?? groupTitle(g, lang);
 
 export const COUNTS = {
   total: PARAMS.length,

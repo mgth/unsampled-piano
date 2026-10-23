@@ -1,0 +1,38 @@
+{
+  "audience_lid_closed": {
+    "title": "Public, couvercle fermé",
+    "summary": "Micros côté public (1 m au-dessus de la table, devant elle), couvercle rabattu sur la caisse. Positions relatives à la table."
+  },
+  "close": {
+    "title": "Proche",
+    "summary": "Prise de son rapprochée : couvercle ouvert à 35°, deux micros 40 cm au-dessus de la table, au-dessus des parties grave et aiguë du chevalet (au plus près de l’équilibre spectral des références, docs/presence.md). Positions relatives à la table. Cardioïdes dirigés vers le piano : ils entendent la salle ≈ 5 dB moins fort. Niveau : les micros proches entendent le piano ≈ 13 dB plus fort."
+  },
+  "concert": {
+    "title": "Concert",
+    "summary": "Réglage concert : couvercle ouvert à 35°, une paire de micros devant l’ouverture (1.6 m sur la table calibrée), 2 m au-dessus de la table (à 1 m, ils se trouvaient sous la réflexion du couvercle et perdaient 10 dB entre 2 et 4 kHz dans le médium, docs/presence.md). Positions relatives à la table. Paire omnidirectionnelle (espacée, A–B, le dispositif classique habituel). Niveau : même intensité que l’ancien réglage à 1 m."
+  },
+  "concert_hall": {
+    "title": "Salle de concert",
+    "summary": "Salle de concert (40 × 28 × 16 m) : la salle par défaut."
+  },
+  "dry": {
+    "title": "Sec",
+    "summary": "Pas de salle : l’instrument seul, tel que l’entendent les deux micros."
+  },
+  "small_hall": {
+    "title": "Petite salle",
+    "summary": "Petite salle d’enregistrement (12 × 8 × 5 m, vivante) : premiers échos proches et forts."
+  },
+  "studio": {
+    "title": "Studio",
+    "summary": "Studio traité (8 × 6 × 3.5 m, murs absorbants) : salle courte et discrète."
+  },
+  "baroque_415": {
+    "title": "Baroque 415",
+    "summary": "Diapason plus bas (A = 415 Hz), sans étirement de l’accord, feutre plus souple et moins non linéaire."
+  },
+  "honky_tonk": {
+    "title": "Honky tonk",
+    "summary": "Piano de saloon : cordes de chaque chœur très désaccordées entre elles, feutre plus dur, étouffoirs plus faibles."
+  }
+}

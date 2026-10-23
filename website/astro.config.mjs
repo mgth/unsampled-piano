@@ -14,7 +14,12 @@ const SITE = 'https://unsampled.mgth.fr';
 export default defineConfig({
   site: SITE,
   trailingSlash: 'always',
-  integrations: [sitemap(), mdx()],
+  // English at the root, French under /fr/ (src/i18n.ts): the sitemap
+  // links each page to its translation.
+  integrations: [
+    sitemap({ i18n: { defaultLocale: 'en', locales: { en: 'en', fr: 'fr' } }, filter: (page) => !page.includes('/404') }),
+    mdx(),
+  ],
   build: {
     // Emit `/docs/getting-started/index.html` so clean URLs work on a plain
     // static host (Apache with the shipped public/.htaccess) without rewrites.

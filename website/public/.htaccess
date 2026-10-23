@@ -4,6 +4,9 @@
 
 # Serve the site's own 404 page.
 ErrorDocument 404 /404.html
+<If "%{REQUEST_URI} =~ m#^/fr/#">
+  ErrorDocument 404 /fr/404/
+</If>
 
 # Compress text responses.
 <IfModule mod_deflate.c>

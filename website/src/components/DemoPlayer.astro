@@ -1,5 +1,6 @@
 ---
 import peaksData from '../data/demo-peaks.json';
+import { langOf } from '../i18n';
 
 interface Source {
   /** File name in public/media/, without the .mp3. */
@@ -17,6 +18,11 @@ interface Props {
   reveal?: number;
 }
 const { title, eyebrow, sources, featured = false, reveal } = Astro.props;
+// Labels for screen readers, in the page's language.
+const S = {
+  en: { play: 'Play', position: 'Position in', of: 'of', through: 'Listen through' },
+  fr: { play: 'Écouter', position: 'Position dans', of: 'sur', through: 'Écouter avec' },
+}[langOf(Astro.url)];
 const PEAKS = peaksData as Record<string, { duration: number; peaks: number[] }>;
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -38,6 +44,7 @@ const width = PEAKS[sources[0].clip].peaks.length * W;
 <div
   class:list={['card', 'demo', { 'demo-featured': featured }]}
   data-demo
+  data-of={S.of}
   data-reveal={reveal !== undefined ? '' : undefined}
   style={reveal ? `--reveal-delay: ${reveal}ms` : undefined}
 >
@@ -48,7 +55,7 @@ const width = PEAKS[sources[0].clip].peaks.length * W;
   <div class="demo-body"><slot /></div>
 
   <div class="demo-ui">
-    <button class="demo-play" type="button" data-play aria-label={`Play: ${title}`}>
+    <button class="demo-play" type="button" data-play aria-label={`${S.play}: ${title}`}>
       <svg class="icon-play" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"></path></svg>
       <svg class="icon-pause" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"></path></svg>
     </button>
@@ -60,11 +67,11 @@ const width = PEAKS[sources[0].clip].peaks.length * W;
             data-wave={w.clip}
             role="slider"
             tabindex="0"
-            aria-label={`Position in ${title}${w.label ? ` (${w.label})` : ''}`}
+            aria-label={`${S.position} ${title}${w.label ? ` (${w.label})` : ''}`}
             aria-valuemin="0"
             aria-valuemax={Math.round(w.duration)}
             aria-valuenow="0"
-            aria-valuetext={`0:00 of ${fmt(w.duration)}`}
+            aria-valuetext={`0:00 ${S.of} ${fmt(w.duration)}`}
             hidden={i > 0}
           >
             {[false, true].map((done) => (
@@ -81,7 +88,7 @@ const width = PEAKS[sources[0].clip].peaks.length * W;
         <span class="demo-time" data-time>0:00 / {fmt(waves[0].duration)}</span>
         {
           sources.length > 1 && (
-            <div class="demo-switch" role="group" aria-label="Listen through">
+            <div class="demo-switch" role="group" aria-label={S.through}>
               {sources.map((s, i) => (
                 <button type="button" data-source={s.clip} aria-pressed={i === 0 ? 'true' : 'false'}>
                   {s.label}
@@ -117,7 +124,7 @@ const width = PEAKS[sources[0].clip].peaks.length * W;
       const t = Math.min(audio.currentTime, d);
       wave.style.setProperty('--p', `${(100 * t) / d}%`);
       wave.setAttribute('aria-valuenow', String(Math.round(t)));
-      wave.setAttribute('aria-valuetext', `${fmt(t)} of ${fmt(d)}`);
+      wave.setAttribute('aria-valuetext', `${fmt(t)} ${root.dataset.of} ${fmt(d)}`);
       time.textContent = `${fmt(t)} / ${fmt(d)}`;
     };
     const seek = (t: number) => {
@@ -218,6 +225,9 @@ const width = PEAKS[sources[0].clip].peaks.length * W;
   }
   .demo-body :global(.demo-credit) {
     font-size: 0.8rem;
+  }
+  .demo-body :global(.demo-credit a) {
+    white-space: nowrap;
   }
   .demo-ui {
     margin-top: auto;

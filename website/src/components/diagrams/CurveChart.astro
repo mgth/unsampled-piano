@@ -3,7 +3,8 @@
 // interface plots it: the curve draws itself when it scrolls into view, and
 // hovering reads the value at any key.
 import Figure from './Figure.astro';
-import { curve, fmt, noteName } from '../../lib/params';
+import { curve, curveLabel, fmt, noteName } from '../../lib/params';
+import type { Lang } from '../../i18n';
 
 interface Props {
   /** Title of a curve exported by the interface (params.json pages[].curves). */
@@ -20,8 +21,23 @@ interface Props {
   caption?: string;
   /** y range override [min, max]. */
   y?: [number, number];
+  /** Language of the default label, the readout and the accessible name; `label` and `caption` are passed already translated. */
+  lang?: Lang;
 }
 const props = Astro.props;
+const lang = props.lang ?? 'en';
+const TR = {
+  en: {
+    over: { key: 'the keyboard', velocity: 'velocity', travel: 'travel', plain: 'plain' },
+    aria: (label: string | undefined, over: string) => `${label}: curve over ${over}`,
+    vel: 'vel',
+  },
+  fr: {
+    over: { key: 'le clavier', velocity: 'la vélocité', travel: 'la course', plain: 'l’axe horizontal' },
+    aria: (label: string | undefined, over: string) => `${label} : courbe sur ${over}`,
+    vel: 'vél',
+  },
+}[lang];
 const c = props.title ? curve(props.title) : null;
 const points = props.points ?? c!.points;
 const unit = props.unit ?? c?.unit ?? '';
@@ -73,12 +89,12 @@ const xTicks =
 const xUnit = props.xUnit ?? '';
 const xText = (x: number) =>
   xKind === 'key' ? noteName(x) : xKind === 'travel' ? `${Math.round(x * 100)} %` : xKind === 'plain' ? `${fmt(x)}${xUnit ? ` ${xUnit}` : ''}` : String(x);
-const readout = points.map(([x, y]) => [sx(x), sy(y), `${xKind === 'velocity' ? `vel ${x}` : xText(x)} · ${fmt(y)}${unit ? ` ${unit}` : ''}`]);
-const label = props.label ?? c?.title;
+const readout = points.map(([x, y]) => [sx(x), sy(y), `${xKind === 'velocity' ? `${TR.vel} ${x}` : xText(x)} · ${fmt(y)}${unit ? ` ${unit}` : ''}`]);
+const label = props.label ?? (c ? curveLabel(c.title, lang) : undefined);
 ---
 
 <Figure label={label} caption={props.caption}>
-  <svg class="curve-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${label}: curve over ${xKind === 'key' ? 'the keyboard' : xKind}`} data-readout={JSON.stringify(readout)}>
+  <svg class="curve-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={TR.aria(label, TR.over[xKind])} data-readout={JSON.stringify(readout)}>
     <defs>
       <linearGradient id={`cc-fill-${label?.replace(/\W/g, '')}`} x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="#f2b544" stop-opacity="0.22"></stop>

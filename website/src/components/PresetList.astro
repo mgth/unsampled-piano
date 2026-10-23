@@ -1,12 +1,17 @@
 ---
 // The presets shipped in the repository, read at build time: name, folder,
 // the comment at the top of the file, and the values it sets.
-import { presets, presetTitle } from '../lib/presets';
+import { presets, presetSummary, presetTitle } from '../lib/presets';
+import type { Lang } from '../i18n';
 
 interface Props {
   kind: 'listening' | 'instruments';
+  lang?: Lang;
 }
-const { kind } = Astro.props;
+const { kind, lang = 'en' } = Astro.props;
+// The group folders' names, in French.
+const GROUPS: Record<string, string> = { Microphones: 'Micros', Room: 'Salle', Character: 'Caractère' };
+const group = (g: string) => (lang === 'fr' && GROUPS[g]) || g;
 const list = presets(kind);
 
 /** "soundboard.lid_angle = 35" lines of a parsed preset. */
@@ -23,10 +28,10 @@ function lines(v: Record<string, any>, prefix = ''): string[] {
   {list.map((p) => (
     <article class="preset card">
       <header>
-        <span class="eyebrow">{p.group}</span>
-        <h4>{presetTitle(p.name)}</h4>
+        <span class="eyebrow">{group(p.group)}</span>
+        <h4>{presetTitle(p.name, lang)}</h4>
       </header>
-      <p>{p.summary}</p>
+      <p>{presetSummary(p, lang)}</p>
       <pre><code>{lines(p.values).join('\n')}</code></pre>
     </article>
   ))}

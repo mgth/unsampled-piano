@@ -1,0 +1,82 @@
+---
+title: Étouffoirs
+description: Comment les notes se terminent — le feutre des étouffoirs, leur prise et leur timing, les cordes aiguës sans étouffoir, et le halo de résonance sympathique pédale enfoncée.
+order: 106
+icon: damper
+section: Parameters
+page: Dampers
+---
+import DamperTimeline from '../../../components/diagrams/DamperTimeline.astro';
+import Figure from '../../../components/diagrams/Figure.astro';
+import KeyboardStrip from '../../../components/diagrams/KeyboardStrip.astro';
+
+Un étouffoir est un tampon de feutre posé sur les cordes, près du côté clavier. Enfoncer une
+touche le soulève ; la relâcher le laisse retomber et arrêter le son. La pédale forte les
+soulève tous à la fois. Dans le modèle, un étouffoir est un **amortisseur visqueux** sur la
+corde : il ajoute au partiel *k* un taux d'amortissement proportionnel à l'amplitude de ce
+partiel sous le tampon, sin²(kπx/L) moyenné sur sa largeur.
+
+<DamperTimeline lang="fr" />
+
+## Prise
+
+`strength` est la fermeté avec laquelle le feutre arrête la corde. Ce n'est pas « plus il y en a,
+mieux c'est » : un étouffoir absorbe le plus quand sa résistance égale l'impédance propre de la
+corde (√(T·μ), strength 1). Plus souple, les notes traînent après le relâchement ; beaucoup plus
+dur, le feutre se met à renvoyer la vibration au lieu de l'absorber.
+
+`contact_exponent` règle la façon dont l'amortissement croît à mesure que le feutre se pose :
+avec un exposant élevé, un étouffoir qui ne fait qu'effleurer la corde l'arrête à peine — ce qui
+rend la demi-pédale utilisable et les fins de notes plus douces. `node_floor` rattrape les
+partiels qui ont un nœud juste sous le tampon et lui échapperaient sinon.
+
+## Quelles touches ont des étouffoirs
+
+<Figure
+  lang="fr"
+  label="Les étouffoirs sur le clavier"
+  caption="Les cordes courtes du haut n'ont pas d'étouffoirs (au-dessus de <code>highest_note</code>, F♯6 par défaut, comme mesuré sur un piano modélisé commercial) : elles sonnent jusqu'à s'éteindre d'elles-mêmes, et les pertes supplémentaires des cordes à partir de C6 (<code>losses.top_slope</code>) les empêchent de résonner trop longtemps après un staccato."
+>
+  <KeyboardStrip
+    lang="fr"
+    zones={[
+      { from: 21, to: 90, label: 'touches étouffées', color: '#a78bfa' },
+      { from: 91, to: 108, label: "sans étouffoir", color: '#ff7a59' },
+      { from: 84, to: 108, label: 'pertes aiguës supplémentaires', color: '#ffc861', row: 1 },
+    ]}
+    marks={[{ note: 90, label: 'F♯6' }]}
+    label="Clavier montrant la zone étouffée et les touches aiguës sans étouffoir"
+  />
+</Figure>
+
+## Résonance sympathique
+
+Étouffoirs levés, chaque corde est libre de répondre à celles que l'on joue : un C3 frappé
+pédale enfoncée fait sonner les cordes dont les partiels coïncident avec les siens — C4, G4, C5,
+E5… — et, plus bas, C2 ou F1, dont les partiels supérieurs rejoignent sa fondamentale. C'est le
+halo d'un piano joué avec la pédale.
+
+<Figure
+  lang="fr"
+  label="Résonance sympathique · C3 pédale enfoncée"
+  caption="La touche frappée, puis les cordes qui lui répondent, d'autant plus brillantes que leurs partiels coïncident. Le modèle calcule cette résonance dans un seul sens (Bank, Zambon et Fontana 2010) : chaque touche non étouffée reçoit des cordes d'écoute excitées par le mouvement du chevalet dû aux autres, et qui n'agissent pas en retour sur le chevalet — stable quel que soit le gain. <code>gain</code> = 0.25 compense le retour d'énergie absent, qui sinon ferait déborder les octaves."
+>
+  <KeyboardStrip
+    lang="fr"
+    pulses={[
+      { note: 48, delay: 0, strength: 1 },
+      { note: 60, delay: 0.35, strength: 0.75 },
+      { note: 36, delay: 0.5, strength: 0.6 },
+      { note: 67, delay: 0.6, strength: 0.55 },
+      { note: 72, delay: 0.75, strength: 0.45 },
+      { note: 29, delay: 0.85, strength: 0.4 },
+      { note: 76, delay: 0.95, strength: 0.35 },
+      { note: 79, delay: 1.05, strength: 0.3 },
+      { note: 24, delay: 1.15, strength: 0.3 },
+      { note: 84, delay: 1.25, strength: 0.25 },
+    ]}
+    marks={[{ note: 48, label: 'frappée : C3' }]}
+    period={4}
+    label="Clavier : C3 frappé, les touches harmoniquement liées s'allumant par sympathie"
+  />
+</Figure>

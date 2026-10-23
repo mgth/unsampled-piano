@@ -1,0 +1,64 @@
+---
+title: Marteau
+description: Harmonisation, couches de feutre, masse et point de frappe — ce que le marteau donne à la corde, et comment cela change selon la force de votre jeu.
+order: 103
+icon: hammer
+section: Parameters
+page: Hammer
+---
+import CurveChart from '../../../components/diagrams/CurveChart.astro';
+import FeltContact from '../../../components/diagrams/FeltContact.astro';
+import StrikePoint from '../../../components/diagrams/StrikePoint.astro';
+
+Tout ce que devient une note de piano commence par quelques millisecondes de contact : un
+marteau gainé de feutre, lancé par la touche, frappe les cordes par en dessous, s'écrase contre
+elles et rebondit. Le temps qu'il y reste, la force avec laquelle il appuie et la façon dont cette
+poussée monte puis retombe décident des partiels que reçoit la corde — le **timbre**, et la
+manière dont il évolue selon la force de votre jeu.
+
+## Le feutre, un ressort non linéaire
+
+Le modèle suit les marteaux mesurés par Stulov : le feutre résiste avec une force
+
+<p class="formula">F = Q0 · [ u<sup>p</sup> + α · d(u<sup>p</sup>)/dt ]</p>
+
+où *u* est son écrasement (en mm). Avec *p* autour de 4, doubler l'écrasement multiplie la force
+par seize : un marteau lancé deux fois plus vite ne pousse pas seulement deux fois plus fort, sa
+poussée devient **plus courte et plus tranchante**, et c'est ce qui rend un forte plus brillant.
+Le second terme est l'hystérésis α — le feutre garde une partie de l'énergie au lieu de la
+rendre —, que le solveur de contact applique sous une forme qui ne peut qu'en retirer : la
+frappe reste stable quels que soient les réglages.
+
+Les vrais marteaux sont **en couches** : un feutre souple à l'extérieur, un feutre bien plus
+dense dessous. Le modèle ajoute ce cœur sous une épaisseur de feutre de surface *d* :
+
+<FeltContact lang="fr" />
+
+`hardness` est le bouton d'**harmonisation**, celui que le technicien manie à coups d'aiguilles
+et de laque : il règle la raideur du feutre de surface sur toutes les touches. Les pentes la
+répartissent sur le clavier — les marteaux de l'aigu sont plus petits et plus durs —, en plus de
+la croissance de Q0 avec la touche que prévoit déjà Stulov :
+
+<CurveChart lang="fr" title="Felt stiffness Q0" caption="Raideur du feutre de surface par touche (échelle logarithmique), harmonisation par défaut : un facteur cent de A0 à C8." />
+
+<CurveChart lang="fr" title="Felt exponent p" caption="La vitesse à laquelle le feutre durcit quand on l'écrase, par touche (Stulov : p = 3.7 + 0.015·touche, plus <code>p_offset</code> et <code>p_bass</code>)." />
+
+## Masse et point de frappe
+
+Un marteau **plus lourd** (`hammer_mass_scale`) reste plus longtemps sur les cordes à vitesse
+égale : plus d'énergie, un son plus plein et plus rond. Les marteaux légers — pianoforte, petits
+pianos droits — rebondissent plus tôt, pour une attaque plus mince et plus vive.
+
+**L'endroit** où il frappe compte autant que la manière. Une corde frappée en un point ne peut
+pas mettre en vibration les partiels qui ont là un point immobile (un nœud) :
+
+<StrikePoint lang="fr" />
+
+Rapprocher `strike_ratio` de l'extrémité de la corde éclaircit et amincit le son ; plus loin
+vers l'intérieur, il s'arrondit. `contact_width_scale` élargit la surface de feutre qui touche la
+corde : un léger passe-bas sur les partiels les plus aigus.
+
+> L'harmonisation par défaut garde le feutre de surface plus souple que celui de Stulov et
+> laisse le cœur donner le mordant au forte — la méthode et les mesures sont dans
+> [docs/middle_highs.md](https://github.com/mgth/unsampled-piano/blob/main/docs/middle_highs.md)
+> et [docs/presence.md](https://github.com/mgth/unsampled-piano/blob/main/docs/presence.md).

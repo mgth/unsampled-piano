@@ -9,6 +9,35 @@ import Figure from './Figure.astro';
 import { BOARD } from '../../lib/geometry';
 import { def, fmt } from '../../lib/params';
 import { preset, presetTitle } from '../../lib/presets';
+import type { Lang } from '../../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
+
+const T = {
+  en: {
+    label: 'The room · from above, and at the microphone',
+    caption:
+      "Top: the room from above, to scale, the piano (copper) and its two microphones (blue). The wavefront from the piano and those of its images in the walls expand together; inside the room, the images' wavefronts are the reflections — that is the image-source method the model uses for the early echoes, each order with its own wall filtering. Bottom: what the left microphone receives — the direct sound, each reflection up to the second order at its delay, then the reverberant tail of a 16-line feedback delay network, decaying at the Sabine rate.",
+    tabs: 'Room',
+    aria: 'Plan of the room with reflections, and the echogram at the microphone',
+    t60: (low: string, high: string) => `T60 ${low} s low · ${high} s high`,
+    echogram: 'echogram · left microphone · dB',
+    direct: 'direct',
+  },
+  fr: {
+    label: 'La salle · vue de dessus, et au micro',
+    caption:
+      'En haut : la salle vue de dessus, à l’échelle, le piano (cuivre) et ses deux micros (bleu). Le front d’onde issu du piano et ceux de ses images dans les murs s’étendent ensemble ; dans la salle, les fronts d’onde des images sont les réflexions — c’est la méthode des sources images qu’utilise le modèle pour les premiers échos, chaque ordre avec son propre filtrage par les murs. En bas : ce que reçoit le micro gauche — le son direct, chaque réflexion jusqu’au second ordre à son retard, puis la queue de réverbération d’un réseau de retards rebouclés à 16 lignes, qui décroît au taux de Sabine.',
+    tabs: 'Salle',
+    aria: 'Plan de la salle avec ses réflexions, et échogramme au micro',
+    t60: (low: string, high: string) => `T60 ${low} s grave · ${high} s aigu`,
+    echogram: 'échogramme · micro gauche · dB',
+    direct: 'direct',
+  },
+}[lang];
 
 const { a, b } = BOARD;
 const mic0 = [0, 1, 2].map((c) => def(`soundboard.mics[0][${c}]`));
@@ -52,7 +81,7 @@ const rooms = ['concert_hall', 'small_hall', 'studio'].map((name) => {
       }
   const top = Math.max(...arrivals.map((x) => x.db));
   const maxR = Math.hypot(Math.max(src[0], L - src[0]) * 3, Math.max(src[1], Wd - src[1]) * 3);
-  return { name, title: presetTitle(name), L, Wd, Ht, src, mics, X, Y, s, imgs2d, arrivals: arrivals.map((x) => ({ ...x, db: x.db - top })), t60Low: t60(r.absorption_low), t60High: t60(r.absorption_high), maxR, alpha };
+  return { name, title: presetTitle(name, lang), L, Wd, Ht, src, mics, X, Y, s, imgs2d, arrivals: arrivals.map((x) => ({ ...x, db: x.db - top })), t60Low: t60(r.absorption_low), t60High: t60(r.absorption_high), maxR, alpha };
 });
 
 // Echogram frame.
@@ -64,16 +93,16 @@ const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 ---
 
 <Figure
-  label="The room · from above, and at the microphone"
-  caption="Top: the room from above, to scale, the piano (copper) and its two microphones (blue). The wavefront from the piano and those of its images in the walls expand together; inside the room, the images' wavefronts are the reflections — that is the image-source method the model uses for the early echoes, each order with its own wall filtering. Bottom: what the left microphone receives — the direct sound, each reflection up to the second order at its delay, then the reverberant tail of a 16-line feedback delay network, decaying at the Sabine rate."
+  label={T.label}
+  caption={T.caption}
 >
   <div data-rooms>
-    <div class="room-tabs" role="tablist" aria-label="Room">
+    <div class="room-tabs" role="tablist" aria-label={T.tabs}>
       {rooms.map((r, i) => (
         <button type="button" role="tab" aria-selected={i === 0 ? 'true' : 'false'} data-room={i}>{r.title}</button>
       ))}
     </div>
-    <svg viewBox="0 0 480 372" role="img" aria-label="Plan of the room with reflections, and the echogram at the microphone">
+    <svg viewBox="0 0 480 372" role="img" aria-label={T.aria}>
       {rooms.map((r, i) => {
         const tMax = Math.max(0.08, Math.min(0.5, r.L / C * 1.6));
         const ex = (t: number) => E0 + (t / tMax) * (E1 - E0);
@@ -102,9 +131,9 @@ const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
             <rect x={r.X(r.src[0] - a / 2)} y={r.Y(r.src[1] - b / 2)} width={a * r.s} height={b * r.s} fill="var(--up-copper)" rx="2"></rect>
             {r.mics.map((m) => <circle cx={r.X(m[0])} cy={r.Y(m[1])} r="3.2" fill="#6cb8ff"></circle>)}
             <text class="dg-label" x={r.X(0)} y={r.Y(0) - 8}>{fmt(r.L)} × {fmt(r.Wd)} × {fmt(r.Ht)} m</text>
-            <text class="dg-text dg-end" x={r.X(r.L)} y={r.Y(0) - 8}>T60 {fmt(+r.t60Low.toFixed(2))} s low · {fmt(+r.t60High.toFixed(2))} s high</text>
+            <text class="dg-text dg-end" x={r.X(r.L)} y={r.Y(0) - 8}>{T.t60(fmt(+r.t60Low.toFixed(2)), fmt(+r.t60High.toFixed(2)))}</text>
 
-            <text class="dg-title" x={E0} y={EY0 - 12}>echogram · left microphone · dB</text>
+            <text class="dg-title" x={E0} y={EY0 - 12}>{T.echogram}</text>
             <path class="dg-faint" d={`M${E0} ${EY0 - 4}V${EY1}H${E1}`}></path>
             {[0, -20, -40].map((d) => <text class="dg-text dg-end" x={E0 - 4} y={ey(d) + 3}>{d}</text>)}
             {[0, 0.25, 0.5, 0.75, 1].map((f) => <text class="dg-text dg-mid" x={ex(f * tMax)} y={EY1 + 13}>{Math.round(f * tMax * 1000)} ms</text>)}
@@ -112,7 +141,7 @@ const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
             {r.arrivals.filter((x) => x.t <= tMax).map((x) => (
               <line x1={ex(x.t)} x2={ex(x.t)} y1={EY1} y2={ey(Math.max(-50, x.db))} stroke={x.order ? '#4fc9c0' : 'var(--up-accent-light)'} stroke-width={x.order ? 1.3 : 2.4} opacity={x.order === 2 ? 0.7 : 1}></line>
             ))}
-            <text class="dg-hl" x={ex(r.arrivals.find((x) => x.order === 0)!.t) + 5} y={ey(-2)}>direct</text>
+            <text class="dg-hl" x={ex(r.arrivals.find((x) => x.order === 0)!.t) + 5} y={ey(-2)}>{T.direct}</text>
           </g>
         );
       })}

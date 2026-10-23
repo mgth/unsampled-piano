@@ -1,0 +1,69 @@
+---
+title: Table d'harmonie
+description: Le panneau d'épicéa qui transforme le mouvement des cordes en son — ses modes, son amortissement, ses chevalets, son rayonnement, et la caisse et le mur du piano droit.
+order: 108
+icon: board
+section: Parameters
+page: Soundboard
+---
+import PlateModes from '../../../components/diagrams/PlateModes.astro';
+import BackFace from '../../../components/diagrams/BackFace.astro';
+
+Seule, une corde est presque muette : elle est bien trop fine pour mettre l'air en mouvement. Sa
+vibration passe par le **chevalet** dans la **table d'harmonie**, un grand panneau d'épicéa mince
+qui fait bouger l'air de la pièce. C'est la table qui décide de l'essentiel de la voix d'un
+piano : quelles fréquences sortent avec force, combien de temps durent les notes, comment le
+grave s'épanouit.
+
+## Une plaque de modes
+
+Le modèle traite la table comme une plaque orthotrope — l'épicéa est environ deux fois plus raide
+dans le sens du fil qu'en travers —, encastrée dans la ceinture. Comme les cordes, c'est un
+ensemble de modes, chacun un oscillateur amorti ; les cordes les excitent par le chevalet, et le
+mouvement de la table charge en retour les cordes, d'où vient une bonne partie de la
+décroissance d'une note.
+
+<PlateModes lang="fr" />
+
+Ses dimensions (`a`, `b`), sa masse surfacique `rho_h` et ses raideurs `dx`, `dy` fixent la
+place de ces modes et la facilité avec laquelle les cordes font bouger la table : une table plus
+lourde donne des notes plus longues mais plus discrètes. La table est aussi légèrement
+**bombée** — cintrée, et appuyée vers le bas par les cordes —, ce qui la raidit comme une coque
+et relève ses modes les plus graves : `crown_freq`. Sous tous ceux-là, la caisse entière bouge
+d'un bloc sur ses pieds : un **mode piston** fortement amorti, qui boit un peu de l'énergie de
+l'extrême grave (`piston_*`).
+
+## Amortissement et chevalets
+
+`loss_factor` est l'amortissement interne de la table (environ 2 %), qui croît avec la fréquence
+au-dessus de `loss_corner` : une fréquence de coude plus basse ternit les aigus. Le chevalet —
+la poutre de bois dur sur laquelle reposent les cordes — est raide : la poussée d'une corde se
+répartit donc le long du chevalet sur une portion de longueur d'onde de flexion
+(`bridge_stiffness`, `bridge_line_mass`, `bridge_spread`) au lieu de frapper la table en un
+point, ce qui adoucit les hautes fréquences. Sous l'aigu, la table est plus épaisse, plus
+barrée, et bouge moins : `impedance_slope`, avec son pendant côté grave
+(`impedance_slope_bass`), empêche le côté grave de résonner comme un tonneau.
+
+L'emplacement des deux chevalets (`treble_bridge`, `bass_bridge`, `main_bridge_from`) décide des
+modes que chaque touche excite — voir les points sur la figure ci-dessus.
+
+## Rayonnement
+
+Chaque microphone entend chaque mode par l'**intégrale de Rayleigh** : la table est découpée en
+parcelles (`grid_step`), et le mouvement de chacune atteint le microphone avec son propre retard
+et sa propre distance. La table pousse l'air par ses deux faces à la fois :
+
+<BackFace lang="fr" />
+
+## Pianos droits
+
+La table d'un piano droit est verticale (`vertical`), derrière la mécanique, en général à
+quelques centimètres d'un mur. Le son de sa face arrière rebondit alors sur ce mur et revient
+dans la pièce (`wall_distance`, `wall_reflection`), et sa face avant est fermée par la caisse :
+la mécanique, les touches et les panneaux, à travers lesquels le son ne s'échappe qu'en partie
+(`case_open`, `case_panel_mass` — plus les panneaux sont lourds, plus le son est sombre et
+enfermé). La méthode et les mesures sont dans
+[docs/upright.md](https://github.com/mgth/unsampled-piano/blob/main/docs/upright.md).
+
+Le groupe `bridge.*` ne sert que **sans** table d'harmonie : une admittance de chevalet mesurée,
+qui remplace la table quand celle-ci est désactivée, à des fins d'analyse.

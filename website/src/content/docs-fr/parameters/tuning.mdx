@@ -1,0 +1,48 @@
+---
+title: Accord
+description: Diapason, inharmonicité et étirement — pourquoi un piano n'est jamais accordé selon la table du tempérament égal, et comment le modèle suit un piano réel.
+order: 104
+icon: fork
+section: Parameters
+page: Tuning
+---
+import CurveChart from '../../../components/diagrams/CurveChart.astro';
+import Partials from '../../../components/diagrams/Partials.astro';
+
+Une corde de piano est un fil d'acier, et l'acier est raide. Une corde parfaitement souple
+vibrerait à des multiples exacts de sa fondamentale ; une corde raide résiste un peu plus à la
+flexion pour chaque onde plus courte, si bien que chaque partiel sort **trop haut**, et d'autant
+plus qu'il est élevé. C'est l'**inharmonicité** du piano — une part de sa couleur légèrement
+métallique, et la raison pour laquelle on ne peut pas l'accorder comme le dit le manuel.
+
+## Inharmonicité
+
+Chaque touche reçoit un coefficient B, et le partiel *k* tombe à
+
+<p class="formula">f<sub>k</sub> = k · f0 · √(1 + B · k²)</p>
+
+<Partials lang="fr" />
+
+B est grand pour les cordes courtes et épaisses de l'aigu, et remonte dans le grave, où les
+cordes sont raccourcies pour tenir dans la caisse. Le modèle utilise la loi à deux
+exponentielles de Rigaud, David et Daudet (2013), ajustée sur les enregistrements d'un
+Yamaha C5 (le Salamander Grand) :
+
+<CurveChart lang="fr" title="Inharmonicity B" caption="B par touche (échelle logarithmique) : les deux exponentielles se rejoignent dans le médium grave. Ajustée sur Salamander, écart quadratique moyen 0.07 en log B." />
+
+## Étirement
+
+Comme les partiels sont trop hauts, une octave accordée exactement à 2:1 entre fondamentales
+sonne trop basse : la fondamentale de la note supérieure bat contre le deuxième partiel, trop
+haut, de la note inférieure. Les accordeurs **étirent** donc les octaves — l'aigu un peu haut,
+le grave un peu bas — jusqu'à ce qu'elles sonnent pures. Le modèle suit une loi d'étirement
+ajustée, en cents par rapport au tempérament égal :
+
+<p class="formula">cents(n) = a_t · e<sup>k_t (n − 69)</sup> − a_b · e<sup>−k_b (n − 69)</sup> + c</p>
+
+<CurveChart lang="fr" title="Stretch" caption="L'étirement par défaut, ajusté sur Salamander (C8 exclu, écart quadratique moyen 2 cents) : −16 cents à A0, +25 à C8. Survolez pour lire n'importe quelle touche." />
+
+`a4` déplace tout : 440 Hz est la norme moderne, les orchestres s'accordent souvent à 442, les
+ensembles baroques à 415 — c'est exactement ce que fait le preset de caractère *Baroque 415*. Le
+modifier reconstruit l'instrument, car la masse de chaque corde est calculée à partir de sa
+hauteur, de sa longueur et de sa tension.

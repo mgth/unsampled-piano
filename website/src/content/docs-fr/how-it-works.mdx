@@ -1,0 +1,90 @@
+---
+title: Comment ça marche
+description: La chaîne physique de la touche à l’oreille, le moteur modal qui la fait tourner en temps réel, son étalonnage sur des enregistrements — et ce qui ne va pas encore.
+order: 6
+icon: atom
+---
+import SignalChain from '../../components/SignalChain.astro';
+
+Unsampled Piano ne contient **aucun enregistrement**. Chaque son qu’il produit est calculé
+pendant que vous jouez, à partir d’un modèle des pièces d’un piano et de la façon dont elles
+agissent les unes sur les autres. Les enregistrements de vrais pianos ne servent qu’à une
+chose : mesurer, pour régler les paramètres du modèle et les vérifier.
+
+## La chaîne
+
+<SignalChain lang="fr" />
+
+1. **Marteau.** La vélocité d’une touche devient une vitesse de marteau. Le feutre du marteau
+   est un ressort non linéaire à hystérésis (Stulov), posé sur un noyau dur ; un solveur de
+   contact passif intègre la frappe sur les cordes, échantillon par échantillon. →
+   [Marteau](/fr/docs/parameters/hammer/)
+2. **Cordes.** Une à trois cordes raides par touche, chacune un banc de modes avec sa propre
+   inharmonicité, ses pertes et deux directions de vibration, couplée aux autres cordes de sa
+   touche par le chevalet (Weinreich) : la double décroissance et les battements naissent de ce
+   couplage, pas d’enveloppes. Les notes graves jouées fort ajoutent leurs partiels fantômes. →
+   [Cordes](/fr/docs/parameters/strings/), [Accord](/fr/docs/parameters/tuning/)
+3. **Étouffoirs et pédales.** Les étouffoirs sont des amortisseurs visqueux posés sur les cordes ;
+   la pédale forte est continue ; étouffoirs levés, chaque corde libre écoute le chevalet
+   (résonance sympathique). → [Étouffoirs](/fr/docs/parameters/dampers/),
+   [Jeu](/fr/docs/parameters/player/)
+4. **Table d’harmonie.** Une plaque orthotrope encastrée, modale, excitée par les chevalets et
+   qui charge les cordes en retour. Le cadre en fonte et la ceinture rayonnent aussi. →
+   [Table d’harmonie](/fr/docs/parameters/soundboard/),
+   [Cadre et ceinture](/fr/docs/parameters/frame-rim/)
+5. **Rayonnement.** Deux microphones placés dans l’espace entendent la table via l’intégrale de
+   Rayleigh, avec sa face arrière, la réflexion et l’ombre du couvercle. →
+   [Microphones](/fr/docs/parameters/microphones/)
+6. **Salle.** Des sources images pour les premières réflexions, un réseau de retards bouclés
+   pour la queue de réverbération. → [Salle](/fr/docs/parameters/room/)
+
+Les bruits mécaniques — fond de clavier, étouffoirs, pédale — sont des impulsions injectées dans
+les mêmes cordes et la même table. → [Bruits](/fr/docs/parameters/noises/)
+
+## Un moteur modal
+
+Cordes, table, cadre et ceinture s’écrivent tous de la même manière : sous forme de **modes**,
+des oscillateurs amortis calculés chacun comme une récurrence complexe du premier ordre,
+*z* ← *p*·*z* + *b*·*x*. La forme complexe garde les fréquences exactes en simple précision
+jusqu’au A0, et elle se vectorise : les modes sont regroupés en paquets que le processeur fait
+avancer ensemble en AVX2 ou AVX-512. Un seul cœur d’un processeur de bureau récent fait tourner
+plusieurs centaines de milliers de modes en temps réel ; un piano entier, toutes cordes libres,
+n’en demande que quelques pour cent. Les résultats sont **identiques au bit près** quel que soit
+le jeu d’instructions, ce qui rend les rendus hors ligne reproductibles.
+
+Ce qui coûte cher, ce n’est pas de jouer mais de **construire** : calculer les modes des cordes,
+ceux de la table, leur couplage et les poids de rayonnement pour deux microphones. Modifier un
+paramètre « à reconstruction » fait ce travail en arrière-plan — environ un dixième de seconde —
+puis met le nouvel instrument en place sans couper les notes tenues.
+
+## Étalonnage
+
+L’instrument par défaut est ajusté, étape par étape, sur des mesures :
+
+- **Salamander Grand** — des enregistrements d’un Yamaha C5, analysés note par note : fréquences
+  des partiels (inharmonicité, étirement), taux de décroissance de chaque partiel (ESPRIT), son
+  immédiat et son rémanent.
+- **Iowa** — une seconde série d’enregistrements de vrais pianos, pour l’écart entre instruments.
+- **Un piano modélisé commercial**, enregistré à travers ses dix modèles acoustiques, comme
+  référence de timbre à toutes les nuances, de comportement des pédales et d’étendue des
+  instruments.
+
+Chaque étape fait l’objet d’un document dans le dépôt — l’hypothèse, la mesure, ce qui a changé
+et de combien : [la liste est dans le README](https://github.com/mgth/unsampled-piano#documentation).
+
+## Honnêtement : ce qui ne va pas encore
+
+Le modèle se situe dans la dispersion des références sur la plupart des mesures, pas partout.
+Écarts connus, en octobre 2026 :
+
+- l’octave la plus aiguë (C7–C8) est trop faible en *pp*, et ses notes tenues s’éteignent un peu
+  trop vite ;
+- dans l’aigu (C5–B6) en *mf*, la fin d’une note tenue manque de 6 à 10 dB à 3 secondes ;
+- dans le médium, les partiels 8 à 12 sont 5 à 8 dB trop bas pendant la tenue ;
+- dans le grave, les fins de note manquent de 2 à 3 dB à 3 secondes.
+
+Chantiers structurels encore à venir : un feutre dont la raideur croît progressivement au lieu
+de deux couches, une table d’harmonie réaliste (barres, épaisseur variable, modes par éléments
+finis), et la duplex scale. Si vous connaissez les pianos — ou la physique — et que vous entendez
+quelque chose qui cloche, une [issue](https://github.com/mgth/unsampled-piano/issues) est la
+bienvenue.

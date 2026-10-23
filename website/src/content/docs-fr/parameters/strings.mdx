@@ -1,0 +1,93 @@
+---
+title: Cordes
+description: Longueurs, chœurs, pertes, polarisations et non-linéarité — comment les cordes sonnent, battent et s'éteignent.
+order: 105
+icon: string
+section: Parameters
+page: Strings
+---
+import CurveChart from '../../../components/diagrams/CurveChart.astro';
+import StringAnatomy from '../../../components/diagrams/StringAnatomy.astro';
+import Beating from '../../../components/diagrams/Beating.astro';
+import DoubleDecay from '../../../components/diagrams/DoubleDecay.astro';
+import Figure from '../../../components/diagrams/Figure.astro';
+import KeyboardStrip from '../../../components/diagrams/KeyboardStrip.astro';
+
+Chaque corde est un ensemble de **modes** — ses partiels —, chacun un oscillateur amorti
+calculé sous forme complexe, des milliers par note. Les cordes d'une même touche sont couplées
+par le chevalet qu'elles partagent, et chacune vibre dans deux directions. Rien ici n'est un
+filtre posé sur un son enregistré : ce que vous entendez, c'est ce système qui résonne.
+
+<StringAnatomy lang="fr" />
+
+## Plan de cordes
+
+Le **plan de cordes** est l'ensemble des longueurs de cordes. En partant de l'aigu, chaque
+octave est plus longue d'un facteur `ratio_per_octave` (une corde idéale doublerait ; les vraies
+non, sinon un piano à queue mesurerait dix mètres). Sous `break_note`, la caisse manque de
+place : les cordes graves sont raccourcies vers `len_a0` et alourdies par un filage de cuivre
+enroulé autour d'elles. Avec la tension et la hauteur, la longueur donne à chaque corde sa
+masse, μ = T / (2·L·f0)².
+
+<CurveChart lang="fr" title="String length" caption="Longueur vibrante par touche (échelle logarithmique). Le plan générique de 2 m de l'instrument par défaut est provisoire, il n'a pas été mesuré ; le coude correspond à la note de rupture." />
+
+## Chœurs
+
+La plupart des touches ont deux ou trois cordes, frappées ensemble. Elles ne sont jamais
+exactement accordées entre elles, et ne doivent pas l'être : ce léger écart est ce qui donne
+sa vie au son d'un piano.
+
+<Figure lang="fr" label="Cordes par touche, instrument par défaut">
+  <KeyboardStrip
+    lang="fr"
+    zones={[
+      { from: 21, to: 27, label: '1', color: '#9fb0c8' },
+      { from: 28, to: 44, label: '2 cordes', color: '#ffc861' },
+      { from: 45, to: 108, label: '3 cordes par touche', color: '#f2b544' },
+      { from: 21, to: 48, label: 'cordes filées', color: '#e08a4a', row: 1 },
+      { from: 21, to: 64, label: 'partiels fantômes calculés', color: '#ff6fb5', row: 2 },
+    ]}
+    label="Clavier montrant les zones à une corde, bicordes et tricordes, les cordes filées et la zone de non-linéarité"
+  />
+</Figure>
+
+<Beating lang="fr" />
+
+<CurveChart lang="fr" title="Unison spread" caption="Écart entre les cordes extrêmes d'une touche, en cents : constant jusqu'au do central (C4) (<code>width_mid</code>), puis croissant jusqu'à <code>width_treble</code> à C8. Chaque touche reçoit, dans cet écart, un motif irrégulier mais fixe." />
+
+`hit_spread` est l'autre moitié de l'histoire : le marteau ne frappe jamais les cordes d'une
+touche de manière parfaitement égale, et cette inégalité les fait osciller les unes contre les
+autres dès le départ.
+
+## Deux polarisations, deux décroissances
+
+<DoubleDecay lang="fr" />
+
+Les paramètres `polarization.*` règlent la faiblesse avec laquelle le chevalet retient le
+mouvement latéral (`h_coupling`), la quantité d'énergie qui passe d'une direction à l'autre
+(`cross` — bornée pour que le chevalet reste passif), et la part du mouvement latéral que l'on
+entend.
+
+## Pertes
+
+Les cordes perdent aussi de l'énergie par elles-mêmes — frottement de l'air, friction interne —,
+en plus de ce que prennent le chevalet et la table d'harmonie. Le taux d'amortissement propre
+d'un partiel de fréquence *f* vaut
+
+<p class="formula">σ = b1_floor·w(n) + e<sup>b1_slope·n + b1_offset + top(n)</sup> + b2·f²</p>
+
+avec T60 = 6.9 / σ. Le terme `b2` fait mourir plus tôt les partiels aigus, si bien que le son
+s'assombrit en s'éteignant ; `b1_floor` ajoute les pertes des cordes filées du grave ;
+`top_slope` celles des cordes du haut, qui n'ont pas d'étouffoirs et continueraient sinon de
+sonner après le relâchement des touches.
+
+<CurveChart lang="fr" title="Fundamental T60 (string losses alone)" caption="Combien de temps la fondamentale sonnerait avec les seules pertes propres de la corde, avant que le chevalet et la table d'harmonie ne prennent leur part (échelle logarithmique)." />
+
+## Non-linéarité
+
+Frappée fort, une corde s'allonge un peu en oscillant, et sa tension monte et descend deux fois
+par cycle. Cela excite les modes **longitudinaux** de la corde avec des sommes et des
+différences de ses partiels : les partiels « fantômes » qui donnent son grondement à un grave
+joué fort. Le modèle les calcule jusqu'à `max_note` (E4 par défaut ; au-dessus, ils sont trop
+aigus pour compter), avec un niveau qui croît comme le carré de l'amplitude — présents au forte,
+absents au piano.

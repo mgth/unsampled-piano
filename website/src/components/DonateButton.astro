@@ -1,5 +1,8 @@
 ---
 import { SITE } from '../site';
+import { langOf } from '../i18n';
+
+const fr = langOf(Astro.url) === 'fr';
 // Support buttons. Ko-fi first — it is the link the application's own status
 // bar carries — as a first-class button in the site's style; GitHub Sponsors
 // and Liberapay beside it. Plain links: no third-party script or iframe.
@@ -12,7 +15,7 @@ import { SITE } from '../site';
       <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"></path>
       <path class="steam" d="M6 2v2M10 2v2M14 2v2"></path>
     </svg>
-    <span>Buy me a coffee</span>
+    <span>{fr ? 'Offrez-moi un café' : 'Buy me a coffee'}</span>
   </a>
   <a class="sponsor-btn gh" href={SITE.donate} rel="noopener" aria-label="Sponsor mgth on GitHub Sponsors">
     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="heart">

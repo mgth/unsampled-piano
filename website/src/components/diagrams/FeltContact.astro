@@ -6,6 +6,12 @@
 // following the compression on the left.
 import Figure from './Figure.astro';
 import { curveAt, def, fmt } from '../../lib/params';
+import type { Lang } from '../../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
 
 const q0 = curveAt('Felt stiffness Q0', 60);
 const p = curveAt('Felt exponent p', 60);
@@ -41,13 +47,38 @@ const coreD = us.map((u) => dent(coreY, Math.max(0, u - d) * PX * 0.35 + (u > d 
 const stringPos = us.map((u) => `0,${(u * PX).toFixed(2)}`).join(';');
 const dot = us.map((u) => `${sx(u).toFixed(1)},${sy(force(u)).toFixed(1)}`).join(';');
 const DUR = '3.6s';
+
+const T = {
+  en: {
+    label: 'Felt under the string · middle C',
+    caption: `Left, enlarged: the string sinks <em>u</em> into the felt. Right, the force: the soft top felt alone (dashed) gives Q0·u<sup>p</sup> with Q0 = ${fmt(q0)} N/mm<sup>p</sup> and p = ${fmt(p)} at C4; past its depth d = ${fmt(d)} mm the core adds Q_core·(u − d)<sup>${fmt(pCore)}</sup> with Q_core = ${fmt(def('core_hardness'))} × Stulov's Q0. Played softly the hammer stays in the top felt and the tone is round; played hard it hits the core and the tone brightens sharply.`,
+    aria: 'Felt compression at middle C and the felt force curve with its knee at the core',
+    string: 'string',
+    topFelt: 'top felt',
+    core: 'core',
+    force: 'force F(u)',
+    compression: 'compression u (mm)',
+    reached: 'core reached',
+  },
+  fr: {
+    label: 'Feutre sous la corde · do central',
+    caption: `À gauche, agrandi : la corde s’enfonce de <em>u</em> dans le feutre. À droite, la force : le feutre de surface, souple, seul (en pointillés) donne Q0·u<sup>p</sup> avec Q0 = ${fmt(q0)} N/mm<sup>p</sup> et p = ${fmt(p)} à C4 ; au-delà de son épaisseur d = ${fmt(d)} mm, le cœur ajoute Q_core·(u − d)<sup>${fmt(pCore)}</sup> avec Q_core = ${fmt(def('core_hardness'))} × le Q0 de Stulov. Joué doucement, le marteau reste dans le feutre de surface et le son est rond ; joué fort, il atteint le cœur et le son s’éclaircit nettement.`,
+    aria: 'Écrasement du feutre au do central et courbe de force du feutre, avec son coude au cœur',
+    string: 'corde',
+    topFelt: 'feutre de surface',
+    core: 'cœur',
+    force: 'force F(u)',
+    compression: 'écrasement u (mm)',
+    reached: 'cœur atteint',
+  },
+}[lang];
 ---
 
 <Figure
-  label="Felt under the string · middle C"
-  caption={`Left, enlarged: the string sinks <em>u</em> into the felt. Right, the force: the soft top felt alone (dashed) gives Q0·u<sup>p</sup> with Q0 = ${fmt(q0)} N/mm<sup>p</sup> and p = ${fmt(p)} at C4; past its depth d = ${fmt(d)} mm the core adds Q_core·(u − d)<sup>${fmt(pCore)}</sup> with Q_core = ${fmt(def('core_hardness'))} × Stulov's Q0. Played softly the hammer stays in the top felt and the tone is round; played hard it hits the core and the tone brightens sharply.`}
+  label={T.label}
+  caption={T.caption}
 >
-  <svg viewBox="0 0 480 205" role="img" aria-label="Felt compression at middle C and the felt force curve with its knee at the core">
+  <svg viewBox="0 0 480 205" role="img" aria-label={T.aria}>
     <defs>
       <clipPath id="fc-zoom"><rect x={LEFT} y="14" width={RIGHT - LEFT} height="164" rx="8"></rect></clipPath>
     </defs>
@@ -63,23 +94,23 @@ const DUR = '3.6s';
         <animateTransform attributeName="transform" type="translate" values={stringPos} keyTimes={keyTimes} dur={DUR} repeatCount="indefinite"></animateTransform>
         <circle cx={CX} cy={SURF - R} r={R} fill="#ffd27a" stroke="#f2b544" stroke-width="2"></circle>
         <circle cx={CX} cy={SURF - R} r={R * 0.55} fill="none" stroke="#c9952e" stroke-width="1"></circle>
-        <text class="dg-text dg-mid" x={CX} y={SURF - R + 3.5} fill="#1a1206" style="fill:#1a1206">string</text>
+        <text class="dg-text dg-mid" x={CX} y={SURF - R + 3.5} fill="#1a1206" style="fill:#1a1206">{T.string}</text>
       </g>
     </g>
     <line class="dg-faint dg-dash" x1={LEFT} x2={RIGHT} y1={SURF} y2={SURF}></line>
-    <text class="dg-text" x={RIGHT - 4} y={SURF + 12} text-anchor="end" style="fill:#3a3a3a">top felt</text>
-    <text class="dg-text" x={RIGHT - 4} y={coreY + 14} text-anchor="end" style="fill:#2a2a2a">core</text>
+    <text class="dg-text" x={RIGHT - 4} y={SURF + 12} text-anchor="end" style="fill:#3a3a3a">{T.topFelt}</text>
+    <text class="dg-text" x={RIGHT - 4} y={coreY + 14} text-anchor="end" style="fill:#2a2a2a">{T.core}</text>
     <path d={`M${LEFT + 10} ${SURF} V${coreY}`} stroke="var(--up-copper)" stroke-width="1.4"></path>
     <text class="dg-text" x={LEFT + 14} y={(SURF + coreY) / 2 + 3} style="fill:#7a4a20">d</text>
 
-    <text class="dg-title" x={X0} y="14">force F(u)</text>
+    <text class="dg-title" x={X0} y="14">{T.force}</text>
     <path class="dg-faint" d={`M${X0} ${Y0}V${Y1}H${X1}`}></path>
     {[0, FMAX / 2, FMAX].map((f) => <text class="dg-text dg-end" x={X0 - 5} y={sy(f) + 3}>{fmt(f)}</text>)}
     <text class="dg-text dg-end" x={X0 - 5} y={Y0 - 6} font-size="9">N</text>
     {[0, d, UMAX].map((u) => <text class="dg-text dg-mid" x={sx(u)} y={Y1 + 13}>{fmt(+u.toFixed(2))}</text>)}
-    <text class="dg-text dg-mid" x={(X0 + X1) / 2} y={Y1 + 27} font-size="9">compression u (mm)</text>
+    <text class="dg-text dg-mid" x={(X0 + X1) / 2} y={Y1 + 27} font-size="9">{T.compression}</text>
     <line class="dg-faint dg-dash" x1={sx(d)} x2={sx(d)} y1={Y0} y2={Y1}></line>
-    <text class="dg-hl" x={sx(d) - 4} y={Y0 + 10} text-anchor="end">core reached</text>
+    <text class="dg-hl" x={sx(d) - 4} y={Y0 + 10} text-anchor="end">{T.reached}</text>
     <path d={path(top)} fill="none" stroke="var(--up-text-muted)" stroke-dasharray="4 3"></path>
     <path class="dg-string" d={path(force)}></path>
     <circle r="5" fill="var(--up-bg)" stroke="var(--up-accent-light)" stroke-width="2.2">
