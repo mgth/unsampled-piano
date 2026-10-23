@@ -50,6 +50,9 @@ pub enum Part {
     UnaCorda,
     /// The practice mute an upright's middle pedal lowers.
     MuteFelt,
+    /// How soon a key can strike again: a grand's repetition lever, an
+    /// upright's jack that must reset.
+    Repetition,
     /// The key bottoming on the keybed.
     KeybedKnock,
     /// The damper landing on the ringing string.
@@ -191,6 +194,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("una_corda_", &[UnaCorda]),
         ("half_blow", &[UnaCorda]),
         ("mute_felt", &[MuteFelt]),
+        ("repetition_", &[Repetition]),
         ("damper.pedal_", &[SustainPedal]),
         ("damper.", &[Damper]),
         ("noise.keybed", &[KeybedKnock]),
@@ -294,7 +298,13 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
         // Wippen on the capstan, its jack under the hammer butt.
         p.line_segment([at(sx - 130.0, 140.0), at(sx - 28.0, 140.0)], line(2.0, weak));
         p.circle_stroke(at(sx - 130.0, 140.0), 3.0 * k, line(1.0, weak));
-        p.line_segment([at(sx - 50.0, 140.0), at(sx - 50.0, 118.0)], line(2.0, weak));
+        let jack = if lit(Part::Repetition) { line(2.5, HIGHLIGHT) } else { line(2.0, weak) };
+        p.line_segment([at(sx - 50.0, 140.0), at(sx - 50.0, 118.0)], jack);
+        if lit(Part::Repetition) {
+            let first = if model.repetition_time > 0.0 { "No repetition lever: the jack must reset" } else { "Repetition at once" };
+            label(sx - 60.0, 92.0, Align2::RIGHT_CENTER, first, Some(Part::Repetition));
+            label(sx - 60.0, 104.0, Align2::RIGHT_CENTER, &repetition_text(model), Some(Part::Repetition));
+        }
 
         // Hammer: butt, shank, molding, core and top felt facing the string.
         let (cx, rx, ry) = (sx - 14.0, 12.0, 14.0);
@@ -407,6 +417,15 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
         p.line_segment([at(STRIKE_X, 80.0), at(255.0, 88.0)], line(3.0, WOOD));
         p.circle_stroke(at(255.0, 88.0), 3.5 * k, line(1.0, weak));
         p.line_segment([at(212.0, 85.0), at(212.0, KEY_Y)], line(2.0, weak));
+        // The repetition lever (double escapement) holds the hammer halfway
+        // down, ready to be thrown again before the key is fully up.
+        let lever = if lit(Part::Repetition) { line(2.5, HIGHLIGHT) } else { line(1.5, weak) };
+        p.line_segment([at(194.0, 100.0), at(232.0, 92.0)], lever);
+        p.circle_stroke(at(194.0, 100.0), 2.5 * k, line(1.0, weak));
+        if lit(Part::Repetition) {
+            let text = if model.repetition_time > 0.0 { "Repetition lever (limited)" } else { "Repetition lever" };
+            label(190.0, 100.0, Align2::RIGHT_CENTER, text, Some(Part::Repetition));
+        }
         let (depth, key) = felt_depth(model, path);
         let t = (depth as f32 * 8.0).clamp(1.5, 10.0);
         let (top, bottom, rx) = (STRING_Y + 2.0, 76.0, 15.0);
@@ -1128,6 +1147,16 @@ fn soft_pedal(p: &egui::Painter, at: &dyn Fn(f32, f32) -> Pos2, model: &PianoMod
     }
 }
 
+/// How a key struck again soon after its release sounds.
+fn repetition_text(model: &PianoModel) -> String {
+    if model.repetition_time > 0.0 {
+        let slower = 100.0 * (1.0 - model.repetition_floor.clamp(0.0, 1.0));
+        format!("re-struck within {:.0} ms, up to {slower:.0} % slower", 1e3 * model.repetition_time)
+    } else {
+        "re-strikes at full speed at once".to_string()
+    }
+}
+
 /// Top-felt depth (mm) shown for a parameter, and the key it is at.
 fn felt_depth(model: &PianoModel, path: &str) -> (f64, &'static str) {
     match path {
@@ -1225,6 +1254,7 @@ mod tests {
             Part::DamperLanding,
             Part::PedalKnock,
             Part::MuteFelt,
+            Part::Repetition,
             Part::Strike,
             Part::DamperPoint,
             Part::Length,
@@ -1283,7 +1313,7 @@ mod tests {
         let upright = PianoModel { soundboard: grand.soundboard.map(|b| piano_core::soundboard::SoundboardParams { vertical: true, ..b }), ..grand };
         for m in [grand, upright] {
             ctx.run_ui(Default::default(), |ui| {
-                for part in [&[Part::Key][..], &[Part::Core], &[Part::Damper], &[Part::UnaCorda], &[Part::MuteFelt], &[Part::SustainPedal]] {
+                for part in [&[Part::Key][..], &[Part::Core], &[Part::Damper], &[Part::UnaCorda], &[Part::MuteFelt], &[Part::SustainPedal], &[Part::Repetition]] {
                     action(ui, &m, part, "core_depth_mid", 440.0);
                 }
             })
