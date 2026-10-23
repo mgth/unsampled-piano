@@ -1,15 +1,26 @@
 //! Sketches locating the parameters on the instrument, drawn from the model
-//! (felt depth, pedal curve, una corda shift follow the settings).
+//! (felt depth, pedal curve, strike point, mistuning… follow the settings).
 //!
 //! The action: one key of a grand seen from the side, the player on the
 //! left. The key lifts the hammer onto the string from below and, at its
 //! back end, the damper off the string; the sustain pedal lifts every
 //! damper through the damper tray. Not to scale.
+//!
+//! The string: one key's string from the agraffe to the bridge, with the
+//! strike and damper points (to scale along the string), its unison seen
+//! from above, its two directions of vibration, its decay, its partials,
+//! and a keyboard choosing the key shown.
 
 use egui::{Align2, Color32, FontId, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, Vec2};
 use piano_core::params::PianoModel;
 
-/// A part of the action a parameter acts on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Sketch {
+    Action,
+    String,
+}
+
+/// A part of a sketch a parameter acts on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part {
     /// The key press setting the hammer's speed.
@@ -28,12 +39,60 @@ pub enum Part {
     DamperLanding,
     /// The damper tray knocking when the pedal moves.
     PedalKnock,
+    // The string.
+    /// Where the hammer strikes it.
+    Strike,
+    /// Where the damper rests on it.
+    DamperPoint,
+    /// Its length and tension.
+    Length,
+    /// The strings of the key and their mistuning.
+    Unison,
+    /// Its up-and-down and sideways vibration.
+    Polarization,
+    /// Its stretching at large amplitude.
+    Nonlinear,
+    /// Its own losses (decay).
+    Losses,
+    /// The bridge it drives.
+    Bridge,
+    /// Its partials (stiffness).
+    Partials,
+    /// The other strings answering through the bridge.
+    Sympathy,
+    /// A range of keys (the parameter is a key number).
+    Keys,
 }
 
-/// Where a parameter acts in the action (empty: not in the action).
-pub fn parts_of(path: &str) -> &'static [Part] {
+/// The sketch locating a parameter and the parts it acts on, if any.
+pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
     use Part::*;
-    const TABLE: &[(&str, &[Part])] = &[
+    // The first match wins: specific paths before their prefixes.
+    const STRING: &[(&str, &[Part])] = &[
+        ("strike_ratio", &[Strike, Partials]),
+        ("damper.position", &[DamperPoint]),
+        ("damper.width", &[DamperPoint]),
+        ("damper.node_floor", &[DamperPoint]),
+        ("damper.highest_note", &[DamperPoint, Keys]),
+        ("scale.break_note", &[Length, Keys]),
+        ("scale.", &[Length]),
+        ("unison.bichord_from", &[Unison, Keys]),
+        ("unison.trichord_from", &[Unison, Keys]),
+        ("unison.", &[Unison]),
+        ("polarization.", &[Polarization]),
+        ("nonlinear.max_note", &[Nonlinear, Keys]),
+        ("nonlinear.", &[Nonlinear]),
+        ("losses.wound_until", &[Losses, Keys]),
+        ("losses.top_from", &[Losses, Keys]),
+        ("losses.", &[Losses]),
+        ("inharmonicity.", &[Partials]),
+        ("bridge.", &[Bridge]),
+        ("soundboard.bridge_mass", &[Bridge]),
+        ("soundboard.series_stiffness", &[Bridge]),
+        ("soundboard.main_bridge_from", &[Bridge, Keys]),
+        ("sympathetic.", &[Sympathy]),
+    ];
+    const ACTION: &[(&str, &[Part])] = &[
         ("velocity.", &[Key]),
         ("hardness", &[Felt]),
         ("p_bass", &[Felt]),
@@ -50,8 +109,25 @@ pub fn parts_of(path: &str) -> &'static [Part] {
         ("noise.pedal", &[PedalKnock]),
         ("noise.knock_time", &[KeybedKnock, PedalKnock]),
     ];
-    // The first match wins: "damper.pedal_" before "damper.".
-    TABLE.iter().find(|(p, _)| path.starts_with(p)).map_or(&[], |(_, parts)| parts)
+    let find = |table: &'static [(&str, &'static [Part])]| table.iter().find(|(p, _)| path.starts_with(p)).map(|(_, parts)| *parts);
+    find(STRING).map(|parts| (Sketch::String, parts)).or_else(|| find(ACTION).map(|parts| (Sketch::Action, parts)))
+}
+
+/// The parts of `sketch` that `path` acts on (empty when it acts elsewhere).
+pub fn lit_in(sketch: Sketch, path: &str) -> &'static [Part] {
+    match locate(path) {
+        Some((s, parts)) if s == sketch => parts,
+        _ => &[],
+    }
+}
+
+/// Draws `sketch`; the string sketch shows `key`, which its keyboard sets.
+pub fn draw(ui: &mut Ui, sketch: Sketch, model: &PianoModel, path: &str, key: &mut u8, width: f32) -> Response {
+    let lit = lit_in(sketch, path);
+    match sketch {
+        Sketch::Action => action(ui, model, lit, path, width),
+        Sketch::String => string(ui, model, lit, path, key, width),
+    }
 }
 
 /// Design space of the action drawing.
@@ -194,6 +270,244 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
     resp
 }
 
+/// Design space of the string drawing.
+const SH: f32 = 272.0;
+const AGRAFFE_X: f32 = 24.0;
+const BRIDGE_X: f32 = 404.0;
+const KEYS_Y: f32 = 228.0;
+
+/// One key's string, its unison, vibration, decay and partials, and the
+/// keyboard choosing the key (clicked or dragged).
+pub fn string(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, key: &mut u8, width: f32) -> Response {
+    let k = width / W;
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(W, SH) * k, Sense::hover());
+    let at = |x: f32, y: f32| rect.min + Vec2::new(x, y) * k;
+    let r = |x0: f32, y0: f32, x1: f32, y1: f32| Rect::from_two_pos(at(x0, y0), at(x1, y1));
+    // The keyboard: 52 white keys, black keys over their upper part.
+    let ww = (W - 20.0) / 52.0;
+    let keys = r(10.0, KEYS_Y, W - 10.0, KEYS_Y + KEYS_H);
+    let pick = ui.interact(keys, ui.scope_id().with("piano-string-key"), Sense::click_and_drag());
+    if let Some(pos) = pick.interact_pointer_pos().filter(|_| pick.clicked() || pick.dragged()) {
+        let u = (pos.x - keys.left()) / (ww * k);
+        let upper = (pos.y - keys.top()) < 0.6 * keys.height();
+        *key = key_at(u, upper);
+    }
+    pick.on_hover_text("Click or drag along the keyboard to show another key's string");
+    if !ui.is_rect_visible(rect) {
+        return resp;
+    }
+    let n = model.note(*key);
+    let p = ui.painter_at(rect);
+    let vis = ui.visuals();
+    let (ink, weak) = (vis.text_color(), vis.weak_text_color());
+    let font = FontId::proportional((10.0 * k).max(9.0));
+    let lit = |part: Part| lit.contains(&part);
+    let line = |w: f32, c: Color32| Stroke::new(w * k.max(0.6), c);
+    let color = |part: Part, base: Color32| if lit(part) { HIGHLIGHT } else { base };
+    let label = |x: f32, y: f32, align: Align2, text: &str, part: Option<Part>| {
+        let c = if part.is_some_and(lit) { ink } else { weak };
+        p.text(at(x, y), align, text, font.clone(), c);
+    };
+    let name = note_name(*key);
+
+    // Side view: agraffe, string and its vibration, hammer, damper, bridge.
+    let sy = 40.0;
+    let len_px = BRIDGE_X - AGRAFFE_X;
+    label(4.0, 2.0, Align2::LEFT_TOP, &format!("The {name} string, from the agraffe to the bridge (to scale along it)"), None);
+    p.add(Shape::convex_polygon(vec![at(AGRAFFE_X - 6.0, sy - 12.0), at(AGRAFFE_X + 6.0, sy - 12.0), at(AGRAFFE_X, sy)], weak, Stroke::NONE));
+    let envelope = |sign: f32| -> Vec<Pos2> {
+        (0..=40).map(|i| i as f32 / 40.0).map(|t| at(AGRAFFE_X + t * len_px, sy + sign * 7.0 * (t * std::f32::consts::PI).sin())).collect()
+    };
+    p.extend(Shape::dashed_line(&envelope(-1.0), line(0.8, weak.gamma_multiply(0.6)), 3.0, 3.0));
+    p.extend(Shape::dashed_line(&envelope(1.0), line(0.8, weak.gamma_multiply(0.6)), 3.0, 3.0));
+    p.line_segment([at(AGRAFFE_X, sy), at(BRIDGE_X, sy)], line(2.0, color(Part::Length, ink)));
+    let bridge = r(BRIDGE_X - 6.0, sy, BRIDGE_X + 8.0, sy + 13.0);
+    p.rect_filled(bridge, 1.0, color(Part::Bridge, WOOD));
+    p.rect_filled(r(330.0, sy + 13.0, W - 2.0, sy + 17.0), 0.0, WOOD.gamma_multiply(0.5));
+    label(BRIDGE_X + 1.0, sy + 19.0, Align2::CENTER_TOP, "Bridge", Some(Part::Bridge));
+    let xs = AGRAFFE_X + n.strike_pos as f32 * len_px;
+    p.add(ellipse(at(xs, sy + 8.0), 4.0 * k, 7.0 * k, if lit(Part::Strike) { HIGHLIGHT } else { FELT }, line(1.0, weak)));
+    p.line_segment([at(xs, sy + 15.0), at(xs, sy + 24.0)], line(2.0, WOOD));
+    label(xs + 8.0, sy + 18.0, Align2::LEFT_CENTER, &format!("Hammer at {:.3} L", n.strike_pos), Some(Part::Strike));
+    let d = &model.damper;
+    if *key <= d.highest_note {
+        let xd = AGRAFFE_X + d.position as f32 * len_px;
+        let w = (d.width / n.length) as f32 * len_px;
+        let w = w.max(3.0);
+        let pad = r(xd - w / 2.0, sy - 11.0, xd + w / 2.0, sy);
+        p.rect_filled(pad, 1.0, if lit(Part::DamperPoint) { HIGHLIGHT } else { FELT });
+        p.line_segment([at(xd, sy - 11.0), at(xd, sy - 22.0)], line(1.0, weak));
+        label(xd + w / 2.0 + 4.0, sy - 17.0, Align2::LEFT_CENTER, &format!("Damper at {:.2} L", d.position), Some(Part::DamperPoint));
+    } else {
+        label(AGRAFFE_X + 60.0, sy - 17.0, Align2::LEFT_CENTER, "No damper: this string rings freely", Some(Part::DamperPoint));
+    }
+    if lit(Part::Nonlinear) {
+        let y = sy - 6.0;
+        arrow(&p, at(250.0, y), at(210.0, y), line(1.5, HIGHLIGHT));
+        arrow(&p, at(270.0, y), at(310.0, y), line(1.5, HIGHLIGHT));
+        label(260.0, y - 5.0, Align2::CENTER_BOTTOM, "stretches when struck hard", Some(Part::Nonlinear));
+    }
+    // Length and tension.
+    let dy = sy + 34.0;
+    p.line_segment([at(AGRAFFE_X, dy), at(BRIDGE_X, dy)], line(1.0, color(Part::Length, weak)));
+    for x in [AGRAFFE_X, BRIDGE_X] {
+        p.line_segment([at(x, dy - 4.0), at(x, dy + 4.0)], line(1.0, color(Part::Length, weak)));
+    }
+    let dims = format!("L = {:.2} m, tension {:.0} N, {:.1} g/m", n.length, n.tension, 1e3 * n.mu);
+    label((AGRAFFE_X + BRIDGE_X) / 2.0, dy + 3.0, Align2::CENTER_TOP, &dims, Some(Part::Length));
+
+    // The unison from above: one line per string, as thick as its share of
+    // the blow, its mistuning written beside it.
+    let uy = 100.0;
+    label(4.0, uy, Align2::LEFT_TOP, &format!("{} string{} from above", n.strings, if n.strings > 1 { "s" } else { "" }), Some(Part::Unison));
+    let hits = model.unison.hits(*key);
+    let mid = uy + 36.0;
+    for (j, (hit, detune)) in hits.iter().zip(n.detune).take(n.strings).enumerate() {
+        let y = mid + (j as f32 - (n.strings as f32 - 1.0) / 2.0) * 11.0;
+        let w = (1.6 * *hit as f32).clamp(0.5, 3.0);
+        p.line_segment([at(16.0, y), at(190.0, y)], line(w, color(Part::Unison, ink)));
+        if n.strings > 1 {
+            label(196.0, y, Align2::LEFT_CENTER, &format!("{detune:+.2} c"), Some(Part::Unison));
+        }
+    }
+    let hx = 16.0 + n.strike_pos as f32 * 174.0;
+    p.rect_stroke(r(hx - 3.0, mid - 17.0, hx + 3.0, mid + 17.0), 1.0, line(1.0, weak), egui::StrokeKind::Middle);
+    if lit(Part::Sympathy) {
+        for y in [mid + 22.0, mid + 27.0] {
+            p.extend(Shape::dashed_line(&[at(16.0, y), at(190.0, y)], line(1.0, HIGHLIGHT), 4.0, 3.0));
+        }
+        label(16.0, mid + 31.0, Align2::LEFT_TOP, "the other strings answer through the bridge", Some(Part::Sympathy));
+    }
+
+    // Vibration: up-and-down, and sideways (weaker coupling, longer ring).
+    let (vx, vy) = (282.0, mid);
+    label(vx, uy, Align2::CENTER_TOP, "Vibration", Some(Part::Polarization));
+    p.circle_filled(at(vx, vy), 3.5 * k, ink);
+    let pc = color(Part::Polarization, ink);
+    arrow(&p, at(vx, vy - 6.0), at(vx, vy - 24.0), line(1.5, pc));
+    arrow(&p, at(vx, vy + 6.0), at(vx, vy + 24.0), line(1.5, pc));
+    if model.polarization.enabled {
+        let pw = color(Part::Polarization, weak);
+        arrow(&p, at(vx + 6.0, vy), at(vx + 20.0, vy), line(1.0, pw));
+        arrow(&p, at(vx - 6.0, vy), at(vx - 20.0, vy), line(1.0, pw));
+    }
+
+    // Decay of the fundamental from the string's own losses.
+    let t60 = 3.0 * std::f64::consts::LN_10 / model.losses.sigma(*key, n.f0);
+    let (bx0, bx1, by0, by1) = (320.0, W - 4.0, uy + 14.0, uy + 56.0);
+    label(bx0, uy, Align2::LEFT_TOP, "Decay (string alone)", Some(Part::Losses));
+    let dc = color(Part::Losses, ink);
+    let wave: Vec<Pos2> = (0..=240)
+        .map(|i| i as f32 / 240.0)
+        .map(|t| {
+            let env = (-3.0 * std::f32::consts::LN_10 * t).exp(); // −60 dB over the box
+            let y = (by0 + by1) / 2.0 - env * (t * 18.0 * std::f32::consts::TAU).sin() * (by1 - by0) / 2.0;
+            at(bx0 + t * (bx1 - bx0), y)
+        })
+        .collect();
+    p.add(Shape::line(wave, line(0.8, dc.gamma_multiply(0.8))));
+    label(bx0, by1 + 4.0, Align2::LEFT_TOP, &format!("60 dB down in {}", seconds(t60)), Some(Part::Losses));
+
+    // Partials: whole multiples of the fundamental (faint) and the stiff
+    // string's, as tall as the strike excites them.
+    let py = 184.0;
+    label(4.0, py, Align2::LEFT_TOP, "Partials 1–16 (faint: whole multiples; height: how hard struck)", Some(Part::Partials));
+    let base = py + 36.0;
+    let px = |ratio: f64| 16.0 + (ratio / 17.0) as f32 * (W - 26.0);
+    p.line_segment([at(12.0, base), at(W - 8.0, base)], line(1.0, weak));
+    for h in 1..=16u32 {
+        let k_ = h as f64;
+        p.line_segment([at(px(k_), base), at(px(k_), base - 20.0)], line(1.0, weak.gamma_multiply(0.4)));
+        let ratio = k_ * (1.0 + n.b * k_ * k_).sqrt();
+        let amp = (k_ * std::f64::consts::PI * n.strike_pos).sin().abs() as f32;
+        if ratio < 17.0 {
+            p.line_segment([at(px(ratio), base), at(px(ratio), base - 3.0 - 17.0 * amp)], line(2.0, color(Part::Partials, ink)));
+        }
+    }
+    label(W - 4.0, py, Align2::RIGHT_TOP, &format!("B = {:.1e}", n.b), Some(Part::Partials));
+
+    // Keyboard: the key shown, the lit range of a key-number parameter.
+    let ky = KEYS_Y;
+    let range = lit(Part::Keys).then(|| key_range(model, path)).flatten();
+    let in_range = |m: u8| range.is_some_and(|(lo, hi)| (lo..=hi).contains(&m));
+    let key_fill = |m: u8, black: bool| {
+        if m == *key {
+            vis.selection.bg_fill
+        } else if in_range(m) {
+            if black { HIGHLIGHT.gamma_multiply(0.7) } else { HIGHLIGHT.gamma_multiply(0.45) }
+        } else if black {
+            Color32::from_gray(35)
+        } else {
+            Color32::from_gray(215)
+        }
+    };
+    for black in [false, true] {
+        for m in (21..=108u8).filter(|&m| is_black(m) == black) {
+            let (u, w) = key_span(m);
+            let (x0, x1) = (10.0 + u * ww, 10.0 + (u + w) * ww);
+            let rect = r(x0, ky, x1, ky + if black { 0.6 * KEYS_H } else { KEYS_H });
+            p.rect_filled(rect, 1.0, key_fill(m, black));
+            p.rect_stroke(rect, 1.0, Stroke::new(0.5, Color32::from_gray(90)), egui::StrokeKind::Inside);
+        }
+    }
+    if let Some((lo, hi)) = range {
+        label(W - 10.0, ky + KEYS_H + 3.0, Align2::RIGHT_TOP, &format!("{}–{}", note_name(lo), note_name(hi)), Some(Part::Keys));
+    }
+    let (u, w) = key_span(*key);
+    let kx = 10.0 + (u + w / 2.0) * ww;
+    let ky = ky + KEYS_H - 18.0;
+    let text = format!("{name}, {} string{}", n.strings, if n.strings > 1 { "s" } else { "" });
+    let align = if kx < W / 2.0 { Align2::LEFT_TOP } else { Align2::RIGHT_TOP };
+    p.text(at(kx + if kx < W / 2.0 { 6.0 } else { -6.0 }, ky + 26.0), align, text, font.clone(), ink);
+    resp
+}
+
+const KEYS_H: f32 = 22.0;
+
+fn is_black(m: u8) -> bool {
+    matches!(m % 12, 1 | 3 | 6 | 8 | 10)
+}
+
+/// Left edge and width of a key, in white-key widths from A0.
+fn key_span(m: u8) -> (f32, f32) {
+    let whites = (21..m).filter(|&n| !is_black(n)).count() as f32;
+    if is_black(m) { (whites - 0.3, 0.6) } else { (whites, 1.0) }
+}
+
+/// The key at `u` white-key widths from A0 (`upper`: where black keys are).
+fn key_at(u: f32, upper: bool) -> u8 {
+    let hit = |m: &u8| {
+        let (x, w) = key_span(*m);
+        (x..x + w).contains(&u)
+    };
+    let found = if upper { (21..=108u8).filter(|&m| is_black(m)).find(hit) } else { None };
+    found.or_else(|| (21..=108u8).filter(|&m| !is_black(m)).find(hit)).unwrap_or(if u < 0.0 { 21 } else { 108 })
+}
+
+/// The keys a key-number parameter covers.
+fn key_range(model: &PianoModel, path: &str) -> Option<(u8, u8)> {
+    let u = &model.unison;
+    Some(match path {
+        "damper.highest_note" => (21, model.damper.highest_note),
+        "scale.break_note" => (21, model.scale.break_note),
+        "unison.bichord_from" => (u.bichord_from, u.trichord_from.saturating_sub(1)),
+        "unison.trichord_from" => (u.trichord_from, 108),
+        "nonlinear.max_note" => (21, model.nonlinear.max_note),
+        "losses.wound_until" => (21, model.losses.wound_until),
+        "losses.top_from" => (model.losses.top_from, 108),
+        "soundboard.main_bridge_from" => (21, model.soundboard?.main_bridge_from.saturating_sub(1)),
+        _ => return None,
+    })
+}
+
+fn note_name(n: u8) -> String {
+    crate::widgets::note_name(n)
+}
+
+fn seconds(t: f64) -> String {
+    if t >= 10.0 { format!("{t:.0} s") } else { format!("{t:.1} s") }
+}
+
 /// Top-felt depth (mm) shown for a parameter, and the key it is at.
 fn felt_depth(model: &PianoModel, path: &str) -> (f64, &'static str) {
     match path {
@@ -256,11 +570,20 @@ mod tests {
     #[test]
     fn parts_name_real_parameters() {
         let reg = piano_params::Registry::new();
-        assert_eq!(parts_of("damper.pedal_free"), &[Part::SustainPedal]);
-        assert_eq!(parts_of("damper.fall_time"), &[Part::Damper]);
+        let parts_of = |p: &str| locate(p).map_or(&[][..], |(_, parts)| parts);
+        assert_eq!(locate("damper.pedal_free"), Some((Sketch::Action, &[Part::SustainPedal][..])));
+        assert_eq!(locate("damper.fall_time"), Some((Sketch::Action, &[Part::Damper][..])));
+        assert_eq!(locate("damper.position"), Some((Sketch::String, &[Part::DamperPoint][..])));
+        assert_eq!(locate("unison.bichord_from"), Some((Sketch::String, &[Part::Unison, Part::Keys][..])));
         assert_eq!(parts_of("core_depth_mid"), &[Part::Core]);
         assert_eq!(parts_of("hardness_slope_bass"), &[Part::Felt]);
-        assert!(parts_of("output_gain_db").is_empty());
+        assert!(locate("output_gain_db").is_none());
+        // Every key-number parameter lit on the keyboard has its range.
+        let m = PianoModel::default();
+        for p in reg.params().iter().filter(|p| parts_of(&p.path).contains(&Part::Keys)) {
+            let (lo, hi) = key_range(&m, &p.path).unwrap_or_else(|| panic!("{} has no key range", p.path));
+            assert!(21 <= lo && lo <= hi && hi <= 108, "{}: {lo}–{hi}", p.path);
+        }
         // Every part is reached by some parameter.
         for part in [
             Part::Key,
@@ -272,9 +595,34 @@ mod tests {
             Part::KeybedKnock,
             Part::DamperLanding,
             Part::PedalKnock,
+            Part::Strike,
+            Part::DamperPoint,
+            Part::Length,
+            Part::Unison,
+            Part::Polarization,
+            Part::Nonlinear,
+            Part::Losses,
+            Part::Bridge,
+            Part::Partials,
+            Part::Sympathy,
+            Part::Keys,
         ] {
             assert!(reg.params().iter().any(|p| parts_of(&p.path).contains(&part)), "{part:?}");
         }
+    }
+
+    #[test]
+    fn keyboard_layout() {
+        assert_eq!(key_span(21), (0.0, 1.0));
+        assert_eq!(key_span(108), (51.0, 1.0));
+        assert_eq!(key_at(0.5, false), 21);
+        assert_eq!(key_at(0.95, true), 22); // A#0, over A0's right edge
+        assert_eq!(key_at(0.95, false), 21);
+        assert_eq!(key_at(51.5, true), 108);
+        let c4 = key_span(60);
+        assert_eq!(key_at(c4.0 + 0.5, false), 60);
+        assert_eq!(key_at(-1.0, false), 21);
+        assert_eq!(key_at(60.0, false), 108);
     }
 
     #[test]

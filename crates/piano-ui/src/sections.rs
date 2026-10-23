@@ -5,6 +5,8 @@
 
 use piano_core::params::PianoModel;
 
+use crate::sketches::Sketch;
+
 pub struct Curve {
     pub title: &'static str,
     pub unit: &'static str,
@@ -28,8 +30,8 @@ pub enum View {
     None,
     /// The microphones placed around the piano ([`crate::mics`]).
     Mics,
-    /// The action, the hovered parameter's part lit ([`crate::sketches`]).
-    Action,
+    /// Sketches lighting the hovered parameter's part ([`crate::sketches`]).
+    Sketches(&'static [Sketch]),
 }
 
 const KEYS: (u8, u8) = (21, 108);
@@ -45,7 +47,7 @@ pub const SECTIONS: &[Section] = &[
             log: true,
             f: |m, v| m.velocity.hammer_speed(v),
         }],
-        view: View::Action,
+        view: View::Sketches(&[Sketch::Action]),
     },
     Section {
         title: "Microphones",
@@ -71,7 +73,7 @@ pub const SECTIONS: &[Section] = &[
             Curve { title: "Felt stiffness Q0", unit: "N/mm^p", x: KEYS, log: true, f: |m, n| m.note(n).hammer.q0 },
             Curve { title: "Felt exponent p", unit: "", x: KEYS, log: false, f: |m, n| m.note(n).hammer.p },
         ],
-        view: View::Action,
+        view: View::Sketches(&[Sketch::Action]),
     },
     Section {
         title: "Tuning",
@@ -80,7 +82,7 @@ pub const SECTIONS: &[Section] = &[
             Curve { title: "Stretch", unit: "cents", x: KEYS, log: false, f: |m, n| m.stretch.cents(n) },
             Curve { title: "Inharmonicity B", unit: "", x: KEYS, log: true, f: |m, n| m.inharmonicity.b(n) },
         ],
-        view: View::None,
+        view: View::Sketches(&[Sketch::String]),
     },
     Section {
         title: "Strings",
@@ -96,10 +98,10 @@ pub const SECTIONS: &[Section] = &[
             Curve { title: "String length", unit: "m", x: KEYS, log: true, f: |m, n| m.scale.length(n) },
             Curve { title: "Unison spread", unit: "cents", x: KEYS, log: false, f: |m, n| m.unison.width(n) },
         ],
-        view: View::None,
+        view: View::Sketches(&[Sketch::String]),
     },
-    Section { title: "Dampers", prefixes: &["damper.", "sympathetic."], curves: &[], view: View::Action },
-    Section { title: "Noises", prefixes: &["noise."], curves: &[], view: View::Action },
+    Section { title: "Dampers", prefixes: &["damper.", "sympathetic."], curves: &[], view: View::Sketches(&[Sketch::Action, Sketch::String]) },
+    Section { title: "Noises", prefixes: &["noise."], curves: &[], view: View::Sketches(&[Sketch::Action]) },
     Section { title: "Soundboard", prefixes: &["soundboard.", "bridge."], curves: &[], view: View::None },
     Section { title: "Frame & rim", prefixes: &["frame.", "rim."], curves: &[], view: View::None },
     Section { title: "Room", prefixes: &["room."], curves: &[], view: View::None },

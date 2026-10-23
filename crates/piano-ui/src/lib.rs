@@ -34,6 +34,8 @@ pub struct PianoUi {
     /// Parameter under the pointer (registry index), lighting its part in
     /// the page's sketch on the next frame.
     hovered: Option<usize>,
+    /// Key whose string the string sketch shows.
+    key: u8,
     /// Preset folder (TOML files), when the host has one: either flat, or
     /// `instruments/<family>/*.toml` and `listening/*.toml`.
     presets: Option<PathBuf>,
@@ -78,6 +80,7 @@ impl PianoUi {
             about: None,
             mics: mics::MicView::default(),
             hovered: None,
+            key: 60,
             presets,
             preset_name: String::new(),
             listening_names: Default::default(),
@@ -208,7 +211,7 @@ impl PianoUi {
                 });
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     let p = &self.registry.params()[i];
-                    widgets::about(ui, p, piano_params::get(&model, &p.path), &model);
+                    widgets::about(ui, p, piano_params::get(&model, &p.path), &model, &mut self.key);
                 });
             });
             if !open {
@@ -249,38 +252,12 @@ impl PianoUi {
                 self.mics.show(ui, control, model);
                 ui.add_space(8.0);
             }
-            let action = s.view == View::Action;
-            if action || !s.curves.is_empty() {
-                let reference = PianoModel::default();
-                let gap = ui.spacing().item_spacing.x;
-                let n = s.curves.len() as f32;
-                let avail = ui.available_width();
-                let sketch = if action { 380.0f32.min(avail) } else { 0.0 };
-                // Curves beside the sketch when they keep 200 px each, else below.
-                let beside = action && avail - sketch - gap * n >= 200.0 * n;
-                let rest = if beside { avail - sketch - gap } else { avail };
-                let width = ((rest - gap * (n - 1.0)) / n.max(1.0)).clamp(160.0, 420.0);
-                let curves = |ui: &mut Ui| {
-                    for c in s.curves {
-                        widgets::curve(ui, c, model, &reference, width);
-                    }
-                };
-                ui.horizontal_top(|ui| {
-                    if action {
-                        let path = self.hovered.map_or("", |i| self.registry.params()[i].path.as_str());
-                        sketches::action(ui, model, sketches::parts_of(path), path, sketch)
-                            .on_hover_text("Hover a parameter to see where it acts; click its name for details");
-                    }
-                    if beside || !action {
-                        curves(ui);
-                    }
-                });
-                if action && !beside && !s.curves.is_empty() {
-                    ui.horizontal_wrapped(curves);
-                }
-                if !s.curves.is_empty() {
-                    ui.label(RichText::new("Faint: default instrument").small().weak());
-                }
+            let drawn: &[sketches::Sketch] = match s.view {
+                View::Sketches(list) => list,
+                _ => &[],
+            };
+            if !drawn.is_empty() || !s.curves.is_empty() {
+                self.figures(ui, drawn, s.curves, model);
             }
             ui.add_space(8.0);
         } else if shown.is_empty() {
@@ -318,6 +295,53 @@ impl PianoUi {
             }
         });
         self.hovered = hovered;
+    }
+
+    /// A page's sketches and curves, packed in rows: sketches 380 px wide,
+    /// curves sharing the width (at least 160 px each).
+    fn figures(&mut self, ui: &mut Ui, drawn: &[sketches::Sketch], curves: &[sections::Curve], model: &PianoModel) {
+        enum Fig<'a> {
+            Sketch(sketches::Sketch),
+            Curve(&'a sections::Curve),
+        }
+        let gap = ui.spacing().item_spacing.x;
+        let avail = ui.available_width();
+        let n = curves.len() as f32;
+        let curve_w = ((avail - gap * (n - 1.0)) / n.max(1.0)).clamp(160.0, 420.0);
+        let sketch_w = 380.0f32.min(avail);
+        let figs: Vec<(Fig, f32)> = drawn
+            .iter()
+            .map(|&s| (Fig::Sketch(s), sketch_w))
+            .chain(curves.iter().map(|c| (Fig::Curve(c), curve_w)))
+            .collect();
+        let mut rows: Vec<Vec<&(Fig, f32)>> = vec![vec![]];
+        let mut used = 0.0;
+        for f in &figs {
+            if used > 0.0 && used + gap + f.1 > avail {
+                rows.push(vec![]);
+                used = 0.0;
+            }
+            used += if used > 0.0 { gap } else { 0.0 } + f.1;
+            rows.last_mut().unwrap().push(f);
+        }
+        let reference = PianoModel::default();
+        let path = self.hovered.map_or(String::new(), |i| self.registry.params()[i].path.clone());
+        for row in rows {
+            ui.horizontal_top(|ui| {
+                for (fig, w) in row {
+                    match fig {
+                        Fig::Sketch(s) => {
+                            sketches::draw(ui, *s, model, &path, &mut self.key, *w)
+                                .on_hover_text("Hover a parameter to see where it acts; click its name for details");
+                        }
+                        Fig::Curve(c) => widgets::curve(ui, c, model, &reference, *w),
+                    }
+                }
+            });
+        }
+        if !curves.is_empty() {
+            ui.label(RichText::new("Faint: default instrument").small().weak());
+        }
     }
 
     /// The controllers mapped, with the values at CC 0 and 127.

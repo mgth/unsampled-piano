@@ -159,7 +159,7 @@ const HELP: &[(&str, &str, &str)] = &[
     (
         "strike_ratio",
         "Where the hammer hits the string, as a share of its length from the tuning-pin end. Near \
-         1/8 it barely excites the 8th overtone, which would sound harsh; closer to the end the \
+         1/8 it barely excites the 8th partial, which would sound harsh; closer to the end the \
          tone gets brighter and thinner, further in rounder.",
         "Strike point x0 = ratio·L up to C6, moving 0.05 closer to the agraffe by C8. Partial k is \
          struck with sin(kπ·x0/L) (times the felt-width sinc): partials with a node at the strike \

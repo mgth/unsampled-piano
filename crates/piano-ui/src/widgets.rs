@@ -78,7 +78,7 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
 
 /// The help of a parameter: where it acts, what it does on the piano, then
 /// how the model implements it.
-pub fn about(ui: &mut Ui, p: &Param, value: Option<Value>, model: &PianoModel) {
+pub fn about(ui: &mut Ui, p: &Param, value: Option<Value>, model: &PianoModel, key: &mut u8) {
     ui.horizontal(|ui| {
         kind_mark(ui, matches!(p.kind, Kind::Live(_)));
         ui.heading(&p.meta.label);
@@ -88,9 +88,8 @@ pub fn about(ui: &mut Ui, p: &Param, value: Option<Value>, model: &PianoModel) {
     let now = value.map_or("off in this model".into(), |v| format!("{}{unit}", show(v.as_f64())));
     ui.label(RichText::new(format!("{now} (default {}{unit})", show(p.default.as_f64()))).weak());
     ui.add_space(8.0);
-    let parts = crate::sketches::parts_of(&p.path);
-    if !parts.is_empty() {
-        crate::sketches::action(ui, model, parts, &p.path, ui.available_width().min(440.0));
+    if let Some((sketch, _)) = crate::sketches::locate(&p.path) {
+        crate::sketches::draw(ui, sketch, model, &p.path, key, ui.available_width().min(440.0));
         ui.add_space(8.0);
     }
     let Some(h) = piano_params::help(&p.path) else { return };
