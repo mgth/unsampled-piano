@@ -1,0 +1,62 @@
+# Builds the standalone player for Windows (WASAPI and ASIO output) and
+# keeps it as an artifact, zipped with the presets. A version tag (v*) also
+# attaches it to a GitHub release.
+name: Standalone
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: standalone-windows
+
+      # ASIO: asio-sys downloads the Steinberg SDK (dual-licensed, GPLv3) and
+      # generates its bindings with libclang, preinstalled with LLVM.
+      - name: Build (WASAPI and ASIO)
+        env:
+          LIBCLANG_PATH: C:\Program Files\LLVM\bin
+        run: cargo build --profile dist -p piano-play --features asio
+
+      - name: Smoke test (list the outputs)
+        run: target/dist/unsampled-piano.exe --list | Out-Host
+
+      - name: Archive
+        shell: bash
+        run: |
+          dir=unsampled-piano
+          mkdir "$dir"
+          cp target/dist/unsampled-piano.exe LICENSE README.md "$dir/"
+          cp -r presets "$dir/"
+          7z a -tzip unsampled-piano-standalone-windows-x86_64.zip "$dir"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsampled-piano-standalone-windows-x86_64
+          path: unsampled-piano-standalone-windows-x86_64.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: unsampled-piano-standalone-*.zip

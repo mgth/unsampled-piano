@@ -1,6 +1,6 @@
 [package]
 name = "piano-play"
-description = "Real-time standalone player: a PipeWire graph node (audio, MIDI in, MIDI mirror out) or cpal output."
+description = "Real-time standalone player: a PipeWire graph node (audio, MIDI in, MIDI mirror out) or cpal output (WASAPI, ASIO, ALSA…)."
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
@@ -25,3 +25,11 @@ rtrb.workspace = true
 clap.workspace = true
 jack = "0.13"
 toml.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console", "Win32_UI_WindowsAndMessaging"] }
+
+[features]
+# ASIO output on Windows (`--host asio`). Building it needs the Steinberg
+# ASIO SDK (`CPAL_ASIO_DIR`, else downloaded), libclang and MSVC.
+asio = ["cpal/asio"]

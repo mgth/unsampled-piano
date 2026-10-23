@@ -135,28 +135,11 @@ impl PianoControl for PluginControl<'_> {
 /// Presets: `presets` in the configuration's play.toml, else the folder
 /// of its `preset`, else `presets` in the configuration directory.
 fn presets_dir() -> Option<std::path::PathBuf> {
-    let dir = config_dir()?;
+    let dir = piano_host::config_dir()?;
     let table: Option<toml::Table> = std::fs::read_to_string(dir.join("play.toml")).ok().and_then(|t| t.parse().ok());
     let from_config = table.as_ref().and_then(|t| {
         let s = |k: &str| t.get(k).and_then(|v| v.as_str()).map(std::path::PathBuf::from);
         s("presets").or_else(|| s("preset").and_then(|p| p.parent().map(|d| d.to_path_buf())))
     });
     from_config.or(Some(dir.join("presets"))).filter(|d| d.is_dir())
-}
-
-/// The platform's configuration directory for the instrument:
-/// `%APPDATA%\unsampled-piano` (Windows), `~/Library/Application
-/// Support/unsampled-piano` (macOS), `$XDG_CONFIG_HOME/unsampled-piano`
-/// else `~/.config/unsampled-piano`.
-fn config_dir() -> Option<std::path::PathBuf> {
-    use std::path::PathBuf;
-    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
-    let base = if cfg!(windows) {
-        env("APPDATA")
-    } else if cfg!(target_os = "macos") {
-        env("HOME").map(|h| h.join("Library").join("Application Support"))
-    } else {
-        env("XDG_CONFIG_HOME").or_else(|| env("HOME").map(|h| h.join(".config")))
-    };
-    base.map(|b| b.join("unsampled-piano"))
 }

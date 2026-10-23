@@ -37,6 +37,12 @@ tools/calibrate.sh data/salamander/Samples out/calib
 cargo test --workspace
 ```
 
+## Windows
+
+The standalone player comes from the `Standalone` workflow of GitHub Actions (run it from the Actions tab, or push a `v*` tag): a zip with `unsampled-piano.exe`, which needs nothing else installed, and the presets beside it. Double-clicked, it opens the interface and plays through the default WASAPI output, with the first MIDI keyboard; from a terminal it takes the same options as on Linux, e.g. `--host asio` (the buffer size is then the one set in the driver's control panel), `--device`, `--output-channel` for a pair other than 1–2 on a multichannel interface. Personal defaults go in `%APPDATA%\unsampled-piano\play.toml` (also `host = "asio"`).
+
+Building it locally: `cargo build --profile dist -p piano-play` (cross-compiling from Linux works with `--target x86_64-pc-windows-gnu`). ASIO is the `asio` feature: it needs the Steinberg ASIO SDK (dual-licensed, GPLv3; `CPAL_ASIO_DIR`, else downloaded), libclang and MSVC, so cross-compiling it with MinGW does not work.
+
 ## Plugin
 
 CLAP and VST3 instrument, "Unsampled Piano". The live parameters (output gain, pedal and damper behaviour, velocity curve, mechanical noises) are automatable host parameters; the rest of the instrument and the MIDI-learnt controllers are saved with the project, and editing them rebuilds the instrument in the background without cutting the notes.

@@ -1,10 +1,26 @@
 //! Host-side helpers shared by the renderer and the real-time player:
 //! instrument presets (TOML), decoding of raw MIDI messages and reading of
-//! standard MIDI files.
+//! standard MIDI files, and the configuration directory.
 
 use piano_core::params::PianoModel;
 use piano_core::Event;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// The platform's configuration directory for the instrument:
+/// `%APPDATA%\unsampled-piano` (Windows), `~/Library/Application
+/// Support/unsampled-piano` (macOS), `$XDG_CONFIG_HOME/unsampled-piano`
+/// else `~/.config/unsampled-piano`.
+pub fn config_dir() -> Option<PathBuf> {
+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    let base = if cfg!(windows) {
+        env("APPDATA")
+    } else if cfg!(target_os = "macos") {
+        env("HOME").map(|h| h.join("Library").join("Application Support"))
+    } else {
+        env("XDG_CONFIG_HOME").or_else(|| env("HOME").map(|h| h.join(".config")))
+    };
+    base.map(|b| b.join("unsampled-piano"))
+}
 
 /// Loads an instrument preset. Missing sections or fields keep the default
 /// instrument's values, so a preset only needs what it changes.
