@@ -58,6 +58,29 @@ const HELP: &[(&str, &str, &str)] = &[
          the top felt is deeper by half that (+30 % at 0.6): the hard core is reached later. Read \
          at each strike.",
     ),
+    (
+        "una_corda_shift",
+        "What the left pedal does. On a grand (1) it shifts the action so that each hammer \
+         strikes one string fewer; on an upright (0) it does not shift anything, it moves the \
+         hammers closer to the strings instead (see half blow).",
+        "The first string of each bichord and trichord gets (1 − shift·s) of the hammer force, and \
+         the felt softening is applied with shift·s, for the soft pedal at s (CC 67, 0–1).",
+    ),
+    (
+        "half_blow",
+        "How much quieter the left pedal of an upright plays: it moves the hammers closer to the \
+         strings, so they travel less and strike more slowly. 0 on a grand.",
+        "Hammer speed × (1 − half_blow·s), soft pedal at s. 0.1 matches a commercial modelled \
+         piano's upright (−1 dB, timbre nearly unchanged).",
+    ),
+    (
+        "mute_felt",
+        "The middle pedal of many uprights lowers a strip of felt between hammers and strings, \
+         for practising quietly: a muffled, felty tone. This is the strip's thickness; 0 makes \
+         the middle pedal a sostenuto, as on a grand.",
+        "While CC 66 is down, new strikes go through a strip of t mm in series with the felt: Q0 × \
+         min(1, 0.09/t), hysteresis × 3, core reached t mm later. An estimate (no reference).",
+    ),
     // Velocity
     (
         "velocity.vmin",
@@ -451,6 +474,15 @@ const HELP: &[(&str, &str, &str)] = &[
         "Depth (m) of the back face's image: p = iωρ0/(2π)·∫ v·(e^(−ikR)/R − β·e^(−ikR')/R') dS.",
     ),
     ("soundboard.back_gain", "How much of the underside's sound reaches the mics (rim and keybed shield it partly). 0: an infinite baffle.", "β in the Rayleigh integral; calibrated on the spectral tilt of Salamander."),
+    (
+        "soundboard.wall_distance",
+        "An upright usually stands against a wall: the sound of the back of its soundboard \
+         bounces off it and comes back into the room. Distance from the board to the wall; 0: no \
+         wall.",
+        "Adds the back face's image in the wall, path R'' with the back-face depth plus \
+         2·distance, gain −β·r.",
+    ),
+    ("soundboard.wall_reflection", "How much sound the wall behind the piano reflects (1: hard wall).", "Pressure reflection coefficient r of the wall image."),
     (
         "soundboard.lid_angle",
         "How far the lid is open (0: removed). An open lid reflects the sound towards the audience \

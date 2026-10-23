@@ -21,6 +21,13 @@ use crate::note_model::NoteModel;
 use crate::unison::MAX_OSC;
 
 pub const MAX_MODES: usize = 768;
+
+/// The practice mute's felt strip: a loose woven felt, far softer than the
+/// hammer's pressed felt. In series with it, a strip of t mm leaves the
+/// hammer MUTE_STIFFNESS_MM/t of its Q0 (3 mm: 0.03), and is lossier
+/// (hysteresis factor).
+const MUTE_STIFFNESS_MM: f64 = 0.09;
+const MUTE_HYSTERESIS: f64 = 3.0;
 /// Below this bridge-force energy (N²) a free-decaying sympathetic bank is
 /// left alone.
 const SYM_SILENCE: f32 = 1e-12;
@@ -133,8 +140,11 @@ impl Voice {
     /// `una_corda` ∈ [0, 1] shifts the hammer off the first string and onto
     /// felt the strings have not grooved: softer (`softening` at full
     /// shift) and less compacted, so thicker over the hard core (by half the
-    /// softening: +30 % at 0.6).
-    pub fn strike(&mut self, nm: &NoteModel, v: f64, oversample: usize, una_corda: f64, softening: f64) {
+    /// softening: +30 % at 0.6). `mute` (mm) is the felt strip of an
+    /// upright's practice pedal between hammer and strings: the hammer
+    /// strikes through a soft, lossy layer before its own felt.
+    #[allow(clippy::too_many_arguments)]
+    pub fn strike(&mut self, nm: &NoteModel, v: f64, oversample: usize, una_corda: f64, softening: f64, mute: f64) {
         if self.contact.is_active() {
             self.hand_over(nm);
         }
@@ -147,6 +157,11 @@ impl Voice {
         let u = softening * una_corda.clamp(0.0, 1.0);
         np.hammer.q0 *= 1.0 - u;
         np.hammer.core_depth *= 1.0 + 0.5 * u;
+        if mute > 0.0 {
+            np.hammer.q0 *= (MUTE_STIFFNESS_MM / mute).min(1.0);
+            np.hammer.alpha *= MUTE_HYSTERESIS;
+            np.hammer.core_depth += 1e-3 * mute;
+        }
         let bank = &self.bank;
         let modes = nm.clusters.iter().enumerate().flat_map(move |(ki, cl)| {
             let mut c = [C64::ZERO; MAX_OSC];

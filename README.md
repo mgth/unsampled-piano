@@ -99,6 +99,7 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 - What rings on after the release (undamped top strings, damper range): [docs/release_ring.md](docs/release_ring.md)
 - A range of instruments from one engine (hammer mass, strike point, preset fitting): [docs/instrument_range.md](docs/instrument_range.md)
 - Room level (piano directivity, microphone patterns): [docs/room_level.md](docs/room_level.md)
+- Uprights (half blow, practice mute, wall, board crown): [docs/upright.md](docs/upright.md)
 
 ## License
 

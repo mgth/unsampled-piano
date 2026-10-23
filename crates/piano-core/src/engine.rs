@@ -99,6 +99,8 @@ pub struct Engine {
     sustain: f64,
     soft: f64,
     sostenuto_down: bool,
+    /// Middle pedal down while it works a practice mute (`mute_felt` > 0).
+    mute_down: bool,
     /// Bridge force per region for the current block: primary (hammer
     /// response) and sympathetic.
     region: Vec<Vec<f32>>,
@@ -172,6 +174,7 @@ impl Engine {
             sustain: 0.0,
             soft: 0.0,
             sostenuto_down: false,
+            mute_down: false,
             region: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             region_sym: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             region_agraffe: vec![vec![0.0; SUB_BLOCK]; REGIONS],
@@ -538,6 +541,7 @@ impl Engine {
                 self.sustain = new;
                 self.sustain_prev = new;
             }
+            Event::Control { cc: 66, value } if self.live.mute_felt > 0.0 => self.mute_down = value >= 64,
             Event::Control { cc: 66, value } => {
                 let down = value >= 64;
                 if down && !self.sostenuto_down {
@@ -606,7 +610,11 @@ impl Engine {
         v.key_down = true;
         let softening = self.live.una_corda_softening;
         let vh = self.live.velocity.hammer_speed(velocity);
-        v.strike(nm, vh, contact_oversampling(&cfg, note), self.soft, softening);
+        // An upright's soft pedal shortens the throw (half-blow); a grand's
+        // shifts the action (una corda).
+        let thrown = vh * (1.0 - self.live.half_blow * self.soft).max(0.0);
+        let mute = if self.mute_down { self.live.mute_felt } else { 0.0 };
+        v.strike(nm, thrown, contact_oversampling(&cfg, note), self.soft * self.live.una_corda_shift, softening, mute);
         v.damper_speed = 1.0;
         // The key bottoms on the keybed as the hammer reaches the string.
         self.knock(region_of(note), self.live.noise.keybed * vh);
@@ -650,7 +658,7 @@ pub fn strike_stats_full(cfg: &EngineConfig, note: u8, velocity: u8, oversample:
     let mut v = Voice::new(cfg.sample_rate, cfg.max_block);
     v.setup(&nm, false, 0.0);
     let os = oversample.unwrap_or_else(|| contact_oversampling(cfg, note));
-    v.strike(&nm, hammer_velocity(cfg, velocity), os, 0.0, 0.0);
+    v.strike(&nm, hammer_velocity(cfg, velocity), os, 0.0, 0.0, 0.0);
     let mut out = vec![0.0f32; 256];
     while v.contact.is_active() {
         v.contact.run(&mut out, None);

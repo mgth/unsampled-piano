@@ -24,7 +24,9 @@
 //! Radiation: each mode's velocity field radiates through the Rayleigh
 //! integral, `p = iωρ₀/(2π)·∫ v·(e^{−ikR}/R − β·e^{−ikR'}/R') dS`, where the
 //! second term is the back face (antiphase, image at the case depth, R' its
-//! distance): an unbaffled board short-circuits its low frequencies.
+//! distance): an unbaffled board short-circuits its low frequencies. A
+//! wall behind the board (an upright's) reflects that back face's sound
+//! once more towards the mics.
 //! Evaluated once per mode and microphone at the mode frequency, and
 //! rendered on the modal acceleration ([`crate::board::to_acceleration_weights`]),
 //! so that a mode driven below its resonance radiates at the driving
@@ -122,6 +124,12 @@ pub struct SoundboardParams {
     /// of an infinite baffle. back_gain = 0 is the baffled plate.
     pub back_depth: f64,
     pub back_gain: f64,
+    /// A reflecting wall parallel to the board, `wall_distance` m behind
+    /// its back face (0: none), as behind an upright: the back face's sound
+    /// reaches the mics a second time, after 2·wall_distance more and with
+    /// the wall's pressure reflection coefficient `wall_reflection`.
+    pub wall_distance: f64,
+    pub wall_reflection: f64,
     /// Lid opening angle (degrees); 0 = lid removed. It is hinged along the
     /// board's long side y = b, `lid_hinge_height` m above the board, as long
     /// as the board is wide, and opens towards y < 0 (the audience).
@@ -205,6 +213,8 @@ impl SoundboardParams {
         // Calibrated on the spectral tilt of Salamander (low bands).
         back_depth: 0.6,
         back_gain: 0.6,
+        wall_distance: 0.0,
+        wall_reflection: 0.9,
         // Removed lid: the default mics hang above the board (calibrated
         // set-up); see presets/listening/Microphones/concert.toml for an open lid.
         lid_angle: 0.0,
@@ -253,6 +263,8 @@ struct Path {
     direct: f64,
     /// Distance of the back-face image.
     rb: f64,
+    /// Distance of its reflection in the wall (0: no wall).
+    rw: f64,
     /// Lid image: (distance, gain), gain 0 when the reflection misses.
     image: (f64, f64),
 }
@@ -515,6 +527,11 @@ impl Soundboard {
                         r: (d2 + mz * mz).sqrt(),
                         direct,
                         rb: (d2 + (mz + p.back_depth).powi(2)).sqrt(),
+                        rw: if p.wall_distance > 0.0 {
+                            (d2 + (mz + p.back_depth + 2.0 * p.wall_distance).powi(2)).sqrt()
+                        } else {
+                            0.0
+                        },
                         image: image.unwrap_or((0.0, 0.0)),
                     }
                 }));
@@ -545,6 +562,9 @@ impl Soundboard {
                     for (mic, pt) in g.iter().enumerate() {
                         acc[mic] += C64::polar(pt.direct * phi * ds / pt.r, -k * pt.r)
                             - C64::polar(p.back_gain * phi * ds / pt.rb, -k * pt.rb);
+                        if pt.rw > 0.0 {
+                            acc[mic] += C64::polar(-p.wall_reflection * p.back_gain * phi * ds / pt.rw, -k * pt.rw);
+                        }
                         if pt.image.1 != 0.0 {
                             acc[mic] += C64::polar(pt.image.1 * phi * ds / pt.image.0, -k * pt.image.0);
                         }
@@ -585,6 +605,18 @@ mod tests {
             .sum::<f64>()
             / n as f64;
         assert!(mean > 0.3 * p.mean_mobility() && mean < 3.0 * p.mean_mobility(), "mean Re Y {mean:e}");
+    }
+
+    #[test]
+    fn wall_reflects_only_the_back_face() {
+        let base = SoundboardParams { f_max: 400.0, grid_step: 0.05, ..SoundboardParams::GRAND_2M };
+        let low = |p: SoundboardParams| Soundboard::new(p).radiation()[0][0].norm();
+        let walled = SoundboardParams { wall_distance: 0.3, ..base };
+        // The lowest mode is a dipole: the wall's image of the back face
+        // adds to it in phase with the back face.
+        assert!((low(walled) - low(base)).abs() > 0.05 * low(base));
+        let baffled = SoundboardParams { back_gain: 0.0, ..base };
+        assert_eq!(low(SoundboardParams { wall_distance: 0.3, ..baffled }), low(baffled));
     }
 
     #[test]

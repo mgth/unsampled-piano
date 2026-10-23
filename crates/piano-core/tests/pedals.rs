@@ -1,7 +1,7 @@
 //! Behaviour of dampers, pedals and sympathetic resonance.
 
 use piano_core::instrument::Instrument;
-use piano_core::{Engine, EngineConfig, Event, TimedEvent};
+use piano_core::{Engine, EngineConfig, Event, LiveParam, TimedEvent};
 use std::sync::{Arc, OnceLock};
 
 fn instrument() -> Arc<Instrument> {
@@ -121,6 +121,41 @@ fn una_corda_is_darker_and_keeps_its_sustain() {
     let gain: f64 = notes.iter().map(|&n| measure(127, n).1 - measure(0, n).1).sum::<f64>() / notes.len() as f64;
     eprintln!("mean late/early change with una corda: {gain:+.1} dB");
     assert!(gain > -1.5, "una corda should not lose sustain");
+}
+
+/// An upright's pedals: the soft pedal shortens the hammers' throw instead
+/// of shifting the action, and the middle pedal lowers a practice mute.
+#[test]
+fn upright_soft_pedal_and_practice_mute() {
+    let upright = [
+        (0.0, Event::Param { id: LiveParam::UnaCordaShift, value: 0.0 }),
+        (0.0, Event::Param { id: LiveParam::HalfBlow, value: 0.1 }),
+        (0.0, Event::Param { id: LiveParam::MuteFelt, value: 3.0 }),
+    ];
+    let measure = |pedal: Option<u8>| {
+        let mut script = upright.to_vec();
+        script.extend(pedal.map(|c| (0.0, cc(c, 127))));
+        script.push((0.01, on(60, 100)));
+        let (x, _) = render(&script, 0.3);
+        let att = &x[480..2880];
+        let d: f64 = att.windows(2).map(|w| ((w[1] - w[0]) as f64).powi(2)).sum();
+        let e: f64 = att.iter().map(|v| (*v as f64).powi(2)).sum();
+        (rms_db(att), 10.0 * (d / e).log10())
+    };
+    let ((l0, b0), (l1, b1), (l2, b2)) = (measure(None), measure(Some(67)), measure(Some(66)));
+    eprintln!("C4: soft pedal {:+.1} dB, brightness {:+.1} dB; mute {:+.1} dB, brightness {:+.1} dB", l1 - l0, b1 - b0, l2 - l0, b2 - b0);
+    assert!((-3.0..-0.3).contains(&(l1 - l0)), "half blow: {:.1} dB", l1 - l0);
+    assert!(b1 - b0 > -1.5, "half blow should barely darken: {:.1} dB", b1 - b0);
+    assert!(b2 < b0 - 3.0 && l2 < l0 - 1.0, "the mute should be duller and quieter");
+    // With a mute, the middle pedal no longer holds the keys down.
+    let middle = |script: &[(f64, Event)]| {
+        let mut s = script.to_vec();
+        s.extend([(0.0, on(48, 100)), (0.1, cc(66, 127)), (0.2, off(48))]);
+        key_energy_db(&s, 1.0, 48)
+    };
+    let (sostenuto, mute) = (middle(&[]), middle(&upright));
+    eprintln!("C3 0.8 s after release, middle pedal down: sostenuto {sostenuto:.0} dB, mute {mute:.0} dB");
+    assert!(mute < sostenuto - 40.0, "C3 held by the mute's pedal");
 }
 
 #[test]

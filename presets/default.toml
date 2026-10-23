@@ -3,6 +3,9 @@
 
 a4 = 440.0
 una_corda_softening = 0.6
+una_corda_shift = 1.0
+half_blow = 0.0
+mute_felt = 0.0
 output_gain_db = 0.0
 hardness = 0.3
 hardness_slope = 0.02
@@ -145,6 +148,8 @@ radiate = true
 grid_step = 0.015
 back_depth = 0.6
 back_gain = 0.6
+wall_distance = 0.0
+wall_reflection = 0.9
 lid_angle = 0.0
 lid_hinge_height = 0.25
 lid_reflection = 0.85

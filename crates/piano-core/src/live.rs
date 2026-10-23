@@ -53,6 +53,9 @@ macro_rules! live_params {
 live_params! {
     OutputGainDb => "output_gain_db", output_gain_db;
     UnaCordaSoftening => "una_corda_softening", una_corda_softening;
+    UnaCordaShift => "una_corda_shift", una_corda_shift;
+    HalfBlow => "half_blow", half_blow;
+    MuteFelt => "mute_felt", mute_felt;
     VelocityMin => "velocity.vmin", velocity.vmin;
     VelocityMax => "velocity.vmax", velocity.vmax;
     DamperStrength => "damper.strength", damper.strength;

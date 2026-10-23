@@ -571,6 +571,17 @@ pub struct PianoModel {
     pub rim: crate::structure::RimParams,
     /// Felt softening when the una corda pedal shifts the action fully.
     pub una_corda_softening: f64,
+    /// Share of the sideways shift at full soft pedal: 1 on a grand (una
+    /// corda); 0 on an upright, whose soft pedal moves the hammers closer
+    /// to the strings instead (`half_blow`).
+    pub una_corda_shift: f64,
+    /// Hammer speed lost at full soft pedal: the half-blow rail of an
+    /// upright shortens the hammers' throw (0 on a grand).
+    pub half_blow: f64,
+    /// Thickness (mm) of the felt strip that an upright's middle pedal
+    /// lowers between hammers and strings (practice mute); 0: the middle
+    /// pedal is a sostenuto.
+    pub mute_felt: f64,
     /// Output level (dB): close microphones hear the piano louder than
     /// distant ones; presets set it to keep a comparable loudness.
     pub output_gain_db: f64,
@@ -631,6 +642,9 @@ impl Default for PianoModel {
             frame: crate::structure::FrameParams::GRAND_2M,
             rim: crate::structure::RimParams::GRAND_2M,
             una_corda_softening: 0.6,
+            una_corda_shift: 1.0,
+            half_blow: 0.0,
+            mute_felt: 0.0,
             output_gain_db: 0.0,
             // Top felt 0.3 × Stulov, slightly harder towards the treble, with
             // the core shallower at C4 and less hysteresis: the middle's ff
