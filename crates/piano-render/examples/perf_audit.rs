@@ -222,7 +222,7 @@ fn main() {
             let build = t.elapsed().as_secs_f64();
             let n_board = inst.board.as_ref().map_or(0, |b| b.len());
             println!("\n== {mname} / {vname}: built in {:.0} ms, {n_board} board modes", 1e3 * build);
-            let cfg = EngineConfig { sample_rate: sr, max_block: block, polyphony: poly, model: m, threads };
+            let cfg = EngineConfig { sample_rate: sr, max_block: block, polyphony: poly, model: m, threads, quality: Default::default() };
             for (name, tl, dur) in sc.iter().filter(|s| wanted(s.0)) {
                 print(name, &run(&inst, cfg, tl, *dur));
             }

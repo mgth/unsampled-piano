@@ -83,7 +83,7 @@ pub struct Controller {
 pub fn new(model: PianoModel, cfg: EngineConfig) -> (Controller, EngineSlot) {
     let cfg = EngineConfig { model, ..cfg };
     let t = Instant::now();
-    let engine = Box::new(Engine::with_instrument(cfg, Arc::new(Instrument::new(model, cfg.sample_rate))));
+    let engine = Box::new(Engine::with_instrument(cfg, Arc::new(Instrument::new(cfg.quality.apply(&model), cfg.sample_rate))));
     let report = Arc::new(Mutex::new(Report { last_build: Some(t.elapsed()), error: None }));
     let shared = Arc::new(Shared::default());
     let (params_tx, params_rx) = rtrb::RingBuffer::new(1024);
@@ -266,7 +266,7 @@ fn worker(
         }
         let t = Instant::now();
         let built = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            let inst = Arc::new(Instrument::new(model, cfg.sample_rate));
+            let inst = Arc::new(Instrument::new(cfg.quality.apply(&model), cfg.sample_rate));
             Box::new(Engine::with_instrument(EngineConfig { model, ..cfg }, inst))
         }));
         let mut engine = match built {

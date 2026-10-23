@@ -99,6 +99,17 @@ struct Args {
     /// given; the endpoint is http://ADDR/mcp.
     #[arg(long, value_name = "ADDR", num_args = 0..=1, default_missing_value = piano_mcp::DEFAULT_ADDR)]
     mcp: Option<String>,
+    /// Threads rendering the voices (default 1, the audio thread alone);
+    /// the sound is the same whatever the number.
+    #[arg(long)]
+    threads: Option<usize>,
+    /// CPU quality: full (default), balanced or light (see
+    /// docs/performance.md).
+    #[arg(long)]
+    quality: Option<String>,
+    /// From play.toml only: start with the last sound (default true).
+    #[arg(skip)]
+    restore: Option<bool>,
 }
 
 /// Silence between two files (s), and after the last one before quitting.
@@ -123,8 +134,14 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
         return list(&args);
     }
 
+    // The preset asked for, else the last sound (unless switched off).
+    let last = LastSound::new();
     let model = match &args.preset {
         Some(p) => piano_host::load_preset(p)?,
+        None => last.load(restore_last(&args)).unwrap_or_default(),
+    };
+    let quality = match args.quality.as_deref() {
+        Some(q) => piano_core::Quality::from_name(q).ok_or_else(|| format!("unknown quality {q:?}: full, balanced or light"))?,
         None => Default::default(),
     };
     let mut midi_map = MidiMapFile::new();
@@ -139,6 +156,8 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
         output_channel: args.output_channel,
         midi: args.midi.clone(),
         midi_out: args.midi_out.clone(),
+        threads: args.threads.unwrap_or(1).max(1),
+        quality,
     };
     let stats = Arc::new(Stats::default());
     // The keyboard, unless files play alone.
@@ -163,14 +182,18 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let presets = args.presets.clone().or_else(|| args.preset.as_ref().and_then(|p| p.parent()).map(Path::to_path_buf));
     let presets = presets.or_else(|| Some(PathBuf::from("presets")).filter(|p| p.is_dir()));
     let presets = presets.or_else(|| piano_host::config_dir().map(|d| d.join("presets")));
+    let mut mcp_url = None;
     if let Some(addr) = &args.mcp {
         match piano_mcp::serve(addr, control.clone(), presets.clone()) {
-            Ok(url) => eprintln!("MCP server: {url}"),
+            Ok(url) => {
+                eprintln!("MCP server: {url}");
+                mcp_url = Some(url);
+            }
             Err(e) => eprintln!("{e}"),
         }
     }
 
-    let sup = Supervisor { control: control.clone(), watch, midi_map, stats, pieces, end_s, sr, repaint: Default::default() };
+    let sup = Supervisor { control: control.clone(), watch, midi_map, last, stats, pieces, end_s, sr, repaint: Default::default() };
     if !args.ui {
         sup.run(true);
         drop(audio);
@@ -186,8 +209,8 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let shipped: Vec<PathBuf> = beside.chain(piano_host::installed_preset_dirs()).collect();
     let preset = args.preset.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().into_owned());
     let title = if args.name == "unsampled-piano" { "Unsampled Piano".to_string() } else { format!("Unsampled Piano — {}", args.name) };
-    let play_toml = piano_host::config_dir().map(|d| d.join("play.toml"));
-    window::run(control, repaint, presets, shipped, preset, &title, audio, play_toml)?;
+    let app = window::AppSettings { file: piano_host::config_dir().map(|d| d.join("play.toml")), mcp_url, restore: restore_last(&args) };
+    window::run(control, repaint, presets, shipped, preset, &title, audio, app)?;
     Ok(())
 }
 
@@ -233,6 +256,7 @@ struct Supervisor {
     control: Arc<Mutex<Controller>>,
     watch: Option<PresetWatch>,
     midi_map: MidiMapFile,
+    last: LastSound,
     stats: Arc<Stats>,
     pieces: Vec<(f64, String, f64)>,
     end_s: f64,
@@ -263,6 +287,7 @@ impl Supervisor {
                 if let Some(map) = control.midi().map(|l| l.map().clone()) {
                     self.midi_map.save_if_changed(&map);
                 }
+                self.last.save_when_settled(&control.model());
                 // Controllers move sliders: redraw when the model changed.
                 if let Some(ctx) = self.repaint.get() {
                     let now = format!("{:?}", control.model());
@@ -342,6 +367,64 @@ impl MidiMapFile {
             eprintln!("{}: {e}", path.display());
         }
     }
+}
+
+/// The sound the player had last, `last.toml` in the configuration
+/// directory: saved once it has not changed for 2 s, loaded at start
+/// (`restore` in play.toml, on by default) when no preset is given.
+struct LastSound {
+    path: Option<PathBuf>,
+    /// What the file holds, and what changed since (when).
+    saved: String,
+    pending: Option<(String, Instant)>,
+}
+
+impl LastSound {
+    fn new() -> Self {
+        Self { path: piano_host::config_dir().map(|d| d.join("last.toml")), saved: String::new(), pending: None }
+    }
+
+    fn load(&self, wanted: bool) -> Option<piano_core::params::PianoModel> {
+        let path = self.path.as_ref().filter(|p| wanted && p.is_file())?;
+        match piano_host::load_preset(path) {
+            Ok(m) => {
+                eprintln!("last sound: {}", path.display());
+                Some(m)
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                None
+            }
+        }
+    }
+
+    fn save_when_settled(&mut self, model: &piano_core::params::PianoModel) {
+        let Some(path) = &self.path else { return };
+        let text = piano_host::preset_toml(model);
+        if text == self.saved {
+            self.pending = None;
+            return;
+        }
+        match &self.pending {
+            Some((t, since)) if *t == text => {
+                if since.elapsed() >= Duration::from_secs(2) {
+                    let written = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::fs::write(path, &text));
+                    if let Err(e) = written {
+                        eprintln!("{}: {e}", path.display());
+                    }
+                    self.saved = text;
+                    self.pending = None;
+                }
+            }
+            _ => self.pending = Some((text, Instant::now())),
+        }
+    }
+}
+
+/// Whether to start with the last sound: `restore` in play.toml, on by
+/// default.
+fn restore_last(args: &Args) -> bool {
+    args.restore.unwrap_or(true)
 }
 
 /// The preset file, reloaded when its modification time changes.
@@ -457,6 +540,13 @@ fn apply_user_config(args: &mut Args) {
     if let (false, Some(g)) = (given("--gain-db"), number("gain_db")) {
         args.gain_db = g as f32;
     }
+    if let (false, Some(t)) = (given("--threads"), number("threads")) {
+        args.threads = Some(t as usize);
+    }
+    if !given("--quality") {
+        args.quality = args.quality.take().or(string("quality"));
+    }
+    args.restore = table.get("restore").and_then(|v| v.as_bool());
     if !given("--presets") {
         args.presets = args.presets.take().or(string("presets").map(PathBuf::from));
     }
@@ -496,5 +586,29 @@ fn demo(mut tx: Queue) {
         }
         let _ = tx.push(Event::Control { cc: 64, value: 0 });
         wait(1.0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_last_sound_is_saved_once_settled() {
+        let dir = std::env::temp_dir().join(format!("piano-play-last-{}", std::process::id()));
+        let path = dir.join("last.toml");
+        let mut last = LastSound { path: Some(path.clone()), saved: String::new(), pending: None };
+        let model = piano_core::params::PianoModel { output_gain_db: -7.5, ..Default::default() };
+        // Still changing: nothing written yet.
+        last.save_when_settled(&model);
+        assert!(!path.exists());
+        // Unchanged for 2 s: written, and read back at the next start.
+        let since = &mut last.pending.as_mut().unwrap().1;
+        *since = since.checked_sub(Duration::from_secs(3)).unwrap();
+        last.save_when_settled(&model);
+        assert!(path.exists());
+        assert_eq!(last.load(true).map(|m| m.output_gain_db), Some(-7.5));
+        assert!(last.load(false).is_none());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

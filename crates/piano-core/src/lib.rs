@@ -18,5 +18,5 @@ pub mod structure;
 pub mod unison;
 pub mod voice;
 
-pub use engine::{Engine, EngineConfig, Event, TimedEvent};
+pub use engine::{Engine, EngineConfig, Event, Quality, TimedEvent};
 pub use live::LiveParam;

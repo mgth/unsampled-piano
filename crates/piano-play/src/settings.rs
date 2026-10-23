@@ -4,6 +4,7 @@
 //! [`crate::audio`]), then saves to `play.toml`.
 
 use crate::audio::{host_label, Choices, Settings, BUFFER, BUFFERS};
+use piano_core::Quality;
 use egui::{RichText, Ui};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -12,6 +13,11 @@ pub enum Request {
     Apply(Settings),
     /// Read the devices and ports again.
     Refresh,
+    /// Serve the instrument to AI assistants (from now; off at the next
+    /// start).
+    Mcp(bool),
+    /// Start with the last sound.
+    Restore(bool),
 }
 
 /// What the page shows and asks, shared with the window.
@@ -22,6 +28,19 @@ pub struct PageState {
     /// Where the settings are saved.
     pub file: Option<PathBuf>,
     pub request: Option<Request>,
+    /// The MCP server: wanted at start, and its URL once running.
+    pub mcp: bool,
+    pub mcp_url: Option<String>,
+    pub restore: bool,
+}
+
+/// What a quality level leaves out, for its menu entry.
+fn quality_text(q: Quality) -> &'static str {
+    match q {
+        Quality::Full => "Full: the whole model",
+        Quality::Balanced => "Balanced: sympathy below 2 kHz, phantom partials up to C3, 96 voices",
+        Quality::Light => "Light: no sympathy, phantom partials, frame or rim; one polarisation",
+    }
 }
 
 pub struct SettingsPage(pub Arc<Mutex<PageState>>);
@@ -151,6 +170,60 @@ impl piano_ui::HostPage for SettingsPage {
         ui.add_space(12.0);
         let note = "Changing the backend or a sound card's device restarts the audio and rebuilds the instrument (about 0.1 s).";
         ui.label(RichText::new(note).small().weak());
+        ui.add_space(14.0);
+        ui.label(RichText::new("Performance").strong());
+        egui::Grid::new("performance-settings").num_columns(2).spacing([16.0, 8.0]).show(ui, |ui| {
+            ui.label("Voice threads");
+            ui.horizontal(|ui| {
+                let cores = std::thread::available_parallelism().map_or(4, |n| n.get()).min(8);
+                let text = |n: usize| if n == 1 { "1 (the audio thread alone)".to_string() } else { format!("{n}") };
+                egui::ComboBox::from_id_salt("threads").selected_text(text(s.threads)).show_ui(ui, |ui| {
+                    for n in 1..=cores {
+                        if ui.selectable_label(s.threads == n, text(n)).clicked() {
+                            want = Some(Settings { threads: n, ..s.clone() });
+                        }
+                    }
+                });
+                ui.label(RichText::new("2 take about a third off the load and its spikes").weak())
+                    .on_hover_text("The voices are computed on other cores, the sound is the same bit for bit. The extra threads spin briefly after each block (one core per thread while playing).");
+            });
+            ui.end_row();
+            ui.label("CPU quality");
+            ui.vertical(|ui| {
+                egui::ComboBox::from_id_salt("quality").selected_text(quality_text(s.quality)).width(420.0).show_ui(ui, |ui| {
+                    for q in Quality::ALL {
+                        if ui.selectable_label(s.quality == q, quality_text(q)).clicked() {
+                            want = Some(Settings { quality: q, ..s.clone() });
+                        }
+                    }
+                });
+                if s.quality != Quality::Full {
+                    let note = "Overrides those parameters while it is on; presets keep their own values.";
+                    ui.label(RichText::new(note).small().weak());
+                }
+            });
+            ui.end_row();
+        });
+        ui.label(RichText::new("Changing the threads or the quality rebuilds the engine (about 0.1 s). Balanced and Light have not been compared by ear yet.").small().weak());
+
+        ui.add_space(14.0);
+        ui.label(RichText::new("Application").strong());
+        let mut restore = st.restore;
+        if ui.checkbox(&mut restore, "Start with the last sound").on_hover_text("Without a preset on the command line, the player starts with the instrument and listening set-up it had when it was closed").changed() {
+            st.request = Some(Request::Restore(restore));
+        }
+        ui.horizontal(|ui| {
+            let mut mcp = st.mcp;
+            if ui.checkbox(&mut mcp, "Serve the instrument to AI assistants (MCP)").changed() {
+                st.request = Some(Request::Mcp(mcp));
+            }
+            match (&st.mcp_url, st.mcp) {
+                (Some(url), true) => ui.label(RichText::new(url).monospace().weak()),
+                (Some(_), false) => ui.label(RichText::new("stops at the next start").weak()),
+                _ => ui.label(""),
+            };
+        });
+
         if let Some(f) = &st.file {
             ui.label(RichText::new(format!("Saved in {}; options given on the command line take precedence.", f.display())).small().weak());
         }

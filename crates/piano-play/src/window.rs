@@ -27,6 +27,8 @@ struct Window {
     shot: piano_ui::shot::Shot,
     audio: Audio,
     page: Arc<Mutex<PageState>>,
+    /// The preset folder, for the MCP server started from the page.
+    presets: Option<PathBuf>,
 }
 
 impl eframe::App for Window {
@@ -51,13 +53,33 @@ impl eframe::App for Window {
 impl Window {
     fn answer(&mut self, request: Request) {
         let mut error = None;
+        let file = self.page.lock().unwrap().file.clone();
+        let save = |key: &str, value: bool| file.as_ref().map_or(Ok(()), |f| audio::save_keys(f, &[(key, Some(value.to_string()))]));
+        match &request {
+            Request::Mcp(on) => {
+                let mut st = self.page.lock().unwrap();
+                st.mcp = *on;
+                if *on && st.mcp_url.is_none() {
+                    match piano_mcp::serve(piano_mcp::DEFAULT_ADDR, self.control.clone(), self.presets.clone()) {
+                        Ok(url) => st.mcp_url = Some(url),
+                        Err(e) => error = Some(e),
+                    }
+                }
+                drop(st);
+                error = save("mcp", *on).err().or(error);
+            }
+            Request::Restore(on) => {
+                self.page.lock().unwrap().restore = *on;
+                error = save("restore", *on).err();
+            }
+            _ => {}
+        }
         if let Request::Apply(s) = request {
             if let Err(e) = self.audio.apply(s, &self.control) {
                 error = Some(e);
             }
-            let file = self.page.lock().unwrap().file.clone();
-            if let Some(f) = file
-                && let Err(e) = audio::save(&self.audio.settings, &f)
+            if let Some(f) = &file
+                && let Err(e) = audio::save(&self.audio.settings, f)
             {
                 error = Some(e);
             }
@@ -70,8 +92,16 @@ impl Window {
     }
 }
 
-/// Opens the window and returns when it is closed. `play_toml`: where the
-/// audio and MIDI settings are saved.
+/// The player's own settings shown on the page, besides the audio ones.
+pub struct AppSettings {
+    /// `play.toml`, where the page saves.
+    pub file: Option<PathBuf>,
+    /// The MCP server's URL when it was started with the player.
+    pub mcp_url: Option<String>,
+    pub restore: bool,
+}
+
+/// Opens the window and returns when it is closed.
 #[allow(clippy::too_many_arguments)]
 pub fn run(
     control: Arc<Mutex<Controller>>,
@@ -81,9 +111,9 @@ pub fn run(
     preset: Option<String>,
     title: &str,
     audio: Audio,
-    play_toml: Option<PathBuf>,
+    app: AppSettings,
 ) -> eframe::Result {
-    let mut ui = PianoUi::new(presets);
+    let mut ui = PianoUi::new(presets.clone());
     ui.add_preset_dirs(shipped);
     if let Some(p) = preset {
         ui.set_preset_name(&p);
@@ -92,8 +122,11 @@ pub fn run(
         settings: audio.settings.clone(),
         choices: audio.choices(),
         error: None,
-        file: play_toml,
+        file: app.file,
         request: None,
+        mcp: app.mcp_url.is_some(),
+        mcp_url: app.mcp_url,
+        restore: app.restore,
     }));
     ui.set_host_page(Box::new(SettingsPage(page.clone())));
     if let Ok(p) = std::env::var("PIANO_UI_PAGE") {
@@ -113,7 +146,7 @@ pub fn run(
         options,
         Box::new(move |cc| {
             let _ = repaint.set(cc.egui_ctx.clone());
-            Ok(Box::new(Window { ui, control, shot: piano_ui::shot::Shot::from_env(), audio, page }))
+            Ok(Box::new(Window { ui, control, shot: piano_ui::shot::Shot::from_env(), audio, page, presets }))
         }),
     )
 }

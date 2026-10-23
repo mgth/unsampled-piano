@@ -14,7 +14,7 @@ use crate::player::{Player, Stats, MAX_BLOCK};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use piano_control::Controller;
 use piano_core::params::PianoModel;
-use piano_core::{EngineConfig, Event};
+use piano_core::{EngineConfig, Event, Quality};
 use piano_params::midi::MidiMap;
 use piano_params::PianoControl;
 use std::sync::{Arc, Mutex};
@@ -39,6 +39,9 @@ pub struct Settings {
     pub midi: Option<String>,
     /// Graph MIDI inputs the mirror output feeds (node).
     pub midi_out: Option<String>,
+    /// Threads rendering the voices (1: the audio thread alone).
+    pub threads: usize,
+    pub quality: Quality,
 }
 
 /// What may be chosen now, and what is connected.
@@ -135,10 +138,11 @@ impl Audio {
         if new == self.settings {
             return Ok(());
         }
-        // Still the graph node: only its connections change (its period was
-        // requested when it started: a new buffer size waits for the next
-        // start).
-        let node_still = new.host.as_deref().unwrap_or(default_backend()) == "node";
+        // Still the graph node and the same engine: only its connections
+        // change (its period was requested when it started: a new buffer
+        // size waits for the next start).
+        let same_engine = new.threads == self.settings.threads && new.quality == self.settings.quality;
+        let node_still = same_engine && new.host.as_deref().unwrap_or(default_backend()) == "node";
         if let (true, Some(Live::Node { .. })) = (node_still, &self.live) {
             self.settings = new;
             self.connect_node();
@@ -179,7 +183,14 @@ impl Audio {
     /// connects it.
     fn launch(&mut self, backend: Backend, model: PianoModel, map: Option<MidiMap>, start: Start) -> Result<Controller, String> {
         let sr = backend_rate(&backend);
-        let cfg = EngineConfig { sample_rate: sr, max_block: MAX_BLOCK, model, ..Default::default() };
+        let cfg = EngineConfig {
+            sample_rate: sr,
+            max_block: MAX_BLOCK,
+            model,
+            threads: self.settings.threads.max(1),
+            quality: self.settings.quality,
+            ..Default::default()
+        };
         let (mut control, engine) = piano_control::new(model, cfg);
         if let Some(map) = map {
             control.set_midi_map(map);
@@ -545,20 +556,29 @@ pub fn default_sink_prefix() -> Option<String> {
     Some(desc.unwrap_or(name))
 }
 
-/// The settings into `play.toml`, line by line so that the user's comments
-/// and other keys stay: a key set replaces its line (or is appended), a key
-/// back to automatic loses it.
+/// The settings into `play.toml` (see [`save_keys`]).
 pub fn save(settings: &Settings, path: &std::path::Path) -> Result<(), String> {
-    let text = std::fs::read_to_string(path).unwrap_or_default();
     let quote = |s: &str| toml::Value::String(s.into()).to_string();
-    let entries: [(&str, Option<String>); 6] = [
-        ("host", settings.host.as_deref().map(quote)),
-        ("device", settings.device.as_deref().map(quote)),
-        ("buffer", settings.buffer.map(|b| b.to_string())),
-        ("output_channel", (settings.output_channel != 1).then(|| settings.output_channel.to_string())),
-        ("midi", settings.midi.as_deref().map(quote)),
-        ("midi_out", settings.midi_out.as_deref().map(quote)),
-    ];
+    save_keys(
+        path,
+        &[
+            ("host", settings.host.as_deref().map(quote)),
+            ("device", settings.device.as_deref().map(quote)),
+            ("buffer", settings.buffer.map(|b| b.to_string())),
+            ("output_channel", (settings.output_channel != 1).then(|| settings.output_channel.to_string())),
+            ("midi", settings.midi.as_deref().map(quote)),
+            ("midi_out", settings.midi_out.as_deref().map(quote)),
+            ("threads", (settings.threads > 1).then(|| settings.threads.to_string())),
+            ("quality", (settings.quality != Quality::Full).then(|| quote(settings.quality.name()))),
+        ],
+    )
+}
+
+/// Keys of `play.toml` (values in TOML), line by line so that the user's
+/// comments and other keys stay: a key set replaces its line (or is
+/// appended), a key set to None loses it.
+pub fn save_keys(path: &std::path::Path, entries: &[(&str, Option<String>)]) -> Result<(), String> {
+    let text = std::fs::read_to_string(path).unwrap_or_default();
     let key_of = |line: &str| line.split('=').next().map(str::trim).filter(|k| !k.starts_with('#')).map(str::to_string);
     let mut lines: Vec<String> = Vec::new();
     let mut written = Vec::new();
@@ -572,7 +592,7 @@ pub fn save(settings: &Settings, path: &std::path::Path) -> Result<(), String> {
             None => lines.push(line.to_string()),
         }
     }
-    for (k, v) in &entries {
+    for (k, v) in entries {
         if let (Some(v), false) = (v, written.contains(k)) {
             lines.push(format!("{k} = {v}"));
         }
@@ -585,6 +605,19 @@ pub fn save(settings: &Settings, path: &std::path::Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn settings(host: Option<&str>) -> Settings {
+        Settings {
+            host: host.map(str::to_string),
+            device: None,
+            buffer: None,
+            output_channel: 1,
+            midi: None,
+            midi_out: None,
+            threads: 1,
+            quality: Quality::Full,
+        }
+    }
 
     #[test]
     fn outputs_group_their_channels() {
@@ -600,7 +633,7 @@ mod tests {
     #[ignore = "needs a running PipeWire (JACK API) server: cargo test -p piano-play -- --ignored"]
     fn switches_while_playing() {
         use piano_params::Value;
-        let s = Settings { host: Some("node".into()), device: None, buffer: None, output_channel: 1, midi: Some("zz-none".into()), midi_out: None };
+        let s = Settings { host: Some("node".into()), midi: Some("zz-none".into()), ..settings(None) };
         let start = |_| Ok(Start { timeline: Vec::new(), listen: true, demo: None });
         let (mut a, c) = Audio::start(s.clone(), "piano-switch-test", 0.0, Arc::default(), PianoModel::default(), None, start).unwrap();
         let control = Arc::new(Mutex::new(c));
@@ -630,6 +663,12 @@ mod tests {
         a.apply(s.clone(), &control).unwrap();
         assert_eq!(a.choices().backend, "node");
         assert_eq!(control.lock().unwrap().model().output_gain_db, -6.0);
+
+        // Threads and quality on the node: a new engine, the edit kept.
+        let before = Arc::as_ptr(control.lock().unwrap().shared());
+        a.apply(Settings { threads: 2, quality: Quality::Light, ..s.clone() }, &control).unwrap();
+        assert_ne!(Arc::as_ptr(control.lock().unwrap().shared()), before);
+        assert_eq!((a.choices().backend.as_str(), control.lock().unwrap().model().output_gain_db), ("node", -6.0));
     }
 
     #[test]
@@ -638,7 +677,7 @@ mod tests {
         let path = dir.join("play.toml");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(&path, "# my set-up\ndevice = \"Old\"\nui = true\nbuffer = 512\n").unwrap();
-        let s = Settings { host: Some("alsa".into()), device: Some("New \"one\"".into()), buffer: None, output_channel: 3, midi: None, midi_out: None };
+        let s = Settings { host: Some("alsa".into()), device: Some("New \"one\"".into()), output_channel: 3, ..settings(None) };
         save(&s, &path).unwrap();
         let text = std::fs::read_to_string(&path).unwrap();
         // The comment and the other keys stay in place, the device's line too.

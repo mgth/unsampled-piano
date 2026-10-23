@@ -73,6 +73,9 @@ pub struct EngineConfig {
     /// Threads rendering the voices (the audio thread included); 1: none
     /// started. The output does not depend on it.
     pub threads: usize,
+    /// CPU quality: parts of the model left out on smaller machines, applied
+    /// to every instrument built ([`Quality::apply`]).
+    pub quality: Quality,
 }
 
 impl Default for EngineConfig {
@@ -83,7 +86,69 @@ impl Default for EngineConfig {
             polyphony: 128,
             model: PianoModel::default(),
             threads: 1,
+            quality: Quality::Full,
         }
+    }
+}
+
+/// CPU quality levels (docs/performance.md, "Compromises for smaller
+/// configurations"). The preset keeps its values: a level only changes the
+/// model the instrument is built from.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Quality {
+    /// The whole model.
+    #[default]
+    Full,
+    /// Sympathetic strings below 2 kHz, phantom partials up to C3, 96
+    /// voices: about a third less in dense music.
+    Balanced,
+    /// No sympathetic resonance, no phantom partials, no frame or rim, one
+    /// polarisation: about a third of Full (AVX2 laptops, ARM).
+    Light,
+}
+
+impl Quality {
+    pub const ALL: [Quality; 3] = [Quality::Full, Quality::Balanced, Quality::Light];
+
+    /// The model an instrument is built from at this level.
+    pub fn apply(self, model: &PianoModel) -> PianoModel {
+        let mut m = *model;
+        match self {
+            Quality::Full => {}
+            Quality::Balanced => {
+                m.sympathetic.max_freq = m.sympathetic.max_freq.min(2000.0);
+                m.nonlinear.max_note = m.nonlinear.max_note.min(48);
+            }
+            Quality::Light => {
+                m.sympathetic.enabled = false;
+                m.nonlinear.enabled = false;
+                m.frame.enabled = false;
+                m.rim.enabled = false;
+                m.polarization.enabled = false;
+            }
+        }
+        m
+    }
+
+    /// Voices at this level, at most `polyphony`.
+    pub fn polyphony(self, polyphony: usize) -> usize {
+        match self {
+            Quality::Balanced => polyphony.min(96),
+            _ => polyphony,
+        }
+    }
+
+    /// Lowercase name, as in play.toml.
+    pub fn name(self) -> &'static str {
+        match self {
+            Quality::Full => "full",
+            Quality::Balanced => "balanced",
+            Quality::Light => "light",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|q| q.name().eq_ignore_ascii_case(name))
     }
 }
 
@@ -159,12 +224,14 @@ const PARALLEL_MIN_VOICES: usize = 4;
 impl Engine {
     /// Builds the instrument (≈ 0.5 s): not for the audio thread.
     pub fn new(cfg: EngineConfig) -> Self {
-        Self::with_instrument(cfg, Arc::new(Instrument::new(cfg.model, cfg.sample_rate)))
+        Self::with_instrument(cfg, Arc::new(Instrument::new(cfg.quality.apply(&cfg.model), cfg.sample_rate)))
     }
 
-    /// Engine on a prebuilt (shared) instrument; `cfg.model` is ignored.
+    /// Engine on a prebuilt (shared) instrument, built from
+    /// `cfg.quality.apply(model)`; `cfg.model` is ignored.
     pub fn with_instrument(cfg: EngineConfig, inst: Arc<Instrument>) -> Self {
         assert_eq!(inst.sample_rate, cfg.sample_rate);
+        let cfg = EngineConfig { polyphony: cfg.quality.polyphony(cfg.polyphony), ..cfg };
         let voices = (0..cfg.polyphony).map(|_| Voice::new(cfg.sample_rate, cfg.max_block)).collect();
         let rim_couple = inst.rim.as_ref().map_or(&[][..], |r| &r.couple[..]);
         let board = inst.board.as_ref().map(|m| BoardBank::with_extra(cfg.sample_rate, m, rim_couple, SUB_BLOCK));
