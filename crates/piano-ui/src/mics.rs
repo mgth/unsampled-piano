@@ -28,6 +28,8 @@ struct Setup {
     /// The listening preset it matches (presets/listening/Microphones).
     preset: Option<&'static str>,
     mics: [(f64, f64, f64); 2],
+    /// The positions for an upright (`mics_upright`).
+    upright: [(f64, f64, f64); 2],
     /// `mics` x and y in shares of the board (they follow its size).
     relative: bool,
     lid_angle: f64,
@@ -45,6 +47,7 @@ const SETUPS: [Setup; 4] = [
         hint: "Cardioids 40 cm above the bass and treble parts of the bridge, lid open at 35°",
         preset: Some("close"),
         mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
+        upright: [(0.705882, 0.653846, 0.4), (0.294118, 0.346154, 0.4)],
         relative: true,
         lid_angle: 35.0,
         gain_db: -9.6,
@@ -55,6 +58,7 @@ const SETUPS: [Setup; 4] = [
         hint: "An omni pair in front of the opening, 2 m above the board, lid open at 35°",
         preset: Some("concert"),
         mics: [(0.323529, -1.230769, 2.0), (0.735294, -1.230769, 2.0)],
+        upright: [(-0.2, 0.7, 2.0), (-0.2, 0.3, 2.0)],
         relative: true,
         lid_angle: 35.0,
         gain_db: 3.4,
@@ -65,6 +69,7 @@ const SETUPS: [Setup; 4] = [
         hint: "The concert pair 1 m above the board, lid closed",
         preset: Some("audience_lid_closed"),
         mics: [(0.323529, -1.230769, 1.0), (0.735294, -1.230769, 1.0)],
+        upright: [(0.0, 0.7, 1.6), (0.0, 0.3, 1.6)],
         relative: true,
         lid_angle: 0.0,
         gain_db: 0.0,
@@ -75,6 +80,7 @@ const SETUPS: [Setup; 4] = [
         hint: "1.5 m above the board, lid removed: the set-up the model was calibrated with",
         preset: None,
         mics: SoundboardParams::GRAND_2M.mics,
+        upright: SoundboardParams::GRAND_2M.mics_upright,
         relative: false,
         lid_angle: 0.0,
         gain_db: 0.0,
@@ -171,17 +177,23 @@ fn behind_lid(sb: &SoundboardParams, m: [f64; 3]) -> bool {
     (0.0..=1.05 * sb.b).contains(&t) && (-0.05..=sb.a + 0.05).contains(&x[0])
 }
 
+/// The pair of positions in use: the upright's own on a standing board.
+fn pair(raw: &SoundboardParams) -> (&'static str, [(f64, f64, f64); 2]) {
+    if raw.vertical { ("mics_upright", raw.mics_upright) } else { ("mics", raw.mics) }
+}
+
 /// Edits putting the microphones at `moved` (m), in the model's units
 /// (shares of the board when its positions are relative), for the
-/// coordinates that changed.
+/// coordinates that changed, on the pair in use.
 fn mic_edits(raw: &SoundboardParams, moved: &[[f64; 3]; 2]) -> Vec<(String, f64)> {
+    let field = pair(raw).0;
     let size = [raw.a, raw.b, 1.0];
     let before = raw.resolved().mics.map(|(x, y, z)| [x, y, z]);
     let mut edits = Vec::new();
     for (i, m) in moved.iter().enumerate() {
         for k in (0..3).filter(|&k| cm(m[k]) != cm(before[i][k])) {
             let v = if raw.mics_relative && k < 2 { (cm(m[k]) / size[k] * 1e4).round() / 1e4 } else { cm(m[k]) };
-            edits.push((format!("soundboard.mics[{i}][{k}]"), v));
+            edits.push((format!("soundboard.{field}[{i}][{k}]"), v));
         }
     }
     edits
@@ -291,7 +303,7 @@ impl MicView {
         ui.horizontal_wrapped(|ui| {
             ui.label("Set-up:");
             for s in &SETUPS {
-                let on = s.mics == raw.mics
+                let on = (if raw.vertical { s.upright == raw.mics_upright } else { s.mics == raw.mics })
                     && s.relative == raw.mics_relative
                     && s.lid_angle == raw.lid_angle
                     && s.gain_db == raw.mic_gain_db
@@ -307,9 +319,11 @@ impl MicView {
                         ("soundboard.mic_pattern".to_string(), s.pattern),
                         ("soundboard.mics_relative".to_string(), if s.relative { 1.0 } else { 0.0 }),
                     ];
-                    for (i, m) in s.mics.iter().enumerate() {
-                        for (j, v) in [m.0, m.1, m.2].into_iter().enumerate() {
-                            edits.push((format!("soundboard.mics[{i}][{j}]"), v));
+                    for (field, mics) in [("mics", s.mics), ("mics_upright", s.upright)] {
+                        for (i, m) in mics.iter().enumerate() {
+                            for (j, v) in [m.0, m.1, m.2].into_iter().enumerate() {
+                                edits.push((format!("soundboard.{field}[{i}][{j}]"), v));
+                            }
                         }
                     }
                     edits.retain(|(p, v)| piano_params::get(model, p).is_none_or(|old| old.as_f64() != *v));
@@ -318,9 +332,10 @@ impl MicView {
             }
             ui.separator();
             if ui.button("Swap left and right").on_hover_text("Exchange the two microphones (the stereo image turns round)").clicked() {
-                let m = raw.mics.map(|(x, y, z)| [x, y, z]);
+                let (field, m) = pair(raw);
+                let m = m.map(|(x, y, z)| [x, y, z]);
                 let edits: Vec<(String, f64)> =
-                    (0..2).flat_map(|i| (0..3).map(move |j| (format!("soundboard.mics[{i}][{j}]"), m[1 - i][j]))).collect();
+                    (0..2).flat_map(|i| (0..3).map(move |j| (format!("soundboard.{field}[{i}][{j}]"), m[1 - i][j]))).collect();
                 commit(control, &edits);
             }
         });
@@ -483,7 +498,7 @@ impl MicView {
             p.line_segment([hinge, map.elev(sb.b - reach, top)], Stroke::new(3.0, LID));
             p.text(map.elev(sb.b - reach, top) + Vec2::new(4.0, 0.0), Align2::LEFT_CENTER, format!("Lid {:.0}°", sb.lid_angle), font.clone(), weak);
         }
-        let title = if sb.vertical { "From above: height is the distance in front of the board" } else { "Seen from the keyboard" };
+        let title = if sb.vertical { "From above (height: distance in front)" } else { "Seen from the keyboard" };
         p.text(Pos2::new(rect.left() + 2.0, sep + 4.0), Align2::LEFT_TOP, title, font.clone(), ink);
         // 1 m scale.
         let y0 = sep + 26.0;
@@ -765,8 +780,8 @@ mod tests {
             let m = piano_host::load_listening(&dir.join(format!("{name}.toml")), &PianoModel::default()).unwrap();
             let sb = m.soundboard.unwrap();
             assert_eq!(
-                (sb.mics, sb.mics_relative, sb.lid_angle, sb.mic_gain_db, sb.mic_pattern),
-                (s.mics, s.relative, s.lid_angle, s.gain_db, s.pattern),
+                (sb.mics, sb.mics_upright, sb.mics_relative, sb.lid_angle, sb.mic_gain_db, sb.mic_pattern),
+                (s.mics, s.upright, s.relative, s.lid_angle, s.gain_db, s.pattern),
                 "{name}"
             );
         }
@@ -781,13 +796,24 @@ mod tests {
     }
 
     #[test]
+    fn an_upright_moves_its_own_pair() {
+        let raw = SoundboardParams { vertical: true, mics_relative: true, mics_upright: [(0.0, 0.7, 1.6), (0.0, 0.3, 1.6)], ..SoundboardParams::GRAND_2M };
+        let mut moved = raw.resolved().mics.map(|(x, y, z)| [x, y, z]);
+        assert_eq!(moved[0], [0.0, 0.7 * raw.b, 1.6]);
+        moved[0][2] = 1.2;
+        assert_eq!(mic_edits(&raw, &moved), vec![("soundboard.mics_upright[0][2]".to_string(), 1.2)]);
+    }
+
+    #[test]
     fn setups_fit_the_curated_ranges() {
         let reg = piano_params::Registry::new();
         for s in &SETUPS {
-            for (i, m) in s.mics.iter().enumerate() {
-                for (j, v) in [m.0, m.1, m.2].into_iter().enumerate() {
-                    let meta = &reg.get(&format!("soundboard.mics[{i}][{j}]")).unwrap().meta;
-                    assert!(meta.curated && (meta.min..=meta.max).contains(&v), "{} mic {i}: {v}", s.name);
+            for (field, mics) in [("mics", s.mics), ("mics_upright", s.upright)] {
+                for (i, m) in mics.iter().enumerate() {
+                    for (j, v) in [m.0, m.1, m.2].into_iter().enumerate() {
+                        let meta = &reg.get(&format!("soundboard.{field}[{i}][{j}]")).unwrap().meta;
+                        assert!(meta.curated && (meta.min..=meta.max).contains(&v), "{} {field} {i}: {v}", s.name);
+                    }
                 }
             }
         }
@@ -798,8 +824,8 @@ mod tests {
         let sb = PianoModel::default().soundboard.unwrap();
         let s = &SETUPS[3];
         assert_eq!(
-            (s.mics, s.relative, s.lid_angle, s.gain_db, s.pattern),
-            (sb.mics, sb.mics_relative, sb.lid_angle, sb.mic_gain_db, sb.mic_pattern)
+            (s.mics, s.upright, s.relative, s.lid_angle, s.gain_db, s.pattern),
+            (sb.mics, sb.mics_upright, sb.mics_relative, sb.lid_angle, sb.mic_gain_db, sb.mic_pattern)
         );
     }
 
