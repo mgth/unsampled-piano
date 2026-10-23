@@ -22,6 +22,27 @@ pub fn config_dir() -> Option<PathBuf> {
     base.map(|b| b.join("unsampled-piano"))
 }
 
+/// Where an installer puts the presets shipped with the instrument, found
+/// by the standalone player and the plugins alike (the existing ones):
+/// `%PROGRAMDATA%\Unsampled Piano\presets` (all users) and
+/// `%LOCALAPPDATA%\Unsampled Piano\presets` (current user) on Windows,
+/// `/Library/Application Support/Unsampled Piano/presets` and the user's
+/// own on macOS, `unsampled-piano/presets` in `$XDG_DATA_DIRS` (else
+/// /usr/local/share, /usr/share) elsewhere.
+pub fn installed_preset_dirs() -> Vec<PathBuf> {
+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    let dirs: Vec<PathBuf> = if cfg!(windows) {
+        ["PROGRAMDATA", "LOCALAPPDATA"].iter().filter_map(|k| env(k)).map(|d| d.join("Unsampled Piano").join("presets")).collect()
+    } else if cfg!(target_os = "macos") {
+        let support = |d: PathBuf| d.join("Library/Application Support/Unsampled Piano/presets");
+        [Some(PathBuf::from("/")), env("HOME")].into_iter().flatten().map(support).collect()
+    } else {
+        let data = std::env::var("XDG_DATA_DIRS").ok().filter(|v| !v.is_empty()).unwrap_or("/usr/local/share:/usr/share".into());
+        data.split(':').map(|d| PathBuf::from(d).join("unsampled-piano").join("presets")).collect()
+    };
+    dirs.into_iter().filter(|d| d.is_dir()).collect()
+}
+
 /// Loads an instrument preset. Missing sections or fields keep the default
 /// instrument's values, so a preset only needs what it changes.
 pub fn load_preset(path: &Path) -> Result<PianoModel, String> {

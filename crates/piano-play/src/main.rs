@@ -85,8 +85,9 @@ struct Args {
     /// Open the interface window (every parameter, presets, MIDI learn).
     #[arg(long)]
     ui: bool,
-    /// Preset folder of the interface (default: the --preset file's, else
-    /// ./presets).
+    /// Preset folder of the interface, where it saves (default: the
+    /// --preset file's, else ./presets, else `presets` in the configuration
+    /// directory); the shipped presets are listed after it.
     #[arg(long)]
     presets: Option<PathBuf>,
 }
@@ -309,17 +310,18 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let repaint = sup.repaint.clone();
     // Keeps polling (MIDI learn, preset file) while the window is hidden.
     std::thread::spawn(move || sup.run(false));
+    // Saved presets: --presets, the --preset file's folder, ./presets (a
+    // checkout), else the configuration directory's.
     let presets = args.presets.clone().or_else(|| args.preset.as_ref().and_then(|p| p.parent()).map(Path::to_path_buf));
     let presets = presets.or_else(|| Some(PathBuf::from("presets")).filter(|p| p.is_dir()));
-    // An installed copy: the presets next to the program, or in the macOS
-    // bundle's resources.
-    let beside = || {
-        let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-        [dir.join("presets"), dir.join("../Resources/presets")].into_iter().find(|p| p.is_dir())
-    };
-    let presets = presets.or_else(beside);
+    let presets = presets.or_else(|| piano_host::config_dir().map(|d| d.join("presets")));
+    // Shipped presets, listed after: next to the program (zip), in the
+    // macOS bundle's resources, or where an installer put them.
+    let exe_dir = std::env::current_exe().ok().and_then(|e| e.parent().map(Path::to_path_buf));
+    let beside = exe_dir.into_iter().flat_map(|d| [d.join("presets"), d.join("../Resources/presets")]).filter(|p| p.is_dir());
+    let shipped: Vec<PathBuf> = beside.chain(piano_host::installed_preset_dirs()).collect();
     let preset = args.preset.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().into_owned());
-    window::run(control, repaint, presets, preset, &if args.name == "unsampled-piano" { "Unsampled Piano".to_string() } else { format!("Unsampled Piano — {}", args.name) })?;
+    window::run(control, repaint, presets, shipped, preset, &if args.name == "unsampled-piano" { "Unsampled Piano".to_string() } else { format!("Unsampled Piano — {}", args.name) })?;
     Ok(())
 }
 

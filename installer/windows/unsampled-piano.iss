@@ -1,7 +1,8 @@
 ; Windows installer (Inno Setup 6): the standalone player and the plugins,
-; each one chosen by the user. Installs for all users (Program Files,
-; Common Files\VST3 and \CLAP) or, without administrator rights, for the
-; current user only (%LOCALAPPDATA%\Programs, ...\Common\VST3 and \CLAP).
+; each one chosen by the user, and the presets they share. Installs for all
+; users (Program Files, Common Files\VST3 and \CLAP, ProgramData) or,
+; without administrator rights, for the current user only
+; (%LOCALAPPDATA%\Programs, ...\Common\VST3 and \CLAP, %LOCALAPPDATA%).
 ;
 ; Expects the built files (see the Standalone workflow):
 ;   target\dist\unsampled-piano.exe
@@ -83,7 +84,11 @@ Name: "desktopicon"; Description: "{cm:DesktopIcon}"; Components: standalone; Fl
 [Files]
 Source: "{#Root}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"
 Source: "{#Root}\target\dist\unsampled-piano.exe"; DestDir: "{app}"; Components: standalone; Flags: ignoreversion
-Source: "{#Root}\presets\*"; DestDir: "{app}\presets"; Components: standalone; Flags: ignoreversion recursesubdirs createallsubdirs
+; The presets, for the application and the plugins alike: where they look
+; for installed presets (piano_host::installed_preset_dirs). The user's own
+; are saved in %APPDATA%\unsampled-piano\presets and stay on uninstall.
+Source: "{#Root}\presets\*"; DestDir: "{commonappdata}\{#AppName}\presets"; Check: IsAdminInstallMode; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Root}\presets\*"; DestDir: "{localappdata}\{#AppName}\presets"; Check: not IsAdminInstallMode; Flags: ignoreversion recursesubdirs createallsubdirs
 ; {autocf}: Common Files for all users, %LOCALAPPDATA%\Programs\Common for
 ; the current user: where hosts look for VST3 and CLAP plugins.
 Source: "{#Root}\target\bundled\{#AppName}.vst3\*"; DestDir: "{autocf}\VST3\{#AppName}.vst3"; Components: vst3; Flags: ignoreversion recursesubdirs createallsubdirs

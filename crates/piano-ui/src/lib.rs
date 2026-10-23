@@ -40,8 +40,13 @@ pub struct PianoUi {
     /// Key whose string the string sketch shows.
     key: u8,
     /// Preset folder (TOML files), when the host has one: either flat, or
-    /// `instruments/<family>/*.toml` and `listening/*.toml`.
+    /// `instruments/<family>/*.toml` and `listening/*.toml`. Saving writes
+    /// here.
     presets: Option<PathBuf>,
+    /// Read-only folders of the same layout listed after it (the presets
+    /// installed with the program); a preset of the same name in an earlier
+    /// folder hides theirs.
+    factory: Vec<PathBuf>,
     preset_name: String,
     /// Last listening preset loaded in each listening group (Microphones,
     /// Room…): the groups combine, each shows its own choice.
@@ -85,6 +90,7 @@ impl PianoUi {
             hovered: None,
             key: 60,
             presets,
+            factory: Vec::new(),
             preset_name: String::new(),
             listening_names: Default::default(),
             message: None,
@@ -92,17 +98,30 @@ impl PianoUi {
         }
     }
 
+    /// Adds read-only preset folders, listed after the one saving writes to
+    /// (the same folder twice is listed once).
+    pub fn add_preset_dirs(&mut self, dirs: impl IntoIterator<Item = PathBuf>) {
+        let same = |a: &PathBuf, b: &PathBuf| a == b || a.canonicalize().ok().is_some_and(|x| b.canonicalize().ok() == Some(x));
+        for d in dirs {
+            if !self.presets.iter().chain(&self.factory).any(|x| same(x, &d)) {
+                self.factory.push(d);
+            }
+        }
+    }
+
+    /// Every preset folder, the one saving writes to first.
+    fn preset_roots(&self) -> Vec<PathBuf> {
+        self.presets.iter().chain(&self.factory).cloned().collect()
+    }
+
     /// The preset shown as loaded (its file name without `.toml`): in the
     /// menu of the listening group holding a file of that name, else as the
     /// instrument.
     pub fn set_preset_name(&mut self, name: &str) {
-        if let Some(dir) = &self.presets {
-            for group in subdirs(&dir.join("listening")) {
-                if group.join(format!("{name}.toml")).is_file() {
-                    let g = group.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                    self.listening_names.insert(g, name.into());
-                    return;
-                }
+        for (group, files) in groups(&self.preset_roots(), "listening", "Listening") {
+            if files.iter().any(|f| stem(f) == name) {
+                self.listening_names.insert(group, name.into());
+                return;
             }
         }
         self.preset_name = name.into();
@@ -407,20 +426,12 @@ impl PianoUi {
     }
 
     fn preset_bar(&mut self, ui: &mut Ui, control: &mut dyn PianoControl, model: &PianoModel) {
-        if let Some(dir) = self.presets.clone() {
-            let instruments = dir.join("instruments");
-            let listening = dir.join("listening");
-            let structured = instruments.is_dir() || listening.is_dir();
+        let roots = self.preset_roots();
+        if !roots.is_empty() {
+            let structured = roots.iter().any(|d| d.join("instruments").is_dir() || d.join("listening").is_dir());
             if structured {
                 // Instruments, grouped by family (sub-folders; loose files last).
-                let mut families: Vec<(String, Vec<PathBuf>)> = subdirs(&instruments)
-                    .into_iter()
-                    .map(|d| (d.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), tomls(&d)))
-                    .collect();
-                let loose = tomls(&instruments);
-                if !loose.is_empty() {
-                    families.push(("Other".into(), loose));
-                }
+                let families = groups(&roots, "instruments", "Other");
                 egui::ComboBox::from_id_salt("instrument")
                     .selected_text(if self.preset_name.is_empty() { "Instrument…" } else { &self.preset_name })
                     .height(600.0)
@@ -442,15 +453,7 @@ impl PianoUi {
                 // Listening: one menu per group (sub-folder: Microphones,
                 // Room…); each preset changes only its own part, so the
                 // groups combine.
-                let mut groups: Vec<(String, Vec<PathBuf>)> = subdirs(&listening)
-                    .into_iter()
-                    .map(|d| (d.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), tomls(&d)))
-                    .collect();
-                let loose = tomls(&listening);
-                if !loose.is_empty() {
-                    groups.push(("Listening".into(), loose));
-                }
-                for (group, files) in &groups {
+                for (group, files) in &groups(&roots, "listening", "Listening") {
                     let current = self.listening_names.get(group).cloned().unwrap_or_default();
                     egui::ComboBox::from_id_salt(("listening", group.as_str()))
                         .selected_text(if current.is_empty() { format!("{group}…") } else { current.clone() })
@@ -471,7 +474,7 @@ impl PianoUi {
                 egui::ComboBox::from_id_salt("preset")
                     .selected_text(if self.preset_name.is_empty() { "Preset…" } else { &self.preset_name })
                     .show_ui(ui, |ui| {
-                        for path in tomls(&dir) {
+                        for path in merged(roots.iter().map(|d| tomls(d))) {
                             let n = stem(&path);
                             if ui.selectable_label(n == self.preset_name, &n).clicked() {
                                 self.message = Some(match piano_host::load_preset(&path) {
@@ -486,16 +489,20 @@ impl PianoUi {
                         }
                     });
             }
+        }
+        // Saving: into the first folder (an installed preset of the same
+        // name stays, hidden by the saved one).
+        if let Some(dir) = self.presets.clone() {
+            let structured = roots.iter().any(|d| d.join("instruments").is_dir() || d.join("listening").is_dir());
+            let target = if structured { dir.join("instruments") } else { dir };
             ui.add(egui::TextEdit::singleline(&mut self.preset_name).hint_text("name").desired_width(120.0));
             let name = self.preset_name.trim().to_string();
             let valid = !name.is_empty() && !name.contains(['/', '\\']);
-            let path = if structured { instruments.join(format!("{name}.toml")) } else { dir.join(format!("{name}.toml")) };
+            let path = target.join(format!("{name}.toml"));
             let exists = valid && path.exists();
             let save = egui::Button::new(if exists { "Overwrite" } else { "Save" });
             if ui.add_enabled(valid, save).on_hover_text("Write the current settings as a preset").clicked() {
-                if structured {
-                    let _ = std::fs::create_dir_all(&instruments);
-                }
+                let _ = std::fs::create_dir_all(&target);
                 self.message = Some(piano_host::save_preset(model, &path).map(|()| format!("Saved {}", path.display())));
             }
         }
@@ -514,6 +521,39 @@ impl PianoUi {
             None => {}
         }
     }
+}
+
+/// The presets of `sub` (instruments, listening) over every folder, by
+/// group: one per sub-folder name, sorted, then the loose files under
+/// `loose`. In each group a name appears once, from the first folder.
+fn groups(roots: &[PathBuf], sub: &str, loose: &str) -> Vec<(String, Vec<PathBuf>)> {
+    let mut named: std::collections::BTreeMap<String, Vec<Vec<PathBuf>>> = Default::default();
+    for root in roots {
+        for d in subdirs(&root.join(sub)) {
+            named.entry(stem_dir(&d)).or_default().push(tomls(&d));
+        }
+    }
+    let mut out: Vec<(String, Vec<PathBuf>)> = named.into_iter().map(|(g, lists)| (g, merged(lists))).collect();
+    let rest = merged(roots.iter().map(|r| tomls(&r.join(sub))));
+    if !rest.is_empty() {
+        out.push((loose.into(), rest));
+    }
+    out
+}
+
+/// Files of several folders, sorted by name, each name once (the first).
+fn merged(lists: impl IntoIterator<Item = Vec<PathBuf>>) -> Vec<PathBuf> {
+    let mut seen = std::collections::BTreeMap::new();
+    for list in lists {
+        for p in list {
+            seen.entry(stem(&p)).or_insert(p);
+        }
+    }
+    seen.into_values().collect()
+}
+
+fn stem_dir(dir: &std::path::Path) -> String {
+    dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
 /// Sub-folders of a folder, sorted.
@@ -545,4 +585,38 @@ fn group_title(group: Option<&str>) -> String {
     let g = group.unwrap_or("general").replace('_', " ");
     let mut c = g.chars();
     c.next().map(|f| f.to_uppercase().chain(c).collect()).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The saved folder and a shipped one merge by group, the saved preset
+    /// hiding the shipped one of the same name.
+    #[test]
+    fn preset_folders_merge() {
+        let base = std::env::temp_dir().join(format!("piano-ui-presets-{}", std::process::id()));
+        let (user, shipped) = (base.join("user"), base.join("shipped"));
+        for (dir, file) in [
+            (&shipped, "instruments/Grand/concert.toml"),
+            (&shipped, "instruments/Grand/studio.toml"),
+            (&shipped, "listening/Room/hall.toml"),
+            (&user, "instruments/Grand/concert.toml"),
+            (&user, "instruments/Upright/mine.toml"),
+        ] {
+            let path = dir.join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, "").unwrap();
+        }
+        let mut ui = PianoUi::new(Some(user.clone()));
+        ui.add_preset_dirs([shipped.clone(), user.clone()]);
+        assert_eq!(ui.preset_roots(), vec![user.clone(), shipped.clone()]);
+        let names = groups(&ui.preset_roots(), "instruments", "Other");
+        assert_eq!(names[0].0, "Grand");
+        assert_eq!(names[0].1, vec![user.join("instruments/Grand/concert.toml"), shipped.join("instruments/Grand/studio.toml")]);
+        assert_eq!(names[1].0, "Upright");
+        ui.set_preset_name("hall");
+        assert_eq!(ui.listening_names.get("Room").map(String::as_str), Some("hall"));
+        std::fs::remove_dir_all(&base).unwrap();
+    }
 }

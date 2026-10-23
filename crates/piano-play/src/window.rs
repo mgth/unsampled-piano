@@ -40,10 +40,12 @@ pub fn run(
     control: Arc<Mutex<Controller>>,
     repaint: Repaint,
     presets: Option<PathBuf>,
+    shipped: Vec<PathBuf>,
     preset: Option<String>,
     title: &str,
 ) -> eframe::Result {
     let mut ui = PianoUi::new(presets);
+    ui.add_preset_dirs(shipped);
     if let Some(p) = preset {
         ui.set_preset_name(&p);
     }
