@@ -48,6 +48,8 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("p_offset", "Felt exponent offset", "", -1.5, 1.5, false),
     ("hysteresis", "Felt hysteresis", "", 0.0, 3.0, false),
     ("contact_width_scale", "Felt contact width", "", 0.25, 4.0, true),
+    ("hammer_mass_scale", "Hammer mass", "", 0.25, 2.0, true),
+    ("strike_ratio", "Strike point", "", 0.06, 0.2, false),
 ];
 
 impl Meta {

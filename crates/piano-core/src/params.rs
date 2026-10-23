@@ -602,6 +602,12 @@ pub struct PianoModel {
     pub hysteresis: f64,
     /// Multiplies the felt contact width (spatial low-pass of the strike).
     pub contact_width_scale: f64,
+    /// Multiplies Stulov's hammer masses (light leather-covered fortepiano
+    /// hammers, small upright hammers).
+    pub hammer_mass_scale: f64,
+    /// Strike point (fraction of the speaking length from the agraffe) up
+    /// to C6, 0.05 closer to the agraffe at C8.
+    pub strike_ratio: f64,
 }
 
 impl Default for PianoModel {
@@ -647,6 +653,8 @@ impl Default for PianoModel {
             p_offset: 0.0,
             hysteresis: 0.3,
             contact_width_scale: 1.0,
+            hammer_mass_scale: 1.0,
+            strike_ratio: 0.12,
         }
     }
 }
@@ -659,9 +667,10 @@ impl PianoModel {
         let mu = tension / (2.0 * length * f0).powi(2);
         // ≈1/8 of the length up to C6, closer to the agraffe in the high treble.
         let m = note as f64;
-        let strike_pos = if m <= 84.0 { 0.12 } else { 0.12 - 0.05 * (m - 84.0) / 24.0 };
+        let strike_pos = if m <= 84.0 { self.strike_ratio } else { self.strike_ratio - 0.05 * (m - 84.0) / 24.0 };
         let contact_width = (0.008 - 0.004 * (m - 21.0) / 87.0) * self.contact_width_scale;
         let mut hammer = hammer_stulov(note);
+        hammer.mass_kg *= self.hammer_mass_scale;
         let key = note as f64 - 20.0;
         let slope = if key < 40.0 { self.hardness_slope_bass } else { self.hardness_slope };
         // The core keeps Stulov's stiffness of the key, whatever the voicing

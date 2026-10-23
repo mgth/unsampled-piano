@@ -16,6 +16,8 @@ p_bass = 0.0
 p_offset = 0.0
 hysteresis = 0.3
 contact_width_scale = 1.0
+hammer_mass_scale = 1.0
+strike_ratio = 0.12
 
 [velocity]
 vmin = 0.6
