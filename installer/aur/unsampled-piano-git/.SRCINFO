@@ -9,6 +9,7 @@ pkgbase = unsampled-piano-git
 	makedepends = cargo
 	makedepends = clang
 	makedepends = git
+	makedepends = jack
 	makedepends = pkgconf
 	depends = alsa-lib
 	depends = gcc-libs

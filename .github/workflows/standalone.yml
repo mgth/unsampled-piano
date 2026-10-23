@@ -104,11 +104,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Libraries (PipeWire, ALSA, X11 and OpenGL)
+      # JACK: only its pkg-config file at build time (jack-sys); the library
+      # is loaded when the graph node is used.
+      - name: Libraries (PipeWire, ALSA, JACK, X11 and OpenGL)
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends pkg-config clang \
-            libpipewire-0.3-dev libasound2-dev libgl-dev \
+            libpipewire-0.3-dev libasound2-dev libjack-jackd2-dev libgl-dev \
             libx11-xcb-dev libxcb1-dev libxcb-dri2-0-dev libxcb-icccm4-dev \
             libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
 
@@ -119,7 +121,9 @@ jobs:
           key: standalone-linux
 
       - name: Build (archive)
-        run: echo "dir=$(installer/linux/make-archive.sh)" >> "$GITHUB_ENV"
+        run: |
+          dir=$(installer/linux/make-archive.sh)
+          echo "dir=$dir" >> "$GITHUB_ENV"
 
       - name: Smoke test (start, install, uninstall)
         run: |

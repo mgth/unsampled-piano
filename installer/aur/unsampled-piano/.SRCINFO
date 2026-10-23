@@ -8,6 +8,7 @@ pkgbase = unsampled-piano
 	license = GPL-3.0-or-later
 	makedepends = cargo
 	makedepends = clang
+	makedepends = jack
 	makedepends = pkgconf
 	depends = alsa-lib
 	depends = gcc-libs
