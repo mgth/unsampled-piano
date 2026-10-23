@@ -227,8 +227,18 @@ impl piano_ui::HostPage for SettingsPage {
                 }
             });
             ui.end_row();
+            ui.label("Sample rate");
+            ui.horizontal(|ui| {
+                let mut full = s.full_rate;
+                let tip = "Above 48 kHz (88.2, 96, 176.4, 192 kHz…), the piano is computed at 44.1 or 48 kHz and upsampled: half the load or less, the same sound up to 20 kHz. Checked, it is computed at the output's rate.";
+                if ui.checkbox(&mut full, "Compute at the output's rate above 48 kHz").on_hover_text(tip).changed() {
+                    want = Some(Settings { full_rate: full, ..s.clone() });
+                }
+                ui.label(RichText::new("twice the load at 96 kHz, nothing more to hear").weak());
+            });
+            ui.end_row();
         });
-        ui.label(RichText::new("Changing the threads or the quality rebuilds the engine (about 0.1 s). Balanced and Light have not been compared by ear yet.").small().weak());
+        ui.label(RichText::new("Changing the threads, the quality or the sample rate rebuilds the engine (about 0.1 s). Balanced and Light have not been compared by ear yet.").small().weak());
 
         ui.add_space(14.0);
         ui.label(RichText::new("Application").strong());

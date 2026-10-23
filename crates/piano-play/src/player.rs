@@ -5,6 +5,7 @@
 //! no lock.
 
 use piano_control::EngineSlot;
+use piano_core::upsample::Upsampler;
 use piano_core::{Event, TimedEvent};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
@@ -59,10 +60,30 @@ impl KeyboardInput {
     }
 }
 
+/// Engine samples per output sample: the engine runs at 44.1/48 kHz behind
+/// an output at 88.2–384 kHz (1 when `full_rate`, or at 44.1/48 kHz).
+pub fn rate_factor(output_rate: f64, full_rate: bool) -> usize {
+    let mut k = 1;
+    while !full_rate && k < 8 && output_rate / (2 * k) as f64 >= 44_100.0 {
+        k *= 2;
+    }
+    k
+}
+
 pub struct Player {
     /// Current engine, and the replaced ones finishing their notes.
     engine: EngineSlot,
+    /// The output's rate (buffers, timeline and clock count its frames).
     sample_rate: f64,
+    /// Output frames per engine sample, and the upsamplers (left, right).
+    factor: usize,
+    up: [Upsampler; 2],
+    /// Upsampled output; its frames `held_at..held_at + held` are computed
+    /// but not sent yet (the end of the last engine block).
+    ul: Vec<f32>,
+    ur: Vec<f32>,
+    held_at: usize,
+    held: usize,
     /// File events (absolute sample, event), sorted.
     timeline: Vec<(u64, Event)>,
     cursor: usize,
@@ -76,16 +97,28 @@ pub struct Player {
 }
 
 impl Player {
+    /// `sample_rate` is the output's; the engine runs at `sample_rate /
+    /// factor`.
     pub fn new(
         engine: EngineSlot,
         sample_rate: f64,
+        factor: usize,
         timeline: Vec<(u64, Event)>,
         queue: Option<rtrb::Consumer<Event>>,
         stats: Arc<Stats>,
     ) -> Self {
+        let engine_rate = sample_rate / factor as f64;
+        let up = || Upsampler::new(engine_rate, factor, MAX_BLOCK);
+        let size = if factor > 1 { MAX_BLOCK * factor } else { 0 };
         Self {
             engine,
             sample_rate,
+            factor,
+            up: [up(), up()],
+            ul: vec![0.0; size],
+            ur: vec![0.0; size],
+            held_at: 0,
+            held: 0,
             timeline,
             cursor: 0,
             clock: 0,
@@ -137,18 +170,38 @@ impl Player {
         for e in &self.all {
             mirror(e.frame, e.event);
         }
+        let k = self.factor;
         let (mut done, mut i) = (0, 0);
+        // What the last engine block left over.
+        if self.held > 0 {
+            let n = self.held.min(frames);
+            let at = self.held_at;
+            out(0, &self.ul[at..at + n], &self.ur[at..at + n]);
+            (self.held_at, self.held, done) = (at + n, self.held - n, n);
+        }
         while done < frames {
-            let n = (frames - done).min(MAX_BLOCK);
+            // Engine samples covering the rest, at most one block.
+            let n = (frames - done).div_ceil(k).min(MAX_BLOCK);
             self.piece.clear();
-            while i < self.all.len() && (self.all[i].frame as usize) < done + n {
+            while i < self.all.len() && (self.all[i].frame as usize) < done + n * k {
                 let e = self.all[i];
-                self.piece.push(TimedEvent { frame: e.frame - done as u32, event: e.event });
+                let frame = (e.frame as usize).saturating_sub(done) / k;
+                self.piece.push(TimedEvent { frame: frame as u32, event: e.event });
                 i += 1;
             }
             self.engine.process_stereo(&self.piece, &mut self.l[..n], &mut self.r[..n]);
-            out(done, &self.l[..n], &self.r[..n]);
-            done += n;
+            let sent = if k == 1 {
+                out(done, &self.l[..n], &self.r[..n]);
+                n
+            } else {
+                self.up[0].process(&self.l[..n], &mut self.ul[..n * k]);
+                self.up[1].process(&self.r[..n], &mut self.ur[..n * k]);
+                let m = (n * k).min(frames - done);
+                out(done, &self.ul[..m], &self.ur[..m]);
+                (self.held_at, self.held) = (m, n * k - m);
+                m
+            };
+            done += sent;
         }
         self.clock = end;
         let st = &self.stats;
@@ -178,6 +231,74 @@ pub fn encode(e: Event) -> Option<[u8; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn engine_rate_stays_at_48_khz() {
+        let f = |rate, full| rate_factor(rate, full);
+        assert_eq!([f(44_100.0, false), f(48_000.0, false), f(64_000.0, false)], [1, 1, 1]);
+        assert_eq!([f(88_200.0, false), f(96_000.0, false), f(192_000.0, false), f(384_000.0, false)], [2, 2, 4, 8]);
+        assert_eq!(f(96_000.0, true), 1);
+    }
+
+    /// A few notes through a player: the output, sent in buffers of
+    /// `sizes` (cycled), and the engine's rate.
+    fn play(rate: f64, factor: usize, sizes: &[usize]) -> Vec<f32> {
+        use piano_core::{EngineConfig, Quality};
+        let model = piano_core::params::PianoModel::default();
+        let cfg = EngineConfig {
+            sample_rate: rate / factor as f64,
+            max_block: MAX_BLOCK,
+            model,
+            quality: Quality::Light,
+            ..Default::default()
+        };
+        let (_control, engine) = piano_control::new(model, cfg);
+        let at = |s: f64| (s * rate) as u64;
+        let timeline = vec![
+            (at(0.01), Event::NoteOn { note: 60, velocity: 90 }),
+            (at(0.0503), Event::NoteOn { note: 67, velocity: 70 }),
+            (at(0.2), Event::NoteOff { note: 60, velocity: 64 }),
+        ];
+        let mut player = Player::new(engine, rate, factor, timeline, None, Arc::default());
+        let total = at(0.3) as usize;
+        let mut out = vec![0.0; total];
+        let mut done = 0;
+        for &n in sizes.iter().cycle() {
+            let n = n.min(total - done);
+            player.render(n, std::iter::empty(), |off, l, _| out[done + off..done + off + l.len()].copy_from_slice(l), |_, _| {});
+            done += n;
+            if done == total {
+                break;
+            }
+        }
+        out
+    }
+
+    /// The engine starts its 64-sample sub-blocks at each call, so the
+    /// buffers are chosen to give it the same calls: odd sizes leave one
+    /// upsampled frame for the next buffer, which then needs one less.
+    #[test]
+    fn upsampled_output_does_not_depend_on_the_buffers() {
+        let a = play(96_000.0, 2, &[256]);
+        let b = play(96_000.0, 2, &[255, 257, 1023, 1025]);
+        assert!(a.iter().any(|x| x.abs() > 1e-3), "no sound");
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn upsampled_output_is_the_engine_at_48_khz() {
+        let up = play(96_000.0, 2, &[512]);
+        let base = play(48_000.0, 1, &[256]);
+        let rms = |x: &[f32]| (x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len() as f64).sqrt();
+        // Same energy (one output sample in two is an engine sample, the
+        // filter's delay aside).
+        let ratio = rms(&up) / rms(&base);
+        assert!((ratio - 1.0).abs() < 0.01, "{ratio}");
+        let delay = Upsampler::new(48_000.0, 2, 1).latency();
+        let err: f64 = base.iter().zip(up.iter().skip(delay).step_by(2)).map(|(a, b)| ((a - b) as f64).powi(2)).sum::<f64>();
+        let rel = (err / base.len() as f64).sqrt() / rms(&base);
+        assert!(rel < 1e-3, "{rel}");
+    }
 
     #[test]
     fn keyboard_channel_and_pedal() {

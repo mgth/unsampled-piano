@@ -117,6 +117,11 @@ struct Args {
     /// when it is up).
     #[arg(long)]
     invert_sustain: bool,
+    /// Compute the piano at the output's rate even above 48 kHz. By default
+    /// an output at 88.2–384 kHz gets the piano computed at 44.1/48 kHz and
+    /// upsampled, for half to an eighth of the load.
+    #[arg(long)]
+    full_rate: bool,
     /// From play.toml only: the interface's theme, "dark", "light" or
     /// "system" (default).
     #[arg(skip)]
@@ -171,6 +176,7 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
         quality,
         midi_channel: args.midi_channel,
         invert_sustain: args.invert_sustain,
+        full_rate: args.full_rate,
     };
     let stats = Arc::new(Stats::default());
     // The keyboard, unless files play alone.
@@ -183,7 +189,7 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
         Ok(Start { timeline, listen, demo })
     })?;
     let sr = audio.sample_rate;
-    eprintln!("instrument built at {sr} Hz in {:.0} ms", control.status().last_build.unwrap_or_default().as_secs_f64() * 1e3);
+    eprintln!("instrument built at {} Hz in {:.0} ms", audio.engine_rate, control.status().last_build.unwrap_or_default().as_secs_f64() * 1e3);
     for (start, name, len) in &pieces {
         eprintln!("  {:>7}  {name} ({}:{:02})", clock_str(*start), (*len as u64) / 60, (*len as u64) % 60);
     }
@@ -571,6 +577,9 @@ fn apply_user_config(args: &mut Args) {
     }
     if !given("--invert-sustain") && table.get("invert_sustain").and_then(|v| v.as_bool()) == Some(true) {
         args.invert_sustain = true;
+    }
+    if !given("--full-rate") && table.get("full_rate").and_then(|v| v.as_bool()) == Some(true) {
+        args.full_rate = true;
     }
     if !given("--presets") {
         args.presets = args.presets.take().or(string("presets").map(PathBuf::from));

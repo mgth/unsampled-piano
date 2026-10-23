@@ -187,6 +187,19 @@ A "CPU quality" setting could group them in three levels:
 
 These levels are proposals; they have not been listened to. Sympathetic resonance is a large part of the instrument's character with the pedal down, so it should go last.
 
+## Outputs above 48 kHz
+
+The engine's cost grows with its sample rate: on the Chopin with AVX2, the first 30 s take 25.4 % of the buffer at 48 kHz (mean; p99.9 38.3 %) and 53.4 % at 96 kHz (p99.9 83.6 %). An output at 96 kHz therefore doubles the load for nothing audible, since the model has nothing to add above 20 kHz. Windows makes this common: in shared mode the player must take the rate set for the device in the system's sound settings, and many interfaces default to 96 or 192 kHz. A 13900K playing this Chopin at 96 kHz reached 85–93 % mean.
+
+So the standalone player computes the piano at 44.1 or 48 kHz behind any output at 88.2 to 384 kHz, and upsamples ([`upsample.rs`](../crates/piano-core/src/upsample.rs), [`player.rs`](../crates/piano-play/src/player.rs)):
+
+- The factor is a power of two (2, 4 or 8), chosen so that the engine stays at or above 44.1 kHz: 96 kHz → 48 kHz, 192 kHz → 48 kHz, 88.2 kHz → 44.1 kHz.
+- Each 2× is a Kaiser-windowed half-band filter, flat to 20 kHz (ripple below 0.01 dB) with the images 100 dB down. One of its two output phases is the input itself, so each stage costs about 40 multiply-adds per engine sample and channel. That is negligible against the engine.
+- The delay is about 0.4 ms (39 samples at 96 kHz).
+- The output buffers need not be a multiple of the factor: the frames left over from the last engine block go out at the start of the next buffer. MIDI events keep their place to within one engine sample.
+
+`--full-rate` (`full_rate = true` in `play.toml`, or the "Sample rate" box on the Audio and MIDI page) computes the piano at the output's rate. The plugin still computes at the host's rate.
+
 ## Multi-threading
 
 ### What can run in parallel

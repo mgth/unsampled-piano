@@ -10,7 +10,7 @@
 //! Lives on the main thread: a cpal stream may not leave it.
 
 use crate::node;
-use crate::player::{KeyboardInput, Player, Stats, MAX_BLOCK};
+use crate::player::{rate_factor, KeyboardInput, Player, Stats, MAX_BLOCK};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use piano_control::Controller;
 use piano_core::params::PianoModel;
@@ -46,6 +46,9 @@ pub struct Settings {
     pub midi_channel: Option<u8>,
     /// The keyboard's sustain pedal works the other way round.
     pub invert_sustain: bool,
+    /// Compute the piano at the output's rate even above 48 kHz (otherwise
+    /// at half, a quarter or an eighth of it, then upsampled).
+    pub full_rate: bool,
 }
 
 impl Settings {
@@ -96,7 +99,9 @@ pub type Queue = rtrb::Producer<Event>;
 pub struct Audio {
     pub settings: Settings,
     live: Option<Live>,
+    /// The output's rate, and the engine's (lower above 48 kHz).
     pub sample_rate: f64,
+    pub engine_rate: f64,
     name: String,
     gain: f32,
     stats: Arc<Stats>,
@@ -135,6 +140,7 @@ impl Audio {
             settings,
             live: None,
             sample_rate,
+            engine_rate: sample_rate,
             name: name.into(),
             gain: 10f32.powf(gain_db / 20.0),
             stats,
@@ -163,7 +169,8 @@ impl Audio {
         // Still the graph node and the same engine: only its connections
         // change (its period was requested when it started: a new buffer
         // size waits for the next start).
-        let same_engine = new.threads == self.settings.threads && new.quality == self.settings.quality;
+        let same_engine =
+            new.threads == self.settings.threads && new.quality == self.settings.quality && new.full_rate == self.settings.full_rate;
         let node_still = same_engine && new.host.as_deref().unwrap_or(default_backend()) == "node";
         if let (true, Some(Live::Node { .. })) = (node_still, &self.live) {
             self.settings = new;
@@ -201,12 +208,14 @@ impl Audio {
         Ok(())
     }
 
-    /// Builds the engine at the backend's rate, starts the backend and
-    /// connects it.
+    /// Builds the engine at the backend's rate (or a fraction of it, see
+    /// [`rate_factor`]), starts the backend and connects it.
     fn launch(&mut self, backend: Backend, model: PianoModel, map: Option<MidiMap>, start: Start) -> Result<Controller, String> {
         let sr = backend_rate(&backend);
+        let factor = rate_factor(sr, self.settings.full_rate);
+        self.engine_rate = sr / factor as f64;
         let cfg = EngineConfig {
-            sample_rate: sr,
+            sample_rate: self.engine_rate,
             max_block: MAX_BLOCK,
             model,
             threads: self.settings.threads.max(1),
@@ -218,7 +227,7 @@ impl Audio {
             control.set_midi_map(map);
         }
         let (tx, rx) = rtrb::RingBuffer::<Event>::new(1024);
-        let player = Player::new(engine, sr, start.timeline, Some(rx), self.stats.clone());
+        let player = Player::new(engine, sr, factor, start.timeline, Some(rx), self.stats.clone());
         let mut midi_conn = None;
         match start.demo {
             Some(demo) => {
@@ -247,7 +256,10 @@ impl Audio {
                 self.live = Some(Live::Cpal { _stream: stream, _midi: midi_conn, host, device, frames });
             }
         }
-        eprintln!("playing at {sr} Hz. Ctrl-C to quit.");
+        match factor {
+            1 => eprintln!("playing at {sr} Hz. Ctrl-C to quit."),
+            k => eprintln!("playing at {sr} Hz, the piano computed at {} Hz (×{k}; --full-rate to compute at {sr} Hz). Ctrl-C to quit.", self.engine_rate),
+        }
         Ok(control)
     }
 
@@ -314,6 +326,14 @@ impl Audio {
         }
     }
 
+    /// "96000 Hz (piano at 48000 Hz)", or the one rate.
+    fn rates(&self) -> String {
+        match self.engine_rate < self.sample_rate {
+            true => format!("{} Hz (piano at {} Hz)", self.sample_rate, self.engine_rate),
+            false => format!("{} Hz", self.sample_rate),
+        }
+    }
+
     /// The lists the settings page offers, and the state now.
     pub fn choices(&self) -> Choices {
         let mut c = Choices { backends: backends(), output_now: self.output_now.clone(), midi_now: self.midi_now.clone(), ..Default::default() };
@@ -324,7 +344,7 @@ impl Audio {
                 c.outputs = dedup(audio.iter().map(|p| output_group(p)));
                 c.midi_inputs = midi;
                 c.mirror_targets = running.midi_inputs();
-                c.info = format!("{} Hz · {period} frames · PipeWire graph", self.sample_rate);
+                c.info = format!("{} · {period} frames · PipeWire graph", self.rates());
             }
             Some(Live::Cpal { host, device, frames, .. }) => {
                 c.backend = host_id(*host);
@@ -335,7 +355,7 @@ impl Audio {
                 c.midi_inputs = midir::MidiInput::new("unsampled-piano-list")
                     .map(|m| m.ports().iter().filter_map(|p| m.port_name(p).ok()).collect())
                     .unwrap_or_default();
-                c.info = format!("{} Hz · {frames} frames · {}", self.sample_rate, host_label(&c.backend));
+                c.info = format!("{} · {frames} frames · {}", self.rates(), host_label(&c.backend));
             }
             None => c.info = "No audio output".into(),
         }
@@ -598,6 +618,7 @@ pub fn save(settings: &Settings, path: &std::path::Path) -> Result<(), String> {
             ("quality", (settings.quality != Quality::Full).then(|| quote(settings.quality.name()))),
             ("midi_channel", settings.midi_channel.map(|c| c.to_string())),
             ("invert_sustain", settings.invert_sustain.then(|| "true".to_string())),
+            ("full_rate", settings.full_rate.then(|| "true".to_string())),
         ],
     )
 }
@@ -646,6 +667,7 @@ mod tests {
             quality: Quality::Full,
             midi_channel: None,
             invert_sustain: false,
+            full_rate: false,
         }
     }
 
