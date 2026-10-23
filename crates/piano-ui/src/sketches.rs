@@ -10,6 +10,10 @@
 //! strike and damper points (to scale along the string), its unison seen
 //! from above, its two directions of vibration, its decay, its partials,
 //! and a keyboard choosing the key shown.
+//!
+//! The plan: the case from above, to scale (soundboard, bridges, every
+//! key's string, frame, rim, keyboard choosing the key shown), and its
+//! side section for the heights.
 
 use egui::{Align2, Color32, FontId, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, Vec2};
 use piano_core::params::PianoModel;
@@ -18,6 +22,7 @@ use piano_core::params::PianoModel;
 pub enum Sketch {
     Action,
     String,
+    Plan,
 }
 
 /// A part of a sketch a parameter acts on.
@@ -62,6 +67,27 @@ pub enum Part {
     Sympathy,
     /// A range of keys (the parameter is a key number).
     Keys,
+    // The case.
+    /// The soundboard as a whole.
+    Board,
+    /// Its treble side, and its bass side (impedance slopes).
+    BoardTreble,
+    BoardBass,
+    /// The main bridge, and the bass bridge.
+    Bridges,
+    BassBridge,
+    /// How far along the bridge a string's force spreads.
+    BridgeSpread,
+    /// The whole case moving as a block.
+    Piston,
+    /// The board's underside radiating in antiphase.
+    BackFace,
+    Frame,
+    Agraffes,
+    Rim,
+    /// Heights, in the side section.
+    FrameHeight,
+    RimSection,
 }
 
 /// The sketch locating a parameter and the parts it acts on, if any.
@@ -89,8 +115,30 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("bridge.", &[Bridge]),
         ("soundboard.bridge_mass", &[Bridge]),
         ("soundboard.series_stiffness", &[Bridge]),
-        ("soundboard.main_bridge_from", &[Bridge, Keys]),
         ("sympathetic.", &[Sympathy]),
+    ];
+    // Empty: on the Microphones page's own drawing.
+    const PLAN: &[(&str, &[Part])] = &[
+        ("soundboard.mic", &[]),
+        ("soundboard.lid_", &[]),
+        ("soundboard.impedance_slope_bass", &[BoardBass]),
+        ("soundboard.impedance_slope", &[BoardTreble]),
+        ("soundboard.treble_bridge", &[Bridges]),
+        ("soundboard.bass_bridge", &[BassBridge]),
+        ("soundboard.main_bridge_from", &[BassBridge]),
+        ("soundboard.bridge_", &[Bridges, BridgeSpread]),
+        ("soundboard.piston_", &[Piston]),
+        ("soundboard.back_", &[BackFace]),
+        ("soundboard.", &[Board]),
+        ("frame.agraffe_x", &[Agraffes]),
+        ("frame.height", &[FrameHeight]),
+        ("frame.back_", &[FrameHeight]),
+        ("frame.", &[Frame]),
+        ("rim.height", &[RimSection]),
+        ("rim.top", &[RimSection]),
+        ("rim.thickness", &[Rim, RimSection]),
+        ("rim.inner_gain", &[RimSection]),
+        ("rim.", &[Rim]),
     ];
     const ACTION: &[(&str, &[Part])] = &[
         ("velocity.", &[Key]),
@@ -110,7 +158,11 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("noise.knock_time", &[KeybedKnock, PedalKnock]),
     ];
     let find = |table: &'static [(&str, &'static [Part])]| table.iter().find(|(p, _)| path.starts_with(p)).map(|(_, parts)| *parts);
-    find(STRING).map(|parts| (Sketch::String, parts)).or_else(|| find(ACTION).map(|parts| (Sketch::Action, parts)))
+    let found = find(STRING)
+        .map(|parts| (Sketch::String, parts))
+        .or_else(|| find(PLAN).map(|parts| (Sketch::Plan, parts)))
+        .or_else(|| find(ACTION).map(|parts| (Sketch::Action, parts)));
+    found.filter(|(_, parts)| !parts.is_empty())
 }
 
 /// The parts of `sketch` that `path` acts on (empty when it acts elsewhere).
@@ -127,6 +179,7 @@ pub fn draw(ui: &mut Ui, sketch: Sketch, model: &PianoModel, path: &str, key: &m
     match sketch {
         Sketch::Action => action(ui, model, lit, path, width),
         Sketch::String => string(ui, model, lit, path, key, width),
+        Sketch::Plan => plan(ui, model, lit, key, width),
     }
 }
 
@@ -147,6 +200,7 @@ const HIGHLIGHT: Color32 = Color32::from_rgb(239, 159, 39);
 const FELT: Color32 = Color32::from_rgb(222, 212, 188);
 const CORE: Color32 = Color32::from_rgb(140, 120, 100);
 const WOOD: Color32 = Color32::from_rgb(186, 117, 23);
+const BRIDGE: Color32 = Color32::from_rgb(205, 95, 50);
 
 /// The action at `width`, `lit` parts highlighted; `path` picks the key
 /// whose felt depth is drawn (bass, middle or treble).
@@ -484,6 +538,191 @@ fn key_at(u: f32, upper: bool) -> u8 {
     found.or_else(|| (21..=108u8).filter(|&m| !is_black(m)).find(hit)).unwrap_or(if u < 0.0 { 21 } else { 108 })
 }
 
+/// The case from above, to scale: keyboard at the bottom, treble on the
+/// right, as the pianist sees it; beside it, the side section (keyboard on
+/// the left, heights up) at its own scale. Clicking the keyboard picks the
+/// key whose string and bridge point are shown.
+pub fn plan(ui: &mut Ui, model: &PianoModel, lit: &[Part], key: &mut u8, width: f32) -> Response {
+    let Some(sb) = model.soundboard else {
+        return ui.label("This model has no soundboard: there is no case to draw.");
+    };
+    let (f, rim) = (&model.frame, &model.rim);
+    let t = if rim.enabled { rim.thickness } else { 0.0 };
+    let fx = if f.enabled { f.offset_x } else { -0.2 };
+    let front = fx - 0.15;
+    // Plan extent (m): y across, x along; section extent: z.
+    let (y0, y1) = (-t - 0.04, sb.b + t + 0.04);
+    let (x0, x1) = (front - 0.04, sb.a + t + 0.04);
+    let z0 = (-sb.back_depth).min(rim.top - rim.height) - 0.05;
+    let z1 = f.height.max(rim.top) + 0.12;
+    // Design units per metre: the plan 250 wide at most, 330 tall; the
+    // section fills the rest of the width.
+    let s = (250.0 / (y1 - y0) as f32).min(330.0 / (x1 - x0) as f32);
+    let sec_x = 8.0 + (y1 - y0) as f32 * s + 44.0;
+    let s2 = (W - 4.0 - sec_x) / (x1 - x0) as f32;
+    let top = 18.0;
+    let sec_top = top + 30.0;
+    // The section's heights, stretched to be read.
+    const STRETCH: f32 = 2.5;
+    let h = top + (x1 - x0) as f32 * s + 22.0;
+    let k = width / W;
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(W, h) * k, Sense::hover());
+    let at = |x: f32, y: f32| rect.min + Vec2::new(x, y) * k;
+    // Plan: (x along, y across) in metres → screen.
+    let pl = |x: f64, y: f64| at(8.0 + (y1 - y) as f32 * s, top + (x1 - x) as f32 * s);
+    let sec = |x: f64, z: f64| at(sec_x + (x - x0) as f32 * s2, sec_top + (z1 - z) as f32 * s2 * STRETCH);
+    let bridge_y = |m: u8| sb.bridge_point(m).1;
+
+    // The keyboard picks the key whose bridge point is nearest across.
+    let keys = Rect::from_two_pos(pl(fx, 0.0), pl(front, sb.b));
+    let pick = ui.interact(keys, ui.scope_id().with("piano-plan-key"), Sense::click_and_drag());
+    if let Some(pos) = pick.interact_pointer_pos().filter(|_| pick.clicked() || pick.dragged()) {
+        let y = y1 - ((pos.x - rect.left()) / k - 8.0) as f64 / s as f64;
+        *key = (21..=108u8).min_by(|&a, &b| (bridge_y(a) - y).abs().total_cmp(&(bridge_y(b) - y).abs())).unwrap_or(*key);
+    }
+    pick.on_hover_text("Click or drag along the keyboard to pick a key");
+    if !ui.is_rect_visible(rect) {
+        return resp;
+    }
+    let p = ui.painter_at(rect);
+    let vis = ui.visuals();
+    let (ink, weak) = (vis.text_color(), vis.weak_text_color());
+    let font = FontId::proportional((10.0 * k).max(9.0));
+    let lit = |part: Part| lit.contains(&part);
+    let line = |w: f32, c: Color32| Stroke::new(w * k.max(0.6), c);
+    let label = |pos: Pos2, align: Align2, text: &str, part: Option<Part>| {
+        let c = if part.is_some_and(lit) { ink } else { weak };
+        p.text(pos, align, text, font.clone(), c);
+    };
+    let rect_m = |a: (f64, f64), b: (f64, f64)| Rect::from_two_pos(pl(a.0, a.1), pl(b.0, b.1));
+    p.text(at(8.0, top - 14.0), Align2::LEFT_TOP, "The case from above (to scale)", font.clone(), weak);
+
+    // Rim and case; the piston mode moves it all.
+    if rim.enabled {
+        let case = rect_m((-t, -t), (sb.a + t, sb.b + t));
+        p.rect_filled(case, 3.0 * k, if lit(Part::Rim) { HIGHLIGHT.gamma_multiply(0.6) } else { weak.gamma_multiply(0.35) });
+    }
+    let board = rect_m((0.0, 0.0), (sb.a, sb.b));
+    p.rect_filled(board, 0.0, if lit(Part::Board) { HIGHLIGHT.gamma_multiply(0.45) } else { WOOD.gamma_multiply(0.3) });
+    if lit(Part::Piston) {
+        p.rect_stroke(rect_m((-t, -t), (sb.a + t, sb.b + t)), 3.0 * k, line(2.5, HIGHLIGHT), egui::StrokeKind::Outside);
+        arrow(&p, pl(sb.a * 0.5, sb.b * 0.5) + Vec2::new(0.0, 10.0 * k), pl(sb.a * 0.5, sb.b * 0.5) - Vec2::new(0.0, 10.0 * k), line(1.5, HIGHLIGHT));
+        label(pl(sb.a * 0.5, sb.b * 0.5) + Vec2::new(6.0 * k, 0.0), Align2::LEFT_CENTER, "the whole case moves", Some(Part::Piston));
+    }
+    // The board's sides as the strings drive it (impedance slopes).
+    let along = |from: u8, to: u8| -> Vec<Pos2> { (from..=to).map(|m| sb.bridge_point(m)).map(|(x, y)| pl(x, y)).collect() };
+    if lit(Part::BoardTreble) {
+        p.add(Shape::line(along(60, 108), line(9.0, HIGHLIGHT.gamma_multiply(0.5))));
+        label(pl(sb.bridge_point(96).0, -t) + Vec2::new(4.0 * k, 0.0), Align2::LEFT_CENTER, "stiffer", Some(Part::BoardTreble));
+    }
+    if lit(Part::BoardBass) {
+        p.add(Shape::line(along(sb.main_bridge_from, 60), line(9.0, HIGHLIGHT.gamma_multiply(0.5))));
+        p.add(Shape::line(along(21, sb.main_bridge_from - 1), line(9.0, HIGHLIGHT.gamma_multiply(0.5))));
+    }
+
+    // Every key's string, from its agraffe to its bridge point.
+    let agraffe = fx + if f.enabled { f.agraffe_x } else { 0.25 };
+    for m in 21..=108u8 {
+        let (bx, by) = sb.bridge_point(m);
+        let c = if m == *key { ink } else { weak.gamma_multiply(0.35) };
+        p.line_segment([pl(agraffe, by), pl(bx, by)], line(if m == *key { 1.5 } else { 0.5 }, c));
+    }
+
+    // Frame and agraffes.
+    if f.enabled {
+        let frame = rect_m((f.offset_x, 0.0), (f.offset_x + f.a, f.b));
+        let fs = if lit(Part::Frame) { line(2.0, HIGHLIGHT) } else { line(1.0, weak) };
+        p.extend(Shape::dashed_line(&[frame.left_top(), frame.right_top(), frame.right_bottom(), frame.left_bottom(), frame.left_top()], fs, 4.0, 3.0));
+        label(frame.left_top() + Vec2::new(3.0, 2.0) * k, Align2::LEFT_TOP, "Frame", Some(Part::Frame));
+    }
+    let ag = if lit(Part::Agraffes) { line(2.5, HIGHLIGHT) } else { line(1.0, ink) };
+    p.line_segment([pl(agraffe, 0.0), pl(agraffe, sb.b)], ag);
+    label(pl(agraffe, 0.0) + Vec2::new(3.0 * k, 0.0), Align2::LEFT_CENTER, "Agraffes", Some(Part::Agraffes));
+
+    // Bridges.
+    let bridge = |poly: &[(f64, f64)], on: bool| {
+        let pts: Vec<Pos2> = poly.iter().map(|&(u, v)| pl(u * sb.a, v * sb.b)).collect();
+        p.add(Shape::line(pts, line(3.0, if on { HIGHLIGHT } else { BRIDGE })));
+    };
+    bridge(&sb.treble_bridge, lit(Part::Bridges));
+    bridge(&sb.bass_bridge, lit(Part::BassBridge) || lit(Part::Bridges));
+    let (mx, my) = (sb.treble_bridge[2].0 * sb.a, sb.treble_bridge[2].1 * sb.b);
+    label(pl(mx, my) + Vec2::new(8.0 * k, 0.0), Align2::LEFT_CENTER, "Bridge", Some(Part::Bridges));
+    let (bx, by) = (sb.bass_bridge[0].0 * sb.a, sb.bass_bridge[0].1 * sb.b);
+    label(pl(bx, by) + Vec2::new(-4.0 * k, -4.0 * k), Align2::RIGHT_BOTTOM, "Bass bridge", Some(Part::BassBridge));
+    if lit(Part::BassBridge) {
+        let text = format!("A0–{} on the bass bridge", note_name(sb.main_bridge_from - 1));
+        label(pl(bx, by) + Vec2::new(0.0, 6.0 * k), Align2::CENTER_TOP, &text, Some(Part::BassBridge));
+    }
+
+    // The key shown: its bridge point, and how far its force spreads.
+    let n = model.note(*key);
+    let (kx, ky) = sb.bridge_point(*key);
+    if lit(Part::BridgeSpread) && sb.bridge_stiffness > 0.0 {
+        let omega = std::f64::consts::TAU * n.f0;
+        let len = (sb.bridge_spread * std::f64::consts::TAU * (sb.bridge_stiffness / (sb.bridge_line_mass * omega * omega)).powf(0.25)).min(0.5);
+        let main = *key >= sb.main_bridge_from;
+        let (ax, ay) = sb.bridge_point_at(*key as f64 - 0.5, main);
+        let (cx, cy) = sb.bridge_point_at(*key as f64 + 0.5, main);
+        let (dx, dy) = (cx - ax, cy - ay);
+        let norm = (dx * dx + dy * dy).sqrt().max(1e-9);
+        let (ux, uy) = (dx / norm * len / 2.0, dy / norm * len / 2.0);
+        p.line_segment([pl(kx - ux, ky - uy), pl(kx + ux, ky + uy)], line(6.0, HIGHLIGHT.gamma_multiply(0.7)));
+        let text = format!("{}: spread over {:.0} cm", note_name(*key), len * 100.0);
+        label(pl(kx, ky) + Vec2::new(10.0 * k, 0.0), Align2::LEFT_CENTER, &text, Some(Part::BridgeSpread));
+    }
+    p.circle_filled(pl(kx, ky), 3.5 * k, ink);
+
+    // Keyboard, the key shown marked.
+    p.rect_filled(keys, 2.0, vis.extreme_bg_color);
+    p.rect_stroke(keys, 2.0, line(1.0, weak), egui::StrokeKind::Inside);
+    for m in (21..=108u8).filter(|m| !is_black(*m)) {
+        let y = bridge_y(m);
+        p.line_segment([pl(fx, y), pl(front, y)], Stroke::new(0.5, weak.gamma_multiply(0.6)));
+    }
+    let ky_screen = pl(front, bridge_y(*key));
+    p.add(Shape::convex_polygon(
+        vec![ky_screen, ky_screen + Vec2::new(-4.0, 7.0) * k, ky_screen + Vec2::new(4.0, 7.0) * k],
+        ink,
+        Stroke::NONE,
+    ));
+    label(ky_screen + Vec2::new(0.0, 8.0 * k), Align2::CENTER_TOP, &note_name(*key), None);
+    label(pl(front, sb.b) + Vec2::new(0.0, 8.0 * k), Align2::LEFT_TOP, "Bass", None);
+    label(pl(front, 0.0) + Vec2::new(0.0, 8.0 * k), Align2::RIGHT_TOP, "Treble", None);
+
+    // Side section, keyboard on the left: rim walls, board and the image
+    // of its underside, frame, keys.
+    p.text(at(sec_x, top - 14.0), Align2::LEFT_TOP, "Side section", font.clone(), weak);
+    p.text(at(sec_x, top), Align2::LEFT_TOP, "keyboard left, heights ×2.5", font.clone(), weak);
+    let keys_side = Rect::from_two_pos(sec(front, 0.0), sec(fx, 0.04));
+    p.rect_filled(keys_side, 1.0, vis.extreme_bg_color);
+    p.rect_stroke(keys_side, 1.0, line(1.0, weak), egui::StrokeKind::Inside);
+    if rim.enabled {
+        let rs = if lit(Part::RimSection) || lit(Part::Rim) { HIGHLIGHT } else { weak.gamma_multiply(0.6) };
+        for (a, b) in [(-t, 0.0), (sb.a, sb.a + t)] {
+            p.rect_filled(Rect::from_two_pos(sec(a, rim.top - rim.height), sec(b, rim.top)), 1.0, rs);
+        }
+        label(sec(sb.a + t, rim.top - rim.height) + Vec2::new(0.0, 3.0 * k), Align2::RIGHT_TOP, "Rim", Some(Part::RimSection));
+    }
+    let bs = if lit(Part::Board) { line(3.0, HIGHLIGHT) } else { line(3.0, WOOD) };
+    p.line_segment([sec(0.0, 0.0), sec(sb.a, 0.0)], bs);
+    if f.enabled {
+        let fs = if lit(Part::FrameHeight) || lit(Part::Frame) { line(2.5, HIGHLIGHT) } else { line(1.5, weak) };
+        p.line_segment([sec(f.offset_x, f.height), sec(f.offset_x + f.a, f.height)], fs);
+        label(sec(f.offset_x, f.height) + Vec2::new(0.0, -2.0 * k), Align2::LEFT_BOTTOM, "Frame", Some(Part::FrameHeight));
+    }
+    label(sec(sb.a * 0.5, 0.0) + Vec2::new(0.0, 2.0 * k), Align2::CENTER_TOP, "Board", Some(Part::Board));
+    let back = if lit(Part::BackFace) { line(1.5, HIGHLIGHT) } else { line(1.0, weak.gamma_multiply(0.6)) };
+    p.extend(Shape::dashed_line(&[sec(0.0, -sb.back_depth), sec(sb.a, -sb.back_depth)], back, 4.0, 3.0));
+    label(sec(sb.a * 0.5, -sb.back_depth) + Vec2::new(0.0, 2.0 * k), Align2::CENTER_TOP, "Underside (its image)", Some(Part::BackFace));
+    // 10 cm scale under the section.
+    let y = sec_top + (z1 - z0) as f32 * s2 * STRETCH + 18.0;
+    let l = 0.1 * s2;
+    p.line_segment([at(sec_x, y), at(sec_x + l, y)], line(1.5, ink));
+    p.text(at(sec_x + l + 4.0, y), Align2::LEFT_CENTER, "10 cm", font.clone(), weak);
+    resp
+}
+
 /// The keys a key-number parameter covers.
 fn key_range(model: &PianoModel, path: &str) -> Option<(u8, u8)> {
     let u = &model.unison;
@@ -495,7 +734,6 @@ fn key_range(model: &PianoModel, path: &str) -> Option<(u8, u8)> {
         "nonlinear.max_note" => (21, model.nonlinear.max_note),
         "losses.wound_until" => (21, model.losses.wound_until),
         "losses.top_from" => (model.losses.top_from, 108),
-        "soundboard.main_bridge_from" => (21, model.soundboard?.main_bridge_from.saturating_sub(1)),
         _ => return None,
     })
 }
@@ -578,6 +816,11 @@ mod tests {
         assert_eq!(parts_of("core_depth_mid"), &[Part::Core]);
         assert_eq!(parts_of("hardness_slope_bass"), &[Part::Felt]);
         assert!(locate("output_gain_db").is_none());
+        assert_eq!(locate("soundboard.piston_mass"), Some((Sketch::Plan, &[Part::Piston][..])));
+        assert_eq!(locate("soundboard.bridge_mass"), Some((Sketch::String, &[Part::Bridge][..])));
+        assert_eq!(locate("soundboard.dx"), Some((Sketch::Plan, &[Part::Board][..])));
+        assert!(locate("soundboard.mics[0][1]").is_none() && locate("soundboard.lid_angle").is_none());
+        assert_eq!(locate("rim.top"), Some((Sketch::Plan, &[Part::RimSection][..])));
         // Every key-number parameter lit on the keyboard has its range.
         let m = PianoModel::default();
         for p in reg.params().iter().filter(|p| parts_of(&p.path).contains(&Part::Keys)) {
@@ -606,6 +849,19 @@ mod tests {
             Part::Partials,
             Part::Sympathy,
             Part::Keys,
+            Part::Board,
+            Part::BoardTreble,
+            Part::BoardBass,
+            Part::Bridges,
+            Part::BassBridge,
+            Part::BridgeSpread,
+            Part::Piston,
+            Part::BackFace,
+            Part::Frame,
+            Part::Agraffes,
+            Part::Rim,
+            Part::FrameHeight,
+            Part::RimSection,
         ] {
             assert!(reg.params().iter().any(|p| parts_of(&p.path).contains(&part)), "{part:?}");
         }
