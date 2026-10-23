@@ -25,32 +25,52 @@ const HANDLE: f32 = 9.0;
 struct Setup {
     name: &'static str,
     hint: &'static str,
+    /// The listening preset it matches (presets/listening/Microphones).
+    preset: Option<&'static str>,
     mics: [(f64, f64, f64); 2],
+    /// `mics` x and y in shares of the board (they follow its size).
+    relative: bool,
     lid_angle: f64,
-    /// Output level keeping the loudness of the other set-ups.
+    /// Level keeping the loudness of the other set-ups.
     gain_db: f64,
 }
 
-/// The set-ups of the presets (close, concert, default).
-const SETUPS: [Setup; 3] = [
+/// The listening presets' microphone set-ups, and the calibrated one (the
+/// model's default), for hosts without the preset folder.
+const SETUPS: [Setup; 4] = [
     Setup {
         name: "Close",
         hint: "40 cm above the bass and treble parts of the bridge, lid open at 35°",
-        mics: [(0.5, 0.45, 0.4), (1.2, 0.85, 0.4)],
+        preset: Some("close"),
+        mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
+        relative: true,
         lid_angle: 35.0,
         gain_db: -9.6,
     },
     Setup {
         name: "Concert",
-        hint: "A pair 1.6 m in front of the opening, 2 m above the board, lid open at 35°",
-        mics: [(0.55, -1.6, 2.0), (1.25, -1.6, 2.0)],
+        hint: "A pair in front of the opening, 2 m above the board, lid open at 35°",
+        preset: Some("concert"),
+        mics: [(0.323529, -1.230769, 2.0), (0.735294, -1.230769, 2.0)],
+        relative: true,
         lid_angle: 35.0,
         gain_db: 3.4,
     },
     Setup {
+        name: "Audience",
+        hint: "The concert pair 1 m above the board, lid closed",
+        preset: Some("audience_lid_closed"),
+        mics: [(0.323529, -1.230769, 1.0), (0.735294, -1.230769, 1.0)],
+        relative: true,
+        lid_angle: 0.0,
+        gain_db: 0.0,
+    },
+    Setup {
         name: "Above",
         hint: "1.5 m above the board, lid removed: the set-up the model was calibrated with",
+        preset: None,
         mics: SoundboardParams::GRAND_2M.mics,
+        relative: false,
         lid_angle: 0.0,
         gain_db: 0.0,
     },
@@ -143,6 +163,22 @@ fn behind_lid(sb: &SoundboardParams, m: [f64; 3]) -> bool {
     (0.0..=1.05 * sb.b).contains(&t) && (-0.05..=sb.a + 0.05).contains(&x[0])
 }
 
+/// Edits putting the microphones at `moved` (m), in the model's units
+/// (shares of the board when its positions are relative), for the
+/// coordinates that changed.
+fn mic_edits(raw: &SoundboardParams, moved: &[[f64; 3]; 2]) -> Vec<(String, f64)> {
+    let size = [raw.a, raw.b, 1.0];
+    let before = raw.resolved().mics.map(|(x, y, z)| [x, y, z]);
+    let mut edits = Vec::new();
+    for (i, m) in moved.iter().enumerate() {
+        for k in (0..3).filter(|&k| cm(m[k]) != cm(before[i][k])) {
+            let v = if raw.mics_relative && k < 2 { (cm(m[k]) / size[k] * 1e4).round() / 1e4 } else { cm(m[k]) };
+            edits.push((format!("soundboard.mics[{i}][{k}]"), v));
+        }
+    }
+    edits
+}
+
 /// Applies edits as one gesture each; a rebuild follows once they pause.
 fn commit(control: &mut dyn PianoControl, edits: &[(String, f64)]) {
     for (path, v) in edits {
@@ -197,12 +233,14 @@ const GAP: f32 = 18.0;
 
 impl MicView {
     pub fn show(&mut self, ui: &mut Ui, control: &mut dyn PianoControl, model: &PianoModel) {
-        let Some(sb) = model.soundboard else {
+        let Some(raw) = model.soundboard else {
             ui.label("This model has no soundboard: it outputs the bridge force, without microphones.");
             return;
         };
+        // Drawn in metres whatever the model's units.
+        let sb = raw.resolved();
         let committed = sb.mics.map(|(x, y, z)| [x, y, z]);
-        self.setups(ui, control, model, &sb, &committed);
+        self.setups(ui, control, model, &raw);
         ui.add_space(6.0);
 
         let bounds = self.drag.map_or_else(|| Bounds::fit(model, &sb, &committed), |d| d.bounds);
@@ -215,7 +253,7 @@ impl MicView {
         let size = Vec2::new(yspan as f32 * s, hspan as f32 * s + GAP);
 
         ui.horizontal_top(|ui| {
-            self.board_views(ui, control, model, &sb, bounds, s, size);
+            self.board_views(ui, control, model, &raw, bounds, s, size);
             if side_by_side {
                 ui.add_space(16.0);
                 ui.vertical(|ui| self.room_view(ui, control, model, &sb, room_width));
@@ -229,14 +267,21 @@ impl MicView {
         self.readout(ui, model, &sb);
     }
 
-    fn setups(&mut self, ui: &mut Ui, control: &mut dyn PianoControl, model: &PianoModel, sb: &SoundboardParams, mics: &[[f64; 3]; 2]) {
+    fn setups(&mut self, ui: &mut Ui, control: &mut dyn PianoControl, model: &PianoModel, raw: &SoundboardParams) {
         ui.horizontal_wrapped(|ui| {
             ui.label("Set-up:");
             for s in &SETUPS {
-                let on = s.mics.iter().zip(mics).all(|(a, b)| [a.0, a.1, a.2] == *b) && s.lid_angle == sb.lid_angle;
-                let r = ui.selectable_label(on, s.name).on_hover_text(format!("{}. Also sets the output gain ({} dB) to keep a comparable loudness.", s.hint, s.gain_db));
-                if r.clicked() {
-                    let mut edits = vec![("soundboard.lid_angle".to_string(), s.lid_angle), ("output_gain_db".to_string(), s.gain_db)];
+                let on = s.mics == raw.mics && s.relative == raw.mics_relative && s.lid_angle == raw.lid_angle && s.gain_db == raw.mic_gain_db;
+                let mut hint = format!("{}. Also sets the microphone gain ({} dB) to keep a comparable loudness.", s.hint, s.gain_db);
+                if let Some(p) = s.preset {
+                    hint += &format!(" Same as the listening preset \u{201c}{p}\u{201d}.");
+                }
+                if ui.selectable_label(on, s.name).on_hover_text(hint).clicked() {
+                    let mut edits = vec![
+                        ("soundboard.lid_angle".to_string(), s.lid_angle),
+                        ("soundboard.mic_gain_db".to_string(), s.gain_db),
+                        ("soundboard.mics_relative".to_string(), if s.relative { 1.0 } else { 0.0 }),
+                    ];
                     for (i, m) in s.mics.iter().enumerate() {
                         for (j, v) in [m.0, m.1, m.2].into_iter().enumerate() {
                             edits.push((format!("soundboard.mics[{i}][{j}]"), v));
@@ -248,8 +293,9 @@ impl MicView {
             }
             ui.separator();
             if ui.button("Swap left and right").on_hover_text("Exchange the two microphones (the stereo image turns round)").clicked() {
+                let m = raw.mics.map(|(x, y, z)| [x, y, z]);
                 let edits: Vec<(String, f64)> =
-                    (0..2).flat_map(|i| (0..3).map(move |j| (format!("soundboard.mics[{i}][{j}]"), mics[1 - i][j]))).collect();
+                    (0..2).flat_map(|i| (0..3).map(move |j| (format!("soundboard.mics[{i}][{j}]"), m[1 - i][j]))).collect();
                 commit(control, &edits);
             }
         });
@@ -261,11 +307,12 @@ impl MicView {
         ui: &mut Ui,
         control: &mut dyn PianoControl,
         model: &PianoModel,
-        sb: &SoundboardParams,
+        raw: &SoundboardParams,
         bounds: Bounds,
         s: f32,
         size: Vec2,
     ) {
+        let sb = &raw.resolved();
         let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
         let plan_h = (bounds.x.1 - bounds.x.0) as f32 * s;
         let map = Map { b: bounds, s, left: rect.left(), plan_bottom: rect.top() + plan_h, elev_bottom: rect.bottom() };
@@ -318,12 +365,7 @@ impl MicView {
                 if r.drag_stopped() {
                     let moved = d.mics;
                     self.drag = None;
-                    let edits: Vec<(String, f64)> = (0..2)
-                        .flat_map(|j| (0..3).map(move |k| (j, k)))
-                        .filter(|&(j, k)| cm(moved[j][k]) != committed[j][k])
-                        .map(|(j, k)| (format!("soundboard.mics[{j}][{k}]"), cm(moved[j][k])))
-                        .collect();
-                    commit(control, &edits);
+                    commit(control, &mic_edits(raw, &moved));
                 }
             }
         }
@@ -625,6 +667,7 @@ mod tests {
         let mut control = MockControl::new(PianoModel::default());
         frames(&mut ui, &mut control, &ctx, vec![vec![]]);
         // The concert set-up: the pair overlaps when seen from the keyboard.
+        control.set("soundboard.mics_relative", Value::Bool(true));
         for (i, m) in SETUPS[1].mics.iter().enumerate() {
             for (j, v) in [m.0, m.1, m.2].into_iter().enumerate() {
                 control.set(&format!("soundboard.mics[{i}][{j}]"), Value::Float(v));
@@ -633,9 +676,11 @@ mod tests {
         frames(&mut ui, &mut control, &ctx, vec![vec![], vec![]]);
         let from = ui.mics.handles[1][1];
         frames(&mut ui, &mut control, &ctx, drag(from, Vec2::new(0.0, 30.0)));
+        // Lowered together, the rest kept in shares of the board.
         let m = mics(&control);
         assert!(m[0].2 < 1.9 && m[0].2 == m[1].2, "{m:?}");
-        assert_eq!((m[0].0, m[1].0), (0.55, 1.25));
+        assert_eq!((m[0].0, m[1].0, m[0].1), (0.323529, 0.735294, -1.230769));
+        assert!(control.model().soundboard.unwrap().mics_relative);
     }
 
     #[test]
@@ -646,6 +691,25 @@ mod tests {
         // High above the bass side: behind it.
         assert!(behind_lid(&sb, [0.85, 1.6, 1.8]));
         assert!(!behind_lid(&SoundboardParams { lid_angle: 0.0, ..sb }, [0.85, 1.6, 1.8]));
+    }
+
+    #[test]
+    fn setups_match_the_listening_presets() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/listening/Microphones");
+        for s in SETUPS.iter() {
+            let Some(name) = s.preset else { continue };
+            let m = piano_host::load_listening(&dir.join(format!("{name}.toml")), &PianoModel::default()).unwrap();
+            let sb = m.soundboard.unwrap();
+            assert_eq!((sb.mics, sb.mics_relative, sb.lid_angle, sb.mic_gain_db), (s.mics, s.relative, s.lid_angle, s.gain_db), "{name}");
+        }
+    }
+
+    #[test]
+    fn relative_positions_stay_relative() {
+        let raw = SoundboardParams { mics_relative: true, mics: [(0.25, 0.5, 1.0), (0.75, 0.5, 1.0)], ..SoundboardParams::GRAND_2M };
+        let mut moved = raw.resolved().mics.map(|(x, y, z)| [x, y, z]);
+        moved[1][1] -= 0.13;
+        assert_eq!(mic_edits(&raw, &moved), vec![("soundboard.mics[1][1]".to_string(), 0.4)]);
     }
 
     #[test]
@@ -664,7 +728,7 @@ mod tests {
     #[test]
     fn default_setup_is_the_model_default() {
         let sb = PianoModel::default().soundboard.unwrap();
-        let s = &SETUPS[2];
-        assert_eq!((s.mics, s.lid_angle, s.gain_db), (sb.mics, sb.lid_angle, PianoModel::default().output_gain_db));
+        let s = &SETUPS[3];
+        assert_eq!((s.mics, s.relative, s.lid_angle, s.gain_db), (sb.mics, sb.mics_relative, sb.lid_angle, sb.mic_gain_db));
     }
 }

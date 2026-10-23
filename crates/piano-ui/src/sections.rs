@@ -49,7 +49,7 @@ pub const SECTIONS: &[Section] = &[
     },
     Section {
         title: "Microphones",
-        prefixes: &["soundboard.mics[", "soundboard.lid_"],
+        prefixes: &["soundboard.mics[", "soundboard.mics_relative", "soundboard.mic_gain_db", "soundboard.lid_"],
         curves: &[],
         view: View::Mics,
     },
@@ -64,6 +64,8 @@ pub const SECTIONS: &[Section] = &[
             "p_offset",
             "hysteresis",
             "contact_width_scale",
+            "hammer_mass_scale",
+            "strike_ratio",
         ],
         curves: &[
             Curve { title: "Felt stiffness Q0", unit: "N/mm^p", x: KEYS, log: true, f: |m, n| m.note(n).hammer.q0 },
@@ -129,6 +131,11 @@ mod tests {
         assert_eq!(SECTIONS[section_of("soundboard.lid_angle")].title, "Microphones");
         assert_eq!(SECTIONS[section_of("soundboard.back_gain")].title, "Soundboard");
         assert_eq!(SECTIONS[section_of("some_new_field")].title, "Other");
+        assert_eq!(SECTIONS[section_of("strike_ratio")].title, "Hammer");
+        // Every parameter of the model has its page.
+        let reg = piano_params::Registry::new();
+        let other: Vec<&str> = reg.params().iter().map(|p| p.path.as_str()).filter(|p| SECTIONS[section_of(p)].title == "Other").collect();
+        assert!(other.is_empty(), "no page for {other:?}");
     }
 
     #[test]

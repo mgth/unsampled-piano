@@ -40,6 +40,7 @@ pub fn parts_of(path: &str) -> &'static [Part] {
         ("p_offset", &[Felt]),
         ("hysteresis", &[Felt]),
         ("contact_width_scale", &[Felt]),
+        ("hammer_mass_scale", &[Felt]),
         ("core_", &[Core]),
         ("una_corda_softening", &[UnaCorda]),
         ("damper.pedal_", &[SustainPedal]),
