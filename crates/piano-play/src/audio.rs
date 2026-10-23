@@ -10,7 +10,7 @@
 //! Lives on the main thread: a cpal stream may not leave it.
 
 use crate::node;
-use crate::player::{Player, Stats, MAX_BLOCK};
+use crate::player::{KeyboardInput, Player, Stats, MAX_BLOCK};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use piano_control::Controller;
 use piano_core::params::PianoModel;
@@ -42,6 +42,18 @@ pub struct Settings {
     /// Threads rendering the voices (1: the audio thread alone).
     pub threads: usize,
     pub quality: Quality,
+    /// The keyboard's channel (1–16; None: every channel).
+    pub midi_channel: Option<u8>,
+    /// The keyboard's sustain pedal works the other way round.
+    pub invert_sustain: bool,
+}
+
+impl Settings {
+    /// The same, keyboard filter aside (what the filter changes needs no
+    /// restart).
+    fn without_keyboard(&self) -> Self {
+        Self { midi_channel: None, invert_sustain: false, ..self.clone() }
+    }
 }
 
 /// What may be chosen now, and what is connected.
@@ -90,6 +102,7 @@ pub struct Audio {
     stats: Arc<Stats>,
     output_now: Option<String>,
     midi_now: Option<String>,
+    keyboard: Arc<KeyboardInput>,
 }
 
 /// What to play besides the keyboard at the start.
@@ -116,6 +129,8 @@ impl Audio {
         let backend = open(&settings, name)?;
         let sample_rate = backend_rate(&backend);
         let start = start(sample_rate)?;
+        let keyboard = Arc::new(KeyboardInput::default());
+        keyboard.set(settings.midi_channel, settings.invert_sustain);
         let mut audio = Self {
             settings,
             live: None,
@@ -125,6 +140,7 @@ impl Audio {
             stats,
             output_now: None,
             midi_now: None,
+            keyboard,
         };
         let control = audio.launch(backend, model, map, start)?;
         Ok((audio, control))
@@ -136,6 +152,12 @@ impl Audio {
     /// into `control`. On failure the previous set-up comes back.
     pub fn apply(&mut self, new: Settings, control: &Arc<Mutex<Controller>>) -> Result<(), String> {
         if new == self.settings {
+            return Ok(());
+        }
+        // The keyboard's channel and pedal: at once, while playing.
+        self.keyboard.set(new.midi_channel, new.invert_sustain);
+        if new.without_keyboard() == self.settings.without_keyboard() {
+            self.settings = new;
             return Ok(());
         }
         // Still the graph node and the same engine: only its connections
@@ -203,7 +225,7 @@ impl Audio {
                 std::thread::spawn(move || demo(tx));
             }
             None if matches!(backend, Backend::Cpal { .. }) && start.listen => {
-                let (conn, port) = midir_input(self.settings.midi.as_deref(), tx)?;
+                let (conn, port) = midir_input(self.settings.midi.as_deref(), tx, self.keyboard.clone())?;
                 midi_conn = conn;
                 self.midi_now = port;
             }
@@ -212,7 +234,7 @@ impl Audio {
         match backend {
             Backend::Node(n) => {
                 let period = n.buffer_size();
-                let (running, names) = n.start(player, self.gain).map_err(|e| e.to_string())?;
+                let (running, names) = n.start(player, self.gain, self.keyboard.clone()).map_err(|e| e.to_string())?;
                 eprintln!("graph node \"{}\" ({period} frames/period)", self.name);
                 eprintln!("  MIDI in:  {}", names.midi_in);
                 eprintln!("  MIDI out: {} (mirror of what the piano plays)", names.midi_out);
@@ -509,7 +531,11 @@ fn cpal_stream<T: cpal::SizedSample + cpal::FromSample<f32>>(
 /// Keyboard through midir (cpal backends): events go to the queue. Returns
 /// the connection and the port's name.
 #[allow(clippy::type_complexity)]
-fn midir_input(want: Option<&str>, mut tx: Queue) -> Result<(Option<midir::MidiInputConnection<()>>, Option<String>), String> {
+fn midir_input(
+    want: Option<&str>,
+    mut tx: Queue,
+    keyboard: Arc<KeyboardInput>,
+) -> Result<(Option<midir::MidiInputConnection<()>>, Option<String>), String> {
     let midi_in = midir::MidiInput::new("unsampled-piano").map_err(|e| e.to_string())?;
     let ports = midi_in.ports();
     let name = |p: &midir::MidiInputPort| midi_in.port_name(p).unwrap_or_default();
@@ -528,7 +554,7 @@ fn midir_input(want: Option<&str>, mut tx: Queue) -> Result<(Option<midir::MidiI
             &p,
             "unsampled-piano-in",
             move |_, msg, _| {
-                if let Some(ev) = piano_host::decode_midi(msg) {
+                if let Some(ev) = keyboard.decode(msg) {
                     let _ = tx.push(ev);
                 }
             },
@@ -570,6 +596,8 @@ pub fn save(settings: &Settings, path: &std::path::Path) -> Result<(), String> {
             ("midi_out", settings.midi_out.as_deref().map(quote)),
             ("threads", (settings.threads > 1).then(|| settings.threads.to_string())),
             ("quality", (settings.quality != Quality::Full).then(|| quote(settings.quality.name()))),
+            ("midi_channel", settings.midi_channel.map(|c| c.to_string())),
+            ("invert_sustain", settings.invert_sustain.then(|| "true".to_string())),
         ],
     )
 }
@@ -616,6 +644,8 @@ mod tests {
             midi_out: None,
             threads: 1,
             quality: Quality::Full,
+            midi_channel: None,
+            invert_sustain: false,
         }
     }
 
@@ -663,6 +693,14 @@ mod tests {
         a.apply(s.clone(), &control).unwrap();
         assert_eq!(a.choices().backend, "node");
         assert_eq!(control.lock().unwrap().model().output_gain_db, -6.0);
+
+        // The keyboard's channel and pedal: no restart.
+        let before = Arc::as_ptr(control.lock().unwrap().shared());
+        a.apply(Settings { midi_channel: Some(2), invert_sustain: true, ..s.clone() }, &control).unwrap();
+        assert_eq!(Arc::as_ptr(control.lock().unwrap().shared()), before);
+        assert_eq!(a.keyboard.decode(&[0xB1, 64, 127]), Some(Event::Control { cc: 64, value: 0 }));
+        assert_eq!(a.keyboard.decode(&[0xB0, 64, 127]), None);
+        a.apply(s.clone(), &control).unwrap();
 
         // Threads and quality on the node: a new engine, the edit kept.
         let before = Arc::as_ptr(control.lock().unwrap().shared());

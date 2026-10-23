@@ -18,6 +18,8 @@ pub enum Request {
     Mcp(bool),
     /// Start with the last sound.
     Restore(bool),
+    /// The interface's theme: "system", "dark" or "light".
+    Theme(String),
 }
 
 /// What the page shows and asks, shared with the window.
@@ -32,7 +34,11 @@ pub struct PageState {
     pub mcp: bool,
     pub mcp_url: Option<String>,
     pub restore: bool,
+    /// "system", "dark" or "light".
+    pub theme: String,
 }
+
+pub const THEMES: [(&str, &str); 3] = [("system", "As the system"), ("dark", "Dark"), ("light", "Light")];
 
 /// What a quality level leaves out, for its menu entry.
 fn quality_text(q: Quality) -> &'static str {
@@ -142,6 +148,24 @@ impl piano_ui::HostPage for SettingsPage {
             });
             ui.end_row();
 
+            ui.label("MIDI channel");
+            ui.horizontal(|ui| {
+                let text = |c: Option<u8>| c.map_or("All channels".to_string(), |c| format!("Channel {c}"));
+                egui::ComboBox::from_id_salt("channel").selected_text(text(s.midi_channel)).show_ui(ui, |ui| {
+                    for c in std::iter::once(None).chain((1..=16).map(Some)) {
+                        if ui.selectable_label(s.midi_channel == c, text(c)).clicked() {
+                            want = Some(Settings { midi_channel: c, ..s.clone() });
+                        }
+                    }
+                });
+                let mut invert = s.invert_sustain;
+                let r = ui.checkbox(&mut invert, "Invert the sustain pedal");
+                if r.on_hover_text("For a keyboard whose sustain pedal sounds held when it is up: its values are turned round").changed() {
+                    want = Some(Settings { invert_sustain: invert, ..s.clone() });
+                }
+            });
+            ui.end_row();
+
             if node {
                 ui.label("MIDI mirror").on_hover_text("Sends every note the piano plays to another MIDI input of the graph");
                 let shown = s.midi_out.clone().unwrap_or_else(|| "Not connected".into());
@@ -208,6 +232,17 @@ impl piano_ui::HostPage for SettingsPage {
 
         ui.add_space(14.0);
         ui.label(RichText::new("Application").strong());
+        ui.horizontal(|ui| {
+            ui.label("Theme");
+            let shown = THEMES.iter().find(|t| t.0 == st.theme).map_or("As the system", |t| t.1);
+            egui::ComboBox::from_id_salt("theme").selected_text(shown).show_ui(ui, |ui| {
+                for (id, label) in THEMES {
+                    if ui.selectable_label(st.theme == id, label).clicked() {
+                        st.request = Some(Request::Theme(id.to_string()));
+                    }
+                }
+            });
+        });
         let mut restore = st.restore;
         if ui.checkbox(&mut restore, "Start with the last sound").on_hover_text("Without a preset on the command line, the player starts with the instrument and listening set-up it had when it was closed").changed() {
             st.request = Some(Request::Restore(restore));

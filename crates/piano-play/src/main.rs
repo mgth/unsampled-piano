@@ -110,6 +110,17 @@ struct Args {
     /// From play.toml only: start with the last sound (default true).
     #[arg(skip)]
     restore: Option<bool>,
+    /// Listen to this MIDI channel only (1–16; default: every channel).
+    #[arg(long, value_parser = clap::value_parser!(u8).range(1..=16))]
+    midi_channel: Option<u8>,
+    /// The keyboard's sustain pedal works the other way round (sounds held
+    /// when it is up).
+    #[arg(long)]
+    invert_sustain: bool,
+    /// From play.toml only: the interface's theme, "dark", "light" or
+    /// "system" (default).
+    #[arg(skip)]
+    theme: Option<String>,
 }
 
 /// Silence between two files (s), and after the last one before quitting.
@@ -158,6 +169,8 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
         midi_out: args.midi_out.clone(),
         threads: args.threads.unwrap_or(1).max(1),
         quality,
+        midi_channel: args.midi_channel,
+        invert_sustain: args.invert_sustain,
     };
     let stats = Arc::new(Stats::default());
     // The keyboard, unless files play alone.
@@ -209,7 +222,12 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let shipped: Vec<PathBuf> = beside.chain(piano_host::installed_preset_dirs()).collect();
     let preset = args.preset.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().into_owned());
     let title = if args.name == "unsampled-piano" { "Unsampled Piano".to_string() } else { format!("Unsampled Piano — {}", args.name) };
-    let app = window::AppSettings { file: piano_host::config_dir().map(|d| d.join("play.toml")), mcp_url, restore: restore_last(&args) };
+    let app = window::AppSettings {
+        file: piano_host::config_dir().map(|d| d.join("play.toml")),
+        mcp_url,
+        restore: restore_last(&args),
+        theme: args.theme.clone().unwrap_or_else(|| "system".into()),
+    };
     window::run(control, repaint, presets, shipped, preset, &title, audio, app)?;
     Ok(())
 }
@@ -547,6 +565,13 @@ fn apply_user_config(args: &mut Args) {
         args.quality = args.quality.take().or(string("quality"));
     }
     args.restore = table.get("restore").and_then(|v| v.as_bool());
+    args.theme = string("theme");
+    if let (false, Some(c)) = (given("--midi-channel"), number("midi_channel")) {
+        args.midi_channel = Some(c as u8).filter(|c| (1..=16).contains(c));
+    }
+    if !given("--invert-sustain") && table.get("invert_sustain").and_then(|v| v.as_bool()) == Some(true) {
+        args.invert_sustain = true;
+    }
     if !given("--presets") {
         args.presets = args.presets.take().or(string("presets").map(PathBuf::from));
     }

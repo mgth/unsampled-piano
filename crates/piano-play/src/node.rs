@@ -3,7 +3,8 @@
 //! with sample-accurate timing, and a MIDI output mirroring every event the
 //! piano plays (keyboard, graph input, files).
 
-use crate::player::{encode, Player};
+use crate::player::{encode, KeyboardInput, Player};
+use std::sync::Arc;
 use jack::{AudioOut, Client, ClientOptions, Control, MidiIn, MidiOut, Port, PortFlags, ProcessScope, RawMidi};
 
 pub struct Node {
@@ -30,13 +31,15 @@ struct Process {
     player: Player,
     ports: Ports,
     gain: f32,
+    keyboard: Arc<KeyboardInput>,
 }
 
 impl jack::ProcessHandler for Process {
     fn process(&mut self, _: &Client, ps: &ProcessScope) -> Control {
         let frames = ps.n_frames() as usize;
         let Ports { left, right, midi_in, midi_out } = &mut self.ports;
-        let input = midi_in.iter(ps).filter_map(|m| piano_host::decode_midi(m.bytes).map(|e| (m.time, e)));
+        let keyboard = &self.keyboard;
+        let input = midi_in.iter(ps).filter_map(|m| keyboard.decode(m.bytes).map(|e| (m.time, e)));
         let (ol, or) = (left.as_mut_slice(ps), right.as_mut_slice(ps));
         let mut writer = midi_out.writer(ps);
         let gain = self.gain;
@@ -99,14 +102,14 @@ impl Node {
     }
 
     /// Starts processing; returns the running client (drop it to stop).
-    pub fn start(self, player: Player, gain: f32) -> Result<(Running, PortNames), jack::Error> {
+    pub fn start(self, player: Player, gain: f32, keyboard: Arc<KeyboardInput>) -> Result<(Running, PortNames), jack::Error> {
         let names = PortNames {
             left: self.ports.left.name()?,
             right: self.ports.right.name()?,
             midi_in: self.ports.midi_in.name()?,
             midi_out: self.ports.midi_out.name()?,
         };
-        let active = self.client.activate_async((), Process { player, ports: self.ports, gain })?;
+        let active = self.client.activate_async((), Process { player, ports: self.ports, gain, keyboard })?;
         Ok((Running(active), names))
     }
 }

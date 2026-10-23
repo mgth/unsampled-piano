@@ -29,6 +29,16 @@ struct Window {
     page: Arc<Mutex<PageState>>,
     /// The preset folder, for the MCP server started from the page.
     presets: Option<PathBuf>,
+    ctx: egui::Context,
+}
+
+/// egui's preference for a theme of the settings ("system" otherwise).
+fn theme(name: &str) -> egui::ThemePreference {
+    match name {
+        "dark" => egui::ThemePreference::Dark,
+        "light" => egui::ThemePreference::Light,
+        _ => egui::ThemePreference::System,
+    }
 }
 
 impl eframe::App for Window {
@@ -72,6 +82,12 @@ impl Window {
                 self.page.lock().unwrap().restore = *on;
                 error = save("restore", *on).err();
             }
+            Request::Theme(t) => {
+                self.ctx.set_theme(theme(t));
+                self.page.lock().unwrap().theme = t.clone();
+                let value = (t != "system").then(|| toml::Value::String(t.clone()).to_string());
+                error = file.as_ref().map_or(Ok(()), |f| audio::save_keys(f, &[("theme", value)])).err();
+            }
             _ => {}
         }
         if let Request::Apply(s) = request {
@@ -99,6 +115,8 @@ pub struct AppSettings {
     /// The MCP server's URL when it was started with the player.
     pub mcp_url: Option<String>,
     pub restore: bool,
+    /// "system", "dark" or "light".
+    pub theme: String,
 }
 
 /// Opens the window and returns when it is closed.
@@ -127,6 +145,7 @@ pub fn run(
         mcp: app.mcp_url.is_some(),
         mcp_url: app.mcp_url,
         restore: app.restore,
+        theme: app.theme.clone(),
     }));
     ui.set_host_page(Box::new(SettingsPage(page.clone())));
     if let Ok(p) = std::env::var("PIANO_UI_PAGE") {
@@ -146,7 +165,9 @@ pub fn run(
         options,
         Box::new(move |cc| {
             let _ = repaint.set(cc.egui_ctx.clone());
-            Ok(Box::new(Window { ui, control, shot: piano_ui::shot::Shot::from_env(), audio, page, presets }))
+            cc.egui_ctx.set_theme(theme(&app.theme));
+            let ctx = cc.egui_ctx.clone();
+            Ok(Box::new(Window { ui, control, shot: piano_ui::shot::Shot::from_env(), audio, page, presets, ctx }))
         }),
     )
 }

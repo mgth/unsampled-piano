@@ -6,7 +6,7 @@
 
 use piano_control::EngineSlot;
 use piano_core::{Event, TimedEvent};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -23,6 +23,40 @@ pub struct Stats {
     pub voices: AtomicU32,
     /// Samples rendered since the start.
     pub clock: AtomicU64,
+}
+
+/// The keyboard's MIDI messages as the player takes them: from one channel
+/// or all, the sustain pedal turned round for keyboards whose pedal works
+/// the other way. Set while playing (atomics: the audio thread and midir's
+/// read them). MIDI files are not filtered.
+#[derive(Default)]
+pub struct KeyboardInput {
+    /// 1–16, 0: every channel.
+    channel: AtomicU8,
+    invert_sustain: AtomicBool,
+}
+
+impl KeyboardInput {
+    pub fn set(&self, channel: Option<u8>, invert_sustain: bool) {
+        self.channel.store(channel.filter(|c| (1..=16).contains(c)).unwrap_or(0), Ordering::Relaxed);
+        self.invert_sustain.store(invert_sustain, Ordering::Relaxed);
+    }
+
+    /// The event of a message from the keyboard, if the player takes it.
+    pub fn decode(&self, msg: &[u8]) -> Option<Event> {
+        let channel = self.channel.load(Ordering::Relaxed);
+        let status = *msg.first()?;
+        // Channel messages (0x80–0xEF) of another channel are left out.
+        if channel != 0 && status < 0xF0 && status & 0x0F != channel - 1 {
+            return None;
+        }
+        match piano_host::decode_midi(msg)? {
+            Event::Control { cc: 64, value } if self.invert_sustain.load(Ordering::Relaxed) => {
+                Some(Event::Control { cc: 64, value: 127 - value.min(127) })
+            }
+            e => Some(e),
+        }
+    }
 }
 
 pub struct Player {
@@ -138,5 +172,27 @@ pub fn encode(e: Event) -> Option<[u8; 3]> {
         Event::Control { cc, value } => Some([0xb0, cc & 0x7f, value & 0x7f]),
         Event::AllNotesOff => Some([0xb0, 123, 0]),
         Event::Param { .. } => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keyboard_channel_and_pedal() {
+        let k = KeyboardInput::default();
+        // Every channel, the pedal as it comes.
+        assert_eq!(k.decode(&[0x93, 60, 100]), Some(Event::NoteOn { note: 60, velocity: 100 }));
+        assert_eq!(k.decode(&[0xB0, 64, 127]), Some(Event::Control { cc: 64, value: 127 }));
+        // Channel 4 only (status low nibble 3), the sustain pedal inverted.
+        k.set(Some(4), true);
+        assert_eq!(k.decode(&[0x90, 60, 100]), None);
+        assert_eq!(k.decode(&[0x93, 60, 100]), Some(Event::NoteOn { note: 60, velocity: 100 }));
+        assert_eq!(k.decode(&[0xB3, 64, 127]), Some(Event::Control { cc: 64, value: 0 }));
+        assert_eq!(k.decode(&[0xB3, 64, 40]), Some(Event::Control { cc: 64, value: 87 }));
+        assert_eq!(k.decode(&[0xB3, 67, 127]), Some(Event::Control { cc: 67, value: 127 }));
+        k.set(None, false);
+        assert_eq!(k.decode(&[0xB5, 64, 127]), Some(Event::Control { cc: 64, value: 127 }));
     }
 }
