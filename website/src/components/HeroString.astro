@@ -7,6 +7,34 @@
 // Time is slowed so the motion can be seen, and it makes no sound: the sound
 // is what the download is for. Idle, it plays to itself.
 import { curveAt, def, noteName } from '../lib/params';
+import type { Lang } from '../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
+
+const T = {
+  en: {
+    aria: 'Interactive visualisation of a piano string: click the keys to strike it',
+    click: 'click a key, or type ',
+    keyboard: 'Keyboard, C3 to C5',
+    strike: (name: string) => `Strike ${name}`,
+    caption: 'Silent, slowed-down physics: partial ',
+    captionEnd: (s: number) => ` at k·f0·√(1 + B·k²), struck at ${s} of the string. Lower on a key strikes harder.`,
+    // Strings of the client script's readout and canvas.
+    script: { stretch: 'stretch', partial: 'partial', string: 'string', strings: 'strings', spectrum: 'partials vs exact harmonics' },
+  },
+  fr: {
+    aria: 'Visualisation interactive d’une corde de piano : cliquez sur les touches pour la frapper',
+    click: 'cliquez une touche, ou tapez ',
+    keyboard: 'Clavier, de C3 à C5',
+    strike: (name: string) => `Frapper ${name}`,
+    caption: 'Physique silencieuse et ralentie : partiel ',
+    captionEnd: (s: number) => ` à k·f0·√(1 + B·k²), frappé à ${s} de la corde. Plus bas sur une touche, la frappe est plus forte.`,
+    script: { stretch: 'étirement', partial: 'partiel', string: 'corde', strings: 'cordes', spectrum: 'partiels face aux harmoniques exacts' },
+  },
+}[lang];
 
 const FIRST = 48;
 const LAST = 72;
@@ -31,16 +59,16 @@ const whites = keys.filter((k) => !isBlack(k.n));
 const typing = 'awsedftgyhujkolp;'.split('');
 ---
 
-<figure class="hero-string" data-hero-string={JSON.stringify({ keys, strike, first: FIRST })} aria-label="Interactive visualisation of a piano string: click the keys to strike it">
+<figure class="hero-string" data-hero-string={JSON.stringify({ keys, strike, first: FIRST, t: T.script })} aria-label={T.aria}>
   <canvas class="hs-canvas" aria-hidden="true"></canvas>
   <div class="hs-readout" aria-live="polite">
     <span class="hs-note">—</span>
-    <span class="hs-detail">click a key, or type <kbd>A</kbd>…<kbd>K</kbd></span>
+    <span class="hs-detail">{T.click}<kbd>A</kbd>…<kbd>K</kbd></span>
   </div>
-  <div class="hs-keys" role="group" aria-label="Keyboard, C3 to C5">
+  <div class="hs-keys" role="group" aria-label={T.keyboard}>
     {
       whites.map((k) => (
-        <button type="button" class="hs-key hs-white" data-n={k.n} aria-label={`Strike ${k.name}`}>
+        <button type="button" class="hs-key hs-white" data-n={k.n} aria-label={T.strike(k.name)}>
           {k.n % 12 === 0 && <span>{k.name}</span>}
         </button>
       ))
@@ -55,7 +83,7 @@ const typing = 'awsedftgyhujkolp;'.split('');
               type="button"
               class="hs-key hs-black"
               data-n={k.n}
-              aria-label={`Strike ${k.name}`}
+              aria-label={T.strike(k.name)}
               style={`left: calc(${left} * 100% / ${whites.length} - 100% / ${whites.length} * 0.3)`}
             />
           );
@@ -63,8 +91,7 @@ const typing = 'awsedftgyhujkolp;'.split('');
     }
   </div>
   <figcaption>
-    Silent, slowed-down physics: partial <em>k</em> at k·f0·√(1 + B·k²), struck at {strike} of the string. Lower on a key strikes
-    harder. <span data-typing hidden>{typing.join('')}</span>
+    {T.caption}<em>k</em>{T.captionEnd(strike)} <span data-typing hidden>{typing.join('')}</span>
   </figcaption>
 </figure>
 
@@ -175,7 +202,11 @@ const typing = 'awsedftgyhujkolp;'.split('');
     const fig = document.querySelector<HTMLElement>('[data-hero-string]:not([data-bound])');
     if (!fig) return;
     fig.dataset.bound = '1';
-    const { keys, strike } = JSON.parse(fig.dataset.heroString!) as { keys: Key[]; strike: number };
+    const { keys, strike, t: tr } = JSON.parse(fig.dataset.heroString!) as {
+      keys: Key[];
+      strike: number;
+      t: { stretch: string; partial: string; string: string; strings: string; spectrum: string };
+    };
     const canvas = fig.querySelector('canvas')!;
     const ctx = canvas.getContext('2d')!;
     const note = fig.querySelector<HTMLElement>('.hs-note')!;
@@ -205,7 +236,7 @@ const typing = 'awsedftgyhujkolp;'.split('');
       });
       const k12 = 1200 * Math.log2(Math.sqrt(1 + k.B * 144));
       note.textContent = `${k.name} · ${k.f0.toFixed(1)} Hz`;
-      detail.textContent = `B ${k.B.toExponential(1)} · stretch ${k.stretch >= 0 ? '+' : ''}${k.stretch.toFixed(1)}¢ · partial 12 +${k12.toFixed(0)}¢ · ${k.strings} string${k.strings > 1 ? 's' : ''}`;
+      detail.textContent = `B ${k.B.toExponential(1)} · ${tr.stretch} ${k.stretch >= 0 ? '+' : ''}${k.stretch.toFixed(1)}¢ · ${tr.partial} 12 +${k12.toFixed(0)}¢ · ${k.strings} ${k.strings > 1 ? tr.strings : tr.string}`;
       if (reduced) draw(performance.now() + 120);
     }
 
@@ -287,7 +318,7 @@ const typing = 'awsedftgyhujkolp;'.split('');
         ctx.fillRect(x - 2, SB - h, 4, h);
       }
       ctx.fillStyle = 'rgba(156,163,178,0.8)';
-      ctx.fillText('partials vs exact harmonics', L, ST - 6);
+      ctx.fillText(tr.spectrum, L, ST - 6);
     }
 
     // Keys: pointer (lower on the key = harder) and computer keyboard.

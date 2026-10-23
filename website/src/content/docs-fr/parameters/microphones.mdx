@@ -1,0 +1,49 @@
+---
+title: Microphones
+description: Où se tiennent les deux microphones, ce qu'ils entendent, et le couvercle entre eux et la table.
+order: 102
+icon: mic
+section: Parameters
+page: Microphones
+---
+import MicPlan from '../../../components/diagrams/MicPlan.astro';
+import LidSection from '../../../components/diagrams/LidSection.astro';
+import MicPattern from '../../../components/diagrams/MicPattern.astro';
+
+Unsampled Piano n'a pas de bouton « largeur stéréo », parce qu'il n'y a pas d'artifice stéréo :
+le canal gauche est ce qu'entend un microphone placé en un point de l'espace, le canal droit ce
+qu'en entend un second. Chaque microphone additionne le son de tous les modes de la table
+d'harmonie par l'**intégrale de Rayleigh** — la table pousse l'air, parcelle par parcelle, et
+chaque parcelle arrive avec son propre retard et sa propre distance —, puis les réflexions sur
+le couvercle, le cadre et la ceinture, et enfin la salle.
+
+Déplacez un microphone, et l'équilibre entre graves et aigus, l'attaque et la sensation de
+distance changent tous, exactement comme devant un vrai piano. Modifier une position
+reconstruit les poids de rayonnement, ce qui prend une fraction de seconde.
+
+## Dispositifs
+
+Les presets *Listening* sont des dispositifs de prise de son que vous pouvez combiner avec
+n'importe quel instrument : en charger un conserve l'instrument, charger un instrument conserve
+le dispositif.
+
+<MicPlan lang="fr" />
+
+Les positions sont en mètres, dans le repère de la table d'harmonie elle-même : `x` le long des
+cordes depuis le côté clavier, `y` en travers depuis le côté aigu, `z` au-dessus de la table.
+Avec `mics_relative` activé, `x` et `y` deviennent des fractions de la longueur et de la largeur
+de la table, si bien qu'un dispositif suit la table quand vous changez d'instrument — c'est ce
+que font les presets d'écoute. `mic_gain_db` règle le niveau du dispositif : des microphones
+proches entendent le piano environ 13 dB plus fort, le preset de prise rapprochée baisse donc
+lui-même son niveau.
+
+## Le couvercle
+
+<LidSection lang="fr" />
+
+`lid_angle` = 0 retire complètement le couvercle du modèle : ni réflexion, ni ombre. C'est
+l'instrument par défaut, et le dispositif *audience, lid closed*.
+
+## Diagramme polaire
+
+<MicPattern lang="fr" />

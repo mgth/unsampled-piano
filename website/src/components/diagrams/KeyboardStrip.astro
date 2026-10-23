@@ -3,6 +3,7 @@
 // key, wound strings, dampers…) and single keys pointed at. `pulses` makes
 // keys glow in turn — the struck key, then the ones that answer it.
 import { noteName } from '../../lib/params';
+import type { Lang } from '../../i18n';
 
 interface Zone {
   from: number;
@@ -28,9 +29,12 @@ interface Props {
   pulses?: Pulse[];
   /** Cycle length of the pulses (s). */
   period?: number;
+  /** Accessible name; defaults to "Keyboard" in `lang`. */
   label?: string;
+  lang?: Lang;
 }
-const { zones = [], marks = [], pulses = [], period = 4, label = 'Keyboard' } = Astro.props;
+const { zones = [], marks = [], pulses = [], period = 4, lang = 'en' } = Astro.props;
+const label = Astro.props.label ?? { en: 'Keyboard', fr: 'Clavier' }[lang];
 
 const W = 520;
 const isBlack = (n: number) => [1, 3, 6, 8, 10].includes(n % 12);

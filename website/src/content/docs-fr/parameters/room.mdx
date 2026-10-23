@@ -1,0 +1,45 @@
+---
+title: Salle
+description: La salle autour du piano — ses dimensions, ses murs et sa réverbération, les premiers échos sous forme de sources images, et la façon dont le piano dirige son son.
+order: 110
+icon: room
+section: Parameters
+page: Room
+---
+import RoomView from '../../../components/diagrams/RoomView.astro';
+
+Les microphones ne s'arrêtent pas au son direct : ils entendent aussi la salle. Le modèle place
+le piano et ses microphones dans une salle en **boîte à chaussures** et calcule ce qui leur
+parvient en deux temps — les premiers échos de façon exacte, la réverbération tardive de façon
+statistique.
+
+<RoomView lang="fr" />
+
+## Premières réflexions
+
+Chaque réflexion sur un mur est le son d'une **image** du piano, reflétée dans ce mur, qui
+arrive plus tard et plus faible ; les réflexions de réflexions sont des images d'images. Le
+modèle les calcule jusqu'à l'ordre `order` (3 par défaut), chacune avec son propre filtrage par
+les murs : les parois absorbent certaines fréquences plus que d'autres (`absorption_low` vers
+125 Hz, `absorption_high` vers 4 kHz). Pour les réflexions, le piano est une source ponctuelle
+placée au centre de la table ; `piano` situe la table dans la salle, et près d'un mur ses échos
+arrivent tôt et fort.
+
+## Réverbération
+
+Après les premiers échos, un **réseau de retards bouclés (FDN)** à 16 lignes prend le relais et
+construit la queue dense. Sa décroissance suit la formule de Sabine, T60 = 0.161·V / (S·α), l'air
+absorbant davantage les aigus ; `tail_gain` la dose (1 est la valeur physique : l'énergie
+réverbérée est fixée à partir de la distance critique de la salle).
+
+## Directivité
+
+Un piano ne rayonne pas de façon égale dans toutes les directions. Un piano à queue couvercle
+ouvert projette son son vers le public ; un piano droit contre un mur le diffuse. Comme la salle
+est excitée par le son qu'entendent les microphones, `directivity` (un facteur Q) indique quelle
+part le piano envoie partout ailleurs : plus Q est élevé, moins il remplit la salle. 0 laisse
+l'instrument décider — 3 pour un piano à queue couvercle ouvert, 2 couvercle fermé ou retiré,
+2 pour un piano droit contre un mur, 1.5 pour un piano droit isolé.
+
+Les presets d'écoute *Room* correspondent à ces salles ; *Dry* coupe la salle et laisse le piano
+seul avec ses microphones.

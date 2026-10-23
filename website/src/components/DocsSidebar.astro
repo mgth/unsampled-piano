@@ -1,15 +1,19 @@
 ---
-import { getCollection } from 'astro:content';
+import { docsOf } from '../lib/docs';
+import { localePath, langOf, ui } from '../i18n';
 
-const entries = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
+const lang = langOf(Astro.url);
+const t = ui(lang);
+const entries = await docsOf(lang);
 const current = Astro.url.pathname.replace(/\/$/, '');
+const base = localePath(lang, '/docs');
 const groups = [
-  { title: 'Guides', entries: entries.filter((e) => e.data.section === 'Guides') },
-  { title: 'Parameters', href: '/docs/parameters', entries: entries.filter((e) => e.data.section === 'Parameters') },
+  { title: t.guides, entries: entries.filter((e) => e.data.section === 'Guides') },
+  { title: t.parameters, href: `${base}/parameters`, entries: entries.filter((e) => e.data.section === 'Parameters') },
 ];
 ---
 
-<nav class="docs-sidebar" aria-label="Documentation">
+<nav class="docs-sidebar" aria-label={t.documentation}>
   {
     groups.map((g) => (
       <Fragment>
@@ -18,7 +22,7 @@ const groups = [
         </p>
         <ul>
           {g.entries.map((entry) => {
-            const href = `/docs/${entry.id}`;
+            const href = `${base}/${entry.id}`;
             const active = current === href;
             return (
               <li>

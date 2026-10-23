@@ -1,0 +1,84 @@
+---
+title: Jeu
+description: Ce que commandent vos mains et vos pieds — vélocité, pédales, répétition et niveau de sortie. Tout se règle en direct.
+order: 101
+icon: player
+section: Parameters
+page: Player
+---
+import CurveChart from '../../../components/diagrams/CurveChart.astro';
+import PedalCurve from '../../../components/diagrams/PedalCurve.astro';
+import SoftPedal from '../../../components/diagrams/SoftPedal.astro';
+import FigureRow from '../../../components/diagrams/FigureRow.astro';
+
+La page **Jeu** (*Player*), c'est le toucher de l'instrument : comment une vélocité MIDI devient
+une vitesse de marteau, ce que font les trois pédales, à quelle vitesse un piano droit répète
+une note, et le niveau général. Tous ces réglages agissent **en direct** : le moteur les
+applique pendant que vous jouez, et dans le plugin ce sont des paramètres de l'hôte, que vous
+pouvez automatiser.
+
+## De la vélocité à la vitesse du marteau
+
+Un clavier MIDI envoie une vélocité de 1 à 127 ; un piano, lui, ne connaît que la vitesse à
+laquelle son marteau est lancé. Le passage de l'une à l'autre est exponentiel — la loi même des
+pianos enregistreurs —, si bien qu'un fichier MIDI enregistré sur un Disklavier garde ses
+nuances :
+
+<p class="formula">v<sub>hammer</sub> = vmin · (vmax / vmin)<sup>(velocity − 1) / 126</sup></p>
+
+<CurveChart
+  lang="fr"
+  title="Hammer speed by velocity"
+  caption="La correspondance par défaut : 0.6 m/s à la vélocité 1, 4.2 m/s à 127 (échelle logarithmique : une droite y est une exponentielle). La vélocité 77 tombe à 1.9 m/s, comme sur un Disklavier. Survolez la courbe pour la lire."
+/>
+
+Un marteau plus rapide ne joue pas seulement plus fort : il écrase davantage son feutre, et le
+feutre durcit à mesure qu'on l'écrase ; un fortissimo est donc aussi nettement plus
+**brillant**. C'est pourquoi augmenter `vmax` change le timbre des notes les plus fortes, et pas
+seulement leur niveau — voir le [marteau](/fr/docs/parameters/hammer/).
+
+## La pédale forte
+
+La pédale de droite (CC 64) soulève tous les étouffoirs des cordes. Elle est progressive : entre
+le repos et la pleine levée se trouve une **demi-pédale**, où les étouffoirs ne font plus
+qu'effleurer les cordes et où les notes s'éteignent lentement — les pianistes s'en servent sans
+arrêt. Trois paramètres la façonnent.
+
+<PedalCurve lang="fr" />
+
+La vitesse à laquelle un étouffoir retombe ou se soulève réellement, et la fermeté avec
+laquelle il pince la corde, se règlent sur la page [Étouffoirs](/fr/docs/parameters/dampers/).
+
+## La pédale douce et la pédale du milieu
+
+La pédale de gauche (CC 67) n'agit pas de la même façon sur un piano à queue et sur un piano
+droit ; le modèle fait les deux, et les presets choisissent avec `una_corda_shift`.
+
+<SoftPedal lang="fr" />
+
+Sur un piano à queue, la pédale du milieu (CC 66) est une **pédale tonale (sostenuto)** : elle
+maintient levés les étouffoirs des touches tenues au moment où on l'enfonce. Beaucoup de pianos
+droits s'en servent plutôt pour abaisser une bande de feutre entre les marteaux et les cordes,
+afin de travailler en silence : donnez une épaisseur à `mute_felt`, et la pédale du milieu
+devient cette sourdine.
+
+## Répétition
+
+La mécanique d'un piano à queue a un double échappement : une touche peut frapper de nouveau
+avant d'être entièrement remontée. Celle d'un piano droit, non ; une note répétée trop tôt
+après avoir été relâchée sort donc plus faible. `repetition_time` est ce temps de récupération
+(0 sur un piano à queue), `repetition_floor` la force qu'il reste à une frappe immédiatement
+répétée.
+
+<CurveChart
+  lang="fr"
+  label="Répétition · vitesse du marteau d'une frappe répétée"
+  points={Array.from({ length: 101 }, (_, i) => { const t = i * 0.0012; const x = Math.min(1, t / 0.06); return [t, 0.5 + 0.5 * x * x * (3 - 2 * x)]; })}
+  x="plain"
+  xUnit="s"
+  y={[0, 1]}
+  caption="Part de la vitesse du marteau pour une touche refrappée Δt après avoir été relâchée, sur un piano droit avec <code>repetition_time</code> = 0.06 s (une estimation : un piano droit répète jusqu'à environ 7 notes par seconde, un piano à queue 14) et <code>repetition_floor</code> = 0.5 (environ −8 dB). Sur un piano à queue, la courbe reste plate à 1."
+/>
+
+`output_gain_db` est le dernier étage : un gain placé après la salle, lissé pour que
+l'automation ne produise jamais de clic. Il ne change pas le timbre.

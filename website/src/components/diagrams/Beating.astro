@@ -4,6 +4,12 @@
 // carrier is drawn far slower than it is (261.6 Hz) so the beat shows.
 import Figure from './Figure.astro';
 import { curveAt, def, fmt } from '../../lib/params';
+import type { Lang } from '../../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
 
 const f0 = def('a4') * 2 ** ((60 - 69) / 12);
 const cents = curveAt('Unison spread', 60);
@@ -23,13 +29,28 @@ const envelope = (sgn: number) =>
     const u = i / 120;
     return `${i ? 'L' : 'M'}${(X0 + u * (X1 - X0)).toFixed(1)} ${(Y - sgn * H * Math.abs(Math.cos(Math.PI * u))).toFixed(1)}`;
   }).join(' ');
+
+const T = {
+  en: {
+    label: 'Unison · two strings, slightly apart',
+    caption: `At middle C the default spread is ${fmt(cents)} cent between the extreme strings: ${fmt(f0)} Hz against ${fmt(f0 + df)} Hz, a beat every ${fmt(period)} s — too slow to hear as a wobble, but enough to make the strings trade energy, which feeds the long, shimmering aftersound. Tens of cents (the honky-tonk preset) and the beats become a sound of their own.`,
+    aria: 'Sum of two slightly detuned strings, beating',
+    beat: `one beat: ${fmt(period)} s (carrier slowed down)`,
+  },
+  fr: {
+    label: 'Chœur · deux cordes, légèrement écartées',
+    caption: `Au do central, l’écart par défaut est de ${fmt(cents)} cent entre les cordes extrêmes : ${fmt(f0)} Hz contre ${fmt(f0 + df)} Hz, un battement toutes les ${fmt(period)} s — trop lent pour s’entendre comme une ondulation, mais assez pour que les cordes échangent leur énergie, ce qui nourrit le long son rémanent, chatoyant. Avec des dizaines de cents (le preset honky-tonk), les battements deviennent un son à part entière.`,
+    aria: 'Somme de deux cordes légèrement désaccordées, qui battent',
+    beat: `un battement : ${fmt(period)} s (porteuse ralentie)`,
+  },
+}[lang];
 ---
 
 <Figure
-  label="Unison · two strings, slightly apart"
-  caption={`At middle C the default spread is ${fmt(cents)} cent between the extreme strings: ${fmt(f0)} Hz against ${fmt(f0 + df)} Hz, a beat every ${fmt(period)} s — too slow to hear as a wobble, but enough to make the strings trade energy, which feeds the long, shimmering aftersound. Tens of cents (the honky-tonk preset) and the beats become a sound of their own.`}
+  label={T.label}
+  caption={T.caption}
 >
-  <svg viewBox="0 0 480 140" role="img" aria-label="Sum of two slightly detuned strings, beating">
+  <svg viewBox="0 0 480 140" role="img" aria-label={T.aria}>
     <path d={envelope(1)} fill="none" stroke="rgba(242,181,68,0.4)" stroke-dasharray="3 3"></path>
     <path d={envelope(-1)} fill="none" stroke="rgba(242,181,68,0.4)" stroke-dasharray="3 3"></path>
     <path d={wave} fill="none" stroke="var(--up-accent-light)" stroke-width="1.1"></path>
@@ -38,6 +59,6 @@ const envelope = (sgn: number) =>
       <animate attributeName="x2" values={`${X0};${X1}`} dur="6s" repeatCount="indefinite"></animate>
     </line>
     <path class="dg-faint" d={`M${X0} ${Y + H + 14} v6 H${X1} v-6`}></path>
-    <text class="dg-label dg-mid" x={(X0 + X1) / 2} y={Y + H + 32}>one beat: {fmt(period)} s (carrier slowed down)</text>
+    <text class="dg-label dg-mid" x={(X0 + X1) / 2} y={Y + H + 32}>{T.beat}</text>
   </svg>
 </Figure>

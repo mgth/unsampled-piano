@@ -1,0 +1,73 @@
+---
+title: Presets
+description: Instruments et dispositifs d’écoute, les fichiers TOML qui les décrivent, en modifier un pendant qu’il joue, et créer les vôtres.
+order: 3
+icon: layers
+---
+import PresetList from '../../components/PresetList.astro';
+
+Un preset est un petit fichier **TOML** qui fixe certains paramètres et laisse tous les autres à
+la valeur de l’instrument par défaut. Il en existe deux sortes, qui se combinent :
+
+- **Instruments** — le piano lui-même : marteaux, cordes, table, accord. En charger un conserve
+  votre dispositif d’écoute.
+- **Écoute** — d’où vous l’entendez : les microphones et le couvercle, et la salle. En charger un
+  conserve l’instrument.
+
+Ainsi, *un instrument baroque, micros de près, dans une petite salle*, ce sont trois presets
+empilés. Dans l’interface, ce sont les menus *Instrument* et *Listening* (écoute) de la barre du
+haut ; en ligne de commande, `--preset` charge un fichier.
+
+## À quoi ressemble un preset
+
+```toml
+# Piano de saloon : cordes de chaque chœur très désaccordées entre elles, feutre plus dur, étouffoirs plus faibles.
+hardness = 3.5
+
+[unison]
+width_mid = 12.0
+width_treble = 18.0
+
+[damper]
+strength = 0.4
+```
+
+Les noms sont les **chemins** des paramètres de la [référence](/fr/docs/parameters/) : `hardness`
+au premier niveau, `damper.strength` dans la table `[damper]`, `room.size` sous forme de tableau.
+Pour voir tous les paramètres avec leur valeur par défaut, exportez le preset complet :
+
+```bash
+unsampled-piano-render dump-preset everything.toml
+```
+
+## Les presets du dépôt
+
+### Instruments
+
+<PresetList kind="instruments" lang="fr" />
+
+### Écoute
+
+<PresetList kind="listening" lang="fr" />
+
+## Modifier pendant qu’il joue
+
+Le lecteur autonome **surveille** son fichier de preset : enregistrez-le dans votre éditeur et
+l’instrument est reconstruit en arrière-plan — environ un dixième de seconde — sans couper les
+notes que vous tenez. Un simple éditeur de texte devient ainsi un très bon outil d’harmonisation :
+changez `hardness`, enregistrez, jouez, recommencez.
+
+## Les vôtres
+
+*Save* dans l’interface enregistre les réglages en cours comme preset, dans `presets` du dossier
+de configuration (`~/.config/unsampled-piano/presets`, `%APPDATA%\unsampled-piano\presets`,
+`~/Library/Application Support/unsampled-piano/presets`) — ou dans le dossier donné par
+`--presets <folder>` ou par `presets = "…"` dans `play.toml`. Organisez-le comme le dépôt :
+instruments dans `instruments/<family>/`, dispositifs d’écoute dans `listening/Microphones/` et
+`listening/Room/`.
+
+L’interface — application autonome comme plugins — liste d’abord vos presets enregistrés, puis
+ceux fournis, en lecture seule : à côté du programme ou dans le bundle, ou là où un installeur
+les a placés (`ProgramData` ou `LocalAppData` sous Windows, `/Library/Application Support/Unsampled Piano`
+sous macOS, `share/unsampled-piano` sous Linux). Un preset enregistré qui porte le nom d’un
+preset fourni le masque.

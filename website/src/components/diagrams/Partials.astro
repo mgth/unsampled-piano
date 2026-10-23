@@ -5,6 +5,12 @@
 // rulers lean more and more, and the labels give the offset in cents.
 import Figure from './Figure.astro';
 import { curveAt, def, fmt, noteName } from '../../lib/params';
+import type { Lang } from '../../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
 
 const KEYS = [21, 60, 96];
 const a4 = def('a4');
@@ -23,23 +29,42 @@ const data = KEYS.map((n) => {
   return { n, f0, B, partials };
 });
 const labelled = new Set([2, 4, 8, 12, 16]);
+
+const T = {
+  en: {
+    label: 'Inharmonicity · partials of a stiff string',
+    caption:
+      "Top: where the partials of an ideal, perfectly flexible string would be — exact multiples of the fundamental. Bottom: the default instrument's strings, whose stiffness pushes each partial sharp by √(1 + B·k²). Partials are drawn up to 20 kHz. Tuners stretch the octaves to follow this (next figure).",
+    tabs: 'Key',
+    aria: 'Partial frequencies of a piano string compared with exact harmonics',
+    string: 'string',
+  },
+  fr: {
+    label: 'Inharmonicité · partiels d’une corde raide',
+    caption:
+      'En haut : là où seraient les partiels d’une corde idéale, parfaitement souple — des multiples exacts de la fondamentale. En bas : les cordes de l’instrument par défaut, dont la raideur fait monter chaque partiel d’un facteur √(1 + B·k²). Les partiels sont dessinés jusqu’à 20 kHz. Les accordeurs étirent les octaves pour suivre ce décalage (figure suivante).',
+    tabs: 'Touche',
+    aria: 'Fréquences des partiels d’une corde de piano comparées aux harmoniques exacts',
+    string: 'corde',
+  },
+}[lang];
 ---
 
 <Figure
-  label="Inharmonicity · partials of a stiff string"
-  caption="Top: where the partials of an ideal, perfectly flexible string would be — exact multiples of the fundamental. Bottom: the default instrument's strings, whose stiffness pushes each partial sharp by √(1 + B·k²). Partials are drawn up to 20 kHz. Tuners stretch the octaves to follow this (next figure)."
+  label={T.label}
+  caption={T.caption}
 >
   <div class="partials" data-partials>
-    <div class="partials-tabs" role="tablist" aria-label="Key">
+    <div class="partials-tabs" role="tablist" aria-label={T.tabs}>
       {data.map((d, i) => (
         <button type="button" role="tab" aria-selected={i === 0 ? 'true' : 'false'} data-key={i}>
           {noteName(d.n)}
         </button>
       ))}
     </div>
-    <svg viewBox="0 0 480 150" role="img" aria-label="Partial frequencies of a piano string compared with exact harmonics">
+    <svg viewBox="0 0 480 150" role="img" aria-label={T.aria}>
       <text class="dg-text" x={X0} y="22">k · f0</text>
-      <text class="dg-text" x={X0} y="136">string</text>
+      <text class="dg-text" x={X0} y="136">{T.string}</text>
       <line class="dg-faint" x1={X0} x2={X1} y1="40" y2="40"></line>
       <line class="dg-faint" x1={X0} x2={X1} y1="112" y2="112"></line>
       {data.map((d, i) => (

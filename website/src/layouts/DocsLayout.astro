@@ -1,6 +1,7 @@
 ---
 import BaseLayout from './BaseLayout.astro';
 import DocsSidebar from '../components/DocsSidebar.astro';
+import { langOf, localePath, ui } from '../i18n';
 
 interface Props {
   title: string;
@@ -9,6 +10,8 @@ interface Props {
 }
 const { title, description, headings = [] } = Astro.props;
 const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const lang = langOf(Astro.url);
+const t = ui(lang);
 ---
 
 <BaseLayout title={title} description={description}>
@@ -19,7 +22,7 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 
     <article class="docs-content prose">
       <header class="docs-header">
-        <p class="eyebrow"><a href="/docs/">Docs</a></p>
+        <p class="eyebrow"><a href={localePath(lang, '/docs/')}>{t.docs}</a></p>
         <h1>{title}</h1>
         <p class="docs-lede">{description}</p>
       </header>
@@ -28,8 +31,8 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 
     {
       toc.length > 0 && (
-        <aside class="docs-toc" aria-label="On this page">
-          <p class="docs-toc-heading eyebrow">On this page</p>
+        <aside class="docs-toc" aria-label={t.onThisPage}>
+          <p class="docs-toc-heading eyebrow">{t.onThisPage}</p>
           <nav>
             <ul>
               {toc.map((h) => (

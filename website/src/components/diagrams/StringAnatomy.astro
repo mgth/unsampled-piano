@@ -6,6 +6,12 @@
 // gives it: one period of the fundamental, looped.
 import Figure from './Figure.astro';
 import { curveAt, def, fmt } from '../../lib/params';
+import type { Lang } from '../../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
 
 const L = curveAt('String length', 60);
 const strike = def('strike_ratio');
@@ -25,38 +31,65 @@ const frames = Array.from({ length: FR + 1 }, (_, f) => {
     return `${i ? 'L' : 'M'}${at(x).toFixed(1)} ${(Y - y).toFixed(1)}`;
   }).join(' ');
 });
+
+const T = {
+  en: {
+    label: 'One string · middle C',
+    caption: `The speaking length runs from the agraffe to the bridge (${fmt(L)} m at C4, <code>scale.*</code>). The hammer strikes at ${fmt(strike)} of it (<code>strike_ratio</code>), the damper rests at ${fmt(damper)} (<code>damper.position</code>). The string's motion is drawn to scale along it, magnified across — about a millimetre in reality.`,
+    aria: 'A piano string from tuning pin to hitch pin, vibrating, with the strike and damper points',
+    pin: 'pin',
+    hitch: 'hitch',
+    agraffe: 'agraffe',
+    bridge: 'bridge',
+    hammer: `hammer · ${fmt(strike)} L`,
+    damper: `damper (raised) · ${fmt(damper)} L`,
+    length: `speaking length L = ${fmt(L)} m`,
+  },
+  fr: {
+    label: 'Une corde · do central',
+    caption: `La longueur vibrante va de l’agrafe au chevalet (${fmt(L)} m à C4, <code>scale.*</code>). Le marteau frappe à ${fmt(strike)} de cette longueur (<code>strike_ratio</code>), l’étouffoir repose à ${fmt(damper)} (<code>damper.position</code>). Le mouvement de la corde est à l’échelle dans sa longueur, grossi en travers — environ un millimètre en réalité.`,
+    aria: 'Une corde de piano, de la cheville d’accord à la pointe d’attache, qui vibre, avec le point de frappe et l’étouffoir',
+    pin: 'cheville',
+    hitch: 'attache',
+    agraffe: 'agrafe',
+    bridge: 'chevalet',
+    hammer: `marteau · ${fmt(strike)} L`,
+    damper: `étouffoir (levé) · ${fmt(damper)} L`,
+    length: `longueur vibrante L = ${fmt(L)} m`,
+  },
+}[lang];
 ---
 
 <Figure
-  label="One string · middle C"
-  caption={`The speaking length runs from the agraffe to the bridge (${fmt(L)} m at C4, <code>scale.*</code>). The hammer strikes at ${fmt(strike)} of it (<code>strike_ratio</code>), the damper rests at ${fmt(damper)} (<code>damper.position</code>). The string's motion is drawn to scale along it, magnified across — about a millimetre in reality.`}
+  label={T.label}
+  caption={T.caption}
 >
-  <svg viewBox="0 0 480 170" role="img" aria-label="A piano string from tuning pin to hitch pin, vibrating, with the strike and damper points">
+  <svg viewBox="0 0 480 170" role="img" aria-label={T.aria}>
     <line class="dg-faint" x1="14" x2={A} y1={Y} y2={Y} stroke-width="1.6"></line>
     <line class="dg-faint" x1={B} x2="468" y1={Y} y2={Y} stroke-width="1.6"></line>
     <circle cx="14" cy={Y} r="5" fill="#6b7280"></circle>
-    <text class="dg-text dg-mid" x="14" y={Y + 22}>pin</text>
+    <text class="dg-text" x="4" y={Y + 22}>{T.pin}</text>
     <circle cx="468" cy={Y} r="3.5" fill="#6b7280"></circle>
-    <text class="dg-text dg-mid" x="462" y={Y + 22}>hitch</text>
+    <text class="dg-text dg-mid" x="462" y={Y + 22}>{T.hitch}</text>
     <path class="dg-string" d={frames[0]}>
       <animate attributeName="d" values={frames.join(';')} dur="1.1s" repeatCount="indefinite"></animate>
     </path>
     <rect x={A - 4} y={Y - 9} width="8" height="18" rx="2" fill="var(--up-ivory)"></rect>
-    <text class="dg-text dg-mid" x={A} y={Y - 16}>agraffe</text>
+    <text class="dg-text dg-mid" x={A} y={Y - 16}>{T.agraffe}</text>
     <path d={`M${B - 9} ${Y + 14} L${B} ${Y} L${B + 9} ${Y + 14} Z`} fill="var(--up-copper)"></path>
-    <text class="dg-text dg-mid" x={B} y={Y + 28}>bridge</text>
+    <text class="dg-text dg-mid" x={B} y={Y + 28}>{T.bridge}</text>
 
     <g class="hammer">
       <rect x={at(strike) - 8} y={Y + 30} width="16" height="18" rx="7" class="dg-felt"></rect>
       <line x1={at(strike)} x2={at(strike) - 30} y1={Y + 48} y2={Y + 66} stroke="var(--up-copper)" stroke-width="3" stroke-linecap="round"></line>
     </g>
-    <text class="dg-hl" x={at(strike) + 14} y={Y + 46}>hammer · {fmt(strike)} L</text>
+    <text class="dg-hl" x={at(strike) + 14} y={Y + 46}>{T.hammer}</text>
     <rect x={at(damper) - 9} y={Y - 44} width="18" height="14" rx="2" class="dg-felt" opacity="0.85"></rect>
     <line x1={at(damper)} x2={at(damper)} y1={Y - 44} y2={Y - 62} stroke="#6b7280" stroke-width="3"></line>
-    <text class="dg-text" x={at(damper) + 14} y={Y - 50}>damper (raised) · {fmt(damper)} L</text>
+    <text class="dg-text" x={at(damper) + 14} y={Y - 50}>{T.damper}</text>
 
     <path class="dg-faint" d={`M${A} ${Y + 76} V${Y + 70} H${B} V${Y + 76}`}></path>
-    <text class="dg-label dg-mid" x={(A + B) / 2} y={Y + 66}>speaking length L = {fmt(L)} m</text>
+    <text class="dg-label dg-mid" x={(A + B) / 2} y={Y + 66}>{T.length}</text>
   </svg>
 </Figure>
 

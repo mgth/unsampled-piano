@@ -4,6 +4,12 @@
 // arrives from everywhere — with a random-incidence efficiency a² + (1 − a)²/3,
 // a third of an omni's: about 5 dB less room for the same piano.
 import Figure from './Figure.astro';
+import type { Lang } from '../../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
 
 const CX = 130, CY = 104, R = 74;
 const shape = (a: number) =>
@@ -14,17 +20,44 @@ const shape = (a: number) =>
   }).join(' ') + 'Z';
 const eff = (a: number) => a * a + (1 - a) ** 2 / 3;
 const db = (x: number) => (10 * Math.log10(x)).toFixed(1);
+
+const T = {
+  en: {
+    label: 'Microphone pattern · mic_pattern',
+    caption:
+      "The piano is in front (up). 1 is an omni, 0.5 a cardioid: on axis both hear the piano the same, but the room's reflections and reverberation come from every direction, and the cardioid hears them with a third of the energy.",
+    aria: 'Polar patterns of an omnidirectional and a cardioid microphone',
+    piano: 'piano ↑',
+    omni: 'omni · a = 1',
+    cardioid: 'cardioid · a = 0.5',
+    room: (d: string) => `room heard at ${d} dB`,
+    gain: 'gain(θ) = a + (1 − a)·cos θ',
+    roomEq: 'room = a² + (1 − a)²/3',
+  },
+  fr: {
+    label: 'Directivité du micro · mic_pattern',
+    caption:
+      'Le piano est devant (en haut). 1 correspond à un omnidirectionnel, 0.5 à un cardioïde : dans l’axe, les deux entendent le piano de la même façon, mais les réflexions et la réverbération de la salle arrivent de toutes les directions, et le cardioïde les entend avec un tiers de l’énergie.',
+    aria: 'Diagrammes polaires d’un micro omnidirectionnel et d’un micro cardioïde',
+    piano: 'piano ↑',
+    omni: 'omni · a = 1',
+    cardioid: 'cardioïde · a = 0.5',
+    room: (d: string) => `salle entendue à ${d} dB`,
+    gain: 'gain(θ) = a + (1 − a)·cos θ',
+    roomEq: 'salle = a² + (1 − a)²/3',
+  },
+}[lang];
 ---
 
 <Figure
-  label="Microphone pattern · mic_pattern"
-  caption="The piano is in front (up). 1 is an omni, 0.5 a cardioid: on axis both hear the piano the same, but the room's reflections and reverberation come from every direction, and the cardioid hears them with a third of the energy."
+  label={T.label}
+  caption={T.caption}
 >
-  <svg viewBox="0 0 480 210" role="img" aria-label="Polar patterns of an omnidirectional and a cardioid microphone">
+  <svg viewBox="0 0 480 210" role="img" aria-label={T.aria}>
     {[0.25, 0.5, 0.75, 1].map((f) => <circle cx={CX} cy={CY} r={R * f} class="dg-faint"></circle>)}
     <line class="dg-faint" x1={CX - R - 8} x2={CX + R + 8} y1={CY} y2={CY}></line>
     <line class="dg-faint" x1={CX} x2={CX} y1={CY - R - 8} y2={CY + R + 8}></line>
-    <text class="dg-hl dg-mid" x={CX} y={CY - R - 12}>piano ↑</text>
+    <text class="dg-hl dg-mid" x={CX} y={CY - R - 12}>{T.piano}</text>
     <path d={shape(1)} fill="rgba(108,184,255,0.06)" stroke="#6cb8ff" stroke-dasharray="4 3"></path>
     <path class="cardioid" d={shape(0.5)} fill="rgba(242,181,68,0.12)" stroke="var(--up-accent-light)" stroke-width="2" pathLength="1"></path>
     <circle cx={CX} cy={CY} r="5" fill="#0b0f18" stroke="var(--up-text-bright)" stroke-width="1.5"></circle>
@@ -36,13 +69,13 @@ const db = (x: number) => (10 * Math.log10(x)).toFixed(1);
     ))}
     <g transform="translate(262 52)">
       <line x1="0" x2="22" y1="0" y2="0" stroke="#6cb8ff" stroke-dasharray="4 3"></line>
-      <text class="dg-label" x="30" y="4">omni · a = 1</text>
-      <text class="dg-text" x="30" y="19">room heard at {db(eff(1))} dB</text>
+      <text class="dg-label" x="30" y="4">{T.omni}</text>
+      <text class="dg-text" x="30" y="19">{T.room(db(eff(1)))}</text>
       <line x1="0" x2="22" y1="50" y2="50" stroke="var(--up-accent-light)" stroke-width="2"></line>
-      <text class="dg-label" x="30" y="54">cardioid · a = 0.5</text>
-      <text class="dg-text" x="30" y="69">room heard at {db(eff(0.5))} dB</text>
-      <text class="dg-text" x="0" y="112">gain(θ) = a + (1 − a)·cos θ</text>
-      <text class="dg-text" x="0" y="128">room = a² + (1 − a)²/3</text>
+      <text class="dg-label" x="30" y="54">{T.cardioid}</text>
+      <text class="dg-text" x="30" y="69">{T.room(db(eff(0.5)))}</text>
+      <text class="dg-text" x="0" y="112">{T.gain}</text>
+      <text class="dg-text" x="0" y="128">{T.roomEq}</text>
     </g>
   </svg>
 </Figure>

@@ -7,6 +7,12 @@
 import Figure from './Figure.astro';
 import { BOARD, bridgePoint, planView } from '../../lib/geometry';
 import { def, fmt } from '../../lib/params';
+import type { Lang } from '../../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
 
 const { a, b } = BOARD;
 const F = {
@@ -28,13 +34,38 @@ const strings = Array.from({ length: 15 }, (_, i) => 21 + Math.round((i * 87) / 
 // Section along the strings: x horizontal, z up (×3).
 const SX = (x: number) => 250 + (x - F.x0) * 112;
 const SZ = (z: number) => 120 - z * 330;
+
+const T = {
+  en: {
+    label: 'Frame and rim · plan and section',
+    caption: `Left, from above: the frame (grey, ${fmt(F.a)} × ${fmt(F.b)} m, ${Math.round(F.solidity * 100)} % metal) starts ${fmt(-F.x0)} m in front of the board, over the tuning pins; the strings bear on it at the agraffe line and on the board at the bridges. The rim (copper outline) runs round the board's edge. Right, in section with heights exaggerated: the frame ${fmt(F.h)} m above the board, the rim wall ${fmt(R.h)} m high rising ${fmt(R.top)} m above it.`,
+    aria: 'Plan and section of the frame, rim, soundboard and strings',
+    agraffes: 'agraffes',
+    board: 'board',
+    frame: 'frame',
+    rim: 'rim',
+    section: 'section along the strings',
+    string: 'string C4',
+  },
+  fr: {
+    label: 'Cadre et ceinture · plan et coupe',
+    caption: `À gauche, vu de dessus : le cadre (gris, ${fmt(F.a)} × ${fmt(F.b)} m, ${Math.round(F.solidity * 100)} % de métal) commence ${fmt(-F.x0)} m devant la table, au-dessus des chevilles d’accord ; les cordes s’y appuient à la ligne des agrafes, et sur la table aux chevalets. La ceinture (contour cuivré) fait le tour de la table. À droite, en coupe, hauteurs exagérées : le cadre ${fmt(F.h)} m au-dessus de la table, la paroi de la ceinture, haute de ${fmt(R.h)} m, qui la dépasse de ${fmt(R.top)} m.`,
+    aria: 'Plan et coupe du cadre, de la ceinture, de la table d’harmonie et des cordes',
+    agraffes: 'agrafes',
+    board: 'table',
+    frame: 'cadre',
+    rim: 'ceinture',
+    section: 'coupe le long des cordes',
+    string: 'corde C4',
+  },
+}[lang];
 ---
 
 <Figure
-  label="Frame and rim · plan and section"
-  caption={`Left, from above: the frame (grey, ${fmt(F.a)} × ${fmt(F.b)} m, ${Math.round(F.solidity * 100)} % metal) starts ${fmt(-F.x0)} m in front of the board, over the tuning pins; the strings bear on it at the agraffe line and on the board at the bridges. The rim (copper outline) runs round the board's edge. Right, in section with heights exaggerated: the frame ${fmt(F.h)} m above the board, the rim wall ${fmt(R.h)} m high rising ${fmt(R.top)} m above it.`}
+  label={T.label}
+  caption={T.caption}
 >
-  <svg viewBox="0 0 480 268" role="img" aria-label="Plan and section of the frame, rim, soundboard and strings">
+  <svg viewBox="0 0 480 268" role="img" aria-label={T.aria}>
     <rect x={v.X(b)} y={v.Y(a)} width={b * v.s} height={a * v.s} class="dg-board"></rect>
     <rect class="rim" x={v.X(b) - R.t * v.s} y={v.Y(a) - R.t * v.s} width={(b + 2 * R.t) * v.s} height={(a + 2 * R.t) * v.s} rx="4"></rect>
     <g opacity="0.85">
@@ -52,23 +83,23 @@ const SZ = (z: number) => 120 - z * 330;
       </g>
     ))}
     <line x1={v.X(b)} x2={v.X(0)} y1={v.Y(agraffeX)} y2={v.Y(agraffeX)} stroke="var(--up-ivory)" stroke-width="2.5"></line>
-    <text class="dg-label" x={v.X(0) + 8} y={v.Y(agraffeX) + 4}>agraffes</text>
-    <text class="dg-text" x={v.X(0) + 8} y={v.Y(a / 2)}>board</text>
-    <text class="dg-text" x={v.X(0) + 8} y={v.Y(F.x0 + F.a) + 10} style="fill:#9fb0c8">frame</text>
-    <text class="dg-text" x={v.X(0) + 8} y={v.Y(a) - 2} style="fill:var(--up-copper)">rim</text>
+    <text class="dg-label" x={v.X(0) + 8} y={v.Y(agraffeX) + 4}>{T.agraffes}</text>
+    <text class="dg-text" x={v.X(0) + 8} y={v.Y(a / 2)}>{T.board}</text>
+    <text class="dg-text" x={v.X(0) + 8} y={v.Y(F.x0 + F.a) + 10} style="fill:#9fb0c8">{T.frame}</text>
+    <text class="dg-text" x={v.X(0) + 8} y={v.Y(a) - 2} style="fill:var(--up-copper)">{T.rim}</text>
 
-    <text class="dg-title" x="250" y="24">section along the strings</text>
+    <text class="dg-title" x="250" y="24">{T.section}</text>
     <line x1={SX(0)} x2={SX(a)} y1={SZ(0)} y2={SZ(0)} stroke="var(--up-copper)" stroke-width="3"></line>
-    <text class="dg-text" x={SX(a / 2)} y={SZ(0) + 14} text-anchor="middle">board</text>
+    <text class="dg-text" x={SX(a / 2)} y={SZ(0) + 14} text-anchor="middle">{T.board}</text>
     <rect x={SX(F.x0)} y={SZ(F.h) - 4} width={F.a * 112} height="8" rx="2" fill="#9fb0c8" opacity="0.8"></rect>
-    <text class="dg-text" x={SX(F.x0) + 4} y={SZ(F.h) - 9} style="fill:#9fb0c8">frame</text>
+    <text class="dg-text" x={SX(F.x0) + 4} y={SZ(F.h) - 9} style="fill:#9fb0c8">{T.frame}</text>
     <line x1={SX(agraffeX)} x2={SX(bridgePoint(60)[0])} y1={SZ(F.h) - 6} y2={SZ(0.012)} stroke="var(--up-accent-light)" stroke-width="1.5"></line>
     <path d={`M${SX(bridgePoint(60)[0]) - 5} ${SZ(0)} l5 -6 l5 6 z`} fill="var(--up-copper)"></path>
-    <text class="dg-hl" x={SX(bridgePoint(60)[0]) + 8} y={SZ(0.02)}>string C4</text>
+    <text class="dg-hl" x={SX(bridgePoint(60)[0]) + 8} y={SZ(0.02)}>{T.string}</text>
     {[0, a].map((x) => (
       <rect class="rim-sec" x={SX(x) - (x ? 0 : R.t * 112)} y={SZ(R.top)} width={R.t * 112} height={R.h * 330}></rect>
     ))}
-    <text class="dg-text" x={SX(a) + 12} y={SZ(R.top - R.h / 2)} style="fill:var(--up-copper)">rim</text>
+    <text class="dg-text dg-end" x={SX(a) - 6} y={SZ(R.top - R.h) - 4} style="fill:var(--up-copper)">{T.rim}</text>
     <path class="dg-faint" d={`M${SX(a) + 8} ${SZ(R.top)} h4 M${SX(a) + 8} ${SZ(R.top - R.h)} h4`}></path>
   </svg>
 </Figure>

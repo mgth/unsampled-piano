@@ -8,6 +8,12 @@
 import Figure from './Figure.astro';
 import { BOARD, TREBLE_BRIDGE, BASS_BRIDGE, bridgePoint } from '../../lib/geometry';
 import { def, fmt, noteName } from '../../lib/params';
+import type { Lang } from '../../i18n';
+
+interface Props {
+  lang?: Lang;
+}
+const { lang = 'en' } = Astro.props;
 
 const { a, b } = BOARD;
 const Dx = def('soundboard.dx');
@@ -32,15 +38,33 @@ const px = (x: number, y: number): [number, number] => [CW - (y / b) * CW, CH - 
 const line = (pts: [number, number][]) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${px(x, y).map((v) => v.toFixed(1)).join(' ')}`).join(' ');
 const keys = [21, 24, 36, 48, 60, 72, 84, 96, 108].map((n) => ({ n, p: px(...bridgePoint(n)) }));
 const allKeys = Array.from({ length: 88 }, (_, i) => px(...bridgePoint(i + 21)));
+
+const first = fmt(+shown[0].f.toFixed(0));
+const T = {
+  en: {
+    label: 'Soundboard modes · from above',
+    caption: `The board vibrates in modes, each a damped oscillator the strings drive through the bridge. With the default board (${fmt(a)} × ${fmt(b)} m, ρh = ${fmt(rh)} kg/m², Dx = ${fmt(Dx)} and Dy = ${fmt(Dy)} N·m, crown ${fmt(crown)} Hz) the first sits at ${first} Hz and they come about every 20 Hz higher up — thousands up to 20 kHz. A key only drives the modes that move under its bridge point: dots on a dark (nodal) line feed that mode nothing. Gold and blue are opposite phases.`,
+    canvas: 'Animated soundboard mode shape',
+    axis: 'keyboard end ↓ · treble →',
+    list: 'Soundboard mode',
+  },
+  fr: {
+    label: 'Modes de la table d’harmonie · vue de dessus',
+    caption: `La table vibre selon des modes, chacun un oscillateur amorti que les cordes excitent à travers le chevalet. Avec la table par défaut (${fmt(a)} × ${fmt(b)} m, ρh = ${fmt(rh)} kg/m², Dx = ${fmt(Dx)} et Dy = ${fmt(Dy)} N·m, bombé ${fmt(crown)} Hz), le premier se trouve à ${first} Hz, et ils se suivent environ tous les 20 Hz plus haut — des milliers jusqu’à 20 kHz. Une touche n’excite que les modes qui bougent sous son point d’appui sur le chevalet : un point posé sur une ligne sombre (nodale) n’apporte rien à ce mode. L’or et le bleu sont des phases opposées.`,
+    canvas: 'Forme animée d’un mode de la table d’harmonie',
+    axis: 'côté clavier ↓ · aigu →',
+    list: 'Mode de la table d’harmonie',
+  },
+}[lang];
 ---
 
 <Figure
-  label="Soundboard modes · from above"
-  caption={`The board vibrates in modes, each a damped oscillator the strings drive through the bridge. With the default board (${fmt(a)} × ${fmt(b)} m, ρh = ${fmt(rh)} kg/m², Dx = ${fmt(Dx)} and Dy = ${fmt(Dy)} N·m, crown ${fmt(crown)} Hz) the first sits at ${fmt(+shown[0].f.toFixed(0))} Hz and they come about every 20 Hz higher up — thousands up to 20 kHz. A key only drives the modes that move under its bridge point: dots on a dark (nodal) line feed that mode nothing. Gold and blue are opposite phases.`}
+  label={T.label}
+  caption={T.caption}
 >
   <div class="modes" data-modes={JSON.stringify({ a, b, modes: shown, CW, CH })}>
     <div class="modes-view">
-      <canvas width={CW} height={CH} aria-label="Animated soundboard mode shape"></canvas>
+      <canvas width={CW} height={CH} aria-label={T.canvas}></canvas>
       <svg viewBox={`0 0 ${CW} ${CH}`} aria-hidden="true">
         <path d={line(TREBLE_BRIDGE)} fill="none" stroke="#2a1606" stroke-width="5" stroke-linecap="round" opacity="0.55"></path>
         <path d={line(BASS_BRIDGE)} fill="none" stroke="#2a1606" stroke-width="5" stroke-linecap="round" opacity="0.55"></path>
@@ -54,9 +78,9 @@ const allKeys = Array.from({ length: 88 }, (_, i) => px(...bridgePoint(i + 21)))
           </g>
         ))}
       </svg>
-      <span class="modes-axis modes-axis-x">keyboard end ↓ · treble →</span>
+      <span class="modes-axis modes-axis-x">{T.axis}</span>
     </div>
-    <div class="modes-list" role="listbox" aria-label="Soundboard mode">
+    <div class="modes-list" role="listbox" aria-label={T.list}>
       {shown.map((md, i) => (
         <button type="button" role="option" aria-selected={i === 0 ? 'true' : 'false'} data-i={i}>
           <span class="mn">({md.m},{md.n})</span>

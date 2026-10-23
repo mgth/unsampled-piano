@@ -1,0 +1,1046 @@
+{
+  "labels": {
+    "a4": "Hauteur du A4",
+    "contact_width_scale": "Largeur de contact du feutre",
+    "core_depth_bass": "Épaisseur du feutre de surface (grave)",
+    "core_depth_mid": "Épaisseur du feutre de surface (médium)",
+    "core_depth_treble": "Épaisseur du feutre de surface (aigu)",
+    "core_hardness": "Dureté du cœur du feutre",
+    "core_p": "Exposant du cœur du feutre",
+    "damper.pedal_contact": "Point de levée de la pédale",
+    "damper.pedal_curve": "Courbe de demi-pédale",
+    "damper.pedal_free": "Course morte de la pédale",
+    "half_blow": "Rapprochement des marteaux (droit)",
+    "hammer_mass_scale": "Masse des marteaux",
+    "hardness": "Dureté du feutre",
+    "hardness_slope": "Pente de dureté (aigu)",
+    "hardness_slope_bass": "Pente de dureté (grave)",
+    "hysteresis": "Hystérésis du feutre",
+    "inharmonicity.a_bass": "A grave",
+    "inharmonicity.a_treble": "A aigu",
+    "inharmonicity.b_bass": "B grave",
+    "inharmonicity.b_treble": "B aigu",
+    "losses.b1_floor": "Plancher B1",
+    "losses.b1_offset": "Décalage B1",
+    "losses.b1_slope": "Pente B1",
+    "losses.b2": "B2",
+    "losses.top_from": "Extrême aigu à partir de",
+    "losses.top_slope": "Pente de l’extrême aigu",
+    "losses.wound_until": "Filées jusqu’à",
+    "mute_felt": "Feutre de sourdine (0 : sostenuto)",
+    "noise.damper_landing": "Durée de pose de l’étouffoir",
+    "noise.damper_mass": "Masse du feutre d’étouffoir",
+    "noise.damper_speed": "Vitesse de chute des étouffoirs",
+    "noise.keybed": "Choc du fond de clavier",
+    "noise.knock_time": "Durée du choc",
+    "noise.pedal": "Choc de pédale",
+    "nonlinear.coupling": "Couplage",
+    "nonlinear.coupling_corner": "Coupure du couplage",
+    "nonlinear.enabled": "Activé",
+    "nonlinear.long_loss": "Pertes longitudinales",
+    "nonlinear.max_long_hz": "Longitudinal max",
+    "nonlinear.max_note": "Note max",
+    "nonlinear.max_partial_hz": "Partiel max",
+    "nonlinear.young": "Module de Young",
+    "output_gain_db": "Gain de sortie",
+    "p_bass": "Exposant de feutre supplémentaire (grave)",
+    "p_offset": "Décalage de l’exposant du feutre",
+    "polarization.cross": "Couplage croisé",
+    "polarization.detune_cents": "Désaccord",
+    "polarization.enabled": "Activé",
+    "polarization.h_coupling": "Couplage H",
+    "polarization.hammer_tilt": "Inclinaison du marteau",
+    "polarization.radiation": "Rayonnement",
+    "repetition_floor": "Vitesse de refrappe immédiate",
+    "repetition_time": "Délai de réarmement (0 : à queue)",
+    "scale.break_note": "Note de rupture",
+    "scale.len_a0": "Longueur A0",
+    "scale.len_c8": "Longueur C8",
+    "scale.ratio_per_octave": "Rapport par octave",
+    "scale.tension": "Tension",
+    "soundboard.lid_angle": "Angle du couvercle",
+    "soundboard.lid_hinge_height": "Hauteur de la charnière du couvercle",
+    "soundboard.lid_reflection": "Réflexion du couvercle",
+    "soundboard.lid_transmission": "Son à travers le couvercle",
+    "soundboard.mic_gain_db": "Gain des micros",
+    "soundboard.mic_pattern": "Directivité (1 omni, 0.5 cardioïde)",
+    "soundboard.mics[0][0]": "Micro gauche x (en longueur)",
+    "soundboard.mics[0][1]": "Micro gauche y (en travers)",
+    "soundboard.mics[0][2]": "Hauteur du micro gauche",
+    "soundboard.mics[1][0]": "Micro droit x (en longueur)",
+    "soundboard.mics[1][1]": "Micro droit y (en travers)",
+    "soundboard.mics[1][2]": "Hauteur du micro droit",
+    "soundboard.mics_relative": "Positions relatives à la table",
+    "stretch.a_b": "A b",
+    "stretch.a_t": "A t",
+    "stretch.c": "C",
+    "stretch.k_b": "K b",
+    "stretch.k_t": "K t",
+    "strike_ratio": "Point de frappe",
+    "una_corda_shift": "Décalage una corda (1 à queue, 0 droit)",
+    "una_corda_softening": "Assouplissement una corda",
+    "unison.bichord_from": "Bicordes à partir de",
+    "unison.hit_spread": "Dispersion de la frappe",
+    "unison.trichord_from": "Tricordes à partir de",
+    "unison.width_mid": "Largeur médium",
+    "unison.width_treble": "Largeur aigu",
+    "velocity.vmax": "Vitesse du marteau en ff",
+    "velocity.vmin": "Vitesse du marteau en pp",
+    "bridge.b_over_g": "B sur g",
+    "bridge.g_1k": "G à 1 kHz",
+    "bridge.slope": "Pente",
+    "damper.contact_exponent": "Exposant du feutre d'étouffoir",
+    "damper.fall_time": "Temps de chute de l'étouffoir",
+    "damper.highest_note": "Note la plus aiguë",
+    "damper.lift_time": "Temps de levée de l'étouffoir",
+    "damper.node_floor": "Plancher aux nœuds",
+    "damper.position": "Position",
+    "damper.strength": "Force de l'étouffoir",
+    "damper.width": "Largeur",
+    "frame.a": "A",
+    "frame.agraffe_x": "Agrafe x",
+    "frame.b": "B",
+    "frame.back_depth": "Profondeur arrière",
+    "frame.back_gain": "Gain arrière",
+    "frame.enabled": "Activé",
+    "frame.f_max": "F max",
+    "frame.gain": "Gain",
+    "frame.height": "Hauteur",
+    "frame.loss_factor": "Facteur de pertes",
+    "frame.offset_x": "Décalage x",
+    "frame.rho_h": "Rho h",
+    "frame.solidity": "Part de métal",
+    "frame.stiffness": "Rigidité",
+    "rim.couple_f_max": "F max de couplage",
+    "rim.density": "Masse volumique",
+    "rim.enabled": "Activé",
+    "rim.f_max": "F max",
+    "rim.gain": "Gain",
+    "rim.height": "Hauteur",
+    "rim.inner_gain": "Gain intérieur",
+    "rim.k_max": "K max",
+    "rim.loss_factor": "Facteur de pertes",
+    "rim.shear": "Cisaillement",
+    "rim.thickness": "Épaisseur",
+    "rim.top": "Sommet",
+    "rim.young": "Module d'Young",
+    "room.absorption_high": "Absorption aiguë",
+    "room.absorption_low": "Absorption grave",
+    "room.directivity": "Directivité Q du piano (0 : d'après le piano)",
+    "room.enabled": "Activé",
+    "room.order": "Ordre",
+    "room.piano[0]": "Position du piano x",
+    "room.piano[1]": "Position du piano y",
+    "room.piano[2]": "Hauteur de la table",
+    "room.size[0]": "Longueur de la salle (x)",
+    "room.size[1]": "Largeur de la salle (y)",
+    "room.size[2]": "Hauteur de la salle",
+    "room.tail_gain": "Gain de la queue de réverbération",
+    "soundboard.a": "A",
+    "soundboard.b": "B",
+    "soundboard.back_depth": "Profondeur arrière",
+    "soundboard.back_gain": "Gain arrière",
+    "soundboard.bass_bridge[0][0]": "Chevalet des basses [0][0]",
+    "soundboard.bass_bridge[0][1]": "Chevalet des basses [0][1]",
+    "soundboard.bass_bridge[1][0]": "Chevalet des basses [1][0]",
+    "soundboard.bass_bridge[1][1]": "Chevalet des basses [1][1]",
+    "soundboard.bridge_line_mass": "Masse linéique du chevalet",
+    "soundboard.bridge_mass": "Masse du chevalet",
+    "soundboard.bridge_spread": "Étalement sur le chevalet",
+    "soundboard.bridge_stiffness": "Rigidité du chevalet",
+    "soundboard.case_open": "Ouvertures du meuble (1 : sans meuble)",
+    "soundboard.case_panel_mass": "Masse des panneaux du meuble",
+    "soundboard.crown_freq": "Fréquence du bombé",
+    "soundboard.dx": "Dx",
+    "soundboard.dy": "Dy",
+    "soundboard.f_max": "F max",
+    "soundboard.grid_step": "Pas de grille",
+    "soundboard.impedance_slope": "Pente d'impédance",
+    "soundboard.impedance_slope_bass": "Pente d'impédance grave",
+    "soundboard.loss_corner": "Coude des pertes",
+    "soundboard.loss_factor": "Facteur de pertes",
+    "soundboard.main_bridge_from": "Début du chevalet principal",
+    "soundboard.piston_freq": "Fréquence du piston",
+    "soundboard.piston_loss": "Pertes du piston",
+    "soundboard.piston_mass": "Masse du piston",
+    "soundboard.piston_radiation": "Rayonnement du piston",
+    "soundboard.radiate": "Rayonner",
+    "soundboard.rho_h": "Rho h",
+    "soundboard.series_stiffness": "Rigidité en série",
+    "soundboard.treble_bridge[0][0]": "Chevalet aigu [0][0]",
+    "soundboard.treble_bridge[0][1]": "Chevalet aigu [0][1]",
+    "soundboard.treble_bridge[1][0]": "Chevalet aigu [1][0]",
+    "soundboard.treble_bridge[1][1]": "Chevalet aigu [1][1]",
+    "soundboard.treble_bridge[2][0]": "Chevalet aigu [2][0]",
+    "soundboard.treble_bridge[2][1]": "Chevalet aigu [2][1]",
+    "soundboard.treble_bridge[3][0]": "Chevalet aigu [3][0]",
+    "soundboard.treble_bridge[3][1]": "Chevalet aigu [3][1]",
+    "soundboard.treble_bridge[4][0]": "Chevalet aigu [4][0]",
+    "soundboard.treble_bridge[4][1]": "Chevalet aigu [4][1]",
+    "soundboard.vertical": "Verticale",
+    "soundboard.wall_distance": "Mur derrière la table (0 : aucun)",
+    "soundboard.wall_reflection": "Réflexion du mur",
+    "sympathetic.enabled": "Activé",
+    "sympathetic.gain": "Gain",
+    "sympathetic.max_freq": "Fréquence max",
+    "sympathetic.self_cancel": "Auto-annulation"
+  },
+  "help": {
+    "a4": {
+      "what": "Hauteur du A4, le A situé juste au-dessus du C4 central, sur laquelle se règle tout l’accord. 440 Hz est la norme moderne ; certains orchestres s’accordent à 442, les ensembles baroques à 415.",
+      "how": "La fondamentale de chaque touche vaut a4·2^((n − 69)/12), décalée par la loi d’étirement de l’accord. Les masses linéiques des cordes en découlent (μ = T/(2·L·f0)²) : l’instrument est donc reconstruit.",
+      "src": "a72f2ded2a"
+    },
+    "contact_width_scale": {
+      "what": "Largeur du feutre qui touche la corde. Une surface de contact large ne peut pas exciter les ondes très courtes sur la corde : moins d’harmoniques aigus, un son plus doux.",
+      "how": "Met à l’échelle la largeur de contact (8 mm en A0 à 4 mm en C8). Le partiel k est frappé avec sin(kπ·x0)·sinc(kπ·w/2L) : un filtre passe-bas spatial.",
+      "src": "b6487a7360"
+    },
+    "core_depth_bass": {
+      "what": "Épaisseur du feutre souple qui recouvre le cœur dur sur le marteau le plus grave (A0). Plus elle est grande, plus il faut frapper fort pour obtenir le mordant brillant.",
+      "how": "Épaisseur d (mm) du feutre de surface en A0, linéaire jusqu’à la valeur du médium en C4. La pédale douce (una corda) l’augmente.",
+      "src": "fc78ff7f7a"
+    },
+    "core_depth_mid": {
+      "what": "Épaisseur du feutre souple qui recouvre le cœur au C4 central. Le feutre s’amincit vite des gros marteaux graves jusqu’au médium, puis peu.",
+      "how": "Épaisseur d (mm) en C4, à la jonction des deux segments linéaires (A0–C4, C4–C8).",
+      "src": "2416b850b8"
+    },
+    "core_depth_treble": {
+      "what": "Épaisseur du feutre souple qui recouvre le cœur sur le marteau le plus aigu (C8).",
+      "how": "Épaisseur d (mm) en C8, linéaire depuis C4.",
+      "src": "c7508c4e4b"
+    },
+    "core_hardness": {
+      "what": "Les marteaux sont faits de couches : un feutre souple à l’extérieur, un feutre bien plus dense à l’intérieur. Joué doucement, seule la couche extérieure est comprimée et le son est rond ; joué fort, le marteau atteint son cœur et le son s’éclaircit nettement. Ce réglage fixe la dureté du cœur (0 : un feutre uniforme).",
+      "how": "Une fois le feutre comprimé au-delà de l’épaisseur d du feutre de surface, la force gagne Q_core·(u − d)^p_core, avec Q_core = core_hardness × le Q0 de Stulov pour la touche (quelle que soit l’harmonisation du feutre de surface). Introduit dans docs/presence.md.",
+      "src": "26f5c7191c"
+    },
+    "core_p": {
+      "what": "Brusquerie avec laquelle le cœur résiste une fois que le marteau l’atteint.",
+      "how": "Exposant p_core du terme de cœur Q_core·(u − d)^p_core.",
+      "src": "f0659ed77a"
+    },
+    "damper.pedal_contact": {
+      "what": "Course de la pédale à laquelle les étouffoirs ont quitté les cordes.",
+      "how": "Contact = ((contact − travel)/(contact − free))^curve, borné entre 0 et 1.",
+      "src": "70abbfe84a"
+    },
+    "damper.pedal_curve": {
+      "what": "Forme de la demi-pédale entre ces deux points : des valeurs plus élevées font quitter les cordes plus tôt aux étouffoirs.",
+      "how": "Exposant de la courbe de contact.",
+      "src": "c4591c0cd2"
+    },
+    "damper.pedal_free": {
+      "what": "Course de la pédale forte avant qu’elle ne commence à soulever les étouffoirs. Les pianistes laissent reposer leur pied sur la pédale : un peu de course ne doit donc rien faire.",
+      "how": "Position de la pédale (CC 64, 0–1) à partir de laquelle le contact commence à descendre depuis 1.",
+      "src": "42c3209528"
+    },
+    "half_blow": {
+      "what": "De combien la pédale gauche d’un piano droit fait jouer moins fort : elle rapproche les marteaux des cordes, si bien qu’ils parcourent moins de chemin et frappent plus lentement. 0 sur un piano à queue.",
+      "how": "Vitesse du marteau × (1 − half_blow·s), pour la pédale douce enfoncée de s. 0.1 correspond au piano droit d’un piano modélisé commercial (−1 dB, timbre presque inchangé).",
+      "src": "32c94941d5"
+    },
+    "hammer_mass_scale": {
+      "what": "Poids des marteaux. Des marteaux légers (pianoforte, petits pianos droits) rebondissent plus tôt sur les cordes : une attaque plus fine et plus rapide ; des marteaux lourds restent plus longtemps sur les cordes et donnent un son plus plein et plus rond.",
+      "how": "Multiplie les masses de marteaux de Stulov (11 g en A0 jusqu’à 5.3 g en C8). Le solveur de contact intègre m·x'' = −F : à vitesse donnée, l’énergie et la durée de la frappe croissent avec la masse.",
+      "src": "75cfeaf367"
+    },
+    "hardness": {
+      "what": "Harmonisation : la dureté du feutre des marteaux. Un feutre plus dur donne un son plus brillant et plus percussif, un feutre plus souple un son plus rond et plus doux. Les techniciens harmonisent un piano en piquant ou en durcissant le feutre.",
+      "how": "Multiplie la raideur Q0 du feutre de chaque touche dans F = Q0·u^p (u : compression du feutre en mm), d’après les marteaux mesurés par Stulov (ICA 2009). La valeur par défaut 0.3 rend le feutre de surface plus souple que le sien ; le cœur dur en dessous donne le mordant au forte (docs/middle_highs.md).",
+      "src": "5e94ed18d0"
+    },
+    "hardness_slope": {
+      "what": "Vitesse à laquelle les marteaux durcissent du C4 central jusqu’en haut du clavier. Les marteaux aigus sont plus petits et plus durs ; une pente plus forte éclaircit le registre aigu.",
+      "how": "Q0 ×= e^(slope·(key − 40)) au-dessus de C4 (touche 40, en comptant A0 comme 1), en plus de la croissance de l’ajustement de Stulov, e^(0.045·key).",
+      "src": "691e448426"
+    },
+    "hardness_slope_bass": {
+      "what": "La même chose, du C4 central jusqu’à la touche la plus grave. Des valeurs positives rendent les marteaux graves plus souples que ceux du médium, des valeurs négatives plus durs.",
+      "how": "Q0 ×= e^(slope·(key − 40)) en dessous de C4.",
+      "src": "7f320c7581"
+    },
+    "hysteresis": {
+      "what": "Le feutre ne se détend pas comme il a été comprimé : il garde une partie de l’énergie. Plus d’hystérésis donne un son plus rond et un rebond plus doux.",
+      "how": "Multiplie le temps d’hystérésis α de Stulov dans F = Q0·[u^p + α·d(u^p)/dt]. Le solveur de contact en utilise la forme linéarisée, qui ne fait que retirer de l’énergie (passive par construction).",
+      "src": "3419356871"
+    },
+    "inharmonicity.a_bass": {
+      "what": "Les cordes en acier sont raides : leurs harmoniques sont un peu plus hauts que les multiples exacts de la fondamentale, ce qui donne au piano sa couleur légèrement métallique. Ce réglage fixe la vitesse à laquelle cette inharmonicité décroît depuis la touche la plus grave vers le médium.",
+      "how": "B(n) = e^(a_bass·n + b_bass) + e^(a_treble·n + b_treble) (Rigaud, David & Daudet 2013), partiel k à k·f0·√(1 + B·k²). Ajusté sur le Yamaha C5 de Salamander (écart rms 0.07 en log B).",
+      "src": "70f8c7c23f"
+    },
+    "inharmonicity.a_treble": {
+      "what": "Vitesse à laquelle l’inharmonicité croît vers l’aigu. Les cordes aiguës, courtes et épaisses, sont très raides.",
+      "how": "Pente de l’exponentielle aiguë de B(n).",
+      "src": "845c86449b"
+    },
+    "inharmonicity.b_bass": {
+      "what": "Inharmonicité des cordes graves : des harmoniques plus hauts, plus « métalliques » et plus faux dans le grave.",
+      "how": "Décalage de l’exponentielle grave de B(n) (logarithme népérien).",
+      "src": "af1fe8da19"
+    },
+    "inharmonicity.b_treble": {
+      "what": "Inharmonicité des cordes aiguës.",
+      "how": "Décalage de l’exponentielle aiguë de B(n) (logarithme népérien).",
+      "src": "c68946ab87"
+    },
+    "losses.b1_floor": {
+      "what": "Pertes supplémentaires des cordes graves filées (le fil de cuivre enroulé autour de l’âme en acier frotte sur lui-même).",
+      "how": "Ajouté à σ en dessous de `wound_until`, en s’estompant sur l’octave au-dessus. 0.2 /s place les enveloppes du grave à moins de 1 dB de Salamander.",
+      "src": "36c3b0a2c6"
+    },
+    "losses.b1_offset": {
+      "what": "Tenue globale des notes : des valeurs plus basses sonnent plus longtemps.",
+      "how": "Décalage du terme log-linéaire de σ.",
+      "src": "b8607f13f1"
+    },
+    "losses.b1_slope": {
+      "what": "À quel point les notes s’éteignent plus vite vers l’aigu, du fait des pertes propres des cordes (frottement de l’air, frottement interne). La table d’harmonie ajoute les siennes.",
+      "how": "Taux d’amortissement intrinsèque σ = b1_floor·w(n) + e^(b1_slope·n + b1_offset + top(n)) + b2·f² (1/s), le T60 valant 6.9/σ. Ajusté sur le son rémanent de Salamander analysé par ESPRIT, puis abaissé d’après la longue tenue (docs/long_sustain.md).",
+      "src": "ba27fa7af6"
+    },
+    "losses.b2": {
+      "what": "À quel point les harmoniques aigus s’éteignent plus vite que la fondamentale : des valeurs plus élevées assombrissent le son plus tôt au cours de sa décroissance.",
+      "how": "Terme en fréquence b2·f² de σ. 1e-7 a été fixé avec l’étalement au chevalet (docs/sustain.md) ; 2e-7 raccourcissait les fondamentales aiguës.",
+      "src": "f792c12711"
+    },
+    "losses.top_from": {
+      "what": "Touche à partir de laquelle les cordes de l’extrême aigu perdent leur énergie plus vite.",
+      "how": "Note MIDI où commence top_slope.",
+      "src": "7d299e31ba"
+    },
+    "losses.top_slope": {
+      "what": "Pertes supplémentaires des cordes de l’extrême aigu, qui n’ont pas d’étouffoirs : sans elles, les notes les plus aiguës continueraient de sonner après le relâchement des touches.",
+      "how": "Le terme log-linéaire de σ gagne top_slope·(n − top_from) au-dessus de top_from (×1.8 en C7 par défaut, docs/release_ring.md).",
+      "src": "24efef613e"
+    },
+    "losses.wound_until": {
+      "what": "Touche la plus aiguë munie de cordes filées.",
+      "how": "Note MIDI où le terme b1_floor commence à s’estomper (il a disparu une octave plus haut).",
+      "src": "b6fc815036"
+    },
+    "mute_felt": {
+      "what": "Sur de nombreux pianos droits, la pédale du milieu abaisse une bande de feutre entre les marteaux et les cordes, pour travailler en silence : un son étouffé, feutré. Ce réglage fixe l’épaisseur de cette bande ; 0 fait de la pédale du milieu une pédale tonale (sostenuto), comme sur un piano à queue.",
+      "how": "Tant que le CC 66 est enfoncé, les nouvelles frappes traversent une bande de t mm en série avec le feutre : Q0 × min(1, 0.09/t), hystérésis × 3, cœur atteint t mm plus tard. Une estimation (sans référence).",
+      "src": "b15726d467"
+    },
+    "noise.damper_landing": {
+      "what": "Douceur de la pose de l’étouffoir : plus elle est longue, plus le choc est sourd.",
+      "how": "Durée (s) de l’impulsion en demi-sinus ; son spectre décroît au-dessus de 1/durée.",
+      "src": "9668054828"
+    },
+    "noise.damper_mass": {
+      "what": "Le léger bruit sourd d’un étouffoir qui se pose sur une corde en vibration. Plus lourd : un bruit plus audible.",
+      "how": "Masse effective du feutre (kg) : une impulsion de quantité de mouvement masse·vitesse injectée dans les modes de la corde au point de l’étouffoir, étalée sur `damper_landing`.",
+      "src": "c9e783ed26"
+    },
+    "noise.damper_speed": {
+      "what": "Vitesse à laquelle les étouffoirs retombent sur les cordes (modulée par la vélocité de relâchement de la touche).",
+      "how": "Vitesse de chute (m/s) pour une vélocité de relâchement de 64 ; les étouffoirs relâchés par la pédale retombent plus lentement.",
+      "src": "888f1dc62a"
+    },
+    "noise.keybed": {
+      "what": "Le bruit sourd de la touche qui heurte le fond de clavier, entendu à travers la caisse. Il croît avec la force avec laquelle la touche est enfoncée.",
+      "how": "Force de crête (N par m/s de vitesse du marteau) d’un choc en demi-sinus injecté dans la table, dans la zone du chevalet qui correspond à la touche, au moment où le marteau frappe.",
+      "src": "ea9d47d8f2"
+    },
+    "noise.knock_time": {
+      "what": "Durée des chocs du fond de clavier et de la pédale : plus elle est longue, plus le choc est sourd.",
+      "how": "Longueur (s) du choc en demi-sinus.",
+      "src": "6f0f01ecab"
+    },
+    "noise.pedal": {
+      "what": "Le bruit du mécanisme de la pédale forte, entendu à travers la caisse.",
+      "how": "Force de crête (N) injectée dans la table pour un mouvement de pédale à pleine vitesse, répartie entre deux zones vers le milieu du clavier.",
+      "src": "c1bb28adbc"
+    },
+    "nonlinear.coupling": {
+      "what": "Niveau des partiels fantômes.",
+      "how": "Part de la force longitudinale au chevalet qui excite la table ; ≈ −28 dB sous les partiels dans le grave en ff (tools/phantom_levels.py).",
+      "src": "d161c09742"
+    },
+    "nonlinear.coupling_corner": {
+      "what": "Les variations lentes de la tension des cordes font à peine bouger la table ; ce filtre les élimine.",
+      "how": "Passe-haut du premier ordre (Hz) sur la force longitudinale : celle-ci fléchit la table par son moment autour du pied du chevalet, qui croît avec le nombre d’onde de la table.",
+      "src": "00be0697db"
+    },
+    "nonlinear.enabled": {
+      "what": "Frappée fort, une corde s’allonge en oscillant, ce qui ajoute des partiels « fantômes » : le grondement et la brillance d’un grave joué fort.",
+      "how": "Non-linéarité géométrique (Bank & Sujbert 2005) : les partiels transversaux excitent les modes longitudinaux à leurs fréquences somme et différence ; la force longitudinale sur le chevalet atteint la table. Croît comme le carré de l’amplitude ; à sens unique.",
+      "src": "71ea598668"
+    },
+    "nonlinear.long_loss": {
+      "what": "Amortissement des vibrations d’allongement.",
+      "how": "Facteur de pertes des modes longitudinaux.",
+      "src": "3cf0de635f"
+    },
+    "nonlinear.max_long_hz": {
+      "what": "Vibration d’allongement la plus aiguë prise en compte (CPU).",
+      "how": "Modes longitudinaux conservés (Hz).",
+      "src": "e17b411c85"
+    },
+    "nonlinear.max_note": {
+      "what": "Touche la plus aiguë calculée : au-dessus, les partiels fantômes sont trop aigus pour compter.",
+      "how": "Note MIDI (E4 : son premier mode longitudinal est au-dessus de 4 kHz).",
+      "src": "2039a8befd"
+    },
+    "nonlinear.max_partial_hz": {
+      "what": "Partiel le plus aigu qui intervient (CPU).",
+      "how": "Partiels transversaux conservés dans les produits (Hz).",
+      "src": "e95fe2a0df"
+    },
+    "nonlinear.young": {
+      "what": "Raideur de l’acier des cordes.",
+      "how": "Module de Young E (Pa) ; le diamètre de l’âme se déduit de B : B = π³·E·d⁴/(64·T·L²), EA = E·π·d²/4.",
+      "src": "d506add55e"
+    },
+    "output_gain_db": {
+      "what": "Niveau global, comme le gain du préampli micro. Il ne change pas le timbre.",
+      "how": "Appliqué aux deux canaux après la salle, lissé avec une constante de temps de 20 ms pour que l’automation ne produise pas de clics. Les préréglages s’en servent pour égaliser les niveaux des prises de son proches et lointaines.",
+      "src": "d2511c5c79"
+    },
+    "p_bass": {
+      "what": "Rend les marteaux graves plus non linéaires : plus ronds joués doucement, plus mordants joués fort.",
+      "how": "Ajouté à l’exposant p du feutre, croissant linéairement de 0 en C4 à p_bass en A0.",
+      "src": "27522dbe88"
+    },
+    "p_offset": {
+      "what": "Vitesse à laquelle le feutre se raidit quand il est comprimé, sur toutes les touches. Des valeurs plus élevées creusent l’écart entre le timbre doux et le timbre fort.",
+      "how": "Ajouté à l’exposant de Stulov p = 3.7 + 0.015·key du feutre de surface (valeurs publiées 2–5).",
+      "src": "565a2c2b38"
+    },
+    "polarization.cross": {
+      "what": "Quantité d’énergie qui passe d’une direction de vibration à l’autre (basculement du chevalet, extrémités obliques de la corde) : elle transfère lentement le mouvement vertical, fort, vers le mouvement latéral, long.",
+      "how": "ε_X/ε_V. Le chevalet ne reste passif que si ε_X² ≤ ε_V·ε_H, la valeur est donc bornée à √h_coupling ; la valeur par défaut se situe à cette limite.",
+      "src": "8836ef02dd"
+    },
+    "polarization.detune_cents": {
+      "what": "Écart de hauteur entre les vibrations latérale et verticale (les extrémités de la corde la tiennent différemment dans chaque direction).",
+      "how": "Fréquence horizontale moins fréquence verticale (cents).",
+      "src": "2747ae8dc6"
+    },
+    "polarization.enabled": {
+      "what": "Les cordes vibrent verticalement et latéralement. Le mouvement latéral fait à peine bouger le chevalet, il sonne donc bien plus longtemps : c’est une part de la longue tenue du piano, même sur les notes à une seule corde.",
+      "how": "Double les oscillateurs de chaque partiel (vertical et horizontal) dans le système couplé du chœur de cordes.",
+      "src": "305b14678c"
+    },
+    "polarization.h_coupling": {
+      "what": "Souplesse latérale du chevalet, par rapport à sa souplesse verticale. Faible : le mouvement latéral sonne longtemps et doucement.",
+      "how": "ε_H/ε_V. Calibré avec l’instrument complet sur les statistiques ESPRIT de Salamander (tools/decay_grid.py).",
+      "src": "37e5eae48e"
+    },
+    "polarization.hammer_tilt": {
+      "what": "À quel point le marteau pousse aussi les cordes latéralement.",
+      "how": "Part de la force du marteau sur chaque corde appliquée à son oscillateur horizontal.",
+      "src": "98ec04a0db"
+    },
+    "polarization.radiation": {
+      "what": "Part de la vibration latérale que l’on entend.",
+      "how": "Poids en sortie de la force horizontale au chevalet (verticale = 1).",
+      "src": "b150e422dc"
+    },
+    "repetition_floor": {
+      "what": "Force d’une note rejouée aussitôt sur un piano droit : jamais muette, seulement plus faible.",
+      "how": "Part de la vitesse du marteau à Δt = 0 (0.5 : environ −8 dB).",
+      "src": "ecd7b64bea"
+    },
+    "repetition_time": {
+      "what": "Un piano droit répète une note plus lentement qu’un piano à queue : faute de double échappement, la touche doit remonter presque entièrement avant que le marteau puisse être relancé. Une note rejouée moins de ce délai après le relâchement de sa touche sort plus faible. 0 : un piano à queue, sans limite.",
+      "how": "Vitesse du marteau × (floor + (1 − floor)·smoothstep(Δt/T)), Δt allant du note-off au note-on suivant de la même touche (0 s’il n’y a pas eu de note-off). Les pianos droits répètent jusqu’à ≈ 7 notes/s contre ≈ 14 pour un piano à queue ; 0.06 s est une estimation.",
+      "src": "8eb41a5661"
+    },
+    "scale.break_note": {
+      "what": "Point où les cordes cessent de s’allonger au rythme idéal : en dessous, la caisse d’un piano à queue est trop courte, si bien que les cordes graves sont plus courtes et alourdies par un filage.",
+      "how": "En dessous de cette note, la longueur évolue linéairement jusqu’à `len_a0`.",
+      "src": "6929e32928"
+    },
+    "scale.len_a0": {
+      "what": "Longueur vibrante de la corde la plus grave (A0).",
+      "how": "Fin du segment grave raccourci (m).",
+      "src": "9a0a5f4763"
+    },
+    "scale.len_c8": {
+      "what": "Longueur vibrante de la corde la plus aiguë (C8), entre ses deux points d’appui.",
+      "how": "Les longueurs croissent de `ratio_per_octave` par octave en descendant jusqu’à `break_note`. Ce plan de cordes générique de piano à queue de 2 m est provisoire, il n’a pas été mesuré. Avec la tension et la hauteur, il fixe la masse de chaque corde : μ = T/(2·L·f0)².",
+      "src": "3b7a4818c4"
+    },
+    "scale.ratio_per_octave": {
+      "what": "De combien les cordes s’allongent à chaque octave en descendant (2 serait l’idéal, une mise à l’échelle pure des longueurs).",
+      "how": "Rapport de longueur par octave de C8 jusqu’à la note de rupture.",
+      "src": "b6a734fddc"
+    },
+    "scale.tension": {
+      "what": "Tension de chaque corde (typiquement 700–900 N). Des cordes plus lourdes et plus tendues appuient plus fort sur le chevalet.",
+      "how": "La même T sur toutes les cordes. Avec L, elle fixe μ, le couplage au chevalet (T/L)·Y, l’impédance de l’étouffoir √(T·μ) et les masses modales du marteau.",
+      "src": "cfbc19a849"
+    },
+    "soundboard.lid_angle": {
+      "what": "Ouverture du couvercle (0 : retiré). Un couvercle ouvert renvoie le son vers le public et fait écran aux micros placés derrière lui.",
+      "how": "Le couvercle est un rectangle réfléchissant articulé côté grave (y = b), qui s’ouvre vers y < 0. Chaque cellule de la table reçoit un trajet image à travers lui quand la réflexion touche le couvercle ; les micros situés derrière reçoivent la part transmise. Pas de diffraction.",
+      "src": "6e020d091b"
+    },
+    "soundboard.lid_hinge_height": {
+      "what": "Hauteur de la charnière du couvercle au-dessus de la table d’harmonie.",
+      "how": "z de la ligne de charnière (m).",
+      "src": "031e5164a9"
+    },
+    "soundboard.lid_reflection": {
+      "what": "Quantité de son réfléchie par le couvercle.",
+      "how": "Coefficient de réflexion en pression de l’image du couvercle.",
+      "src": "8f4eeb40f4"
+    },
+    "soundboard.lid_transmission": {
+      "what": "Quantité de son qui traverse le couvercle jusqu’à un micro situé derrière lui.",
+      "how": "Gain du trajet direct quand le couvercle le masque.",
+      "src": "7cfe44eb04"
+    },
+    "soundboard.mic_gain_db": {
+      "what": "Niveau de la prise de son, en plus du gain de sortie propre à l’instrument : des micros proches entendent le piano plus fort, si bien qu’une prise de son proche baisse d’elle-même son niveau.",
+      "how": "Gain (dB) appliqué au son rayonné lors de la construction de l’instrument, tenu à part de output_gain_db pour qu’un préréglage d’écoute et un préréglage d’instrument puissent se combiner.",
+      "src": "5e03c2775b"
+    },
+    "soundboard.mic_pattern": {
+      "what": "Directivité des micros, pointés vers le piano : 1 capte tout autour (omnidirectionnel), 0.5 correspond à un cardioïde, qui entend la salle environ 5 dB moins fort que le piano placé devant lui.",
+      "how": "Directivité a + (1 − a)·cos θ. Le son direct arrive dans l’axe ; les réflexions et la queue de réverbération de la salle viennent de toutes les directions et sont captées avec l’efficacité en incidence aléatoire a² + (1 − a)²/3 (1/3 pour un cardioïde).",
+      "src": "7f50a3311a"
+    },
+    "soundboard.mics": {
+      "what": "Emplacement des deux micros : le premier donne le canal gauche, le second le canal droit. Près de la table, le son est détaillé et sec ; plus loin, la table se fond dans l’ensemble et la salle prend le dessus.",
+      "how": "[mic][x, y, z] en mètres. Coordonnées de la table : x le long des cordes, de l’extrémité de la table côté clavier vers la queue ; y en travers, du côté aigu (0) vers le côté grave ; z au-dessus de la table. Chaque micro entend chaque mode de la table par l’intégrale de Rayleigh (plus l’image du couvercle, le cadre et la ceinture), puis les réflexions de la salle. Les modifier entraîne la reconstruction des poids de rayonnement.",
+      "src": "78bb2630c8"
+    },
+    "soundboard.mics_relative": {
+      "what": "Positions des micros exprimées en fractions de la longueur et de la largeur de la table d’harmonie plutôt qu’en mètres, pour qu’une prise de son suive la table quand l’instrument change de taille.",
+      "how": "x et y sont multipliés par les dimensions a et b de la table lors de la construction de l’instrument ; la hauteur reste en mètres. Les préréglages d’écoute l’utilisent.",
+      "src": "99010e62ad"
+    },
+    "stretch.a_b": {
+      "what": "Ampleur de l’étirement de l’accord (vers le bas) dans le grave.",
+      "how": "Amplitude a_b de l’exponentielle grave (cents).",
+      "src": "52406951e8"
+    },
+    "stretch.a_t": {
+      "what": "Les accordeurs étirent les octaves : l’aigu est accordé plus haut et le grave plus bas que le tempérament égal, pour que les octaves sonnent justes malgré des harmoniques trop hauts. Ampleur de l’étirement dans l’aigu.",
+      "how": "Étirement en cents : a_t·e^(k_t·(n − 69)) − a_b·e^(−k_b·(n − 69)) + c. Ajusté sur Salamander, C8 exclu (écart rms 2 cents) : −16 cents en A0, +25 en C8.",
+      "src": "ef958e152a"
+    },
+    "stretch.c": {
+      "what": "Décalage de l’ensemble de l’accord autour de A4 (cents).",
+      "how": "Terme constant c de la loi d’étirement.",
+      "src": "7beee1af55"
+    },
+    "stretch.k_b": {
+      "what": "Vitesse à laquelle l’étirement du grave s’accentue vers le bas du clavier.",
+      "how": "Taux k_b de l’exponentielle grave (par touche).",
+      "src": "af59a9179a"
+    },
+    "stretch.k_t": {
+      "what": "Vitesse à laquelle l’étirement de l’aigu s’accentue vers le haut du clavier.",
+      "how": "Taux k_t de l’exponentielle aiguë (par touche).",
+      "src": "ba23c89d68"
+    },
+    "strike_ratio": {
+      "what": "Endroit où le marteau frappe la corde, en fraction de sa longueur depuis l’extrémité côté chevilles. Vers 1/8, il excite à peine le 8e partiel, qui sonnerait dur ; plus près de l’extrémité, le son devient plus brillant et plus mince, plus loin, plus rond.",
+      "how": "Point de frappe x0 = ratio·L jusqu’à C6, qui se rapproche de 0.05 de l’agrafe jusqu’en C8. Le partiel k est frappé avec sin(kπ·x0/L) (multiplié par le sinc de la largeur du feutre) : les partiels qui ont un nœud au point de frappe ne sont pas excités.",
+      "src": "95a25c26b0"
+    },
+    "una_corda_shift": {
+      "what": "Ce que fait la pédale gauche. Sur un piano à queue (1), elle décale la mécanique pour que chaque marteau frappe une corde de moins ; sur un piano droit (0), elle ne décale rien, elle rapproche plutôt les marteaux des cordes (voir Rapprochement des marteaux).",
+      "how": "La première corde de chaque bicorde et tricorde reçoit (1 − shift·s) de la force du marteau, et l’assouplissement du feutre est appliqué avec shift·s, pour la pédale douce enfoncée de s (CC 67, 0–1).",
+      "src": "379dd33aa4"
+    },
+    "una_corda_softening": {
+      "what": "À quel point le son s’adoucit avec la pédale gauche (una corda). La pédale décale toute la mécanique latéralement : chaque marteau frappe une corde de moins, avec un feutre neuf que les cordes n’ont ni creusé ni durci.",
+      "how": "Avec la pédale douce enfoncée de s (CC 67, 0–1), la première corde de chaque bicorde et tricorde reçoit (1 − s) de la force du marteau, la raideur Q0 du feutre est multipliée par 1 − softening·s, et le feutre de surface est plus épais de la moitié de cette valeur (+30 % à 0.6) : le cœur dur est atteint plus tard. Lu à chaque frappe.",
+      "src": "471488ae60"
+    },
+    "unison.bichord_from": {
+      "what": "Touche la plus grave à deux cordes (en dessous : une seule corde filée, lourde, par touche).",
+      "how": "Note MIDI. Les cordes d’une touche sont couplées par le chevalet (Weinreich 1977) : double décroissance et battements.",
+      "src": "b5a37c3d16"
+    },
+    "unison.hit_spread": {
+      "what": "Le marteau ne frappe jamais les cordes d’une touche de façon parfaitement égale. La part inégale les fait osciller les unes contre les autres, ce qui nourrit le long son rémanent.",
+      "how": "Dispersion relative de la part de force que reçoit chaque corde (0 : égale), un motif de moyenne nulle qui tourne d’une touche à l’autre. Réglé sur le niveau du son rémanent dans l’aigu (docs/sustain.md).",
+      "src": "134188bc6b"
+    },
+    "unison.trichord_from": {
+      "what": "Touche la plus grave à trois cordes.",
+      "how": "Note MIDI.",
+      "src": "730f7f1544"
+    },
+    "unison.width_mid": {
+      "what": "Les cordes d’une touche ne sont jamais parfaitement accordées entre elles. Ce léger désaccord donne au piano son « son rémanent » tenu et chatoyant ; trop, et les notes sonnent faux ou bastringue (honky-tonk). Écart jusqu’au C4 central.",
+      "how": "Écart entre les cordes extrêmes (cents) jusqu’à C4, croissant quadratiquement jusqu’à `width_treble` en C8 ; chaque touche reçoit un motif irrégulier mais fixe. 1 cent place le son rémanent 13–17 dB sous le son immédiat (docs/long_sustain.md).",
+      "src": "7af689154f"
+    },
+    "unison.width_treble": {
+      "what": "Écart de désaccord entre les cordes de la touche la plus aiguë (C8).",
+      "how": "Écart (cents) en C8 ; calibré sur les statistiques ESPRIT de Salamander.",
+      "src": "36a986808b"
+    },
+    "velocity.vmax": {
+      "what": "Vitesse du marteau pour l’enfoncement le plus fort (vélocité 127). Plus élevée : un fortissimo plus fort et beaucoup plus brillant, car un marteau rapide comprime davantage son feutre.",
+      "how": "Extrémité haute de la correspondance exponentielle des vélocités (voir la courbe). Les valeurs par défaut, 0.6–4.2 m/s, placent la vélocité 77 à 1.9 m/s, comme sur un Disklavier ; réglées avec le feutre sur la brillance de l’attaque et de la tenue (docs/brightness.md).",
+      "src": "afc0236430"
+    },
+    "velocity.vmin": {
+      "what": "Vitesse du marteau pour l’enfoncement le plus doux (vélocité MIDI 1). Plus basse : un pianissimo plus discret et plus terne.",
+      "how": "Vitesse du marteau = vmin·(vmax/vmin)^((velocity − 1)/126), exponentielle comme la correspondance logarithmique des pianos enregistreurs (Goebl & Bresin 2003), pour que le MIDI enregistré garde sa dynamique. Lu à chaque note-on.",
+      "src": "7eeb82748c"
+    },
+    "bridge.b_over_g": {
+      "what": "Élasticité du chevalet rapportée à ses pertes (sans table d'harmonie) : décale légèrement la hauteur des cordes et modifie leurs battements.",
+      "how": "Im Y / Re Y.",
+      "src": "3933c3ea29"
+    },
+    "bridge.g_1k": {
+      "what": "Facilité avec laquelle les cordes font bouger le chevalet, quand aucune table d'harmonie n'est modélisée. Plus de mobilité : des notes plus fortes mais plus courtes.",
+      "how": "Utilisé seulement sans table d'harmonie. Admittance du chevalet G(f) = g_1k·(f/1 kHz)^slope (s/kg), Im Y = b_over_g·G ; mesurée sur Salamander à partir des décroissances du son immédiat et du son rémanent.",
+      "src": "761a6aa939"
+    },
+    "bridge.slope": {
+      "what": "Variation de la mobilité du chevalet avec la fréquence (sans table d'harmonie).",
+      "how": "Exposant de G(f).",
+      "src": "7b5a5b8372"
+    },
+    "damper.contact_exponent": {
+      "what": "Manière dont l'amortissement croît à mesure que le feutre se pose sur les cordes. Plus élevé : des étouffoirs qui effleurent à peine les cordes arrêtent peu le son, ce qui donne une demi-pédale exploitable et des fins de notes plus douces.",
+      "how": "L'amortisseur visqueux croît comme contact^exponent (compression du feutre). Avec 1, un contact à moitié donnait déjà 89 % du taux complet.",
+      "src": "1e50f23e4f"
+    },
+    "damper.fall_time": {
+      "what": "Rapidité avec laquelle un étouffoir retombe sur les cordes quand une touche est relâchée.",
+      "how": "Constante de temps (s) du contact tendant vers 1.",
+      "src": "042c84aa82"
+    },
+    "damper.highest_note": {
+      "what": "Touche la plus aiguë munie d'un étouffoir. Les cordes courtes du haut n'en ont pas et sonnent jusqu'à s'éteindre d'elles-mêmes.",
+      "how": "Note MIDI (F#6 par défaut, mesurée sur un piano modélisé commercial).",
+      "src": "b5f82eec91"
+    },
+    "damper.lift_time": {
+      "what": "Rapidité avec laquelle un étouffoir se soulève quand une touche est enfoncée ou que la pédale descend.",
+      "how": "Constante de temps (s) du contact tendant vers 0.",
+      "src": "eee9929154"
+    },
+    "damper.node_floor": {
+      "what": "Certains partiels ont un point immobile juste sous l'étouffoir et lui échapperaient ; le feutre écrasé les attrape quand même. Plus élevé : des fins de notes plus nettes.",
+      "how": "Part du taux complet que reçoit au minimum chaque partiel. Réglé sur l'extinction des basses (docs/release_ring.md).",
+      "src": "5a7c541b43"
+    },
+    "damper.position": {
+      "what": "Endroit où les étouffoirs en feutre reposent sur les cordes, près du côté clavier. Ils font taire une note quand sa touche est relâchée.",
+      "how": "Fraction de la longueur de corde depuis l'agrafe. Un étouffoir est un amortisseur visqueux qui ajoute au partiel k un taux de décroissance proportionnel à sin²(kπx/L) moyenné sur le patin (S_k).",
+      "src": "06cee8abf4"
+    },
+    "damper.strength": {
+      "what": "Fermeté avec laquelle les étouffoirs arrêtent les cordes. Trop mous, les notes traînent après le relâchement ; trop durs, le feutre renvoie la vibration au lieu de l'absorber.",
+      "how": "c/(2·Z0), Z0 = √(T·μ) : σ_k = c/(μL)·S_k·(2Z0/(c + 2Z0))². 1 correspond à l'impédance de la corde (absorption maximale). S_k : moyenne de sin²(kπx/L) sur le patin.",
+      "src": "d03b3367f7"
+    },
+    "damper.width": {
+      "what": "Longueur de corde couverte par le patin de feutre.",
+      "how": "Largeur du patin (m) dans la moyenne de sin² (les partiels qui ont un nœud sous le patin restent amortis par le reste du patin).",
+      "src": "443697018a"
+    },
+    "frame.a": {
+      "what": "Longueur du cadre en fonte.",
+      "how": "Dimension de la plaque (m) ; elle commence à `offset_x` en coordonnées de la table, au-dessus du sommier.",
+      "src": "252c5e7d39"
+    },
+    "frame.agraffe_x": {
+      "what": "Position, sur le cadre, de l'extrémité éloignée des cordes (les agrafes, près des chevilles d'accord).",
+      "how": "x de la ligne des agrafes en coordonnées du cadre (m).",
+      "src": "990e89fdd4"
+    },
+    "frame.b": {
+      "what": "Largeur du cadre en fonte.",
+      "how": "Dimension de la plaque (m).",
+      "src": "c444d6ca55"
+    },
+    "frame.back_depth": {
+      "what": "Distance d'où rayonne la face inférieure du cadre.",
+      "how": "Profondeur (m) de l'image de la face arrière, comme pour la table.",
+      "src": "468263632d"
+    },
+    "frame.back_gain": {
+      "what": "Part du son de la face inférieure du cadre qui atteint les micros. Le cadre ajouré laisse les deux faces s'annuler.",
+      "how": "Gain de la face arrière.",
+      "src": "8a092cba5f"
+    },
+    "frame.enabled": {
+      "what": "Le cadre en fonte (la plaque) qui supporte la tension des cordes, près de 20 tonnes. Il résonne un peu lui aussi et ajoute une couleur métallique.",
+      "how": "Plaque isotrope encastrée (même mécanique modale que la table), excitée aux agrafes par la force des cordes et rayonnant depuis sa propre hauteur ; couplage à sens unique.",
+      "src": "7ed3a15602"
+    },
+    "frame.f_max": {
+      "what": "Résonance la plus haute modélisée pour le cadre (CPU).",
+      "how": "Modes du cadre conservés (Hz).",
+      "src": "cfc1d650a9"
+    },
+    "frame.gain": {
+      "what": "Volume du son du cadre (1 : physique).",
+      "how": "Met à l'échelle sa pression rayonnée.",
+      "src": "9ad1d16795"
+    },
+    "frame.height": {
+      "what": "Hauteur du cadre au-dessus de la table d'harmonie.",
+      "how": "Décalage en z (m) de son rayonnement.",
+      "src": "f84e7f0422"
+    },
+    "frame.loss_factor": {
+      "what": "Amortissement du cadre : la fonte résonne longtemps, mais boulonnée et chargée, elle est davantage amortie.",
+      "how": "Facteur de pertes (1 %, une estimation).",
+      "src": "bc719db480"
+    },
+    "frame.offset_x": {
+      "what": "Début du cadre par rapport à la table d'harmonie (négatif : devant elle, au-dessus des chevilles d'accord).",
+      "how": "x du coin du cadre en coordonnées de la table (m).",
+      "src": "f4b66e6809"
+    },
+    "frame.rho_h": {
+      "what": "Masse du cadre par mètre carré (environ 150 kg au total).",
+      "how": "Masse surfacique (kg/m², ajours compris).",
+      "src": "4451173ee0"
+    },
+    "frame.solidity": {
+      "what": "Part du contour du cadre occupée par le métal (le reste est ajouré).",
+      "how": "Seule cette part rayonne.",
+      "src": "3cc9852ff6"
+    },
+    "frame.stiffness": {
+      "what": "Rigidité du cadre : plus elle est élevée, plus ses résonances montent.",
+      "how": "Rigidité en flexion (N·m) ; la valeur par défaut place un premier mode vers 150 Hz.",
+      "src": "d76963b53a"
+    },
+    "rim.couple_f_max": {
+      "what": "Résonance la plus haute de la table d'harmonie autorisée à faire vibrer la ceinture.",
+      "how": "Les modes de la table au-dessus ne sont pas projetés sur la ceinture (Hz).",
+      "src": "93baf5adce"
+    },
+    "rim.density": {
+      "what": "Masse volumique du bois de la ceinture.",
+      "how": "kg/m³.",
+      "src": "e70324dc9d"
+    },
+    "rim.enabled": {
+      "what": "La ceinture, l'épaisse paroi de bois courbée autour de la table d'harmonie. Les bords de la table la font vibrer et elle rayonne aussi, surtout dans le grave et le médium.",
+      "how": "Un anneau suivant le périmètre de la table, en flexion hors plan couplée à la torsion (Love), excité par les efforts de bord de la table (cisaillement de Kirchhoff et forces de coin) ; ses quatre faces rayonnent. Couplage à sens unique.",
+      "src": "b6429be17a"
+    },
+    "rim.f_max": {
+      "what": "Résonance la plus haute modélisée pour la ceinture (CPU).",
+      "how": "Modes de la ceinture conservés (Hz).",
+      "src": "1b09b42cb4"
+    },
+    "rim.gain": {
+      "what": "Volume du son de la ceinture (1 : physique).",
+      "how": "Met à l'échelle sa pression rayonnée.",
+      "src": "9987af0ef7"
+    },
+    "rim.height": {
+      "what": "Hauteur de la paroi de la ceinture.",
+      "how": "Hauteur de la paroi (m).",
+      "src": "d18903a169"
+    },
+    "rim.inner_gain": {
+      "what": "Part audible de la face intérieure de la ceinture, à moitié cachée sous la table.",
+      "how": "Gain de rayonnement de la face intérieure.",
+      "src": "e1d99e4c2b"
+    },
+    "rim.k_max": {
+      "what": "Nombre de formes de vibration de la ceinture sur le pourtour de la caisse (CPU).",
+      "how": "Ordre circonférentiel le plus élevé.",
+      "src": "7ce4abfd88"
+    },
+    "rim.loss_factor": {
+      "what": "Amortissement de la ceinture.",
+      "how": "Facteur de pertes de ses modes.",
+      "src": "43c5a22bbf"
+    },
+    "rim.shear": {
+      "what": "Résistance de la paroi à la torsion.",
+      "how": "Module de cisaillement en torsion (Pa).",
+      "src": "8765281537"
+    },
+    "rim.thickness": {
+      "what": "Épaisseur de la paroi de la ceinture.",
+      "how": "Épaisseur de la paroi (m).",
+      "src": "f2f39a75ca"
+    },
+    "rim.top": {
+      "what": "Hauteur à laquelle la ceinture dépasse la table d'harmonie.",
+      "how": "Sommet de la paroi au-dessus du plan de la table (m).",
+      "src": "bc2cc376f2"
+    },
+    "rim.young": {
+      "what": "Rigidité de l'érable lamellé-collé de la ceinture, dans le sens de la paroi.",
+      "how": "Module d'Young (Pa).",
+      "src": "adddecd931"
+    },
+    "room.absorption_high": {
+      "what": "Absorption des aigus par les murs (≈ 4 kHz). Plus élevée : une réverbération plus sombre.",
+      "how": "Coefficient d'absorption moyen α en haute fréquence.",
+      "src": "9ce2103d2a"
+    },
+    "room.absorption_low": {
+      "what": "Absorption des graves par les murs (≈ 125 Hz). Plus faible : une réverbération plus longue et plus ronflante.",
+      "how": "Coefficient d'absorption moyen α en basse fréquence.",
+      "src": "eb570d4b97"
+    },
+    "room.directivity": {
+      "what": "À quel point le piano dirige son son vers les microphones plutôt que tout autour : plus il le fait, moins il remplit la salle. 0 (par défaut) la déduit du piano : un piano à queue couvercle ouvert est le plus directif, un piano droit éloigné des murs l'est le moins.",
+      "how": "Facteur de directivité Q : la salle est excitée par une source omnidirectionnelle 1/Q fois aussi puissante que ne le suggère le niveau aux micros. 0 : 3 pour un piano à queue couvercle ouvert, 2 couvercle fermé ou retiré, 2 pour un piano droit contre un mur, 1.5 éloigné des murs.",
+      "src": "b9be161385"
+    },
+    "room.enabled": {
+      "what": "La salle autour du piano : réflexions sur les murs et réverbération.",
+      "how": "Sources images pour les premières réflexions, un réseau de retards bouclés (FDN) à 16 lignes pour la queue de réverbération.",
+      "src": "bfedb855da"
+    },
+    "room.order": {
+      "what": "Nombre de rebonds sur les murs calculés comme des échos distincts avant que la réverbération prenne le relais.",
+      "how": "Ordre des sources images ; chaque ordre a son propre passe-bas mural.",
+      "src": "7de18d356f"
+    },
+    "room.piano": {
+      "what": "Emplacement du piano dans la salle : près d'un mur, ses réflexions arrivent tôt et fort.",
+      "how": "Position [x, y, z] (m) du coin (0, 0) de la table d'harmonie dans la salle ; z est la hauteur de la table. Les réflexions traitent le piano comme une source ponctuelle au centre de la table.",
+      "src": "aa41413ff4"
+    },
+    "room.size": {
+      "what": "Longueur, largeur et hauteur de la salle. Salle plus grande : des réflexions plus tardives, une réverbération plus longue.",
+      "how": "Salle parallélépipédique [x, y, z] (m). Sabine T60 = 0.161·V/(S·α), absorption de l'air ajoutée dans la bande aiguë.",
+      "src": "7f096120e4"
+    },
+    "room.tail_gain": {
+      "what": "Niveau de la queue de réverbération (1 : physique).",
+      "how": "Met à l'échelle la sortie du FDN, réglée par défaut pour que l'énergie réverbérée vaille (r/r_c)² fois le son direct, r_c = 0.057·√(V/T60).",
+      "src": "b09f7f48b1"
+    },
+    "soundboard.a": {
+      "what": "Longueur de la table d'harmonie, dans le sens des cordes. La table d'harmonie est le grand panneau mince en épicéa sous les cordes : elle transforme leur vibration en son.",
+      "how": "La table est une plaque orthotrope a × b encastrée dans la ceinture (approximation de Warburton, indice m → m + ½), modale : chaque mode est un oscillateur amorti, excité par les forces du chevalet et rayonnant vers les micros par l'intégrale de Rayleigh.",
+      "src": "34c7f1a33d"
+    },
+    "soundboard.b": {
+      "what": "Largeur de la table d'harmonie, dans le sens du clavier.",
+      "how": "Dimension b de la plaque (m). Les fréquences des modes varient comme 1/a² et 1/b².",
+      "src": "1add0dde05"
+    },
+    "soundboard.back_depth": {
+      "what": "La table rayonne par ses deux faces ; la face inférieure, en opposition de phase, annule en partie la face avant aux basses fréquences. Ce réglage indique de quelle profondeur sous la table provient le son de la face inférieure.",
+      "how": "Profondeur (m) de l'image de la face arrière : p = iωρ0/(2π)·∫ v·(e^(−ikR)/R − β·e^(−ikR')/R') dS.",
+      "src": "dd13544b0b"
+    },
+    "soundboard.back_gain": {
+      "what": "Part du son de la face inférieure qui atteint les micros (la ceinture et le fond de clavier la masquent en partie). 0 : un baffle infini.",
+      "how": "β dans l'intégrale de Rayleigh ; calibré sur la pente spectrale de Salamander.",
+      "src": "c2c0ac7ee5"
+    },
+    "soundboard.bass_bridge": {
+      "what": "Position du chevalet des basses, séparé, plus près du milieu de la table.",
+      "how": "Segment de 2 points [x, y] (fractions des dimensions de la table), de la note sous `main_bridge_from` jusqu'à A0.",
+      "src": "5ccce12a8d"
+    },
+    "soundboard.bridge_line_mass": {
+      "what": "Masse du chevalet par mètre.",
+      "how": "Masse linéique μ (kg/m) dans la longueur d'onde de flexion du chevalet.",
+      "src": "aee17dc855"
+    },
+    "soundboard.bridge_mass": {
+      "what": "Masse du chevalet à l'endroit où une corde le croise : plus il est lourd, plus il filtre les aigus qui atteignent la table.",
+      "how": "Masse locale m : les cordes voient Y/(1 + iω·m·Y), la table reçoit F/(1 + iω·m·Y). 0 : aucune.",
+      "src": "b293ecd948"
+    },
+    "soundboard.bridge_spread": {
+      "what": "Longueur de chevalet sur laquelle se répartit la poussée d'une corde.",
+      "how": "Longueur de répartition en longueurs d'onde de flexion du chevalet ; réglée sur les décroissances des partiels supérieurs (docs/sustain.md).",
+      "src": "793aadaff1"
+    },
+    "soundboard.bridge_stiffness": {
+      "what": "Rigidité du chevalet, la poutre de bois dur collée sur la table, sur laquelle reposent les cordes. Un chevalet rigide répartit la poussée de chaque corde sur sa longueur, ce qui adoucit les hautes fréquences.",
+      "how": "EI (N·m²) : la force d'une corde atteint la table répartie (fenêtre de Hann) sur `bridge_spread` longueurs d'onde de flexion 2π·(EI/(μ·ω²))^¼, plafonnée à 0.5 m. EI = 0 excite la table en un point.",
+      "src": "d4cdf6ed9a"
+    },
+    "soundboard.case_open": {
+      "what": "Le meuble d'un piano droit ferme l'avant de sa table d'harmonie : mécanique, touches et panneaux. Part du son de ce côté qui sort par les ouvertures ; 1 : pas de meuble, ou panneaux retirés. Plus bas : un timbre plus sombre, plus enfermé.",
+      "how": "Gain des trajets de la face avant : open + (1 − open)·τ(f), τ = 1/√(1 + (ω·m/2ρc)²) étant la transmission des panneaux selon la loi de masse. La face arrière et le mur ne sont pas affectés.",
+      "src": "08affeb5b0"
+    },
+    "soundboard.case_panel_mass": {
+      "what": "Poids des panneaux du meuble par mètre carré : des panneaux plus lourds laissent passer moins de son.",
+      "how": "Masse surfacique m (kg/m²) dans la loi de masse ; 6 ≈ 1 cm de bois.",
+      "src": "ba9ff5cd44"
+    },
+    "soundboard.crown_freq": {
+      "what": "La table d'harmonie est légèrement bombée et pressée par les cordes, ce qui la rigidifie comme une coque. Plus de bombé : ses résonances les plus basses montent.",
+      "how": "Fondation élastique : ω² → ω² + (2π·crown_freq)² (Hz, 0 : plate). Réglé sur l'équilibre en tiers d'octave des touches graves (docs/bass_radiation.md).",
+      "src": "1af74b4638"
+    },
+    "soundboard.dx": {
+      "what": "Rigidité de la table dans le sens des cordes (le fil de l'épicéa est perpendiculaire aux barres).",
+      "how": "Rigidité en flexion Dx (N·m) selon a.",
+      "src": "52718241d3"
+    },
+    "soundboard.dy": {
+      "what": "Rigidité de la table en travers des cordes.",
+      "how": "Rigidité en flexion Dy (N·m) selon b ; H = √(Dx·Dy).",
+      "src": "6800346c65"
+    },
+    "soundboard.f_max": {
+      "what": "Résonance la plus haute modélisée pour la table d'harmonie. Des valeurs plus basses économisent du CPU mais font perdre de la brillance.",
+      "how": "Les modes de la table au-dessus sont abandonnés (Hz).",
+      "src": "535bf7471a"
+    },
+    "soundboard.grid_step": {
+      "what": "Précision du calcul du rayonnement (plus petit : plus précis, reconstruction plus lente).",
+      "how": "Pas de grille (m) de l'intégrale de Rayleigh sur la table, par mode et par micro.",
+      "src": "7d3d6ae853"
+    },
+    "soundboard.impedance_slope": {
+      "what": "La table est plus épaisse et plus barrée sous les aigus, elle y bouge donc moins. Valeurs plus élevées : des aigus plus discrets qui tiennent plus longtemps.",
+      "how": "L'impédance sous le chevalet croît comme e^(slope·(key − 60)) au-dessus de C4, appliquée aux déformées modales excitées par les cordes. Calibré sur les enveloppes de décroissance de Salamander.",
+      "src": "234943e5fe"
+    },
+    "soundboard.impedance_slope_bass": {
+      "what": "La même chose vers les basses. Un côté grave qui bouge trop librement résonne comme un tonneau.",
+      "how": "Pente sous C4 ; −0.03 rend le côté grave plus rigide (docs/bass_radiation.md).",
+      "src": "2e999c2279"
+    },
+    "soundboard.loss_corner": {
+      "what": "Au-delà de cette fréquence, la table s'amortit de plus en plus. Des valeurs plus basses ternissent les hautes fréquences.",
+      "how": "Fréquence de coude de η(f) = η·(1 + f/loss_corner). 700 Hz étouffait les bandes 2–8 kHz (docs/brightness.md).",
+      "src": "02e4378d9d"
+    },
+    "soundboard.loss_factor": {
+      "what": "Amortissement interne de la table d'harmonie. Plus d'amortissement : une table plus lisse, moins résonante, et des notes plus courtes.",
+      "how": "Facteur de pertes η des modes (Ege et al. 2013 : ≈ 2 %), croissant avec la fréquence comme η·(1 + f/loss_corner).",
+      "src": "37ef6a52d3"
+    },
+    "soundboard.main_bridge_from": {
+      "what": "Touche la plus grave sur le chevalet principal ; les touches en dessous sont sur le chevalet des basses.",
+      "how": "Note MIDI.",
+      "src": "bd26951ec3"
+    },
+    "soundboard.piston_freq": {
+      "what": "Toute la caisse (table, ceinture, meuble) bouge aussi d'un bloc sur ses pieds, à basse fréquence : elle absorbe l'extrême grave.",
+      "how": "Un mode « piston » uniforme et fortement amorti, sous le premier mode encastré (Hz, 0 : aucun) (docs/bass.md).",
+      "src": "2c609afddb"
+    },
+    "soundboard.piston_loss": {
+      "what": "Amortissement de ce mouvement d'ensemble de la caisse.",
+      "how": "Facteur de pertes du mode piston.",
+      "src": "55378724fc"
+    },
+    "soundboard.piston_mass": {
+      "what": "Masse mise en mouvement dans ce déplacement d'ensemble de la caisse. Plus légère : elle prend davantage d'énergie aux notes graves.",
+      "how": "Masse effective (kg) ; réglée sur la tenue tardive des basses (docs/long_sustain.md).",
+      "src": "7133ae8958"
+    },
+    "soundboard.piston_radiation": {
+      "what": "Part audible du mouvement d'ensemble de la caisse (faible : l'air poussé au-dessus est restitué en dessous).",
+      "how": "Rayonnement rapporté à celui d'une table nue bougeant seule.",
+      "src": "89bf0315f0"
+    },
+    "soundboard.radiate": {
+      "what": "Désactivé : vous entendez la force sur le chevalet au lieu du son dans l'air (pour l'analyse).",
+      "how": "False saute le rayonnement de Rayleigh ; la table détermine toujours le couplage des cordes.",
+      "src": "af21ae8a79"
+    },
+    "soundboard.rho_h": {
+      "what": "Masse de la table d'harmonie par mètre carré, barres et chevalets compris. Plus lourde : les cordes ont plus de mal à la mettre en mouvement, les notes sont plus longues mais plus faibles.",
+      "how": "Masse surfacique ρh. ρh/D fixe la densité modale (≈ 1 mode tous les 20 Hz, Ege 2013), ρh·D la mobilité moyenne 1/(8·√(D·ρh)), calibrée sur les statistiques de décroissance de Salamander (docs/phase4.md).",
+      "src": "f188bb0a73"
+    },
+    "soundboard.series_stiffness": {
+      "what": "Élasticité entre la corde et le chevalet (pointes et chapeau du chevalet).",
+      "how": "Rigidité k en série : ajoute iω/k à l'admittance que voient les cordes.",
+      "src": "327ceb58b8"
+    },
+    "soundboard.treble_bridge": {
+      "what": "Position du chevalet principal sur la table d'harmonie. L'endroit où une corde excite la table décide des résonances qu'elle met en jeu.",
+      "how": "Ligne brisée de 5 points [x, y], en fractions des dimensions de la table, de C8 jusqu'à la première note du chevalet principal ; les touches sont réparties à pas égaux. L'extrémité aiguë se trouve dans le coin encastré, comme sur les vrais pianos à queue. Coordonnées de la table : x dans le sens des cordes, du côté clavier de la table vers la queue ; y en travers, du côté aigu (0) vers le côté grave.",
+      "src": "f69448544c"
+    },
+    "soundboard.vertical": {
+      "what": "Activé pour un piano droit : la table d'harmonie est verticale, son sommet situé au-dessus du sol à une hauteur égale à la longueur de la table, son côté cordes tourné vers la salle (et adossée au mur de la salle quand il y a un mur derrière elle). Ce réglage place le piano et les microphones dans la salle.",
+      "how": "Table (x, y, z) → salle (piano.x + y, y_wall + z, 0.25 m + a − x), y_wall = distance au mur (la première réflexion de la salle sur y = 0 est alors laissée à l'image murale propre de la table) ou piano.y. Le rayonnement de la table est inchangé.",
+      "src": "770c75dd0f"
+    },
+    "soundboard.wall_distance": {
+      "what": "Un piano droit se trouve généralement contre un mur : le son de l'arrière de sa table d'harmonie s'y réfléchit et revient dans la salle. Distance entre la table et le mur ; 0 : pas de mur.",
+      "how": "Ajoute l'image de la face arrière dans le mur, trajet R'' avec la profondeur de la face arrière plus 2·distance, gain −β·r.",
+      "src": "39242b02cd"
+    },
+    "soundboard.wall_reflection": {
+      "what": "Part du son que réfléchit le mur derrière le piano (1 : mur dur).",
+      "how": "Coefficient de réflexion en pression r de l'image murale.",
+      "src": "0543d5ec67"
+    },
+    "sympathetic.enabled": {
+      "what": "Étouffoirs levés, les autres cordes vibrent par sympathie avec les notes jouées : le halo d'un piano joué avec la pédale forte.",
+      "how": "À sens unique (Bank, Zambon & Fontana 2010) : chaque touche non étouffée reçoit des cordes d'écoute excitées par le mouvement du chevalet que provoquent les autres touches ; elles ne renvoient pas de mouvement au chevalet, le système reste donc stable quel que soit le gain.",
+      "src": "47b6395488"
+    },
+    "sympathetic.gain": {
+      "what": "Intensité de la résonance sympathique.",
+      "how": "Facteur appliqué au gain chevalet-corde. 1 est la valeur physique à sens unique, mais sans retour d'énergie elle est excessive aux octaves ; 0.25 laisse +1 à +2.5 dB sur un accord avec pédale (une compensation, pas une mesure).",
+      "src": "20bdaa373c"
+    },
+    "sympathetic.max_freq": {
+      "what": "Partiel le plus haut des cordes sympathiques (plus bas : moins de CPU).",
+      "how": "Les cordes d'écoute ne calculent que leurs partiels situés sous cette fréquence (Hz).",
+      "src": "6694ce5a39"
+    },
+    "sympathetic.self_cancel": {
+      "what": "Empêche une touche de résonner avec sa propre vibration à travers le chevalet.",
+      "how": "Annule la contribution de chaque touche à sa propre entrée du chevalet (déjà présente dans ses modes couplés).",
+      "src": "6bfdfcf108"
+    }
+  },
+  "curves": {
+    "Hammer speed by velocity": "Vitesse du marteau selon la vélocité",
+    "Felt stiffness Q0": "Raideur du feutre Q0",
+    "Felt exponent p": "Exposant du feutre p",
+    "Stretch": "Étirement de l'accord",
+    "Inharmonicity B": "Inharmonicité B",
+    "Fundamental T60 (string losses alone)": "T60 du fondamental (pertes de la corde seules)",
+    "String length": "Longueur de corde",
+    "Unison spread": "Écart d'accord du chœur"
+  },
+  "pages": {
+    "Player": "Jeu",
+    "Microphones": "Microphones",
+    "Hammer": "Marteau",
+    "Tuning": "Accord",
+    "Strings": "Cordes",
+    "Dampers": "Étouffoirs",
+    "Noises": "Bruits",
+    "Soundboard": "Table d'harmonie",
+    "Frame & rim": "Cadre et ceinture",
+    "Room": "Salle"
+  },
+  "groups": {
+    "general": "Général",
+    "velocity": "Vélocité",
+    "damper": "Étouffoirs",
+    "sympathetic": "Résonance sympathique",
+    "losses": "Pertes",
+    "scale": "Diapason (longueurs des cordes)",
+    "unison": "Chœurs",
+    "polarization": "Polarisations",
+    "nonlinear": "Non-linéarité (partiels fantômes)",
+    "inharmonicity": "Inharmonicité",
+    "stretch": "Accord étiré",
+    "soundboard": "Table d'harmonie",
+    "bridge": "Chevalet (sans table d'harmonie)",
+    "noise": "Bruits mécaniques",
+    "frame": "Cadre en fonte",
+    "rim": "Ceinture",
+    "room": "Salle"
+  }
+}

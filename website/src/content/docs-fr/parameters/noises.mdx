@@ -1,0 +1,29 @@
+---
+title: Bruits
+description: La mécanique que l'on entend entre les notes — chocs sur le fond de clavier, retombées d'étouffoirs et cognements de pédale, injectés dans les mêmes cordes et la même table d'harmonie que les notes.
+order: 107
+icon: noise
+section: Parameters
+page: Noises
+---
+import Knocks from '../../../components/diagrams/Knocks.astro';
+
+Un piano est une machine, et on l'entend travailler : la touche qui vient buter sur le fond de
+clavier, un étouffoir qui retombe sur une corde encore vibrante, la mécanique de la pédale. Les
+banques d'échantillons enregistrent ces bruits à part et les mélangent au son ; ici, ce sont
+des **impulsions envoyées dans l'instrument lui-même** : elles résonnent dans la même table
+d'harmonie, atteignent les mêmes microphones et remplissent la même salle que les notes — et
+elles changent avec l'instrument.
+
+| Bruit | Où il est injecté | Quand |
+|---|---|---|
+| Choc sur le fond de clavier | dans la table d'harmonie, dans la zone du chevalet de la touche | à la frappe du marteau ; croît avec sa vitesse |
+| Retombée d'étouffoir | dans les modes de la corde, à l'étouffoir | quand un étouffoir retombe sur une corde qui vibre ; proportionnel à la vélocité de relâchement |
+| Cognement de pédale | dans la table d'harmonie, deux zones vers le centre | quand la pédale forte bouge ; croît avec sa vitesse |
+
+<Knocks lang="fr" />
+
+Tous agissent **en direct** : mettez-en un à 0 pour le supprimer. `damper_mass` et
+`damper_speed` déterminent ensemble l'impulsion que donne à la corde un étouffoir qui retombe ;
+`damper_landing` et `knock_time` fixent la durée des poussées, donc leur caractère plus ou moins
+sourd.
