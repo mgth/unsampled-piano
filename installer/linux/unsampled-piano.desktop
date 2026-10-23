@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Unsampled Piano
+GenericName=Virtual Piano
+Comment=Physically modelled piano, played from MIDI
+Exec=unsampled-piano --ui
+Icon=unsampled-piano
+Terminal=false
+Categories=AudioVideo;Audio;Midi;Music;
+Keywords=piano;synthesizer;MIDI;physical model;
+StartupNotify=true
+StartupWMClass=unsampled-piano

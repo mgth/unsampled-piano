@@ -166,6 +166,16 @@ fn reset_button(ui: &mut Ui, visible: bool) -> egui::Response {
     resp
 }
 
+/// A small heart, drawn (the fonts lack one), in Ko-fi's red.
+pub fn heart(ui: &mut Ui) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::splat(12.0), Sense::hover());
+    let (c, p) = (rect.center(), ui.painter());
+    let red = Color32::from_rgb(255, 94, 91);
+    p.circle_filled(c + Vec2::new(-2.6, -1.6), 2.9, red);
+    p.circle_filled(c + Vec2::new(2.6, -1.6), 2.9, red);
+    p.add(egui::Shape::convex_polygon(vec![c + Vec2::new(-5.3, -0.6), c + Vec2::new(5.3, -0.6), c + Vec2::new(0.0, 5.2)], red, Stroke::NONE));
+}
+
 /// Filled green dot: applied while playing; hollow: rebuilds the instrument.
 pub fn kind_mark(ui: &mut Ui, live: bool) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(Vec2::splat(12.0), Sense::hover());

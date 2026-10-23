@@ -1,13 +1,19 @@
-//! Real-time player. By default the piano is a node of the PipeWire graph
-//! (through PipeWire's JACK API): stereo audio out, a MIDI input with
-//! sample-accurate timing, and a MIDI output mirroring every event the piano
-//! plays; the keyboard and the speakers are connected automatically. The
-//! cpal backends (`--host pipewire|jack|alsa`) remain, with the keyboard read
-//! through midir and played at the start of each buffer. MIDI files play from
-//! a timeline owned by the audio thread, sample-accurately. The instrument
-//! is built on the main thread; the audio thread neither allocates nor
-//! locks. CPU load is reported once per second.
+//! Real-time player. On Linux the piano is by default a node of the
+//! PipeWire graph (through PipeWire's JACK API): stereo audio out, a MIDI
+//! input with sample-accurate timing, and a MIDI output mirroring every
+//! event the piano plays; the keyboard and the speakers are connected
+//! automatically. Elsewhere, and with `--host`, it plays through cpal
+//! (WASAPI or ASIO on Windows, CoreAudio on macOS; PipeWire, JACK or ALSA
+//! on Linux), with the keyboard read through midir and played at the start
+//! of each buffer. MIDI files play from a timeline owned by the audio
+//! thread, sample-accurately. The instrument is built on the main thread;
+//! the audio thread neither allocates nor locks. CPU load is reported once
+//! per second.
 
+// Windows: no console window when started from the Explorer (see console.rs).
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
+mod console;
 mod node;
 mod player;
 mod window;
@@ -34,9 +40,11 @@ struct Args {
     /// first hardware port).
     #[arg(long)]
     midi: Option<String>,
-    /// Audio backend: node (default: the piano as a graph node with MIDI in
-    /// and out, through PipeWire's JACK API), or a cpal host without MIDI
-    /// ports: pipewire, jack, alsa.
+    /// Audio backend: node (Linux default: the piano as a graph node with
+    /// MIDI in and out, through PipeWire's JACK API), or a cpal host without
+    /// MIDI ports: pipewire, jack, alsa (Linux), wasapi (Windows default),
+    /// asio (Windows, built with the `asio` feature), coreaudio (macOS
+    /// default).
     #[arg(long)]
     host: Option<String>,
     /// Name of the graph node.
@@ -50,9 +58,14 @@ struct Args {
     /// names (node).
     #[arg(long)]
     device: Option<String>,
-    /// Audio buffer size in frames (node: requested graph period).
-    #[arg(long, default_value_t = 256)]
-    buffer: u32,
+    /// Audio buffer size in frames (node: requested graph period). Default
+    /// 256; with ASIO, the size set in the driver's control panel.
+    #[arg(long)]
+    buffer: Option<u32>,
+    /// First channel (from 1) of the stereo pair on a multichannel output
+    /// (cpal backends).
+    #[arg(long, default_value_t = 1)]
+    output_channel: u16,
     /// Output gain (dB).
     #[arg(long, default_value_t = 0.0)]
     gain_db: f32,
@@ -72,8 +85,9 @@ struct Args {
     /// Open the interface window (every parameter, presets, MIDI learn).
     #[arg(long)]
     ui: bool,
-    /// Preset folder of the interface (default: the --preset file's, else
-    /// ./presets).
+    /// Preset folder of the interface, where it saves (default: the
+    /// --preset file's, else ./presets, else `presets` in the configuration
+    /// directory); the shipped presets are listed after it.
     #[arg(long)]
     presets: Option<PathBuf>,
     /// Serve the instrument to AI assistants (MCP over HTTP: parameters,
@@ -85,27 +99,52 @@ struct Args {
 
 /// Silence between two files (s), and after the last one before quitting.
 const GAP_S: f64 = 4.0;
+/// Buffer size when none is given (frames).
+const BUFFER: u32 = 256;
 
 /// Where the audio goes.
 enum Backend {
     Node(node::Node),
-    Cpal { device: cpal::Device, config: cpal::SupportedStreamConfig },
+    Cpal { host: cpal::HostId, device: cpal::Device, config: cpal::SupportedStreamConfig },
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
+    let terminal = console::attach();
     let mut args = Args::parse();
+    // Started from the Explorer or the Finder (no terminal): the window.
+    if !terminal {
+        args.ui = true;
+    }
+    if let Err(e) = run(args) {
+        console::fatal(&e.to_string(), terminal);
+        std::process::exit(1);
+    }
+}
+
+fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
     apply_user_config(&mut args);
     let midi_in = midir::MidiInput::new("unsampled-piano")?;
     if args.list {
-        let host = pick_host(args.host.as_deref().filter(|h| *h != "node"))?;
-        println!("audio host: {:?}", host.id());
-        for d in host.output_devices()? {
-            println!("  output: {}", d.description().map(|x| x.to_string()).unwrap_or_default());
+        // Every host, except on Linux where the default one is enough.
+        let hosts = match args.host.as_deref().filter(|h| *h != "node") {
+            None if !cfg!(target_os = "linux") => cpal::available_hosts().into_iter().filter_map(|id| cpal::host_from_id(id).ok()).collect(),
+            want => vec![pick_host(want)?],
+        };
+        for host in hosts {
+            println!("audio host: {:?}", host.id());
+            match host.output_devices() {
+                Ok(devices) => {
+                    for d in devices {
+                        println!("  output: {}", d.description().map(|x| x.to_string()).unwrap_or_default());
+                    }
+                }
+                Err(e) => println!("  ({e})"),
+            }
         }
         for p in midi_in.ports() {
             println!("  MIDI in: {}", midi_in.port_name(&p).unwrap_or_default());
         }
-        if let Ok(n) = node::Node::open(&args.name, args.buffer) {
+        if let Ok(n) = node::Node::open(&args.name, args.buffer.unwrap_or(BUFFER)) {
             let (midi, audio) = n.graph_ports();
             println!("graph (node backend), default sink: {:?}", default_sink_prefix());
             for p in midi {
@@ -119,7 +158,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let backend = match args.host.as_deref() {
-        None | Some("node") => match node::Node::open(&args.name, args.buffer) {
+        None if !cfg!(target_os = "linux") => cpal_backend(&args)?,
+        None | Some("node") => match node::Node::open(&args.name, args.buffer.unwrap_or(BUFFER)) {
             Ok(n) => Backend::Node(n),
             Err(e) if args.host.is_none() => {
                 eprintln!("graph node unavailable ({e}); falling back to cpal/PipeWire, without MIDI ports");
@@ -235,46 +275,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             _node = Some(running);
             eprintln!("playing. Ctrl-C to quit.");
         }
-        Backend::Cpal { device, config } => {
-            let channels = config.channels() as usize;
-            let mut player = player;
-            let stream_config = cpal::StreamConfig {
-                channels: config.channels(),
-                sample_rate: config.sample_rate(),
-                buffer_size: cpal::BufferSize::Fixed(args.buffer),
+        Backend::Cpal { host, device, config } => {
+            let channels = config.channels();
+            let first = args.output_channel.max(1) - 1;
+            if first >= channels {
+                return Err(format!("output channel {} beyond the device's {channels}", args.output_channel).into());
+            }
+            // ASIO: the driver's size unless asked (its sizes may go by steps).
+            let asio = format!("{host:?}").to_lowercase().contains("asio");
+            let buffer_size = match (args.buffer, config.buffer_size()) {
+                (None, _) if asio => cpal::BufferSize::Default,
+                (want, cpal::SupportedBufferSize::Range { min, max }) => cpal::BufferSize::Fixed(want.unwrap_or(BUFFER).clamp(*min, *max)),
+                (want, cpal::SupportedBufferSize::Unknown) => cpal::BufferSize::Fixed(want.unwrap_or(BUFFER)),
             };
-            let stream = device.build_output_stream(
-                stream_config,
-                move |data: &mut [f32], _| {
-                    let frames = data.len() / channels;
-                    player.render(
-                        frames,
-                        std::iter::empty(),
-                        |off, l, r| {
-                            for (i, f) in data[off * channels..(off + l.len()) * channels].chunks_mut(channels).enumerate() {
-                                f[0] = gain * l[i];
-                                if channels > 1 {
-                                    f[1] = gain * r[i];
-                                }
-                                for x in f.iter_mut().skip(2) {
-                                    *x = 0.0;
-                                }
-                            }
-                        },
-                        |_, _| {},
-                    );
-                },
-                |e| eprintln!("audio error: {e}"),
-                None,
-            )?;
+            let stream_config = cpal::StreamConfig { channels, sample_rate: config.sample_rate(), buffer_size };
+            let first = first as usize;
+            use cpal::SampleFormat as F;
+            let stream = match config.sample_format() {
+                F::F32 => cpal_stream::<f32>(&device, stream_config, player, gain, first),
+                F::F64 => cpal_stream::<f64>(&device, stream_config, player, gain, first),
+                F::I16 => cpal_stream::<i16>(&device, stream_config, player, gain, first),
+                F::I24 => cpal_stream::<cpal::I24>(&device, stream_config, player, gain, first),
+                F::I32 => cpal_stream::<i32>(&device, stream_config, player, gain, first),
+                F::U16 => cpal_stream::<u16>(&device, stream_config, player, gain, first),
+                f => return Err(format!("unsupported sample format {f:?}").into()),
+            }?;
             stream.play()?;
+            let frames = stream.buffer_size().map_or("?".to_string(), |n| n.to_string());
             _stream = Some(stream);
-            eprintln!("playing ({} frames/buffer, {channels} channels). Ctrl-C to quit.", args.buffer);
+            eprintln!("playing ({frames} frames/buffer, channels {}–{}). Ctrl-C to quit.", first + 1, (first + 2).min(channels as usize));
         }
     }
 
+    // Saved presets: --presets, the --preset file's folder, ./presets (a
+    // checkout), else the configuration directory's.
     let presets = args.presets.clone().or_else(|| args.preset.as_ref().and_then(|p| p.parent()).map(Path::to_path_buf));
     let presets = presets.or_else(|| Some(PathBuf::from("presets")).filter(|p| p.is_dir()));
+    let presets = presets.or_else(|| piano_host::config_dir().map(|d| d.join("presets")));
     if let Some(addr) = &args.mcp {
         match piano_mcp::serve(addr, control.clone(), presets.clone()) {
             Ok(url) => eprintln!("MCP server: {url}"),
@@ -290,8 +327,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let repaint = sup.repaint.clone();
     // Keeps polling (MIDI learn, preset file) while the window is hidden.
     std::thread::spawn(move || sup.run(false));
+    // Shipped presets, listed after: next to the program (zip), in the
+    // macOS bundle's resources, or where an installer put them.
+    let exe_dir = std::env::current_exe().ok().and_then(|e| e.parent().map(Path::to_path_buf));
+    let beside = exe_dir.into_iter().flat_map(|d| [d.join("presets"), d.join("../Resources/presets")]).filter(|p| p.is_dir());
+    let shipped: Vec<PathBuf> = beside.chain(piano_host::installed_preset_dirs()).collect();
     let preset = args.preset.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().into_owned());
-    window::run(control, repaint, presets, preset, &if args.name == "unsampled-piano" { "Unsampled Piano".to_string() } else { format!("Unsampled Piano — {}", args.name) })?;
+    window::run(control, repaint, presets, shipped, preset, &if args.name == "unsampled-piano" { "Unsampled Piano".to_string() } else { format!("Unsampled Piano — {}", args.name) })?;
     Ok(())
 }
 
@@ -373,9 +415,9 @@ impl Supervisor {
     }
 }
 
-/// The MIDI controller map, `$XDG_CONFIG_HOME/unsampled-piano/midi.toml` (else
-/// `~/.config/unsampled-piano/midi.toml`): the player's controllers, kept apart
-/// from the instrument presets.
+/// The MIDI controller map, `midi.toml` in the configuration directory
+/// (`piano_host::config_dir`): the player's controllers, kept apart from the
+/// instrument presets.
 struct MidiMapFile {
     path: Option<PathBuf>,
     saved: MidiMap,
@@ -383,7 +425,7 @@ struct MidiMapFile {
 
 impl MidiMapFile {
     fn new() -> Self {
-        Self { path: config_dir().map(|d| d.join("midi.toml")), saved: MidiMap::default() }
+        Self { path: piano_host::config_dir().map(|d| d.join("midi.toml")), saved: MidiMap::default() }
     }
 
     fn load(&mut self) -> Option<MidiMap> {
@@ -411,14 +453,6 @@ impl MidiMapFile {
             eprintln!("{}: {e}", path.display());
         }
     }
-}
-
-/// `$XDG_CONFIG_HOME/unsampled-piano`, else `~/.config/unsampled-piano`.
-fn config_dir() -> Option<PathBuf> {
-    std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
-        .map(|d| d.join("unsampled-piano"))
 }
 
 /// The preset file, reloaded when its modification time changes.
@@ -469,12 +503,44 @@ fn cpal_backend(args: &Args) -> Result<Backend, Box<dyn std::error::Error>> {
             .or_else(|| named("PulseAudio").filter(usable))
             .ok_or("no usable audio output device (see --list, --device)")?,
     };
-    eprintln!("audio output: {}", device.description().map(|x| x.to_string()).unwrap_or_default());
     let config = device.default_output_config()?;
-    if config.sample_format() != cpal::SampleFormat::F32 {
-        return Err(format!("unsupported sample format {:?}", config.sample_format()).into());
-    }
-    Ok(Backend::Cpal { device, config })
+    let (sr, ch, fmt) = (config.sample_rate(), config.channels(), config.sample_format());
+    eprintln!("audio output: {} ({:?}, {sr} Hz, {ch} channels, {fmt:?})", device.description().map(|x| x.to_string()).unwrap_or_default(), host.id());
+    Ok(Backend::Cpal { host: host.id(), device, config })
+}
+
+/// The cpal output stream in the device's sample format: the stereo pair on
+/// channels `first` and `first + 1`, silence on the others.
+fn cpal_stream<T: cpal::SizedSample + cpal::FromSample<f32>>(
+    device: &cpal::Device,
+    config: cpal::StreamConfig,
+    mut player: Player,
+    gain: f32,
+    first: usize,
+) -> Result<cpal::Stream, cpal::Error> {
+    let channels = config.channels as usize;
+    device.build_output_stream(
+        config,
+        move |data: &mut [T], _| {
+            let frames = data.len() / channels;
+            player.render(
+                frames,
+                std::iter::empty(),
+                |off, l, r| {
+                    for (i, f) in data[off * channels..(off + l.len()) * channels].chunks_mut(channels).enumerate() {
+                        f.fill(T::EQUILIBRIUM);
+                        f[first] = T::from_sample(gain * l[i]);
+                        if let Some(x) = f.get_mut(first + 1) {
+                            *x = T::from_sample(gain * r[i]);
+                        }
+                    }
+                },
+                |_, _| {},
+            );
+        },
+        |e| eprintln!("audio error: {e}"),
+        None,
+    )
 }
 
 /// Keyboard through midir (cpal backends): events go to the queue.
@@ -540,13 +606,14 @@ fn file_timeline(args: &Args, sr: f64) -> Result<(Vec<(u64, Event)>, Vec<(f64, S
     Ok((timeline, pieces, t0))
 }
 
-/// Personal defaults from `$XDG_CONFIG_HOME/unsampled-piano/play.toml` (else
-/// `~/.config/unsampled-piano/play.toml`), used for what the command line leaves out:
-/// `device`, `midi`, `midi_out`, `name`, `preset`, `presets` (strings),
-/// `buffer`, `gain_db` (numbers), `ui` (boolean), `mcp` (true for the
-/// default address, or the address as a string).
+/// Personal defaults from `play.toml` in the configuration directory
+/// (`piano_host::config_dir`), used for what the command line leaves out:
+/// `host`, `device`, `midi`, `midi_out`, `name`, `preset`, `presets`
+/// (strings), `buffer`, `output_channel`, `gain_db` (numbers), `ui`
+/// (boolean), `mcp` (true for the default address, or the address as a
+/// string).
 fn apply_user_config(args: &mut Args) {
-    let Some(path) = config_dir().map(|d| d.join("play.toml")) else { return };
+    let Some(path) = piano_host::config_dir().map(|d| d.join("play.toml")) else { return };
     let Ok(text) = std::fs::read_to_string(&path) else { return };
     let table: toml::Table = match text.parse() {
         Ok(t) => t,
@@ -559,6 +626,9 @@ fn apply_user_config(args: &mut Args) {
     let given = |flag: &str| cli.iter().any(|a| a == flag || a.starts_with(&format!("{flag}=")));
     let string = |k: &str| table.get(k).and_then(|v| v.as_str()).map(str::to_string);
     let number = |k: &str| table.get(k).and_then(|v| v.as_float().or(v.as_integer().map(|i| i as f64)));
+    if !given("--host") {
+        args.host = args.host.take().or(string("host"));
+    }
     if !given("--device") {
         args.device = args.device.take().or(string("device"));
     }
@@ -575,7 +645,10 @@ fn apply_user_config(args: &mut Args) {
         args.name = n;
     }
     if let (false, Some(b)) = (given("--buffer"), number("buffer")) {
-        args.buffer = b as u32;
+        args.buffer = Some(b as u32);
+    }
+    if let (false, Some(c)) = (given("--output-channel"), number("output_channel")) {
+        args.output_channel = c as u16;
     }
     if let (false, Some(g)) = (given("--gain-db"), number("gain_db")) {
         args.gain_db = g as f32;

@@ -120,14 +120,16 @@ impl Bounds {
     /// around to drag further.
     fn fit(model: &PianoModel, sb: &SoundboardParams, mics: &[[f64; 3]; 2]) -> Self {
         let (lid_reach, lid_top) = lid_extent(sb);
-        let front = keyboard_front(model);
+        let front = if sb.vertical { 0.0 } else { keyboard_front(model) };
+        // Below a flat board, the floor; behind a standing one, its wall.
+        let under = if sb.vertical { -sb.wall_distance.max(0.0) } else { -model.room.piano[2] };
         let min = |init: f64, f: &dyn Fn(&[f64; 3]) -> f64| mics.iter().map(f).fold(init, f64::min);
         let max = |init: f64, f: &dyn Fn(&[f64; 3]) -> f64| mics.iter().map(f).fold(init, f64::max);
         let rim = if model.rim.enabled { model.rim.thickness } else { 0.0 };
         Self {
             y: (min((sb.b - lid_reach).min(-rim), &|m| m[1]) - 0.5, max(sb.b + rim, &|m| m[1]) + 0.4),
             x: (min(front, &|m| m[0]) - 0.3, max(sb.a + rim, &|m| m[0]) + 0.4),
-            z: (min(-model.room.piano[2], &|m| m[2]) - 0.1, max(lid_top.max(0.6), &|m| m[2]) + 0.4),
+            z: (min(under, &|m| m[2]) - 0.1, max(lid_top.max(0.6), &|m| m[2]) + 0.4),
         }
     }
 }
@@ -206,6 +208,10 @@ struct Map {
     left: f32,
     plan_bottom: f32,
     elev_bottom: f32,
+    /// x grows downwards: a standing board, seen from the front, has its
+    /// agraffes at the top.
+    flip: bool,
+    plan_top: f32,
 }
 
 impl Map {
@@ -213,7 +219,11 @@ impl Map {
         self.left + (self.b.y.1 - y) as f32 * self.s
     }
     fn sy(&self, x: f64) -> f32 {
-        self.plan_bottom - (x - self.b.x.0) as f32 * self.s
+        if self.flip {
+            self.plan_top + (x - self.b.x.0) as f32 * self.s
+        } else {
+            self.plan_bottom - (x - self.b.x.0) as f32 * self.s
+        }
     }
     fn ez(&self, z: f64) -> f32 {
         self.elev_bottom - (z - self.b.z.0) as f32 * self.s
@@ -228,7 +238,11 @@ impl Map {
         self.b.y.1 - ((px - self.left) / self.s) as f64
     }
     fn x_at(&self, py: f32) -> f64 {
-        self.b.x.0 + ((self.plan_bottom - py) / self.s) as f64
+        if self.flip {
+            self.b.x.0 + ((py - self.plan_top) / self.s) as f64
+        } else {
+            self.b.x.0 + ((self.plan_bottom - py) / self.s) as f64
+        }
     }
     fn z_at(&self, py: f32) -> f64 {
         self.b.z.0 + ((self.elev_bottom - py) / self.s) as f64
@@ -326,7 +340,15 @@ impl MicView {
         let sb = &raw.resolved();
         let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
         let plan_h = (bounds.x.1 - bounds.x.0) as f32 * s;
-        let map = Map { b: bounds, s, left: rect.left(), plan_bottom: rect.top() + plan_h, elev_bottom: rect.bottom() };
+        let map = Map {
+            b: bounds,
+            s,
+            left: rect.left(),
+            plan_bottom: rect.top() + plan_h,
+            elev_bottom: rect.bottom(),
+            flip: sb.vertical,
+            plan_top: rect.top(),
+        };
 
         // Drags first, so that the drawing shows where the pointer is.
         let committed = sb.mics.map(|(x, y, z)| [x, y, z]);
@@ -403,14 +425,16 @@ impl MicView {
             dashed_rect(&p, frame, thin);
             p.line_segment([map.plan(f.offset_x + f.agraffe_x, 0.0), map.plan(f.offset_x + f.agraffe_x, sb.b)], thin);
         }
-        let keys = Rect::from_two_pos(map.plan(fx0 - KEYBOARD, 0.0), map.plan(fx0, sb.b));
-        p.rect_filled(keys, 2.0, vis.extreme_bg_color);
-        p.rect_stroke(keys, 2.0, thin, egui::StrokeKind::Middle);
-        for k in 1..52 {
-            let x = keys.left() + keys.width() * k as f32 / 52.0;
-            p.line_segment([Pos2::new(x, keys.top()), Pos2::new(x, keys.bottom())], Stroke::new(0.5, weak));
+        if !sb.vertical {
+            let keys = Rect::from_two_pos(map.plan(fx0 - KEYBOARD, 0.0), map.plan(fx0, sb.b));
+            p.rect_filled(keys, 2.0, vis.extreme_bg_color);
+            p.rect_stroke(keys, 2.0, thin, egui::StrokeKind::Middle);
+            for k in 1..52 {
+                let x = keys.left() + keys.width() * k as f32 / 52.0;
+                p.line_segment([Pos2::new(x, keys.top()), Pos2::new(x, keys.bottom())], Stroke::new(0.5, weak));
+            }
+            p.text(keys.center_bottom() + Vec2::new(0.0, 2.0), Align2::CENTER_TOP, "Keyboard", font.clone(), weak);
         }
-        p.text(keys.center_bottom() + Vec2::new(0.0, 2.0), Align2::CENTER_TOP, "Keyboard", font.clone(), weak);
         let pts = |poly: &[(f64, f64)]| poly.iter().map(|&(u, v)| map.plan(u * sb.a, v * sb.b)).collect::<Vec<_>>();
         p.add(Shape::line(pts(&sb.treble_bridge), Stroke::new(3.0, BRIDGE)));
         p.add(Shape::line(pts(&sb.bass_bridge), Stroke::new(3.0, BRIDGE)));
@@ -427,14 +451,23 @@ impl MicView {
         }
         p.text(map.plan(sb.a / 2.0, 0.0) + Vec2::new(6.0, 0.0), Align2::LEFT_CENTER, "Treble", font.clone(), weak);
         p.text(map.plan(sb.a / 2.0, sb.b + rim) + Vec2::new(-6.0, 0.0), Align2::RIGHT_CENTER, "Bass", font.clone(), weak);
-        p.text(Pos2::new(rect.left() + 2.0, rect.top() + 2.0), Align2::LEFT_TOP, "From above", font.clone(), ink);
+        let title = if sb.vertical { "Facing the board (standing)" } else { "From above" };
+        p.text(Pos2::new(rect.left() + 2.0, rect.top() + 2.0), Align2::LEFT_TOP, title, font.clone(), ink);
 
         // Elevation, seen from the keyboard: floor, case, board, frame, lid.
         let sep = map.plan_bottom + GAP / 2.0;
         p.line_segment([Pos2::new(rect.left(), sep), Pos2::new(rect.right(), sep)], Stroke::new(0.5, weak));
+        // Under a flat board, the floor (the mics' stands reach it); behind
+        // a standing one, its wall.
         let floor = -model.room.piano[2];
-        p.line_segment([map.elev(bounds.y.1, floor), map.elev(bounds.y.0, floor)], Stroke::new(1.5, weak));
-        p.text(map.elev(bounds.y.1, floor) + Vec2::new(2.0, -2.0), Align2::LEFT_BOTTOM, "Floor", font.clone(), weak);
+        if !sb.vertical {
+            p.line_segment([map.elev(bounds.y.1, floor), map.elev(bounds.y.0, floor)], Stroke::new(1.5, weak));
+            p.text(map.elev(bounds.y.1, floor) + Vec2::new(2.0, -2.0), Align2::LEFT_BOTTOM, "Floor", font.clone(), weak);
+        } else if sb.wall_distance > 0.0 {
+            let wz = -sb.wall_distance;
+            p.line_segment([map.elev(bounds.y.1, wz), map.elev(bounds.y.0, wz)], Stroke::new(2.0, weak));
+            p.text(map.elev(bounds.y.1, wz) + Vec2::new(2.0, -2.0), Align2::LEFT_BOTTOM, "Wall", font.clone(), weak);
+        }
         if model.rim.enabled {
             let r = &model.rim;
             let case = Rect::from_two_pos(map.elev(-rim, r.top - r.height), map.elev(sb.b + rim, r.top));
@@ -450,7 +483,8 @@ impl MicView {
             p.line_segment([hinge, map.elev(sb.b - reach, top)], Stroke::new(3.0, LID));
             p.text(map.elev(sb.b - reach, top) + Vec2::new(4.0, 0.0), Align2::LEFT_CENTER, format!("Lid {:.0}°", sb.lid_angle), font.clone(), weak);
         }
-        p.text(Pos2::new(rect.left() + 2.0, sep + 4.0), Align2::LEFT_TOP, "Seen from the keyboard", font.clone(), ink);
+        let title = if sb.vertical { "From above: height is the distance in front of the board" } else { "Seen from the keyboard" };
+        p.text(Pos2::new(rect.left() + 2.0, sep + 4.0), Align2::LEFT_TOP, title, font.clone(), ink);
         // 1 m scale.
         let y0 = sep + 26.0;
         let x0 = rect.left() + 4.0;
@@ -460,7 +494,7 @@ impl MicView {
         // Microphones, with their stand in the elevation; a pair seen as one
         // is drawn as one split handle.
         let shown = self.shown_mics(&committed);
-        for i in 0..2 {
+        for i in (0..2).filter(|_| !sb.vertical) {
             let m = shown[i];
             p.line_segment([map.elev(m[1], m[2]), map.elev(m[1], floor)], Stroke::new(1.0, MIC_COLORS[i].gamma_multiply(0.6)));
         }
@@ -508,7 +542,9 @@ impl MicView {
             Some(Drag { grab: Grab::Piano, piano, .. }) => piano,
             _ => room.piano,
         };
-        let board = Rect::from_two_pos(at(piano[0], piano[1]), at(piano[0] + sb.a, piano[1] + sb.b));
+        // The board's footprint (a standing board's is its thickness).
+        let (lo, hi) = footprint(model, sb, piano);
+        let board = Rect::from_two_pos(at(lo[0], lo[1]), at(hi[0], hi[1])).expand(1.5);
         let grab = ui.interact(board.expand(4.0), ui.scope_id().with("piano-in-room"), Sense::drag()).on_hover_cursor(egui::CursorIcon::Grab);
         if grab.drag_started() {
             let mics = sb.mics.map(|(x, y, z)| [x, y, z]);
@@ -517,8 +553,9 @@ impl MicView {
         if let Some(d) = self.drag.as_mut().filter(|d| d.grab == Grab::Piano) {
             if grab.dragged() {
                 let dv = grab.drag_delta();
-                d.piano[0] = (d.piano[0] - (dv.y / r) as f64).clamp(0.0, (lx - sb.a).max(0.0));
-                d.piano[1] = (d.piano[1] - (dv.x / r) as f64).clamp(0.0, (ly - sb.b).max(0.0));
+                let (lo, hi) = footprint(model, sb, [0.0, 0.0, piano[2]]);
+                d.piano[0] = (d.piano[0] - (dv.y / r) as f64).clamp(-lo[0], (lx - hi[0]).max(-lo[0]));
+                d.piano[1] = (d.piano[1] - (dv.x / r) as f64).clamp(-lo[1], (ly - hi[1]).max(-lo[1]));
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
             }
             if grab.drag_stopped() {
@@ -539,7 +576,8 @@ impl MicView {
         p.rect_filled(board, 0.0, WOOD.gamma_multiply(0.6));
         let shown = self.shown_mics(&sb.mics.map(|(x, y, z)| [x, y, z]));
         for (m, c) in shown.iter().zip(MIC_COLORS) {
-            p.circle_filled(at(piano[0] + m[0], piano[1] + m[1]), 3.0, c);
+            let q = in_room(model, sb, piano, m);
+            p.circle_filled(at(q[0], q[1]), 3.0, c);
         }
         resp.on_hover_text(format!(
             "{lx} × {ly} m. Drag the piano to move it. The circle is the critical distance for these microphones ({rc:.1} m): beyond it they hear the reverberation louder than the direct sound."
@@ -553,7 +591,8 @@ impl MicView {
         let piano = model.room.piano;
         let (src, rc) = source_and_critical_distance(model, sb, piano);
         for (i, &m) in shown.iter().enumerate() {
-            let d = ((piano[0] + m[0] - src[0]).powi(2) + (piano[1] + m[1] - src[1]).powi(2) + (piano[2] + m[2] - src[2]).powi(2)).sqrt();
+            let q = in_room(model, sb, piano, &m);
+            let d = ((q[0] - src[0]).powi(2) + (q[1] - src[1]).powi(2) + (q[2] - src[2]).powi(2)).sqrt();
             let mut text = format!("{}: {:.2} m from the board's centre", NAMES[i], d);
             if model.room.enabled {
                 let drr = 20.0 * (rc / d.max(0.3)).log10();
@@ -601,14 +640,24 @@ impl MicView {
 /// as the room model sets them: the room's critical distance, shortened by
 /// the tail level and lengthened by the piano's directivity Q and the mics'
 /// pattern (their random-incidence efficiency a² + (1 − a)²/3).
+/// A point in board coordinates, in the room with the piano at `piano`
+/// (a standing board turned upright, as the room computes it).
+pub(crate) fn in_room(model: &PianoModel, sb: &SoundboardParams, piano: [f64; 3], m: &[f64; 3]) -> [f64; 3] {
+    let rp = piano_core::room::RoomParams { piano, ..model.room };
+    piano_core::room::to_room(&rp, sb, (m[0], m[1], m[2]))
+}
+
+/// The board's extent in the room (lowest and highest corner).
+pub(crate) fn footprint(model: &PianoModel, sb: &SoundboardParams, piano: [f64; 3]) -> ([f64; 3], [f64; 3]) {
+    let corners = [[0.0, 0.0, 0.0], [sb.a, 0.0, 0.0], [0.0, sb.b, 0.0], [sb.a, sb.b, 0.0]].map(|c| in_room(model, sb, piano, &c));
+    let pick = |f: fn(f64, f64) -> f64| std::array::from_fn(|i| corners.iter().map(|c| c[i]).reduce(f).unwrap_or(0.0));
+    (pick(f64::min), pick(f64::max))
+}
+
 pub(crate) fn source_and_critical_distance(model: &PianoModel, sb: &SoundboardParams, piano: [f64; 3]) -> ([f64; 3], f64) {
-    let room = &model.room;
-    let src = [piano[0] + sb.a / 2.0, piano[1] + sb.b / 2.0, piano[2] + 0.1];
-    let (t_lo, t_hi) = room.t60();
-    let a = sb.mic_pattern.clamp(0.0, 1.0);
-    let source_gain = ((a * a + (1.0 - a) * (1.0 - a) / 3.0) / room.directivity.max(1.0)).sqrt();
-    let rc = 0.057 * (room.volume() / (0.5 * (t_lo + t_hi))).sqrt() / (room.tail_gain * source_gain).max(1e-3);
-    (src, rc)
+    use piano_core::room;
+    let rp = room::RoomParams { piano, ..model.room };
+    (room::to_room(&rp, sb, room::source_point(sb)), room::critical_distance(&rp, sb))
 }
 
 fn dashed_rect(p: &egui::Painter, r: Rect, stroke: Stroke) {
@@ -755,8 +804,21 @@ mod tests {
     }
 
     #[test]
+    fn a_standing_board_stands_in_the_room() {
+        let m = PianoModel::default();
+        let sb = SoundboardParams { vertical: true, wall_distance: 0.2, ..m.soundboard.unwrap() };
+        let (lo, hi) = footprint(&m, &sb, m.room.piano);
+        // Its width along the room's x, its height up from the foot, flat
+        // against its wall.
+        assert!((hi[0] - lo[0] - sb.b).abs() < 1e-9 && (hi[2] - lo[2] - sb.a).abs() < 1e-9 && hi[1] == lo[1], "{lo:?} {hi:?}");
+        let mic = in_room(&m, &sb, m.room.piano, &[0.5, 0.6, 1.0]);
+        assert!((mic[1] - (sb.wall_distance + 1.0)).abs() < 1e-9, "{mic:?}");
+    }
+
+    #[test]
     fn critical_distance_follows_directivity_and_pattern() {
         let m = PianoModel::default();
+        let m = PianoModel { room: piano_core::room::RoomParams { directivity: 3.0, ..m.room }, ..m };
         let sb = m.soundboard.unwrap();
         let (_, omni) = source_and_critical_distance(&m, &sb, m.room.piano);
         let cardioid = SoundboardParams { mic_pattern: 0.5, ..sb };

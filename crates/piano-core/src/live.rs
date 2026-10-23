@@ -56,6 +56,8 @@ live_params! {
     UnaCordaShift => "una_corda_shift", una_corda_shift;
     HalfBlow => "half_blow", half_blow;
     MuteFelt => "mute_felt", mute_felt;
+    RepetitionTime => "repetition_time", repetition_time;
+    RepetitionFloor => "repetition_floor", repetition_floor;
     VelocityMin => "velocity.vmin", velocity.vmin;
     VelocityMax => "velocity.vmax", velocity.vmax;
     DamperStrength => "damper.strength", damper.strength;

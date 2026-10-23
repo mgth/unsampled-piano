@@ -1,10 +1,14 @@
 //! Sketches locating the parameters on the instrument, drawn from the model
 //! (felt depth, pedal curve, strike point, mistuning… follow the settings).
 //!
-//! The action: one key of a grand seen from the side, the player on the
-//! left. The key lifts the hammer onto the string from below and, at its
+//! The action: one key seen from the side, the player on the left. On a
+//! grand the key lifts the hammer onto the string from below and, at its
 //! back end, the damper off the string; the sustain pedal lifts every
-//! damper through the damper tray. Not to scale.
+//! damper through the damper tray. On an upright (standing board) the
+//! strings stand behind the action: the wippen's jack throws the hammer
+//! against them horizontally, the dampers press on them below the strike
+//! point, the soft pedal's hammer rail brings the hammers closer and the
+//! sustain pedal's lift rail pulls every damper back. Not to scale.
 //!
 //! The string: one key's string from the agraffe to the bridge, with the
 //! strike and damper points (to scale along the string), its unison seen
@@ -46,6 +50,9 @@ pub enum Part {
     UnaCorda,
     /// The practice mute an upright's middle pedal lowers.
     MuteFelt,
+    /// How soon a key can strike again: a grand's repetition lever, an
+    /// upright's jack that must reset.
+    Repetition,
     /// The key bottoming on the keybed.
     KeybedKnock,
     /// The damper landing on the ringing string.
@@ -187,6 +194,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("una_corda_", &[UnaCorda]),
         ("half_blow", &[UnaCorda]),
         ("mute_felt", &[MuteFelt]),
+        ("repetition_", &[Repetition]),
         ("damper.pedal_", &[SustainPedal]),
         ("damper.", &[Damper]),
         ("noise.keybed", &[KeybedKnock]),
@@ -264,102 +272,227 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
         p.text(at(x, y), align, text, font.clone(), c);
     };
 
-    // Frame and string, from the agraffe towards the bridge.
-    p.add(Shape::convex_polygon(vec![at(54.0, 18.0), at(66.0, 18.0), at(60.0, STRING_Y)], weak, Stroke::NONE));
-    p.line_segment([at(60.0, STRING_Y), at(W - 4.0, STRING_Y)], line(2.0, ink));
-    label(W - 4.0, STRING_Y + 3.0, Align2::RIGHT_TOP, "String, to the bridge", None);
-    label(62.0, 16.0, Align2::CENTER_BOTTOM, "Agraffe", None);
-
-    // Keybed, key, balance point.
-    p.rect_filled(r(10.0, KEYBED_Y, W - 10.0, KEYBED_Y + 10.0), 1.0, vis.widgets.noninteractive.bg_fill);
-    p.rect_stroke(r(10.0, KEYBED_Y, W - 10.0, KEYBED_Y + 10.0), 1.0, line(1.0, weak), egui::StrokeKind::Inside);
-    label(12.0, KEYBED_Y + 12.0, Align2::LEFT_TOP, "Keybed", Some(Part::KeybedKnock));
-    p.rect_filled(r(20.0, KEY_Y, 330.0, KEY_Y + 12.0), 1.0, WOOD.gamma_multiply(0.5));
-    p.rect_filled(r(20.0, KEY_Y - 3.0, 75.0, KEY_Y + 12.0), 1.0, fill(Part::Key, Color32::from_gray(235)));
-    p.rect_stroke(r(20.0, KEY_Y - 3.0, 75.0, KEY_Y + 12.0), 1.0, outline(Part::Key), egui::StrokeKind::Inside);
-    p.add(Shape::convex_polygon(vec![at(185.0, KEY_Y + 12.0), at(193.0, KEYBED_Y), at(177.0, KEYBED_Y)], weak, Stroke::NONE));
-    label(110.0, KEY_Y - 2.0, Align2::LEFT_BOTTOM, "Key", Some(Part::Key));
-    // The finger, and the hammer's flight it sets.
-    arrow(&p, at(47.0, 98.0), at(47.0, KEY_Y - 6.0), outline(Part::Key));
-    label(56.0, 100.0, Align2::LEFT_TOP, "Velocity", Some(Part::Key));
-    arrow(&p, at(STRIKE_X - 24.0, 84.0), at(STRIKE_X - 24.0, 46.0), outline(Part::Key));
-    if lit(Part::Key) {
-        let v = &model.velocity;
-        let text = format!("{:.1}–{:.1} m/s", v.vmin, v.vmax);
-        label(STRIKE_X - 28.0, 66.0, Align2::RIGHT_CENTER, &text, Some(Part::Key));
-    }
-
-    // Hammer: shank from its flange, wooden molding, core, top felt (its
-    // depth exaggerated, from the model).
-    p.line_segment([at(STRIKE_X, 80.0), at(255.0, 88.0)], line(3.0, WOOD));
-    p.circle_stroke(at(255.0, 88.0), 3.5 * k, line(1.0, weak));
-    p.line_segment([at(212.0, 85.0), at(212.0, KEY_Y)], line(2.0, weak));
-    let (depth, key) = felt_depth(model, path);
-    let t = (depth as f32 * 8.0).clamp(1.5, 10.0);
-    let (top, bottom, rx) = (STRING_Y + 2.0, 76.0, 15.0);
-    p.rect_filled(r(STRIKE_X - 11.0, 72.0, STRIKE_X + 11.0, 84.0), 1.0, WOOD);
     let felt = felt_shade(model.hardness);
-    p.add(ellipse(at(STRIKE_X, (top + bottom) / 2.0), rx * k, (bottom - top) / 2.0 * k, fill(Part::Felt, felt), outline(Part::Felt)));
-    let core_top = top + t;
-    p.add(ellipse(
-        at(STRIKE_X, (core_top + bottom) / 2.0),
-        (rx - 0.45 * t) * k,
-        (bottom - core_top) / 2.0 * k,
-        fill(Part::Core, CORE),
-        outline(Part::Core),
-    ));
-    label(STRIKE_X + 20.0, 46.0, Align2::LEFT_CENTER, "Hammer", Some(Part::Felt));
-    if lit(Part::Felt) || lit(Part::Core) {
-        let text = format!("Top felt {depth:.2} mm ({key})");
-        label(STRIKE_X + 20.0, 60.0, Align2::LEFT_CENTER, &text, Some(Part::Core));
-    }
+    // An upright when the board stands, a grand otherwise.
+    if model.soundboard.is_some_and(|b| b.vertical) {
+        // The string, standing behind the action.
+        let sx = 376.0;
+        let sy = 46.0;
+        p.line_segment([at(sx, 4.0), at(sx, 160.0)], line(2.0, ink));
+        label(sx + 4.0, 4.0, Align2::LEFT_TOP, "String", None);
 
-    // Practice mute: a felt strip between hammers and strings while the
-    // middle pedal is down (drawn lowered when it exists).
-    if model.mute_felt > 0.0 || lit(Part::MuteFelt) {
-        let t = (model.mute_felt as f32 * 1.2).clamp(1.5, 6.0);
-        if model.mute_felt > 0.0 {
-            p.rect_filled(r(STRIKE_X - 30.0, STRING_Y + 0.5, STRIKE_X + 30.0, STRING_Y + 0.5 + t), 1.0, fill(Part::MuteFelt, FELT.gamma_multiply(0.8)));
+        // Keybed, key, balance point, capstan.
+        let (key_y, keybed_y) = (150.0, 168.0);
+        p.rect_filled(r(10.0, keybed_y, W - 10.0, keybed_y + 10.0), 1.0, vis.widgets.noninteractive.bg_fill);
+        p.rect_stroke(r(10.0, keybed_y, W - 10.0, keybed_y + 10.0), 1.0, line(1.0, weak), egui::StrokeKind::Inside);
+        label(12.0, keybed_y + 12.0, Align2::LEFT_TOP, "Keybed", Some(Part::KeybedKnock));
+        p.rect_filled(r(20.0, key_y, sx - 60.0, key_y + 12.0), 1.0, WOOD.gamma_multiply(0.5));
+        p.rect_filled(r(20.0, key_y - 3.0, 75.0, key_y + 12.0), 1.0, fill(Part::Key, Color32::from_gray(235)));
+        p.rect_stroke(r(20.0, key_y - 3.0, 75.0, key_y + 12.0), 1.0, outline(Part::Key), egui::StrokeKind::Inside);
+        p.add(Shape::convex_polygon(vec![at(170.0, key_y + 12.0), at(178.0, keybed_y), at(162.0, keybed_y)], weak, Stroke::NONE));
+        label(110.0, key_y - 2.0, Align2::LEFT_BOTTOM, "Key", Some(Part::Key));
+        p.rect_filled(r(sx - 96.0, 142.0, sx - 90.0, key_y), 1.0, weak);
+        arrow(&p, at(47.0, 118.0), at(47.0, key_y - 6.0), outline(Part::Key));
+        label(56.0, 120.0, Align2::LEFT_TOP, "Velocity", Some(Part::Key));
+
+        // Wippen on the capstan, its jack under the hammer butt.
+        p.line_segment([at(sx - 130.0, 140.0), at(sx - 28.0, 140.0)], line(2.0, weak));
+        p.circle_stroke(at(sx - 130.0, 140.0), 3.0 * k, line(1.0, weak));
+        let jack = if lit(Part::Repetition) { line(2.5, HIGHLIGHT) } else { line(2.0, weak) };
+        p.line_segment([at(sx - 50.0, 140.0), at(sx - 50.0, 118.0)], jack);
+        if lit(Part::Repetition) {
+            let first = if model.repetition_time > 0.0 { "No repetition lever: the jack must reset" } else { "Repetition at once" };
+            label(sx - 60.0, 92.0, Align2::RIGHT_CENTER, first, Some(Part::Repetition));
+            label(sx - 60.0, 104.0, Align2::RIGHT_CENTER, &repetition_text(model), Some(Part::Repetition));
         }
-        if lit(Part::MuteFelt) {
-            let text = if model.mute_felt > 0.0 {
-                format!("Practice mute, {:.1} mm (middle pedal)", model.mute_felt)
-            } else {
-                "Middle pedal: sostenuto (no mute)".to_string()
-            };
-            label(STRIKE_X + 20.0, 60.0, Align2::LEFT_CENTER, &text, Some(Part::MuteFelt));
+
+        // Hammer: butt, shank, molding, core and top felt facing the string.
+        let (cx, rx, ry) = (sx - 14.0, 12.0, 14.0);
+        p.circle_filled(at(sx - 44.0, 112.0), 7.0 * k, weak.gamma_multiply(0.6));
+        p.line_segment([at(sx - 42.0, 106.0), at(cx - 16.0, sy + 12.0)], line(3.0, WOOD));
+        p.rect_filled(r(cx - 20.0, sy - 12.0, cx - 12.0, sy + 12.0), 1.0, WOOD);
+        let (depth, key) = felt_depth(model, path);
+        let t = (depth as f32 * 8.0).clamp(1.5, 10.0);
+        p.add(ellipse(at(cx, sy), rx * k, ry * k, fill(Part::Felt, felt), outline(Part::Felt)));
+        let (core_l, core_r) = (cx - rx + 1.0, cx + rx - t);
+        p.add(ellipse(
+            at((core_l + core_r) / 2.0, sy),
+            (core_r - core_l) / 2.0 * k,
+            (ry - 0.45 * t) * k,
+            fill(Part::Core, CORE),
+            outline(Part::Core),
+        ));
+        arrow(&p, at(cx - 26.0, sy - 22.0), at(cx + 2.0, sy - 22.0), outline(Part::Key));
+        label(cx - 24.0, sy, Align2::RIGHT_CENTER, "Hammer", Some(Part::Felt));
+        if lit(Part::Key) {
+            let v = &model.velocity;
+            let text = format!("{:.1}–{:.1} m/s", v.vmin, v.vmax);
+            label(cx - 30.0, sy - 22.0, Align2::RIGHT_CENTER, &text, Some(Part::Key));
         }
-    }
+        if lit(Part::Felt) || lit(Part::Core) {
+            let text = format!("Top felt {depth:.2} mm ({key})");
+            label(cx - 24.0, sy + 14.0, Align2::RIGHT_CENTER, &text, Some(Part::Core));
+        }
 
-    // Damper: felt on the string, wire, lever lifted by the back of the key,
-    // tray lifted by the pedal rod.
-    let damper = r(DAMPER_X - 11.0, 12.0, DAMPER_X + 11.0, STRING_Y);
-    p.rect_filled(r(DAMPER_X - 9.0, 6.0, DAMPER_X + 9.0, 12.0), 1.0, WOOD);
-    p.rect_filled(damper, 1.0, fill(Part::Damper, FELT));
-    p.rect_stroke(damper, 1.0, outline(Part::Damper), egui::StrokeKind::Inside);
-    p.line_segment([at(DAMPER_X, STRING_Y), at(DAMPER_X, 112.0)], line(1.0, weak));
-    p.line_segment([at(268.0, 112.0), at(345.0, 112.0)], line(2.0, weak));
-    p.circle_stroke(at(345.0, 112.0), 3.0 * k, line(1.0, weak));
-    p.line_segment([at(320.0, KEY_Y), at(320.0, 114.0)], line(1.5, weak));
-    label(DAMPER_X + 14.0, 20.0, Align2::LEFT_CENTER, "Damper", Some(Part::Damper));
-    if lit(Part::Damper) {
-        let d = &model.damper;
-        let text = format!("falls in {:.0} ms, lifts in {:.0} ms", 1e3 * d.fall_time, 1e3 * d.lift_time);
-        label(DAMPER_X + 14.0, 44.0, Align2::LEFT_CENTER, &text, Some(Part::Damper));
-        arrow(&p, at(DAMPER_X - 18.0, 2.0), at(DAMPER_X - 18.0, 24.0), line(1.5, HIGHLIGHT));
-    }
-    let tray = r(262.0, TRAY_Y, ROD_X + 4.0, TRAY_Y + 4.0);
-    p.rect_filled(tray, 1.0, fill(Part::SustainPedal, weak));
-    p.line_segment([at(ROD_X, TRAY_Y + 4.0), at(ROD_X, PEDAL_Y)], outline(Part::SustainPedal));
-    let pedal = r(ROD_X - 40.0, PEDAL_Y, ROD_X + 30.0, PEDAL_Y + 6.0);
-    p.rect_filled(pedal, 2.0, fill(Part::SustainPedal, weak));
-    label(ROD_X - 44.0, PEDAL_Y + 3.0, Align2::RIGHT_CENTER, "Sustain pedal", Some(Part::SustainPedal));
-    label(ROD_X + 8.0, TRAY_Y - 6.0, Align2::LEFT_CENTER, "Damper tray", Some(Part::SustainPedal));
+        // Hammer rail: the soft pedal brings it, and the hammers resting on
+        // it, closer to the strings (half blow).
+        let rail = r(cx - 34.0, 76.0, cx - 24.0, 84.0);
+        p.rect_filled(rail, 1.0, fill(Part::UnaCorda, weak));
+        if lit(Part::UnaCorda) {
+            arrow(&p, at(cx - 40.0, 92.0), at(cx - 20.0, 92.0), line(1.5, HIGHLIGHT));
+            label(cx - 38.0, 80.0, Align2::RIGHT_CENTER, "Hammer rail (soft pedal)", Some(Part::UnaCorda));
+        }
 
-    // Noises.
-    knock(&p, at(36.0, KEYBED_Y), 7.0 * k, lit(Part::KeybedKnock), weak);
-    knock(&p, at(DAMPER_X, STRING_Y), 7.0 * k, lit(Part::DamperLanding), weak);
-    knock(&p, at(290.0, TRAY_Y + 2.0), 7.0 * k, lit(Part::PedalKnock), weak);
+        // Practice mute: a felt strip lowered between hammers and strings.
+        if model.mute_felt > 0.0 || lit(Part::MuteFelt) {
+            let t = (model.mute_felt as f32 * 1.2).clamp(1.5, 6.0);
+            if model.mute_felt > 0.0 {
+                p.rect_filled(r(sx - 1.0 - t, sy - 22.0, sx - 1.0, sy + 22.0), 1.0, fill(Part::MuteFelt, FELT.gamma_multiply(0.8)));
+            }
+            if lit(Part::MuteFelt) {
+                let text = if model.mute_felt > 0.0 {
+                    format!("Practice mute, {:.1} mm (middle pedal)", model.mute_felt)
+                } else {
+                    "Middle pedal: sostenuto (no mute)".to_string()
+                };
+                label(cx - 24.0, sy + 14.0, Align2::RIGHT_CENTER, &text, Some(Part::MuteFelt));
+            }
+        }
+
+        // Damper below the strike point, its lever pushed back by the
+        // wippen's spoon and by the sustain pedal's lift rail.
+        let damper = r(sx - 10.0, 96.0, sx, 116.0);
+        p.rect_filled(r(sx - 18.0, 98.0, sx - 10.0, 114.0), 1.0, WOOD);
+        p.rect_filled(damper, 1.0, fill(Part::Damper, FELT));
+        p.rect_stroke(damper, 1.0, outline(Part::Damper), egui::StrokeKind::Inside);
+        p.line_segment([at(sx - 14.0, 114.0), at(sx - 14.0, 136.0)], line(1.5, weak));
+        p.circle_stroke(at(sx - 14.0, 136.0), 3.0 * k, line(1.0, weak));
+        p.line_segment([at(sx - 28.0, 140.0), at(sx - 16.0, 128.0)], line(1.5, weak));
+        label(sx + 4.0, 84.0, Align2::LEFT_CENTER, "Damper", Some(Part::Damper));
+        if lit(Part::Damper) {
+            let d = &model.damper;
+            let text = format!("damper falls in {:.0} ms, lifts in {:.0} ms", 1e3 * d.fall_time, 1e3 * d.lift_time);
+            label(sx - 60.0, 100.0, Align2::RIGHT_CENTER, &text, Some(Part::Damper));
+            arrow(&p, at(sx - 4.0, 122.0), at(sx - 24.0, 122.0), line(1.5, HIGHLIGHT));
+        }
+        let lift = r(sx - 22.0, 124.0, 402.0, 128.0);
+        p.rect_filled(lift, 1.0, fill(Part::SustainPedal, weak));
+        p.line_segment([at(400.0, 128.0), at(400.0, 184.0)], outline(Part::SustainPedal));
+        let pedal = r(356.0, 184.0, 426.0, 190.0);
+        p.rect_filled(pedal, 2.0, fill(Part::SustainPedal, weak));
+        label(352.0, 187.0, Align2::RIGHT_CENTER, "Sustain pedal (lift rail)", Some(Part::SustainPedal));
+
+        // Noises.
+        knock(&p, at(36.0, keybed_y), 7.0 * k, lit(Part::KeybedKnock), weak);
+        knock(&p, at(sx, 106.0), 7.0 * k, lit(Part::DamperLanding), weak);
+        knock(&p, at(sx + 12.0, 126.0), 7.0 * k, lit(Part::PedalKnock), weak);
+    } else {
+        // Frame and string, from the agraffe towards the bridge.
+        p.add(Shape::convex_polygon(vec![at(54.0, 18.0), at(66.0, 18.0), at(60.0, STRING_Y)], weak, Stroke::NONE));
+        p.line_segment([at(60.0, STRING_Y), at(W - 4.0, STRING_Y)], line(2.0, ink));
+        label(W - 4.0, STRING_Y + 3.0, Align2::RIGHT_TOP, "String, to the bridge", None);
+        label(62.0, 16.0, Align2::CENTER_BOTTOM, "Agraffe", None);
+
+        // Keybed, key, balance point.
+        p.rect_filled(r(10.0, KEYBED_Y, W - 10.0, KEYBED_Y + 10.0), 1.0, vis.widgets.noninteractive.bg_fill);
+        p.rect_stroke(r(10.0, KEYBED_Y, W - 10.0, KEYBED_Y + 10.0), 1.0, line(1.0, weak), egui::StrokeKind::Inside);
+        label(12.0, KEYBED_Y + 12.0, Align2::LEFT_TOP, "Keybed", Some(Part::KeybedKnock));
+        p.rect_filled(r(20.0, KEY_Y, 330.0, KEY_Y + 12.0), 1.0, WOOD.gamma_multiply(0.5));
+        p.rect_filled(r(20.0, KEY_Y - 3.0, 75.0, KEY_Y + 12.0), 1.0, fill(Part::Key, Color32::from_gray(235)));
+        p.rect_stroke(r(20.0, KEY_Y - 3.0, 75.0, KEY_Y + 12.0), 1.0, outline(Part::Key), egui::StrokeKind::Inside);
+        p.add(Shape::convex_polygon(vec![at(185.0, KEY_Y + 12.0), at(193.0, KEYBED_Y), at(177.0, KEYBED_Y)], weak, Stroke::NONE));
+        label(110.0, KEY_Y - 2.0, Align2::LEFT_BOTTOM, "Key", Some(Part::Key));
+        // The finger, and the hammer's flight it sets.
+        arrow(&p, at(47.0, 98.0), at(47.0, KEY_Y - 6.0), outline(Part::Key));
+        label(56.0, 100.0, Align2::LEFT_TOP, "Velocity", Some(Part::Key));
+        arrow(&p, at(STRIKE_X - 24.0, 84.0), at(STRIKE_X - 24.0, 46.0), outline(Part::Key));
+        if lit(Part::Key) {
+            let v = &model.velocity;
+            let text = format!("{:.1}–{:.1} m/s", v.vmin, v.vmax);
+            label(STRIKE_X - 28.0, 66.0, Align2::RIGHT_CENTER, &text, Some(Part::Key));
+        }
+
+        // Hammer: shank from its flange, wooden molding, core, top felt (its
+        // depth exaggerated, from the model).
+        p.line_segment([at(STRIKE_X, 80.0), at(255.0, 88.0)], line(3.0, WOOD));
+        p.circle_stroke(at(255.0, 88.0), 3.5 * k, line(1.0, weak));
+        p.line_segment([at(212.0, 85.0), at(212.0, KEY_Y)], line(2.0, weak));
+        // The repetition lever (double escapement) holds the hammer halfway
+        // down, ready to be thrown again before the key is fully up.
+        let lever = if lit(Part::Repetition) { line(2.5, HIGHLIGHT) } else { line(1.5, weak) };
+        p.line_segment([at(194.0, 100.0), at(232.0, 92.0)], lever);
+        p.circle_stroke(at(194.0, 100.0), 2.5 * k, line(1.0, weak));
+        if lit(Part::Repetition) {
+            let text = if model.repetition_time > 0.0 { "Repetition lever (limited)" } else { "Repetition lever" };
+            label(190.0, 100.0, Align2::RIGHT_CENTER, text, Some(Part::Repetition));
+        }
+        let (depth, key) = felt_depth(model, path);
+        let t = (depth as f32 * 8.0).clamp(1.5, 10.0);
+        let (top, bottom, rx) = (STRING_Y + 2.0, 76.0, 15.0);
+        p.rect_filled(r(STRIKE_X - 11.0, 72.0, STRIKE_X + 11.0, 84.0), 1.0, WOOD);
+        p.add(ellipse(at(STRIKE_X, (top + bottom) / 2.0), rx * k, (bottom - top) / 2.0 * k, fill(Part::Felt, felt), outline(Part::Felt)));
+        let core_top = top + t;
+        p.add(ellipse(
+            at(STRIKE_X, (core_top + bottom) / 2.0),
+            (rx - 0.45 * t) * k,
+            (bottom - core_top) / 2.0 * k,
+            fill(Part::Core, CORE),
+            outline(Part::Core),
+        ));
+        label(STRIKE_X + 20.0, 46.0, Align2::LEFT_CENTER, "Hammer", Some(Part::Felt));
+        if lit(Part::Felt) || lit(Part::Core) {
+            let text = format!("Top felt {depth:.2} mm ({key})");
+            label(STRIKE_X + 20.0, 60.0, Align2::LEFT_CENTER, &text, Some(Part::Core));
+        }
+
+        // Practice mute: a felt strip between hammers and strings while the
+        // middle pedal is down (drawn lowered when it exists).
+        if model.mute_felt > 0.0 || lit(Part::MuteFelt) {
+            let t = (model.mute_felt as f32 * 1.2).clamp(1.5, 6.0);
+            if model.mute_felt > 0.0 {
+                p.rect_filled(r(STRIKE_X - 30.0, STRING_Y + 0.5, STRIKE_X + 30.0, STRING_Y + 0.5 + t), 1.0, fill(Part::MuteFelt, FELT.gamma_multiply(0.8)));
+            }
+            if lit(Part::MuteFelt) {
+                let text = if model.mute_felt > 0.0 {
+                    format!("Practice mute, {:.1} mm (middle pedal)", model.mute_felt)
+                } else {
+                    "Middle pedal: sostenuto (no mute)".to_string()
+                };
+                label(STRIKE_X + 20.0, 60.0, Align2::LEFT_CENTER, &text, Some(Part::MuteFelt));
+            }
+        }
+
+        // Damper: felt on the string, wire, lever lifted by the back of the key,
+        // tray lifted by the pedal rod.
+        let damper = r(DAMPER_X - 11.0, 12.0, DAMPER_X + 11.0, STRING_Y);
+        p.rect_filled(r(DAMPER_X - 9.0, 6.0, DAMPER_X + 9.0, 12.0), 1.0, WOOD);
+        p.rect_filled(damper, 1.0, fill(Part::Damper, FELT));
+        p.rect_stroke(damper, 1.0, outline(Part::Damper), egui::StrokeKind::Inside);
+        p.line_segment([at(DAMPER_X, STRING_Y), at(DAMPER_X, 112.0)], line(1.0, weak));
+        p.line_segment([at(268.0, 112.0), at(345.0, 112.0)], line(2.0, weak));
+        p.circle_stroke(at(345.0, 112.0), 3.0 * k, line(1.0, weak));
+        p.line_segment([at(320.0, KEY_Y), at(320.0, 114.0)], line(1.5, weak));
+        label(DAMPER_X + 14.0, 20.0, Align2::LEFT_CENTER, "Damper", Some(Part::Damper));
+        if lit(Part::Damper) {
+            let d = &model.damper;
+            let text = format!("falls in {:.0} ms, lifts in {:.0} ms", 1e3 * d.fall_time, 1e3 * d.lift_time);
+            label(DAMPER_X + 14.0, 44.0, Align2::LEFT_CENTER, &text, Some(Part::Damper));
+            arrow(&p, at(DAMPER_X - 18.0, 2.0), at(DAMPER_X - 18.0, 24.0), line(1.5, HIGHLIGHT));
+        }
+        let tray = r(262.0, TRAY_Y, ROD_X + 4.0, TRAY_Y + 4.0);
+        p.rect_filled(tray, 1.0, fill(Part::SustainPedal, weak));
+        p.line_segment([at(ROD_X, TRAY_Y + 4.0), at(ROD_X, PEDAL_Y)], outline(Part::SustainPedal));
+        let pedal = r(ROD_X - 40.0, PEDAL_Y, ROD_X + 30.0, PEDAL_Y + 6.0);
+        p.rect_filled(pedal, 2.0, fill(Part::SustainPedal, weak));
+        label(ROD_X - 44.0, PEDAL_Y + 3.0, Align2::RIGHT_CENTER, "Sustain pedal", Some(Part::SustainPedal));
+        label(ROD_X + 8.0, TRAY_Y - 6.0, Align2::LEFT_CENTER, "Damper tray", Some(Part::SustainPedal));
+
+        // Noises.
+        knock(&p, at(36.0, KEYBED_Y), 7.0 * k, lit(Part::KeybedKnock), weak);
+        knock(&p, at(DAMPER_X, STRING_Y), 7.0 * k, lit(Part::DamperLanding), weak);
+        knock(&p, at(290.0, TRAY_Y + 2.0), 7.0 * k, lit(Part::PedalKnock), weak);
+
+    }
 
     // Below: the soft pedal, and the sustain pedal's travel.
     let y0 = 196.0;
@@ -819,7 +952,9 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
         p.text(pos, align, text, font.clone(), c);
     };
     let piano = rp.piano;
-    let mics: Vec<[f64; 3]> = sb.mics.iter().map(|m| [piano[0] + m.0, piano[1] + m.1, piano[2] + m.2]).collect();
+    let mics: Vec<[f64; 3]> = sb.mics.iter().map(|m| crate::mics::in_room(model, &sb, piano, &[m.0, m.1, m.2])).collect();
+    // The board's extent in the room: flat, or standing on its foot.
+    let (blo, bhi) = crate::mics::footprint(model, &sb, piano);
     let (src, rc) = crate::mics::source_and_critical_distance(model, &sb, piano);
     let walls = |part| if lit(part) { line(2.5, HIGHLIGHT) } else { line(1.0, weak) };
     let absorb = lit(Part::AbsorbLow) || lit(Part::AbsorbHigh);
@@ -831,8 +966,10 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
     let room = Rect::from_two_pos(pl(0.0, 0.0), pl(lx, ly));
     p.rect_filled(room, 0.0, vis.extreme_bg_color);
     p.rect_stroke(room, 0.0, wall_stroke, egui::StrokeKind::Middle);
+    // What spreads from the piano stays inside the room's outline.
+    let inside = p.with_clip_rect(room.intersect(p.clip_rect()));
     let rc_stroke = if lit(Part::Directivity) || lit(Part::Tail) { line(1.5, HIGHLIGHT) } else { line(1.0, weak.gamma_multiply(0.7)) };
-    p.circle_stroke(pl(src[0], src[1]), rc as f32 * s * k, rc_stroke);
+    inside.circle_stroke(pl(src[0], src[1]), rc as f32 * s * k, rc_stroke);
     if lit(Part::Directivity) || lit(Part::Tail) {
         let text = format!("reverberation = direct sound at {rc:.1} m");
         label(room.left_bottom() + Vec2::new(0.0, 4.0 * k), Align2::LEFT_TOP, &text, Some(Part::Directivity));
@@ -846,7 +983,7 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
             img[wall] = 2.0 * mirror - src[wall];
             let t = (mirror - img[wall]) / (m[wall] - img[wall]);
             let hit = [img[0] + t * (m[0] - img[0]), img[1] + t * (m[1] - img[1])];
-            p.add(Shape::line(vec![pl(src[0], src[1]), pl(hit[0], hit[1]), pl(m[0], m[1])], line(1.0, HIGHLIGHT.gamma_multiply(0.8))));
+            inside.add(Shape::line(vec![pl(src[0], src[1]), pl(hit[0], hit[1]), pl(m[0], m[1])], line(1.0, HIGHLIGHT.gamma_multiply(0.8))));
             p.circle_filled(pl(hit[0], hit[1]), 3.0 * k, HIGHLIGHT);
         }
         let o = rp.order as i64;
@@ -857,23 +994,27 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
         let text = format!("first reflections to the left mic; order {o}: {paths} paths per mic");
         label(pl(0.0, ly) + Vec2::new(0.0, 4.0 * k), Align2::LEFT_TOP, &text, Some(Part::Reflections));
     }
-    let board = Rect::from_two_pos(pl(piano[0], piano[1]), pl(piano[0] + sb.a, piano[1] + sb.b));
+    let board = Rect::from_two_pos(pl(blo[0], blo[1]), pl(bhi[0], bhi[1])).expand(1.5 * k);
     p.rect_filled(board, 0.0, if lit(Part::PianoPlace) { HIGHLIGHT } else { WOOD });
     if lit(Part::Directivity) {
         // The beam a + (1 − a)·cos θ of directivity factor Q, towards the
         // lid's opening (−y): Q = 1/(a² + (1 − a)²/3).
-        let q = rp.directivity.max(1.0);
+        let q = piano_core::room::piano_directivity(rp, &sb);
+        // A grand beams towards its lid's opening (−y), an upright away
+        // from its wall (+y).
+        let towards = if sb.vertical { 1.0 } else { -1.0 };
         let a = ((1.0 + (12.0 / q - 3.0).max(0.0).sqrt()) / 4.0).clamp(0.25, 1.0);
         let r0 = (rc * 0.6).min(lx.min(ly) * 0.3);
         let pts: Vec<Pos2> = (0..=72)
             .map(|i| i as f64 / 72.0 * std::f64::consts::TAU)
             .map(|th| {
                 let g = (a + (1.0 - a) * th.cos()).abs() * r0;
-                pl(src[0] + g * th.sin(), src[1] - g * th.cos())
+                pl(src[0] + g * th.sin(), src[1] + towards * g * th.cos())
             })
             .collect();
-        p.add(Shape::closed_line(pts, line(1.5, HIGHLIGHT)));
-        label(pl(src[0], src[1] - r0) + Vec2::new(4.0 * k, 0.0), Align2::LEFT_CENTER, &format!("Q = {q:.1}"), Some(Part::Directivity));
+        inside.add(Shape::closed_line(pts, line(1.5, HIGHLIGHT)));
+        let text = if rp.directivity > 0.0 { format!("Q = {q:.1}") } else { format!("Q = {q:.1} (from the piano)") };
+        label(room.left_top() + Vec2::new(4.0, 4.0) * k, Align2::LEFT_TOP, &text, Some(Part::Directivity));
     }
     for (m, c) in mics.iter().zip([Color32::from_rgb(127, 119, 221), Color32::from_rgb(29, 158, 117)]) {
         p.circle_filled(pl(m[0], m[1]), 3.0 * k, c);
@@ -889,7 +1030,8 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
     let elev = Rect::from_two_pos(side(0.0, 0.0), side(lx, lz));
     p.rect_filled(elev, 0.0, vis.extreme_bg_color);
     p.rect_stroke(elev, 0.0, wall_stroke, egui::StrokeKind::Middle);
-    p.line_segment([side(piano[0], piano[2]), side(piano[0] + sb.a, piano[2])], line(3.0, if lit(Part::PianoPlace) { HIGHLIGHT } else { WOOD }));
+    let standing = Rect::from_two_pos(side(blo[0], blo[2]), side(bhi[0], bhi[2])).expand(1.5 * k);
+    p.rect_filled(standing, 0.0, if lit(Part::PianoPlace) { HIGHLIGHT } else { WOOD });
     if lit(Part::Reflections) && !mics.is_empty() {
         let m = mics[0];
         for mirror in [0.0, lz] {
@@ -1005,6 +1147,16 @@ fn soft_pedal(p: &egui::Painter, at: &dyn Fn(f32, f32) -> Pos2, model: &PianoMod
     }
 }
 
+/// How a key struck again soon after its release sounds.
+fn repetition_text(model: &PianoModel) -> String {
+    if model.repetition_time > 0.0 {
+        let slower = 100.0 * (1.0 - model.repetition_floor.clamp(0.0, 1.0));
+        format!("re-struck within {:.0} ms, up to {slower:.0} % slower", 1e3 * model.repetition_time)
+    } else {
+        "re-strikes at full speed at once".to_string()
+    }
+}
+
 /// Top-felt depth (mm) shown for a parameter, and the key it is at.
 fn felt_depth(model: &PianoModel, path: &str) -> (f64, &'static str) {
     match path {
@@ -1102,6 +1254,7 @@ mod tests {
             Part::DamperLanding,
             Part::PedalKnock,
             Part::MuteFelt,
+            Part::Repetition,
             Part::Strike,
             Part::DamperPoint,
             Part::Length,
@@ -1151,6 +1304,21 @@ mod tests {
         assert_eq!(key_at(c4.0 + 0.5, false), 60);
         assert_eq!(key_at(-1.0, false), 21);
         assert_eq!(key_at(60.0, false), 108);
+    }
+
+    #[test]
+    fn both_actions_draw() {
+        let ctx = egui::Context::default();
+        let grand = PianoModel::default();
+        let upright = PianoModel { soundboard: grand.soundboard.map(|b| piano_core::soundboard::SoundboardParams { vertical: true, ..b }), ..grand };
+        for m in [grand, upright] {
+            ctx.run_ui(Default::default(), |ui| {
+                for part in [&[Part::Key][..], &[Part::Core], &[Part::Damper], &[Part::UnaCorda], &[Part::MuteFelt], &[Part::SustainPedal], &[Part::Repetition]] {
+                    action(ui, &m, part, "core_depth_mid", 440.0);
+                }
+            })
+            .drop_without_applying_deltas();
+        }
     }
 
     #[test]

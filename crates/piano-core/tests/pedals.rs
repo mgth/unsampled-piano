@@ -158,6 +158,27 @@ fn upright_soft_pedal_and_practice_mute() {
     assert!(mute < sostenuto - 40.0, "C3 held by the mute's pedal");
 }
 
+/// Without the grand's double escapement, an upright re-strikes a key weaker
+/// until its action has reset after the release; later, as a grand.
+#[test]
+fn upright_repeats_slower_than_a_grand() {
+    let level = |rep: f32, gap: f64| {
+        let script = [
+            (0.0, Event::Param { id: LiveParam::RepetitionTime, value: rep }),
+            (0.0, on(60, 100)),
+            (0.1, off(60)),
+            (0.1 + gap, on(60, 100)),
+        ];
+        let (x, _) = render(&script, 0.2 + gap);
+        let t = ((0.1 + gap) * 48_000.0) as usize;
+        rms_db(&x[t..t + 2400])
+    };
+    let (soon, late) = (level(0.06, 0.01) - level(0.0, 0.01), level(0.06, 0.1) - level(0.0, 0.1));
+    eprintln!("re-strike 10 ms after the release: {soon:+.1} dB; 100 ms after: {late:+.2} dB");
+    assert!(soon < -3.0, "an upright should re-strike weaker at once");
+    assert!(late.abs() < 0.05, "and as a grand once its action has reset");
+}
+
 #[test]
 fn pedal_lets_the_octave_resonate_more_than_the_semitone() {
     // Pedal down, C3 struck briefly; listen to the free C4 and C#4 strings.

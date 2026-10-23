@@ -1,0 +1,155 @@
+# Builds the standalone player for Windows (WASAPI and ASIO output, zipped
+# with the presets, and an installer that also offers the VST3 and CLAP
+# plugins), macOS (universal application bundle, CoreAudio) and Linux (an
+# archive with the plugins, the presets and install.sh) and keeps them as
+# artifacts. A version tag (v*) also attaches them to a GitHub
+# release.
+name: Standalone
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: standalone-windows
+
+      # ASIO: asio-sys downloads the Steinberg SDK (dual-licensed, GPLv3) and
+      # generates its bindings with libclang, preinstalled with LLVM.
+      - name: Build (WASAPI and ASIO)
+        env:
+          LIBCLANG_PATH: C:\Program Files\LLVM\bin
+        run: cargo build --profile dist -p piano-play --features asio
+
+      - name: Smoke test (list the outputs)
+        run: target/dist/unsampled-piano.exe --list | Out-Host
+
+      # For the installer; no debug info, as in the Plugin workflow.
+      - name: Plugin bundles (VST3, CLAP)
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG: "0"
+          CARGO_PROFILE_RELEASE_STRIP: symbols
+        run: cargo xtask bundle piano-plugin --release
+
+      - name: Installer (Inno Setup)
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches.Groups[1].Value
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc "/DAppVersion=$version" installer\windows\unsampled-piano.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Archive
+        shell: bash
+        run: |
+          dir=unsampled-piano
+          mkdir "$dir"
+          cp target/dist/unsampled-piano.exe LICENSE README.md "$dir/"
+          cp -r presets "$dir/"
+          7z a -tzip unsampled-piano-standalone-windows-x86_64.zip "$dir"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsampled-piano-standalone-windows-x86_64
+          path: unsampled-piano-standalone-windows-x86_64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsampled-piano-setup-windows-x86_64
+          path: target/installer/unsampled-piano-setup-windows-x86_64.exe
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: standalone-macos
+
+      - name: Build (universal application bundle)
+        run: tools/macos-app.sh
+
+      - name: Smoke test (list the outputs)
+        run: '"target/macos/Unsampled Piano.app/Contents/MacOS/unsampled-piano" --list'
+
+      - name: Archive
+        run: ditto -c -k --keepParent "target/macos/Unsampled Piano.app" unsampled-piano-standalone-macos-universal.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsampled-piano-standalone-macos-universal
+          path: unsampled-piano-standalone-macos-universal.zip
+
+  linux:
+    # PipeWire 0.3.53 or later (cpal); glibc 2.39: Ubuntu 24.04, Debian 13,
+    # Fedora 40 and later.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # JACK: only its pkg-config file at build time (jack-sys); the library
+      # is loaded when the graph node is used.
+      - name: Libraries (PipeWire, ALSA, JACK, X11 and OpenGL)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config clang \
+            libpipewire-0.3-dev libasound2-dev libjack-jackd2-dev libgl-dev \
+            libx11-xcb-dev libxcb1-dev libxcb-dri2-0-dev libxcb-icccm4-dev \
+            libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: standalone-linux
+
+      - name: Build (archive)
+        run: |
+          dir=$(installer/linux/make-archive.sh)
+          echo "dir=$dir" >> "$GITHUB_ENV"
+
+      - name: Smoke test (start, install, uninstall)
+        run: |
+          "$dir/bin/unsampled-piano" --help > /dev/null
+          HOME="$RUNNER_TEMP/home" "$dir/install.sh"
+          test -x "$RUNNER_TEMP/home/.local/bin/unsampled-piano"
+          HOME="$RUNNER_TEMP/home" "$dir/install.sh" --uninstall
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsampled-piano-linux-x86_64
+          path: target/linux/*.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            unsampled-piano-standalone-*.zip
+            unsampled-piano-setup-*.exe
+            unsampled-piano-*-linux-*.tar.gz

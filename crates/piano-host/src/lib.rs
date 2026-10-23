@@ -1,10 +1,49 @@
 //! Host-side helpers shared by the renderer and the real-time player:
 //! instrument presets (TOML), decoding of raw MIDI messages and reading of
-//! standard MIDI files.
+//! standard MIDI files, and the configuration directory.
 
 use piano_core::params::PianoModel;
 use piano_core::Event;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// The platform's configuration directory for the instrument:
+/// `%APPDATA%\unsampled-piano` (Windows), `~/Library/Application
+/// Support/unsampled-piano` (macOS), `$XDG_CONFIG_HOME/unsampled-piano`
+/// else `~/.config/unsampled-piano`.
+pub fn config_dir() -> Option<PathBuf> {
+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    let base = if cfg!(windows) {
+        env("APPDATA")
+    } else if cfg!(target_os = "macos") {
+        env("HOME").map(|h| h.join("Library").join("Application Support"))
+    } else {
+        env("XDG_CONFIG_HOME").or_else(|| env("HOME").map(|h| h.join(".config")))
+    };
+    base.map(|b| b.join("unsampled-piano"))
+}
+
+/// Where an installer puts the presets shipped with the instrument, found
+/// by the standalone player and the plugins alike (the existing ones):
+/// `%PROGRAMDATA%\Unsampled Piano\presets` (all users) and
+/// `%LOCALAPPDATA%\Unsampled Piano\presets` (current user) on Windows,
+/// `/Library/Application Support/Unsampled Piano/presets` and the user's
+/// own on macOS, `unsampled-piano/presets` in `$XDG_DATA_HOME` (else
+/// ~/.local/share, where tools/install-app.sh puts them) then in
+/// `$XDG_DATA_DIRS` (else /usr/local/share, /usr/share) elsewhere.
+pub fn installed_preset_dirs() -> Vec<PathBuf> {
+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    let dirs: Vec<PathBuf> = if cfg!(windows) {
+        ["PROGRAMDATA", "LOCALAPPDATA"].iter().filter_map(|k| env(k)).map(|d| d.join("Unsampled Piano").join("presets")).collect()
+    } else if cfg!(target_os = "macos") {
+        let support = |d: PathBuf| d.join("Library/Application Support/Unsampled Piano/presets");
+        [Some(PathBuf::from("/")), env("HOME")].into_iter().flatten().map(support).collect()
+    } else {
+        let home = env("XDG_DATA_HOME").filter(|d| d.is_absolute()).or_else(|| env("HOME").map(|h| h.join(".local/share")));
+        let data = std::env::var("XDG_DATA_DIRS").ok().filter(|v| !v.is_empty()).unwrap_or("/usr/local/share:/usr/share".into());
+        home.into_iter().chain(data.split(':').map(PathBuf::from)).map(|d| d.join("unsampled-piano").join("presets")).collect()
+    };
+    dirs.into_iter().filter(|d| d.is_dir()).collect()
+}
 
 /// Loads an instrument preset. Missing sections or fields keep the default
 /// instrument's values, so a preset only needs what it changes.

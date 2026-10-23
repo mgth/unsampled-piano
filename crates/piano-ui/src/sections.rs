@@ -39,7 +39,7 @@ const KEYS: (u8, u8) = (21, 108);
 pub const SECTIONS: &[Section] = &[
     Section {
         title: "Player",
-        prefixes: &["output_gain_db", "velocity.", "una_corda_", "half_blow", "mute_felt", "damper.pedal_"],
+        prefixes: &["output_gain_db", "velocity.", "una_corda_", "half_blow", "mute_felt", "repetition_", "damper.pedal_"],
         curves: &[Curve {
             title: "Hammer speed by velocity",
             unit: "m/s",

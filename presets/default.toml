@@ -6,6 +6,8 @@ una_corda_softening = 0.6
 una_corda_shift = 1.0
 half_blow = 0.0
 mute_felt = 0.0
+repetition_time = 0.0
+repetition_floor = 0.5
 output_gain_db = 0.0
 hardness = 0.3
 hardness_slope = 0.02
@@ -150,6 +152,9 @@ back_depth = 0.6
 back_gain = 0.6
 wall_distance = 0.0
 wall_reflection = 0.9
+vertical = false
+case_open = 1.0
+case_panel_mass = 6.0
 lid_angle = 0.0
 lid_hinge_height = 0.25
 lid_reflection = 0.85
@@ -208,7 +213,7 @@ absorption_low = 0.327
 absorption_high = 0.37
 order = 3
 tail_gain = 1.0
-directivity = 3.0
+directivity = 0.0
 
 [frame]
 enabled = true

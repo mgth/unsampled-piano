@@ -1,5 +1,7 @@
 # Unsampled Piano
 
+<img src="assets/icon.svg" alt="" width="96" align="right">
+
 Physically modelled virtual piano, real-time from MIDI, in Rust. No samples are used to produce the sound (recordings are used only for analysis and calibration).
 
 ![The interface (`unsampled-piano --ui`), Strings page: the C4 string, its partials, and per-key losses, string length and unison spread over the keyboard](docs/img/interface.png)
@@ -36,6 +38,20 @@ tools/calibrate.sh data/salamander/Samples out/calib
 
 cargo test --workspace
 ```
+
+On Linux, `tools/install-app.sh` builds the player and installs it for the current user, with a menu entry (`installer/linux/unsampled-piano.desktop`, which opens the interface), its icon and the shipped presets, under `~/.local` (`PREFIX=/usr/local` for every user, as root). Saved presets go to `~/.config/unsampled-piano/presets`.
+
+## Windows, macOS and Linux packages
+
+The standalone player for each comes from the `Standalone` workflow of GitHub Actions (run it from the Actions tab, or push a `v*` tag). Opened from the Explorer or the Finder, it shows the interface and plays through the default output, with the first MIDI keyboard; from a terminal it takes the same options as on Linux, e.g. `--device`, `--output-channel` for a pair other than 1–2 on a multichannel interface.
+
+- **Windows**: an installer, `unsampled-piano-setup-windows-x86_64.exe`, that offers the standalone application, the VST3 plugin and the CLAP plugin, each one optional, and the presets they share, for all users (`Program Files`, `Common Files\VST3` and `\CLAP`, `ProgramData\Unsampled Piano\presets`) or for the current user only, with a Start menu shortcut and an uninstaller (script: `installer/windows/unsampled-piano.iss`); or a zip with `unsampled-piano.exe`, which needs nothing else installed, and the presets beside it. Output through WASAPI, or `--host asio` (the buffer size is then the one set in the driver's control panel). Personal defaults go in `%APPDATA%\unsampled-piano\play.toml` (also `host = "asio"`).
+- **macOS**: `Unsampled Piano.app`, universal (Intel and Apple silicon), output through CoreAudio, presets inside the bundle. It is not notarised: the first time, open it with a right click → Open (or `xattr -dr com.apple.quarantine "Unsampled Piano.app"`). Personal defaults go in `~/Library/Application Support/unsampled-piano/play.toml`; from a terminal, run `"Unsampled Piano.app/Contents/MacOS/unsampled-piano"`.
+- **Linux**: an archive, `unsampled-piano-<version>-linux-x86_64.tar.gz` (built on Ubuntu 24.04: PipeWire and glibc 2.39 or later), with the player, the CLAP and VST3 plugins, the presets, the menu entry and `install.sh`: `./install.sh` for the current user (`~/.local`, `~/.clap`, `~/.vst3`), `sudo ./install.sh --system` for all users (`/usr/local`, `/usr/lib/clap`, `/usr/lib/vst3`), `--uninstall` to remove them. Arch Linux and derivatives: the AUR packages `unsampled-piano` (a release) and `unsampled-piano-git` (the latest commit), whose PKGBUILDs are in `installer/aur/`; `installer/linux/make-archive.sh` builds the archive locally.
+
+Presets: the interface (standalone and plugins) lists the presets saved by the user, in `presets` of the configuration directory (where saving writes), then the shipped ones, read-only: beside the program or in the bundle, and where an installer puts them, `%PROGRAMDATA%` or `%LOCALAPPDATA%\Unsampled Piano\presets` on Windows, `/Library/Application Support/Unsampled Piano/presets` (or the user's own) on macOS, `/usr/share/unsampled-piano/presets` (`$XDG_DATA_DIRS`) on Linux. A saved preset of the same name hides the shipped one. Without the Windows installer, copying `presets` to one of those folders gives them to the plugins.
+
+Building them locally: `cargo build --profile dist -p piano-play` on Windows (cross-compiling from Linux works with `--target x86_64-pc-windows-gnu`), `tools/macos-app.sh` on a Mac (the bundle, in `target/macos`). ASIO is the `asio` feature: it needs the Steinberg ASIO SDK (dual-licensed, GPLv3; `CPAL_ASIO_DIR`, else downloaded), libclang and MSVC, so cross-compiling it with MinGW does not work.
 
 ## Plugin
 
@@ -118,7 +134,7 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 - What rings on after the release (undamped top strings, damper range): [docs/release_ring.md](docs/release_ring.md)
 - A range of instruments from one engine (hammer mass, strike point, preset fitting): [docs/instrument_range.md](docs/instrument_range.md)
 - Room level (piano directivity, microphone patterns): [docs/room_level.md](docs/room_level.md)
-- Uprights (half blow, practice mute, wall, board crown): [docs/upright.md](docs/upright.md)
+- Uprights (half blow, practice mute, repetition, wall, case, placement in the room, directivity): [docs/upright.md](docs/upright.md)
 
 ## License
 
