@@ -8,6 +8,7 @@ import DonateButton from '../components/DonateButton.astro';
 import SignalChain from '../components/SignalChain.astro';
 import HeroString from '../components/HeroString.astro';
 import DocIcon from '../components/DocIcon.astro';
+import DemoPlayer from '../components/DemoPlayer.astro';
 import { SITE, repoFile } from '../site';
 import { COUNTS } from '../lib/params';
 import interfaceShot from '../assets/interface.png';
@@ -79,7 +80,60 @@ const jsonLd = {
     </div>
   </section>
 
-  {/* ---------- 2. What it is ---------- */}
+  {/* ---------- 2. Hear it ---------- */}
+  <section class="section section-alt" id="listen">
+    <div class="container">
+      <div class="listen-head" data-reveal>
+        <p class="eyebrow">Hear it</p>
+        <h2 class="section-title">Every sound below was computed, not recorded</h2>
+        <p class="section-sub">
+          Rendered from MIDI by <a href="/docs/command-line/#unsampled-piano-render--offline-rendering"><code>unsampled-piano-render</code></a>:
+          the default instrument and hall, lid open, heard through the concert microphones unless
+          said otherwise. Nothing added afterwards but a level and the MP3 encoding.
+        </p>
+      </div>
+      <div class="listen-grid">
+        <DemoPlayer title="Prelude in C, BWV 846 — the opening" eyebrow="J. S. Bach" sources={[{ clip: 'prelude' }]} featured reveal={0}>
+          <p>
+            Eleven bars and a final chord, entered note by note: the bass held under each broken chord, the
+            sustain pedal changed with every harmony.
+          </p>
+        </DemoPlayer>
+        <DemoPlayer title="Lift the dampers" eyebrow="Sustain pedal" sources={[{ clip: 'pedal' }]} reveal={90}>
+          <p>
+            The same short chord twice, released at once: first with the dampers down, then with the pedal
+            held. The second time every free string answers through the bridge.
+          </p>
+        </DemoPlayer>
+        <DemoPlayer title="Pianissimo to fortissimo" eyebrow="Velocity" sources={[{ clip: 'dynamics' }]} reveal={180}>
+          <p>
+            One chord at four velocities. The felt stiffens the harder it is squeezed, so a faster hammer
+            brings out more upper partials: loud is not just louder.
+          </p>
+        </DemoPlayer>
+        <DemoPlayer
+          title="Close, or from the hall"
+          eyebrow="Microphones"
+          sources={[
+            { clip: 'mics-close', label: 'Close' },
+            { clip: 'mics-concert', label: 'Concert' },
+          ]}
+          reveal={270}
+        >
+          <p>
+            The first bars of the prelude, the same performance through two microphone set-ups: a pair 40 cm
+            above the soundboard, or a spaced pair two metres up in front of the open lid. Switch while it plays.
+          </p>
+        </DemoPlayer>
+      </div>
+      <p class="listen-note" data-reveal>
+        Every clip comes from MIDI written for this page — no recorded performance — and can be rendered again
+        bit for bit with <a href={repoFile('website/scripts/render-demos.sh')} rel="noopener"><code>website/scripts/render-demos.sh</code></a>.
+      </p>
+    </div>
+  </section>
+
+  {/* ---------- 3. What it is ---------- */}
   <section class="section" id="about">
     <div class="container about-inner">
       <div class="about-head" data-reveal>
@@ -108,7 +162,7 @@ const jsonLd = {
     </div>
   </section>
 
-  {/* ---------- 3. Numbers ---------- */}
+  {/* ---------- 4. Numbers ---------- */}
   <section class="stats-band" aria-label="In numbers">
     <div class="container stats">
       {
@@ -123,7 +177,7 @@ const jsonLd = {
     </div>
   </section>
 
-  {/* ---------- 4. The pieces ---------- */}
+  {/* ---------- 5. The pieces ---------- */}
   <section class="section section-alt" id="pieces">
     <div class="container">
       <h2 class="section-title" data-reveal>Three ways to play it</h2>
@@ -154,7 +208,7 @@ const jsonLd = {
     </div>
   </section>
 
-  {/* ---------- 5. Every knob ---------- */}
+  {/* ---------- 6. Every knob ---------- */}
   <section class="section" id="interface">
     <div class="container knobs-inner">
       <div class="knobs-head" data-reveal>
@@ -183,7 +237,7 @@ const jsonLd = {
     </div>
   </section>
 
-  {/* ---------- 6. Measured ---------- */}
+  {/* ---------- 7. Measured ---------- */}
   <section class="section section-alt" id="measured">
     <div class="container measured-inner">
       <div data-reveal>
@@ -206,7 +260,7 @@ const jsonLd = {
     </div>
   </section>
 
-  {/* ---------- 7. Docs ---------- */}
+  {/* ---------- 8. Docs ---------- */}
   <section class="section" id="docs">
     <div class="container">
       <h2 class="section-title" data-reveal>Docs &amp; guides</h2>
@@ -223,7 +277,7 @@ const jsonLd = {
     </div>
   </section>
 
-  {/* ---------- 8. Support ---------- */}
+  {/* ---------- 9. Support ---------- */}
   <section class="section section-alt" id="support">
     <div class="container support-inner" data-reveal>
       <h2 class="section-title">Keep the strings ringing</h2>
@@ -523,6 +577,22 @@ const jsonLd = {
     transform: translateY(-2px);
   }
 
+  /* Hear it */
+  .listen-grid {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+  .listen-grid > :global(.demo-featured) {
+    grid-column: 1 / -1;
+  }
+  .listen-note {
+    margin-top: 22px;
+    font-size: 0.86rem;
+    color: var(--up-text-muted);
+  }
+
   .measured-body p + p {
     margin-top: 1.1em;
   }
@@ -546,7 +616,8 @@ const jsonLd = {
       grid-template-columns: minmax(0, 1fr);
       gap: 24px;
     }
-    .grid-3 {
+    .grid-3,
+    .listen-grid {
       grid-template-columns: minmax(0, 1fr);
     }
     .stats {

@@ -10,7 +10,8 @@
     "preview": "astro preview",
     "check": "astro check",
     "deploy": "bash scripts/deploy.sh",
-    "params": "cargo run -q -p piano-ui --example param_reference > src/data/params.json"
+    "params": "cargo run -q -p piano-ui --example param_reference > src/data/params.json",
+    "demos": "bash scripts/render-demos.sh"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",

@@ -1,0 +1,346 @@
+---
+import peaksData from '../data/demo-peaks.json';
+
+interface Source {
+  /** File name in public/media/, without the .mp3. */
+  clip: string;
+  /** Shown on the switch when there are several sources. */
+  label?: string;
+}
+interface Props {
+  title: string;
+  eyebrow?: string;
+  sources: Source[];
+  /** The wide, first player. */
+  featured?: boolean;
+  /** Scroll-reveal stagger in ms. */
+  reveal?: number;
+}
+const { title, eyebrow, sources, featured = false, reveal } = Astro.props;
+const PEAKS = peaksData as Record<string, { duration: number; peaks: number[] }>;
+
+const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const id = `demo-${sources[0].clip}`;
+
+// Waveform outline: one bar per peak, square-root scaled so the quiet tail
+// stays visible next to the attacks.
+const W = 4;
+function bars(clip: string) {
+  return PEAKS[clip].peaks.map((p, i) => {
+    const h = Math.max(1.5, Math.sqrt(p) * 46);
+    return { x: i * W, y: 24 - h / 2, h };
+  });
+}
+const waves = sources.map((s) => ({ ...s, bars: bars(s.clip), duration: PEAKS[s.clip].duration }));
+const width = PEAKS[sources[0].clip].peaks.length * W;
+---
+
+<div
+  class:list={['card', 'demo', { 'demo-featured': featured }]}
+  data-demo
+  data-reveal={reveal !== undefined ? '' : undefined}
+  style={reveal ? `--reveal-delay: ${reveal}ms` : undefined}
+>
+  <div class="demo-head">
+    {eyebrow && <span class="eyebrow demo-eyebrow">{eyebrow}</span>}
+    <h3 class="demo-title" id={`${id}-title`}>{title}</h3>
+  </div>
+  <div class="demo-body"><slot /></div>
+
+  <div class="demo-ui">
+    <button class="demo-play" type="button" data-play aria-label={`Play: ${title}`}>
+      <svg class="icon-play" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"></path></svg>
+      <svg class="icon-pause" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"></path></svg>
+    </button>
+    <div class="demo-track">
+      {
+        waves.map((w, i) => (
+          <div
+            class="demo-wave"
+            data-wave={w.clip}
+            role="slider"
+            tabindex="0"
+            aria-label={`Position in ${title}${w.label ? ` (${w.label})` : ''}`}
+            aria-valuemin="0"
+            aria-valuemax={Math.round(w.duration)}
+            aria-valuenow="0"
+            aria-valuetext={`0:00 of ${fmt(w.duration)}`}
+            hidden={i > 0}
+          >
+            {[false, true].map((done) => (
+              <svg class:list={['demo-bars', { 'demo-bars-done': done }]} viewBox={`0 0 ${width} 48`} preserveAspectRatio="none" aria-hidden="true">
+                {w.bars.map((b) => (
+                  <rect x={b.x} y={b.y} width={W - 1.4} height={b.h} rx="1" />
+                ))}
+              </svg>
+            ))}
+          </div>
+        ))
+      }
+      <div class="demo-meta">
+        <span class="demo-time" data-time>0:00 / {fmt(waves[0].duration)}</span>
+        {
+          sources.length > 1 && (
+            <div class="demo-switch" role="group" aria-label="Listen through">
+              {sources.map((s, i) => (
+                <button type="button" data-source={s.clip} aria-pressed={i === 0 ? 'true' : 'false'}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )
+        }
+      </div>
+    </div>
+  </div>
+  <audio class="demo-native" controls preload="none" src={`/media/${sources[0].clip}.mp3`} aria-labelledby={`${id}-title`}></audio>
+</div>
+
+<script>
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const all: HTMLAudioElement[] = [];
+
+  function init(root: HTMLElement) {
+    if (root.dataset.ready) return;
+    root.dataset.ready = '1';
+    const audio = root.querySelector<HTMLAudioElement>('audio')!;
+    const play = root.querySelector<HTMLButtonElement>('[data-play]')!;
+    const time = root.querySelector<HTMLElement>('[data-time]')!;
+    const waves = [...root.querySelectorAll<HTMLElement>('[data-wave]')];
+    const switches = [...root.querySelectorAll<HTMLButtonElement>('[data-source]')];
+    let wave = waves[0];
+    all.push(audio);
+
+    const duration = () => (Number.isFinite(audio.duration) ? audio.duration : Number(wave.getAttribute('aria-valuemax')));
+    const update = () => {
+      const d = duration();
+      const t = Math.min(audio.currentTime, d);
+      wave.style.setProperty('--p', `${(100 * t) / d}%`);
+      wave.setAttribute('aria-valuenow', String(Math.round(t)));
+      wave.setAttribute('aria-valuetext', `${fmt(t)} of ${fmt(d)}`);
+      time.textContent = `${fmt(t)} / ${fmt(d)}`;
+    };
+    const seek = (t: number) => {
+      audio.currentTime = Math.max(0, Math.min(duration(), t));
+      update();
+    };
+
+    play.addEventListener('click', () => {
+      if (audio.paused) {
+        for (const other of all) if (other !== audio) other.pause();
+        audio.play();
+      } else audio.pause();
+    });
+    audio.addEventListener('play', () => root.classList.add('is-playing'));
+    audio.addEventListener('pause', () => root.classList.remove('is-playing'));
+    audio.addEventListener('ended', () => {
+      audio.currentTime = 0;
+      update();
+    });
+    audio.addEventListener('timeupdate', update);
+    audio.addEventListener('loadedmetadata', update);
+
+    for (const w of waves) {
+      const at = (e: PointerEvent) => {
+        const r = w.getBoundingClientRect();
+        seek(((e.clientX - r.left) / r.width) * duration());
+      };
+      w.addEventListener('pointerdown', (e) => {
+        w.setPointerCapture(e.pointerId);
+        at(e);
+      });
+      w.addEventListener('pointermove', (e) => {
+        if (w.hasPointerCapture(e.pointerId)) at(e);
+      });
+      w.addEventListener('keydown', (e) => {
+        const step = { ArrowLeft: -5, ArrowDown: -5, ArrowRight: 5, ArrowUp: 5 }[e.key];
+        if (step !== undefined) seek(audio.currentTime + step);
+        else if (e.key === 'Home') seek(0);
+        else if (e.key === 'End') seek(duration());
+        else if (e.key === ' ') play.click();
+        else return;
+        e.preventDefault();
+      });
+    }
+
+    // Switching sources keeps the position and the playing state: the same
+    // performance, heard from somewhere else.
+    for (const b of switches) {
+      b.addEventListener('click', () => {
+        if (b.getAttribute('aria-pressed') === 'true') return;
+        const t = audio.currentTime;
+        const playing = !audio.paused;
+        for (const o of switches) o.setAttribute('aria-pressed', String(o === b));
+        for (const w of waves) w.hidden = w.dataset.wave !== b.dataset.source;
+        wave = waves.find((w) => !w.hidden)!;
+        audio.src = `/media/${b.dataset.source}.mp3`;
+        audio.addEventListener(
+          'loadedmetadata',
+          () => {
+            audio.currentTime = t;
+            if (playing) audio.play();
+          },
+          { once: true },
+        );
+        audio.load();
+        update();
+      });
+    }
+    update();
+  }
+
+  const initAll = () => document.querySelectorAll<HTMLElement>('[data-demo]').forEach(init);
+  document.addEventListener('astro:page-load', initAll);
+  initAll();
+</script>
+
+<style>
+  .demo {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+  }
+  .demo-title {
+    font-size: 1.18rem;
+  }
+  .demo-eyebrow {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.7rem;
+  }
+  .demo-body {
+    color: var(--up-text-muted);
+    font-size: 0.95rem;
+  }
+  .demo-ui {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-top: 6px;
+  }
+  html:not(.js) .demo-ui,
+  html.js .demo-native {
+    display: none;
+  }
+  .demo-native {
+    width: 100%;
+    margin-top: auto;
+  }
+
+  .demo-play {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #1a1206;
+    background: linear-gradient(135deg, var(--up-accent) 0%, var(--up-accent-deep) 100%);
+    box-shadow: 0 0 22px rgba(242, 181, 68, 0.32);
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.2s ease;
+  }
+  .demo-play:hover {
+    transform: scale(1.06);
+    box-shadow: 0 0 30px rgba(242, 181, 68, 0.5);
+  }
+  .demo-play .icon-pause,
+  .is-playing .demo-play .icon-play {
+    display: none;
+  }
+  .is-playing .demo-play .icon-pause {
+    display: block;
+  }
+  .is-playing .demo-play {
+    box-shadow: 0 0 34px rgba(242, 181, 68, 0.6);
+  }
+
+  .demo-track {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 6px;
+  }
+  .demo-wave {
+    --p: 0%;
+    position: relative;
+    height: 48px;
+    cursor: pointer;
+    touch-action: none;
+    border-radius: 4px;
+  }
+  .demo-wave[hidden] {
+    display: none;
+  }
+  .demo-bars {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    fill: rgba(156, 163, 178, 0.38);
+  }
+  .demo-bars-done {
+    fill: var(--up-accent-light);
+    clip-path: inset(0 calc(100% - var(--p)) 0 0);
+    filter: drop-shadow(0 0 4px rgba(242, 181, 68, 0.55));
+  }
+  .demo-wave:hover .demo-bars:not(.demo-bars-done) {
+    fill: rgba(156, 163, 178, 0.55);
+  }
+
+  .demo-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .demo-time {
+    font-family: var(--up-font-mono);
+    font-size: 0.76rem;
+    color: var(--up-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .demo-switch {
+    display: inline-flex;
+    padding: 2px;
+    border: 1px solid var(--up-border);
+    border-radius: 999px;
+  }
+  .demo-switch button {
+    padding: 3px 12px;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    cursor: pointer;
+    font-family: var(--up-font-mono);
+    font-size: 0.74rem;
+    color: var(--up-text-muted);
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+  .demo-switch button:hover {
+    color: var(--up-text-bright);
+  }
+  .demo-switch button[aria-pressed='true'] {
+    background: rgba(242, 181, 68, 0.16);
+    color: var(--up-accent-light);
+  }
+
+  .demo-featured .demo-title {
+    font-size: clamp(1.3rem, 2.6vw, 1.6rem);
+  }
+  .demo-featured .demo-wave {
+    height: 64px;
+  }
+  .demo-featured .demo-play {
+    width: 60px;
+    height: 60px;
+  }
+</style>
