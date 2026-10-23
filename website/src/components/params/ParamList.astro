@@ -1,0 +1,353 @@
+---
+// Every parameter of one interface page, from the data exported by the code:
+// a card per parameter (arrays share one), grouped like the interface, with
+// its path, live/rebuild badge, default against its slider range, and the
+// two help texts the application shows — what it is on a piano, and how the
+// model does it.
+import {
+  anchor,
+  fmt,
+  fmtValue,
+  groupTitle,
+  helpHtml,
+  isNote,
+  noteName,
+  pageEntries,
+  type Entry,
+  type Param,
+} from '../../lib/params';
+
+interface Props {
+  page: string;
+}
+const { page } = Astro.props;
+
+// Sub-sections whose generic title would mislead on this page.
+const PAGE_GROUPS: Record<string, Record<string, string>> = {
+  Player: { damper: 'Sustain pedal' },
+  Microphones: { soundboard: 'Microphones and lid' },
+};
+const title = (g: string) => PAGE_GROUPS[page]?.[g] ?? groupTitle(g);
+
+const groups = pageEntries(page);
+
+/** Label of an entry: an array's labels lose their index. */
+const entryLabel = (e: Entry) =>
+  e.params.length > 1 && !e.params[0].curated ? e.params[0].label.replace(/\s*\[.*$/, '') : e.params[0].label;
+
+/** Position (0–1) of a value on a parameter's slider. */
+function pos(p: Param, v: number): number {
+  if (p.log && p.min > 0) return Math.log(v / p.min) / Math.log(p.max / p.min);
+  return (v - p.min) / (p.max - p.min);
+}
+
+const rangeText = (p: Param, v: number) => (isNote(p) ? noteName(v) : fmt(v));
+
+/** Generic arrays (bridge polylines) shown as tuples: [[x, y], …]. */
+function tuples(e: Entry): string {
+  const rows = new Map<string, string[]>();
+  for (const p of e.params) {
+    const m = p.path.match(/\[(\d+)\](?:\[(\d+)\])?$/)!;
+    const row = m[2] === undefined ? '' : m[1];
+    if (!rows.has(row)) rows.set(row, []);
+    rows.get(row)!.push(fmt(p.default as number));
+  }
+  const list = [...rows.values()].map((r) => (r.length > 1 ? `[${r.join(', ')}]` : r[0]));
+  return list.join(' · ');
+}
+---
+
+<div class="param-ref">
+  {
+    groups.map(({ group, entries }) => (
+      <section class="param-group">
+        <h2 id={`group-${group}`}>{title(group)}</h2>
+        {entries.map((e) => {
+          const p = e.params[0];
+          const array = e.params.length > 1;
+          return (
+            <article class="param" id={anchor(e.key)} data-reveal>
+              <header class="param-head">
+                <h3>
+                  <a href={`#${anchor(e.key)}`}>{entryLabel(e)}</a>
+                </h3>
+                <span
+                  class:list={['badge', p.live ? 'badge-live' : 'badge-rebuild']}
+                  title={
+                    p.live
+                      ? 'Applied by the running engine, and automatable as a plugin parameter'
+                      : 'Shapes the precomputed instrument: changing it rebuilds it in the background, without cutting held notes'
+                  }
+                >
+                  {p.live ? 'live' : 'rebuild'}
+                </span>
+              </header>
+              <code class="param-path">
+                {e.key}
+                {array && <span class="param-idx">[…]</span>}
+              </code>
+
+              {!array && p.type !== 'bool' && (
+                <div class="param-range" title={p.curated ? 'Slider range in the interface' : 'Slider range around the default (not curated)'}>
+                  <span class="range-min">{rangeText(p, p.min)}</span>
+                  <span class="range-track">
+                    <span class="range-fill" style={`--at: ${Math.min(1, Math.max(0, pos(p, p.default as number)))}`} />
+                  </span>
+                  <span class="range-max">{rangeText(p, p.max)}</span>
+                  <span class="range-default">
+                    default <strong>{fmtValue(p)}</strong>
+                    {p.log && <span class="range-note">log</span>}
+                    {!p.curated && <span class="range-note">range ≈</span>}
+                  </span>
+                </div>
+              )}
+              {!array && p.type === 'bool' && (
+                <div class="param-switch">
+                  <span class:list={['switch', { on: p.default }]} aria-hidden="true" />
+                  default <strong>{p.default ? 'on' : 'off'}</strong>
+                </div>
+              )}
+              {array && p.curated && (
+                <table class="param-array">
+                  <tbody>
+                    {e.params.map((q) => (
+                      <tr>
+                        <td>{q.label}</td>
+                        <td><code>{q.path.slice(e.key.length)}</code></td>
+                        <td>{fmtValue(q)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {array && !p.curated && (
+                <p class="param-tuples">
+                  default <code>{tuples(e)}</code>
+                </p>
+              )}
+
+              {p.what && <p class="param-what" set:html={helpHtml(p.what)} />}
+              {p.how && (
+                <div class="param-how">
+                  <span class="how-label">in the model</span>
+                  <p set:html={helpHtml(p.how)} />
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </section>
+    ))
+  }
+</div>
+
+<style>
+  .param-ref {
+    margin-top: 2.4em;
+  }
+  .param-group + .param-group {
+    margin-top: 2.6em;
+  }
+  .param-group h2 {
+    margin-bottom: 0.9em;
+    padding-bottom: 0.4em;
+    border-bottom: 1px solid var(--up-border);
+  }
+  .param {
+    position: relative;
+    margin-bottom: 14px;
+    padding: 18px 20px 16px;
+    border: 1px solid var(--up-border);
+    border-radius: var(--up-radius);
+    background: linear-gradient(180deg, rgba(30, 38, 56, 0.5), rgba(18, 24, 37, 0.5));
+    scroll-margin-top: calc(var(--up-header-h) + 20px);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .param:hover {
+    border-color: var(--up-border-strong);
+  }
+  .param:target {
+    border-color: var(--up-accent);
+    box-shadow: 0 0 0 1px var(--up-accent), 0 0 28px -6px rgba(242, 181, 68, 0.45);
+  }
+  .param-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  :global(.prose) .param-head h3 {
+    margin: 0;
+    font-size: 1.08rem;
+  }
+  :global(.prose) .param-head h3 a {
+    color: var(--up-text-bright);
+    text-decoration: none;
+  }
+  :global(.prose) .param-head h3 a:hover {
+    color: var(--up-accent-light);
+  }
+  .badge {
+    margin-left: auto;
+    padding: 1px 9px;
+    border-radius: 999px;
+    font-family: var(--up-font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: help;
+  }
+  .badge-live {
+    color: var(--up-positive);
+    border: 1px solid color-mix(in srgb, var(--up-positive) 45%, transparent);
+    background: color-mix(in srgb, var(--up-positive) 10%, transparent);
+  }
+  .badge-rebuild {
+    color: var(--up-text-muted);
+    border: 1px solid var(--up-border);
+  }
+  :global(.prose) .param-path {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--up-accent);
+    font-size: 0.82rem;
+  }
+  .param-idx {
+    color: var(--up-text-muted);
+  }
+
+  .param-range {
+    display: grid;
+    grid-template-columns: auto minmax(80px, 1fr) auto;
+    align-items: center;
+    gap: 4px 10px;
+    margin: 12px 0 4px;
+    font-family: var(--up-font-mono);
+    font-size: 0.74rem;
+    color: var(--up-text-muted);
+  }
+  .range-track {
+    position: relative;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(242, 181, 68, 0.12);
+  }
+  .range-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: calc(var(--at) * 100%);
+    border-radius: 2px;
+    background: linear-gradient(90deg, rgba(242, 181, 68, 0.25), var(--up-accent));
+  }
+  .range-fill::after {
+    content: '';
+    position: absolute;
+    right: -6px;
+    top: -4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--up-accent-light);
+    box-shadow: 0 0 10px var(--up-accent);
+  }
+  /* The knob slides in from the left the first time the card is revealed. */
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html.js) .param:not(.is-revealed) .range-fill {
+      width: 0;
+    }
+    .range-fill {
+      transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s;
+    }
+  }
+  .range-default {
+    grid-column: 1 / -1;
+    font-family: var(--up-font-body);
+    font-size: 0.86rem;
+  }
+  .range-default strong,
+  .param-switch strong {
+    color: var(--up-text-bright);
+    font-weight: 600;
+  }
+  .range-note {
+    margin-left: 8px;
+    padding: 0 6px;
+    border: 1px solid var(--up-border);
+    border-radius: 4px;
+    font-family: var(--up-font-mono);
+    font-size: 0.68rem;
+  }
+  .param-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0 4px;
+    font-size: 0.86rem;
+    color: var(--up-text-muted);
+  }
+  .switch {
+    position: relative;
+    width: 28px;
+    height: 16px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--up-text-muted);
+  }
+  .switch.on {
+    background: color-mix(in srgb, var(--up-accent) 45%, transparent);
+  }
+  .switch.on::after {
+    left: 14px;
+    background: var(--up-accent-light);
+  }
+  :global(.prose) .param-array {
+    width: auto;
+    margin: 12px 0 4px;
+    font-size: 0.84rem;
+  }
+  :global(.prose) .param-array td {
+    padding: 4px 10px;
+  }
+  :global(.prose) .param-tuples {
+    margin: 12px 0 4px;
+    font-size: 0.86rem;
+    color: var(--up-text-muted);
+  }
+  :global(.prose) .param-tuples code {
+    white-space: normal;
+  }
+  :global(.prose) .param-what {
+    margin: 12px 0 0;
+  }
+  .param-how {
+    margin-top: 12px;
+    padding: 8px 14px 9px;
+    border-left: 2px solid var(--up-copper);
+    border-radius: 0 var(--up-radius-sm) var(--up-radius-sm) 0;
+    background: rgba(217, 130, 59, 0.06);
+    font-size: 0.9rem;
+    color: var(--up-text-muted);
+  }
+  .how-label {
+    font-family: var(--up-font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--up-copper);
+  }
+  :global(.prose) .param-how p {
+    margin: 2px 0 0;
+  }
+</style>

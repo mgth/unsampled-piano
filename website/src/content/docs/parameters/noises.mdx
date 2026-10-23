@@ -1,0 +1,27 @@
+---
+title: Noises
+description: The mechanics you hear between the notes — keybed thumps, damper thuds and pedal knocks, driven into the same strings and soundboard as the notes.
+order: 107
+icon: noise
+section: Parameters
+page: Noises
+---
+import Knocks from '../../../components/diagrams/Knocks.astro';
+
+A piano is a machine, and you hear it working: the key bottoming on the keybed, a damper
+landing on a ringing string, the pedal mechanism. Sample libraries record those noises
+separately and mix them in; here they are **impulses into the instrument itself**, so they
+ring through the same soundboard, reach the same microphones and fill the same room as the
+notes — and they change with the instrument.
+
+| Noise | Where it goes | When |
+|---|---|---|
+| Keybed knock | into the soundboard, at the key's bridge region | when the hammer strikes; grows with its speed |
+| Damper landing | into the string modes, at the damper | when a damper falls on a ringing string; scaled by release velocity |
+| Pedal knock | into the soundboard, two regions near the middle | when the sustain pedal moves; grows with its speed |
+
+<Knocks />
+
+All of them are **live**: set any to 0 to remove it. `damper_mass` and `damper_speed` together
+make the momentum kick a landing damper gives the string; `damper_landing` and `knock_time`
+are how long the pushes last, so how dull they sound.

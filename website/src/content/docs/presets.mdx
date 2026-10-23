@@ -1,0 +1,72 @@
+---
+title: Presets
+description: Instruments and listening set-ups, the TOML files behind them, editing one while it plays, and making your own.
+order: 3
+icon: layers
+---
+import PresetList from '../../components/PresetList.astro';
+
+A preset is a small **TOML** file that sets some parameters and leaves every other one at the
+default instrument's value. There are two kinds, and they combine:
+
+- **Instruments** — the piano itself: hammers, strings, board, tuning. Loading one keeps your
+  listening set-up.
+- **Listening** — where you hear it from: the microphones and the lid, and the room. Loading one
+  keeps the instrument.
+
+So *a baroque instrument, close-miked, in a small hall* is three presets on top of each other.
+In the interface they are the *Instrument* and *Listening* menus of the top bar; on the command
+line, `--preset` loads one file.
+
+## What a preset looks like
+
+```toml
+# Saloon piano: strings of each unison far apart, harder felt, weaker dampers.
+hardness = 3.5
+
+[unison]
+width_mid = 12.0
+width_treble = 18.0
+
+[damper]
+strength = 0.4
+```
+
+The names are the parameter **paths** of the [reference](/docs/parameters/): `hardness` at the
+top level, `damper.strength` in the `[damper]` table, `room.size` as an array. To see every
+parameter with its default value, dump the full preset:
+
+```bash
+unsampled-piano-render dump-preset everything.toml
+```
+
+## The presets in the repository
+
+### Instruments
+
+<PresetList kind="instruments" />
+
+### Listening
+
+<PresetList kind="listening" />
+
+## Edit while it plays
+
+The standalone player **watches** its preset file: save it in your editor and the instrument is
+rebuilt in the background — about a tenth of a second — without cutting the notes you are
+holding. That makes a text editor a perfectly good voicing tool: change `hardness`, save, play,
+repeat.
+
+## Your own
+
+*Save* in the interface writes the current settings as a preset, into `presets` in the
+configuration folder (`~/.config/unsampled-piano/presets`, `%APPDATA%\unsampled-piano\presets`,
+`~/Library/Application Support/unsampled-piano/presets`) — or into the folder given by
+`--presets <folder>` or `presets = "…"` in `play.toml`. Organise it like the repository:
+instruments in `instruments/<family>/`, listening set-ups in `listening/Microphones/` and
+`listening/Room/`.
+
+The interface — standalone and plugins alike — lists your saved presets first, then the
+shipped ones, read-only: beside the program or inside the bundle, or where an installer put them
+(`ProgramData` or `LocalAppData` on Windows, `/Library/Application Support/Unsampled Piano` on
+macOS, `share/unsampled-piano` on Linux). A saved preset with the name of a shipped one hides it.

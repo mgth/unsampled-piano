@@ -1,0 +1,79 @@
+---
+title: How it works
+description: The physical chain from key to ear, the modal engine that runs it in real time, how it is calibrated against recordings — and what is not right yet.
+order: 6
+icon: atom
+---
+import SignalChain from '../../components/SignalChain.astro';
+
+Unsampled Piano contains **no recordings**. Every sound it makes is computed while you play,
+from a model of the parts of a piano and the way they push on each other. Recordings of real
+pianos are used for one thing only: measuring, to set the model's parameters and check them.
+
+## The chain
+
+<SignalChain />
+
+1. **Hammer.** A key's velocity becomes a hammer speed. The hammer's felt is a nonlinear,
+   hysteretic spring (Stulov), layered with a hard core; a passive contact solver integrates
+   the strike against the strings, sample by sample. → [Hammer](/docs/parameters/hammer/)
+2. **Strings.** One to three stiff strings per key, each a bank of modes with its own
+   inharmonicity, losses and two directions of vibration, coupled to the other strings of its
+   key through the bridge (Weinreich): the double decay and the beating come out of that
+   coupling, not from envelopes. Loud bass notes add their phantom partials. →
+   [Strings](/docs/parameters/strings/), [Tuning](/docs/parameters/tuning/)
+3. **Dampers and pedals.** Dampers are dashpots on the strings; the sustain pedal is continuous;
+   with the dampers up, every free string listens to the bridge (sympathetic resonance). →
+   [Dampers](/docs/parameters/dampers/), [Player](/docs/parameters/player/)
+4. **Soundboard.** A clamped orthotropic plate, modal, driven by the bridges, loading the strings
+   in return. The cast-iron frame and the rim radiate too. →
+   [Soundboard](/docs/parameters/soundboard/), [Frame & rim](/docs/parameters/frame-rim/)
+5. **Radiation.** Two microphones in space hear the board through the Rayleigh integral, with
+   its back face, the lid's reflection and shadow. → [Microphones](/docs/parameters/microphones/)
+6. **Room.** Image sources for the early reflections, a feedback delay network for the tail. →
+   [Room](/docs/parameters/room/)
+
+Mechanical noises — keybed, dampers, pedal — are impulses into the same strings and board.
+→ [Noises](/docs/parameters/noises/)
+
+## A modal engine
+
+Strings, board, frame and rim are all written the same way: as **modes**, damped oscillators
+each computed as a complex one-pole recursion, *z* ← *p*·*z* + *b*·*x*. The complex form keeps
+the frequencies exact in single precision down to A0, and it vectorises: modes are packed in
+chunks that the CPU advances together with AVX2 or AVX-512. One core of a recent desktop CPU
+runs several hundred thousand modes in real time; a whole piano with every string free is a few
+percent of it. Results are **bit-identical** whatever the instruction set, which makes offline
+renders reproducible.
+
+What is costly is not playing but **building**: computing the string modes, the board's modes,
+their coupling and the radiation weights for two microphones. Changing a "rebuild" parameter
+does that in the background — about a tenth of a second — and swaps the new instrument in
+without cutting held notes.
+
+## Calibration
+
+The default instrument is fitted, step by step, on measurements:
+
+- **Salamander Grand** — recordings of a Yamaha C5, analysed note by note: partial frequencies
+  (inharmonicity, stretch), decay rates of every partial (ESPRIT), prompt sound and aftersound.
+- **Iowa** — a second set of real piano recordings, for the spread between instruments.
+- **A commercial modelled piano**, recorded through its ten acoustic models, as a reference for
+  timbre at every dynamic, for pedal behaviour and for the range of instruments.
+
+Each step is a document in the repository — the hypothesis, the measurement, what changed and
+by how much: [the list is in the README](https://github.com/mgth/unsampled-piano#documentation).
+
+## Honestly: what is not right yet
+
+The model sits within the spread of the references on most measures, not everywhere. Known gaps, as of October 2026:
+
+- the top octave (C7–C8) is too quiet at *pp*, and its held notes die a bit too fast;
+- in the treble (C5–B6) at *mf*, the end of a held note is 6–10 dB short at 3 seconds;
+- in the middle register, partials 8–12 are 5–8 dB low during the sustain;
+- the bass ends of note are 2–3 dB short at 3 seconds.
+
+Structural work still ahead: a felt whose stiffness grows gradually instead of two layers, a
+realistic soundboard (ribs, varying thickness, finite-element modes), and the duplex scale. If
+you know pianos — or physics — and hear something wrong, an
+[issue](https://github.com/mgth/unsampled-piano/issues) is very welcome.

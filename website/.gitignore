@@ -1,0 +1,15 @@
+# build output
+dist/
+# generated types
+.astro/
+# dependencies
+node_modules/
+# logs
+npm-debug.log*
+# environment
+.env
+.env.production
+# FTP deploy credentials (never commit)
+.env.deploy
+# macOS
+.DS_Store

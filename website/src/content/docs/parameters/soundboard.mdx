@@ -1,0 +1,64 @@
+---
+title: Soundboard
+description: The spruce plate that turns string motion into sound — its modes, damping, bridges, radiation, and the upright's case and wall.
+order: 108
+icon: board
+section: Parameters
+page: Soundboard
+---
+import PlateModes from '../../../components/diagrams/PlateModes.astro';
+import BackFace from '../../../components/diagrams/BackFace.astro';
+
+A string alone is nearly silent: it is far too thin to push air. Its vibration goes through
+the **bridge** into the **soundboard**, a large, thin spruce panel that moves the air of the
+room. The board decides most of a piano's voice: which frequencies come out strong, how long
+notes last, how the bass blooms.
+
+## A plate of modes
+
+The model treats the board as an orthotropic plate — spruce is about twice as stiff along its
+grain as across — clamped in the rim. Like the strings, it is a set of modes, each a damped
+oscillator; the strings drive them through the bridge, and the board's motion in turn loads
+the strings, which is where much of a note's decay comes from.
+
+<PlateModes />
+
+Its size (`a`, `b`), its surface mass `rho_h` and its stiffnesses `dx`, `dy` set where those
+modes fall and how easily the strings move the board: a heavier board gives longer but quieter
+notes. The board is also slightly **crowned** — arched, and pressed down by the strings — which
+stiffens it like a shell and lifts its lowest modes: `crown_freq`. Below them all, the whole
+case moves on its legs as a block, a heavily damped **piston** mode that drinks some energy
+from the deep bass (`piston_*`).
+
+## Damping and bridges
+
+`loss_factor` is the board's internal damping (about 2 %), growing with frequency above
+`loss_corner`: lower corners dull the highs. The bridge — the hardwood beam where the strings
+rest — is stiff, so a string's push is spread along it over a part of a bending wavelength
+(`bridge_stiffness`, `bridge_line_mass`, `bridge_spread`) instead of hitting the board at a
+point, which smooths the high frequencies. Under the treble, the board is thicker and more
+ribbed and moves less: `impedance_slope`, with its counterpart toward the bass
+(`impedance_slope_bass`), keeps the bass side from booming like a barrel.
+
+Where the two bridges lie (`treble_bridge`, `bass_bridge`, `main_bridge_from`) decides which
+modes each key excites — see the dots on the figure above.
+
+## Radiation
+
+Each microphone hears every mode by the **Rayleigh integral**: the board is cut into patches
+(`grid_step`), and each patch's motion reaches the microphone with its own delay and distance.
+The board pushes air from both faces at once:
+
+<BackFace />
+
+## Uprights
+
+An upright's board stands vertically (`vertical`), behind the action, usually a few centimetres
+from a wall. The sound of its back face then bounces off that wall and comes back into the room
+(`wall_distance`, `wall_reflection`), and its front is closed by the case: the action, the keys
+and panels, through which sound only partly escapes (`case_open`, `case_panel_mass` — the
+heavier the panels, the darker and more boxed-in the tone). The method and the measurements
+are in [docs/upright.md](https://github.com/mgth/unsampled-piano/blob/main/docs/upright.md).
+
+The `bridge.*` group is only used **without** a soundboard: a measured bridge admittance that
+stands in for the board when it is switched off, for analysis.

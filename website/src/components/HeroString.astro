@@ -1,0 +1,354 @@
+---
+// The hero visual: one string of the default instrument, struck by the keys
+// below it — click them, or type on a computer keyboard. The string's shape is
+// the sum of its partials, each at the key's real inharmonic frequency
+// k·f0·√(1 + B·k²), excited by the strike point and decaying at its own rate;
+// a harder strike (lower on the key) feeds more high partials, as felt does.
+// Time is slowed so the motion can be seen, and it makes no sound: the sound
+// is what the download is for. Idle, it plays to itself.
+import { curveAt, def, noteName } from '../lib/params';
+
+const FIRST = 48;
+const LAST = 72;
+const a4 = def('a4');
+const strike = def('strike_ratio');
+const strings = (n: number) => (n >= def('unison.trichord_from') ? 3 : n >= def('unison.bichord_from') ? 2 : 1);
+const keys = Array.from({ length: LAST - FIRST + 1 }, (_, i) => {
+  const n = FIRST + i;
+  const cents = curveAt('Stretch', n);
+  return {
+    n,
+    name: noteName(n),
+    f0: a4 * 2 ** ((n - 69) / 12) * 2 ** (cents / 1200),
+    B: curveAt('Inharmonicity B', n),
+    t60: curveAt('Fundamental T60 (string losses alone)', n),
+    strings: strings(n),
+    stretch: cents,
+  };
+});
+const isBlack = (n: number) => [1, 3, 6, 8, 10].includes(n % 12);
+const whites = keys.filter((k) => !isBlack(k.n));
+const typing = 'awsedftgyhujkolp;'.split('');
+---
+
+<figure class="hero-string" data-hero-string={JSON.stringify({ keys, strike, first: FIRST })} aria-label="Interactive visualisation of a piano string: click the keys to strike it">
+  <canvas class="hs-canvas" aria-hidden="true"></canvas>
+  <div class="hs-readout" aria-live="polite">
+    <span class="hs-note">—</span>
+    <span class="hs-detail">click a key, or type <kbd>A</kbd>…<kbd>K</kbd></span>
+  </div>
+  <div class="hs-keys" role="group" aria-label="Keyboard, C3 to C5">
+    {
+      whites.map((k) => (
+        <button type="button" class="hs-key hs-white" data-n={k.n} aria-label={`Strike ${k.name}`}>
+          {k.n % 12 === 0 && <span>{k.name}</span>}
+        </button>
+      ))
+    }
+    {
+      keys
+        .filter((k) => isBlack(k.n))
+        .map((k) => {
+          const left = whites.findIndex((w) => w.n === k.n - 1) + 1;
+          return (
+            <button
+              type="button"
+              class="hs-key hs-black"
+              data-n={k.n}
+              aria-label={`Strike ${k.name}`}
+              style={`left: calc(${left} * 100% / ${whites.length} - 100% / ${whites.length} * 0.3)`}
+            />
+          );
+        })
+    }
+  </div>
+  <figcaption>
+    Silent, slowed-down physics: partial <em>k</em> at k·f0·√(1 + B·k²), struck at {strike} of the string. Lower on a key strikes
+    harder. <span data-typing hidden>{typing.join('')}</span>
+  </figcaption>
+</figure>
+
+<style>
+  .hero-string {
+    position: relative;
+    margin: 0;
+    padding: 16px 16px 12px;
+    border-radius: var(--up-radius);
+    border: 1px solid var(--up-border-strong);
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(242, 181, 68, 0.1), transparent 60%),
+      linear-gradient(180deg, #161d2c, #0e1320);
+  }
+  .hs-canvas {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 8.2;
+  }
+  .hs-readout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 14px;
+    min-height: 1.6em;
+    margin: 6px 2px 10px;
+    font-family: var(--up-font-mono);
+    font-size: 0.78rem;
+    color: var(--up-text-muted);
+  }
+  .hs-note {
+    font-size: 1rem;
+    color: var(--up-accent-light);
+  }
+  .hs-readout kbd {
+    padding: 0 5px;
+    border: 1px solid var(--up-border-strong);
+    border-radius: 4px;
+    font-size: 0.72rem;
+  }
+  .hs-keys {
+    position: relative;
+    display: flex;
+    height: 74px;
+    user-select: none;
+    touch-action: none;
+  }
+  .hs-key {
+    appearance: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    transition: background 0.08s ease, transform 0.08s ease;
+  }
+  .hs-white {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    margin: 0 1px;
+    border-radius: 0 0 5px 5px;
+    background: linear-gradient(180deg, #d8d2c4, var(--up-ivory));
+    font-family: var(--up-font-mono);
+    font-size: 0.6rem;
+    color: #6b6457;
+    padding-bottom: 4px;
+  }
+  .hs-black {
+    position: absolute;
+    top: 0;
+    width: calc(100% / 15 * 0.6);
+    height: 62%;
+    border-radius: 0 0 4px 4px;
+    background: linear-gradient(180deg, #2a3142, #10141f);
+    z-index: 1;
+  }
+  .hs-key.down {
+    transform: translateY(2px);
+  }
+  .hs-white.down {
+    background: linear-gradient(180deg, #f6c766, var(--up-accent));
+  }
+  .hs-black.down {
+    background: linear-gradient(180deg, #b07a1c, #6b4a12);
+  }
+  figcaption {
+    margin-top: 10px;
+    font-size: 0.78rem;
+    color: var(--up-text-muted);
+  }
+</style>
+
+<script>
+  interface Key {
+    n: number;
+    name: string;
+    f0: number;
+    B: number;
+    t60: number;
+    strings: number;
+    stretch: number;
+  }
+  const K = 18;
+  // Visual time: the fundamental of C4 swings ~3 times a second.
+  const SLOW = 3 / 262;
+
+  function initHeroString() {
+    const fig = document.querySelector<HTMLElement>('[data-hero-string]:not([data-bound])');
+    if (!fig) return;
+    fig.dataset.bound = '1';
+    const { keys, strike } = JSON.parse(fig.dataset.heroString!) as { keys: Key[]; strike: number };
+    const canvas = fig.querySelector('canvas')!;
+    const ctx = canvas.getContext('2d')!;
+    const note = fig.querySelector<HTMLElement>('.hs-note')!;
+    const detail = fig.querySelector<HTMLElement>('.hs-detail')!;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Ringing partials: ratio to f0 (inharmonic), amplitude, decay rate.
+    let current: Key = keys.find((k) => k.n === 60)!;
+    let partials: { ratio: number; a: number; s: number }[] = [];
+    let t0 = performance.now();
+
+    function hit(k: Key, force: number) {
+      current = k;
+      t0 = performance.now();
+      // Harder strikes: a flatter excitation spectrum (the felt stiffens).
+      const tilt = 2.2 - 1.3 * force;
+      const shape = Array.from({ length: K }, (_, i) => Math.sin((i + 1) * Math.PI * strike) / (i + 1) ** tilt);
+      const norm = (0.5 + 0.5 * force) / shape.reduce((s, a) => s + Math.abs(a), 0);
+      partials = shape.map((a, i) => {
+        const m = i + 1;
+        return {
+          ratio: m * Math.sqrt(1 + k.B * m * m),
+          a: a * norm,
+          // Visible decay: a few seconds, the high partials sooner.
+          s: 0.22 + 0.004 * m * m + 3 / Math.max(4, k.t60 * 0.3),
+        };
+      });
+      const k12 = 1200 * Math.log2(Math.sqrt(1 + k.B * 144));
+      note.textContent = `${k.name} · ${k.f0.toFixed(1)} Hz`;
+      detail.textContent = `B ${k.B.toExponential(1)} · stretch ${k.stretch >= 0 ? '+' : ''}${k.stretch.toFixed(1)}¢ · partial 12 +${k12.toFixed(0)}¢ · ${k.strings} string${k.strings > 1 ? 's' : ''}`;
+      if (reduced) draw(performance.now() + 120);
+    }
+
+    function size() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const r = canvas.getBoundingClientRect();
+      canvas.width = Math.round(r.width * dpr);
+      canvas.height = Math.round(r.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function draw(now: number) {
+      const W = canvas.clientWidth;
+      const H = canvas.clientHeight;
+      ctx.clearRect(0, 0, W, H);
+      const t = (now - t0) / 1000;
+      const L = 28, R = W - 28, Y = H * 0.3, AMP = H * 0.24;
+      const amps = partials.map((p) => p.a * Math.exp(-p.s * t));
+
+      // String: Σ a_k e^(−σt) sin(kπx) cos(2π f_k t), slowed.
+      ctx.lineWidth = 2.4;
+      ctx.strokeStyle = '#ffd27a';
+      ctx.shadowColor = 'rgba(242,181,68,0.7)';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      const N = 160;
+      for (let i = 0; i <= N; i++) {
+        const x = i / N;
+        let y = 0;
+        for (let k = 0; k < partials.length; k++) {
+          const p = partials[k];
+          y += amps[k] * Math.sin((k + 1) * Math.PI * x) * Math.cos(2 * Math.PI * current.f0 * SLOW * p.ratio * t);
+        }
+        const px = L + x * (R - L);
+        const py = Y - y * AMP;
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      // Agraffe, bridge, hammer mark.
+      ctx.fillStyle = '#e8e2d4';
+      ctx.beginPath();
+      ctx.arc(L, Y, 5, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.fillStyle = '#d9823b';
+      ctx.beginPath();
+      ctx.moveTo(R - 7, Y + 10);
+      ctx.lineTo(R, Y);
+      ctx.lineTo(R + 7, Y + 10);
+      ctx.fill();
+      const hx = L + strike * (R - L);
+      ctx.fillStyle = 'rgba(232,226,212,0.85)';
+      ctx.beginPath();
+      ctx.moveTo(hx, Y + AMP * 0.9);
+      ctx.lineTo(hx - 5, Y + AMP * 0.9 + 9);
+      ctx.lineTo(hx + 5, Y + AMP * 0.9 + 9);
+      ctx.fill();
+
+      // Spectrum: each partial at its inharmonic ratio, over ghost ticks at
+      // the exact harmonics.
+      const SB = H - 18, ST = H * 0.64, maxR = K + 2;
+      const sx = (r: number) => L + (r / maxR) * (R - L);
+      ctx.strokeStyle = 'rgba(156,163,178,0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(L, SB);
+      ctx.lineTo(R, SB);
+      ctx.stroke();
+      ctx.font = '10px "JetBrains Mono Variable", monospace';
+      ctx.fillStyle = 'rgba(156,163,178,0.8)';
+      for (let k = 1; k <= K; k++) {
+        ctx.fillRect(sx(k) - 0.5, SB, 1, 4);
+        if (k === 1 || k % 4 === 0) ctx.fillText(String(k), sx(k) - 3, SB + 14);
+      }
+      for (let k = 0; k < partials.length; k++) {
+        const h = Math.min(1, Math.abs(amps[k]) * 2.6) * (SB - ST);
+        const x = sx(partials[k].ratio);
+        ctx.fillStyle = `rgba(255,210,122,${0.35 + 0.65 * Math.min(1, h / (SB - ST) * 1.5)})`;
+        ctx.fillRect(x - 2, SB - h, 4, h);
+      }
+      ctx.fillStyle = 'rgba(156,163,178,0.8)';
+      ctx.fillText('partials vs exact harmonics', L, ST - 6);
+    }
+
+    // Keys: pointer (lower on the key = harder) and computer keyboard.
+    const buttons = new Map<number, HTMLButtonElement>();
+    fig.querySelectorAll<HTMLButtonElement>('.hs-key').forEach((b) => buttons.set(Number(b.dataset.n), b));
+    let lastInput = 0;
+    const press = (n: number, force: number) => {
+      const k = keys.find((k) => k.n === n);
+      if (!k) return;
+      hit(k, force);
+      const b = buttons.get(n);
+      b?.classList.add('down');
+      setTimeout(() => b?.classList.remove('down'), 140);
+    };
+    buttons.forEach((b, n) =>
+      b.addEventListener('pointerdown', (e) => {
+        const r = b.getBoundingClientRect();
+        lastInput = performance.now();
+        press(n, Math.min(1, Math.max(0.15, (e.clientY - r.top) / r.height)));
+      }),
+    );
+    const typing = (fig.querySelector('[data-typing]')?.textContent ?? '').split('');
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const i = typing.indexOf(e.key.toLowerCase());
+      if (i < 0 || !fig.isConnected) return;
+      const r = fig.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > window.innerHeight) return;
+      lastInput = performance.now();
+      press(60 + i, 0.7);
+    });
+
+    size();
+    window.addEventListener('resize', size);
+    hit(current, 0.6);
+    if (reduced) {
+      draw(performance.now() + 120);
+      return;
+    }
+
+    // Idle: a slow arpeggio, so the string is never still for long.
+    const tune = [60, 64, 67, 72, 67, 64, 55, 59, 62, 67, 62, 59, 57, 60, 64, 69, 64, 60];
+    let step = 0;
+    let lastAuto = performance.now();
+    let visible = true;
+    new IntersectionObserver((e) => (visible = e[0].isIntersecting)).observe(canvas);
+    const loop = (now: number) => {
+      if (!canvas.isConnected) return;
+      if (visible) {
+        if (now - lastInput > 6000 && now - lastAuto > 1700) {
+          lastAuto = now;
+          press(tune[step++ % tune.length], 0.35 + 0.5 * Math.random());
+        }
+        draw(now);
+      }
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+  document.addEventListener('astro:page-load', initHeroString);
+  initHeroString();
+</script>

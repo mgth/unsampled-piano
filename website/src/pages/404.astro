@@ -1,0 +1,49 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import GlowBackground from '../components/GlowBackground.astro';
+---
+
+<BaseLayout title="Page not found">
+  <section class="notfound">
+    <GlowBackground />
+    <div class="container notfound-inner">
+      <p class="eyebrow">404</p>
+      <h1 class="glow-text">Wrong note</h1>
+      <p class="notfound-sub">No string is tuned to that page. Let's get you back in tune.</p>
+      <div class="notfound-actions">
+        <a class="btn btn-primary" href="/">Home</a>
+        <a class="btn btn-secondary" href="/docs/">Documentation</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .notfound {
+    position: relative;
+    overflow: hidden;
+    min-height: 62vh;
+    display: flex;
+    align-items: center;
+  }
+  .notfound-inner {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+  }
+  .notfound h1 {
+    margin-top: 8px;
+    font-size: clamp(2rem, 6vw, 3.2rem);
+  }
+  .notfound-sub {
+    margin-top: 14px;
+    color: var(--up-text-muted);
+  }
+  .notfound-actions {
+    margin-top: 30px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+</style>

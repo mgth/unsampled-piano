@@ -1,0 +1,112 @@
+---
+// The lid in section, across the keyboard (treble and audience to the right):
+// it is hinged on the bass side and opens over the board. Microphones in
+// front of the opening get the direct sound, and the lid's reflection when
+// they are in its beam: the mirror construction the model uses for its image
+// paths. Drawn with the concert set-up's lid angle and microphone, and the
+// same microphone 1 m up, where the set-up first had it.
+import Figure from './Figure.astro';
+import { BOARD } from '../../lib/geometry';
+import { def, fmt } from '../../lib/params';
+import { preset } from '../../lib/presets';
+
+const { b } = BOARD;
+const concert = preset('listening', 'concert').values.soundboard;
+const theta = (concert.lid_angle * Math.PI) / 180;
+const hinge: [number, number] = [b, def('soundboard.lid_hinge_height')];
+const u: [number, number] = [-Math.cos(theta), Math.sin(theta)];
+const lidEnd: [number, number] = [hinge[0] + b * u[0], hinge[1] + b * u[1]];
+const mic: [number, number] = [concert.mics[0][1] * b, concert.mics[0][2]];
+
+const low: [number, number] = [mic[0], 1.0];
+
+// Mirror a mic in the lid's line, then aim at the image from a board point:
+// where that line crosses the lid is the reflection point, if it is on the lid.
+function mirror(m: [number, number]): [number, number] {
+  const rx = m[0] - hinge[0], rz = m[1] - hinge[1];
+  const dot = rx * u[0] + rz * u[1];
+  return [hinge[0] + 2 * dot * u[0] - rx, hinge[1] + 2 * dot * u[1] - rz];
+}
+function hit(src: [number, number], image: [number, number]): [number, number] | null {
+  const dx = image[0] - src[0], dz = image[1] - src[1];
+  const det = dx * -u[1] - dz * -u[0];
+  if (Math.abs(det) < 1e-9) return null;
+  const qx = hinge[0] - src[0], qz = hinge[1] - src[1];
+  const t = (qx * -u[1] - qz * -u[0]) / det;
+  const s = (dx * qz - dz * qx) / det;
+  return t > 0 && t < 1 && s > 0 && s < b ? [src[0] + t * dx, src[1] + t * dz] : null;
+}
+const sources: [number, number][] = [0.95, 0.75, 0.55, 0.35].map((f) => [f * b, 0]);
+const image = mirror(low);
+const lidRays = sources.map((s) => ({ s, p: hit(s, image) })).filter((r) => r.p);
+const highMissed = sources.every((s) => !hit(s, mirror(mic)));
+
+const S = 92;
+const X = (y: number) => 300 - y * S;
+const Y = (z: number) => 222 - z * S;
+const pt = ([y, z]: [number, number]) => `${X(y).toFixed(1)} ${Y(z).toFixed(1)}`;
+---
+
+<Figure
+  label="Lid · section across the keyboard"
+  caption={`The lid, hinged on the bass side ${fmt(hinge[1])} m above the board and open at ${concert.lid_angle}° as in the concert set-up, reflects part of the sound towards the audience (<code>lid_reflection</code> = ${fmt(def('soundboard.lid_reflection'))}). At 1 m up, where the concert pair first stood, a microphone sits in that beam (and lost 10 dB at 2–4 kHz in the middle register, <a href="https://github.com/mgth/unsampled-piano/blob/main/docs/presence.md">docs/presence.md</a>); at 2 m it is above it. Each patch of the board gets an image path through the lid whenever the reflection reaches a microphone; a microphone behind the lid only gets <code>lid_transmission</code>. No diffraction is modelled.`}
+>
+  <svg viewBox="0 0 480 250" role="img" aria-label="Section of the grand piano with the lid open, showing direct and reflected sound paths to a microphone">
+    <rect x={X(b) - 8} y={Y(0)} width={b * S + 16} height="22" rx="3" fill="#2a2018" stroke="#5a3a1e"></rect>
+    <line x1={X(b)} x2={X(0)} y1={Y(0)} y2={Y(0)} stroke="var(--up-copper)" stroke-width="4" stroke-linecap="round"></line>
+    <text class="dg-text dg-mid" x={X(b / 2)} y={Y(0) + 15} style="fill:#c9a27c">soundboard</text>
+    <line x1={X(b)} x2={X(b)} y1={Y(0)} y2={Y(hinge[1])} stroke="#5a3a1e" stroke-width="3"></line>
+    <path d={`M${pt(hinge)} L${pt(lidEnd)}`} stroke="var(--up-text-bright)" stroke-width="4" stroke-linecap="round"></path>
+    <circle cx={X(hinge[0])} cy={Y(hinge[1])} r="3.5" fill="var(--up-text-muted)"></circle>
+    <text class="dg-text" x={X(hinge[0]) - 8} y={Y(hinge[1]) + 4} text-anchor="end">hinge</text>
+    <text class="dg-label dg-end" x={X(lidEnd[0]) - 6} y={Y(lidEnd[1]) - 8}>lid {concert.lid_angle}°</text>
+    <path d={`M${X(hinge[0]) - 40} ${Y(hinge[1])} A40 40 0 0 1 ${X(hinge[0] + 40 * u[0] / S)} ${Y(hinge[1] + 40 * u[1] / S)}`} class="dg-faint"></path>
+
+    {sources.map((src, i) => (
+      <path class="ray ray-direct" d={`M${pt(src)} L${pt(mic)}`} style={`--d: ${i * 0.25}s`}></path>
+    ))}
+    {lidRays.map((r, i) => (
+      <path class="ray ray-lid" d={`M${pt(r.s)} L${pt(r.p!)} L${pt(low)}`} style={`--d: ${i * 0.25}s`}></path>
+    ))}
+    {sources.map((src) => <circle cx={X(src[0])} cy={Y(0)} r="3" fill="var(--up-accent-light)"></circle>)}
+
+    <circle cx={X(mic[0])} cy={Y(mic[1])} r="7.5" fill="#0b0f18" stroke="#6cb8ff" stroke-width="2"></circle>
+    <text class="dg-text dg-end" x={X(mic[0]) - 12} y={Y(mic[1]) + 4} style="fill:#6cb8ff">concert mic, {fmt(mic[1])} m{highMissed ? ': above the reflection' : ''}</text>
+    <circle cx={X(low[0])} cy={Y(low[1])} r="7.5" fill="#0b0f18" stroke="#6cb8ff" stroke-width="2" stroke-dasharray="3 2"></circle>
+    <text class="dg-text dg-end" x={X(low[0]) + 8} y={Y(low[1]) + 22} style="fill:#6cb8ff">at 1 m: in the lid's beam</text>
+    <line class="dg-faint" x1="20" x2="470" y1={Y(0) + 22} y2={Y(0) + 22}></line>
+    <text class="dg-text" x="24" y={Y(0) + 18}>bass side</text>
+    <text class="dg-text dg-end" x="466" y={Y(0) + 18}>treble side · audience</text>
+    <g class="legend">
+      <line x1="24" x2="44" y1="18" y2="18" class="ray-direct" stroke-dasharray="none"></line>
+      <text class="dg-text" x="50" y="21">direct</text>
+      <line x1="100" x2="120" y1="18" y2="18" class="ray-lid" stroke-dasharray="none"></line>
+      <text class="dg-text" x="126" y="21">off the lid</text>
+    </g>
+  </svg>
+</Figure>
+
+<style>
+  .ray {
+    fill: none;
+    stroke-width: 1.4;
+    stroke-dasharray: 5 7;
+  }
+  .ray-direct {
+    stroke: rgba(242, 181, 68, 0.75);
+  }
+  .ray-lid {
+    stroke: #6cb8ff;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .ray {
+      animation: ray-flow 0.9s linear infinite;
+      animation-delay: var(--d);
+    }
+  }
+  @keyframes ray-flow {
+    to {
+      stroke-dashoffset: -12;
+    }
+  }
+</style>

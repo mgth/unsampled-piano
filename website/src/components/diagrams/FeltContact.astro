@@ -1,0 +1,89 @@
+---
+// The felt under the string at middle C, and the force it pushes back with.
+// Left: the string sinks into the soft top felt, then reaches the hard core.
+// Right: F(u) of the default instrument at C4 — top felt Q0·u^p, plus the core
+// term Q_core·(u − d)^p_core past the top-felt depth d — with the point
+// following the compression on the left.
+import Figure from './Figure.astro';
+import { curveAt, def, fmt } from '../../lib/params';
+
+const q0 = curveAt('Felt stiffness Q0', 60);
+const p = curveAt('Felt exponent p', 60);
+const d = def('core_depth_mid');
+const qCore = def('core_hardness') * (q0 / def('hardness'));
+const pCore = def('core_p');
+const force = (u: number) => q0 * u ** p + (u > d ? qCore * (u - d) ** pCore : 0);
+const top = (u: number) => q0 * u ** p;
+
+const UMAX = d + 0.25;
+const FMAX = Math.ceil(force(UMAX) / 200) * 200;
+const X0 = 268, X1 = 466, Y0 = 26, Y1 = 166;
+const sx = (u: number) => X0 + (u / UMAX) * (X1 - X0);
+const sy = (f: number) => Y1 - (f / FMAX) * (Y1 - Y0);
+const path = (f: (u: number) => number) =>
+  Array.from({ length: 101 }, (_, i) => (i / 100) * UMAX)
+    .map((u, i) => `${i ? 'L' : 'M'}${sx(u).toFixed(1)} ${sy(Math.min(f(u), FMAX * 1.05)).toFixed(1)}`)
+    .join(' ');
+
+// The zoom: 1 mm of compression = PX pixels.
+const PX = 110;
+const SURF = 70;
+const LEFT = 18, RIGHT = 226, CX = 122, R = 26;
+const S = 40;
+const us = Array.from({ length: S + 1 }, (_, i) => UMAX * (1 - Math.cos((2 * Math.PI * i) / S)) / 2);
+const keyTimes = us.map((_, i) => (i / S).toFixed(4)).join(';');
+// Surface dented by the string: a smooth trough under it.
+const dent = (y0: number, depth: number, half: number) =>
+  `M${LEFT} ${y0} L${CX - half - 26} ${y0} C${CX - half} ${y0} ${CX - half * 0.6} ${y0 + depth} ${CX} ${y0 + depth} C${CX + half * 0.6} ${y0 + depth} ${CX + half} ${y0} ${CX + half + 26} ${y0} L${RIGHT} ${y0} L${RIGHT} 176 L${LEFT} 176 Z`;
+const topD = us.map((u) => dent(SURF, u * PX, 30 + u * 40)).join(';');
+const coreY = SURF + d * PX;
+const coreD = us.map((u) => dent(coreY, Math.max(0, u - d) * PX * 0.35 + (u > d ? 0 : 0), 24 + Math.max(0, u - d) * 60)).join(';');
+const stringPos = us.map((u) => `0,${(u * PX).toFixed(2)}`).join(';');
+const dot = us.map((u) => `${sx(u).toFixed(1)},${sy(force(u)).toFixed(1)}`).join(';');
+const DUR = '3.6s';
+---
+
+<Figure
+  label="Felt under the string · middle C"
+  caption={`Left, enlarged: the string sinks <em>u</em> into the felt. Right, the force: the soft top felt alone (dashed) gives Q0·u<sup>p</sup> with Q0 = ${fmt(q0)} N/mm<sup>p</sup> and p = ${fmt(p)} at C4; past its depth d = ${fmt(d)} mm the core adds Q_core·(u − d)<sup>${fmt(pCore)}</sup> with Q_core = ${fmt(def('core_hardness'))} × Stulov's Q0. Played softly the hammer stays in the top felt and the tone is round; played hard it hits the core and the tone brightens sharply.`}
+>
+  <svg viewBox="0 0 480 205" role="img" aria-label="Felt compression at middle C and the felt force curve with its knee at the core">
+    <defs>
+      <clipPath id="fc-zoom"><rect x={LEFT} y="14" width={RIGHT - LEFT} height="164" rx="8"></rect></clipPath>
+    </defs>
+    <g clip-path="url(#fc-zoom)">
+      <rect x={LEFT} y="14" width={RIGHT - LEFT} height="164" fill="rgba(11,15,24,0.6)"></rect>
+      <path d={dent(SURF, 0, 30)} fill="#e8e2d4">
+        <animate attributeName="d" values={topD} keyTimes={keyTimes} dur={DUR} repeatCount="indefinite"></animate>
+      </path>
+      <path d={dent(coreY, 0, 24)} fill="#a89f8a">
+        <animate attributeName="d" values={coreD} keyTimes={keyTimes} dur={DUR} repeatCount="indefinite"></animate>
+      </path>
+      <g>
+        <animateTransform attributeName="transform" type="translate" values={stringPos} keyTimes={keyTimes} dur={DUR} repeatCount="indefinite"></animateTransform>
+        <circle cx={CX} cy={SURF - R} r={R} fill="#ffd27a" stroke="#f2b544" stroke-width="2"></circle>
+        <circle cx={CX} cy={SURF - R} r={R * 0.55} fill="none" stroke="#c9952e" stroke-width="1"></circle>
+        <text class="dg-text dg-mid" x={CX} y={SURF - R + 3.5} fill="#1a1206" style="fill:#1a1206">string</text>
+      </g>
+    </g>
+    <line class="dg-faint dg-dash" x1={LEFT} x2={RIGHT} y1={SURF} y2={SURF}></line>
+    <text class="dg-text" x={RIGHT - 4} y={SURF + 12} text-anchor="end" style="fill:#3a3a3a">top felt</text>
+    <text class="dg-text" x={RIGHT - 4} y={coreY + 14} text-anchor="end" style="fill:#2a2a2a">core</text>
+    <path d={`M${LEFT + 10} ${SURF} V${coreY}`} stroke="var(--up-copper)" stroke-width="1.4"></path>
+    <text class="dg-text" x={LEFT + 14} y={(SURF + coreY) / 2 + 3} style="fill:#7a4a20">d</text>
+
+    <text class="dg-title" x={X0} y="14">force F(u)</text>
+    <path class="dg-faint" d={`M${X0} ${Y0}V${Y1}H${X1}`}></path>
+    {[0, FMAX / 2, FMAX].map((f) => <text class="dg-text dg-end" x={X0 - 5} y={sy(f) + 3}>{fmt(f)}</text>)}
+    <text class="dg-text dg-end" x={X0 - 5} y={Y0 - 6} font-size="9">N</text>
+    {[0, d, UMAX].map((u) => <text class="dg-text dg-mid" x={sx(u)} y={Y1 + 13}>{fmt(+u.toFixed(2))}</text>)}
+    <text class="dg-text dg-mid" x={(X0 + X1) / 2} y={Y1 + 27} font-size="9">compression u (mm)</text>
+    <line class="dg-faint dg-dash" x1={sx(d)} x2={sx(d)} y1={Y0} y2={Y1}></line>
+    <text class="dg-hl" x={sx(d) - 4} y={Y0 + 10} text-anchor="end">core reached</text>
+    <path d={path(top)} fill="none" stroke="var(--up-text-muted)" stroke-dasharray="4 3"></path>
+    <path class="dg-string" d={path(force)}></path>
+    <circle r="5" fill="var(--up-bg)" stroke="var(--up-accent-light)" stroke-width="2.2">
+      <animateMotion values={dot} keyTimes={keyTimes} dur={DUR} repeatCount="indefinite"></animateMotion>
+    </circle>
+  </svg>
+</Figure>

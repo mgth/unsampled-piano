@@ -1,0 +1,54 @@
+---
+// Why a piano note has two decays. Left: the string's cross-section, its
+// motion starting up-and-down (the hammer's direction) and turning sideways
+// as the vertical motion, which moves the bridge, dies first. Right: the
+// level of a note — a fast prompt sound, then a slow aftersound. Schematic.
+import Figure from './Figure.astro';
+
+const CX = 92, CY = 96;
+// Vertical swing decays fast, horizontal slowly; a slow phase drift between
+// them draws the turning ellipse. Sampled over 8 s, looped.
+const N = 600;
+const path = Array.from({ length: N + 1 }, (_, i) => {
+  const t = (i / N) * 8;
+  const v = 60 * Math.exp(-t / 1.1);
+  const h = 22 * (1 - Math.exp(-t / 0.8)) * Math.exp(-t / 9);
+  const w = 2 * Math.PI * 9;
+  return `${i ? 'L' : 'M'}${(CX + h * Math.sin(w * t + 0.4 * t)).toFixed(1)} ${(CY + v * Math.sin(w * t)).toFixed(1)}`;
+}).join(' ');
+
+const X0 = 230, X1 = 466, Y0 = 26, Y1 = 166;
+const T = 20;
+const sx = (t: number) => X0 + (t / T) * (X1 - X0);
+const sy = (db: number) => Y0 + (-db / 60) * (Y1 - Y0);
+const level = (t: number) => 10 * Math.log10(10 ** ((-60 * t) / 3 / 10) + 10 ** ((-15 - (60 * t) / 30) / 10));
+const curve = Array.from({ length: 201 }, (_, i) => (i / 200) * T)
+  .map((t, i) => `${i ? 'L' : 'M'}${sx(t).toFixed(1)} ${sy(Math.max(-60, level(t))).toFixed(1)}`)
+  .join(' ');
+---
+
+<Figure
+  label="Prompt sound and aftersound"
+  caption="Left: the string seen end-on. The hammer starts it up and down, the direction in which it moves the bridge most — so that motion gives its energy away quickly, while the sideways motion, barely coupled, rings on. Right: the level of a note, schematically: a steep first decay (the prompt sound), then a slow one 10–20 dB lower (the aftersound). The unisons' small mistuning feeds the same effect."
+>
+  <svg viewBox="0 0 480 205" role="img" aria-label="String motion turning from vertical to horizontal, and a two-slope decay curve">
+    <text class="dg-title" x="20" y="16">string, end-on</text>
+    <line class="dg-faint" x1={CX} x2={CX} y1={CY - 70} y2={CY + 70}></line>
+    <line class="dg-faint" x1={CX - 70} x2={CX + 70} y1={CY} y2={CY}></line>
+    <text class="dg-text" x={CX + 4} y={CY - 72}>vertical</text>
+    <text class="dg-text dg-end" x={CX + 70} y={CY - 6}>horizontal</text>
+    <path d={path} fill="none" stroke="rgba(242,181,68,0.13)" stroke-width="1"></path>
+    <circle r="6" fill="var(--up-accent-light)" style="filter: drop-shadow(0 0 6px #f2b544)">
+      <animateMotion path={path} dur="8s" repeatCount="indefinite"></animateMotion>
+    </circle>
+
+    <text class="dg-title" x={X0} y="16">level of a note</text>
+    <path class="dg-faint" d={`M${X0} ${Y0}V${Y1}H${X1}`}></path>
+    {[0, -20, -40, -60].map((d) => <text class="dg-text dg-end" x={X0 - 5} y={sy(d) + 3}>{d}</text>)}
+    {[0, 5, 10, 15, 20].map((t) => <text class="dg-text dg-mid" x={sx(t)} y={Y1 + 13}>{t} s</text>)}
+    <text class="dg-text dg-end" x={X0 - 5} y={Y0 - 8}>dB</text>
+    <path class="dg-string" d={curve}></path>
+    <text class="dg-hl" x={sx(0.9)} y={sy(-40)}>← prompt sound</text>
+    <text class="dg-hl" x={sx(9.5)} y={sy(-24)}>aftersound</text>
+  </svg>
+</Figure>

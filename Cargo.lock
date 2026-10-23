@@ -3503,6 +3503,7 @@ dependencies = [
  "piano-core",
  "piano-host",
  "piano-params",
+ "serde_json",
 ]
 
 [[package]]

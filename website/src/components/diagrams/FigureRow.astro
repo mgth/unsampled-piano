@@ -1,0 +1,17 @@
+---
+// Two or three figures side by side, stacking on narrow screens.
+---
+
+<div class="fig-row"><slot /></div>
+
+<style>
+  .fig-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0 16px;
+    margin: 1.8em 0;
+  }
+  .fig-row > :global(.fig) {
+    margin: 0 0 16px;
+  }
+</style>

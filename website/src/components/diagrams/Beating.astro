@@ -1,0 +1,43 @@
+---
+// Two strings of one key, a few cents apart: their sum swells and fades at
+// the difference frequency. Shown for middle C at the default spread; the
+// carrier is drawn far slower than it is (261.6 Hz) so the beat shows.
+import Figure from './Figure.astro';
+import { curveAt, def, fmt } from '../../lib/params';
+
+const f0 = def('a4') * 2 ** ((60 - 69) / 12);
+const cents = curveAt('Unison spread', 60);
+const df = f0 * (2 ** (cents / 1200) - 1);
+const period = 1 / df;
+const X0 = 20, X1 = 460, Y = 70, H = 44;
+const N = 900;
+const CYCLES = 46;
+const wave = Array.from({ length: N + 1 }, (_, i) => {
+  const u = i / N;
+  const env = Math.cos(Math.PI * u);
+  const y = env * Math.cos(2 * Math.PI * CYCLES * u);
+  return `${i ? 'L' : 'M'}${(X0 + u * (X1 - X0)).toFixed(1)} ${(Y - H * y).toFixed(1)}`;
+}).join(' ');
+const envelope = (sgn: number) =>
+  Array.from({ length: 121 }, (_, i) => {
+    const u = i / 120;
+    return `${i ? 'L' : 'M'}${(X0 + u * (X1 - X0)).toFixed(1)} ${(Y - sgn * H * Math.abs(Math.cos(Math.PI * u))).toFixed(1)}`;
+  }).join(' ');
+---
+
+<Figure
+  label="Unison · two strings, slightly apart"
+  caption={`At middle C the default spread is ${fmt(cents)} cent between the extreme strings: ${fmt(f0)} Hz against ${fmt(f0 + df)} Hz, a beat every ${fmt(period)} s — too slow to hear as a wobble, but enough to make the strings trade energy, which feeds the long, shimmering aftersound. Tens of cents (the honky-tonk preset) and the beats become a sound of their own.`}
+>
+  <svg viewBox="0 0 480 140" role="img" aria-label="Sum of two slightly detuned strings, beating">
+    <path d={envelope(1)} fill="none" stroke="rgba(242,181,68,0.4)" stroke-dasharray="3 3"></path>
+    <path d={envelope(-1)} fill="none" stroke="rgba(242,181,68,0.4)" stroke-dasharray="3 3"></path>
+    <path d={wave} fill="none" stroke="var(--up-accent-light)" stroke-width="1.1"></path>
+    <line x1={X0} x2={X0} y1={Y - H - 6} y2={Y + H + 6} stroke="var(--up-positive)" stroke-width="1.5">
+      <animate attributeName="x1" values={`${X0};${X1}`} dur="6s" repeatCount="indefinite"></animate>
+      <animate attributeName="x2" values={`${X0};${X1}`} dur="6s" repeatCount="indefinite"></animate>
+    </line>
+    <path class="dg-faint" d={`M${X0} ${Y + H + 14} v6 H${X1} v-6`}></path>
+    <text class="dg-label dg-mid" x={(X0 + X1) / 2} y={Y + H + 32}>one beat: {fmt(period)} s (carrier slowed down)</text>
+  </svg>
+</Figure>

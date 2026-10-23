@@ -1,0 +1,67 @@
+---
+// The presets shipped in the repository, read at build time: name, folder,
+// the comment at the top of the file, and the values it sets.
+import { presets, presetTitle } from '../lib/presets';
+
+interface Props {
+  kind: 'listening' | 'instruments';
+}
+const { kind } = Astro.props;
+const list = presets(kind);
+
+/** "soundboard.lid_angle = 35" lines of a parsed preset. */
+function lines(v: Record<string, any>, prefix = ''): string[] {
+  return Object.entries(v).flatMap(([k, x]) =>
+    x && typeof x === 'object' && !Array.isArray(x)
+      ? lines(x, `${prefix}${k}.`)
+      : [`${prefix}${k} = ${JSON.stringify(x).replace(/,/g, ', ')}`],
+  );
+}
+---
+
+<div class="presets">
+  {list.map((p) => (
+    <article class="preset card">
+      <header>
+        <span class="eyebrow">{p.group}</span>
+        <h4>{presetTitle(p.name)}</h4>
+      </header>
+      <p>{p.summary}</p>
+      <pre><code>{lines(p.values).join('\n')}</code></pre>
+    </article>
+  ))}
+</div>
+
+<style>
+  .presets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    gap: 14px;
+    margin: 1.4em 0 1.8em;
+  }
+  .preset {
+    padding: 16px 18px;
+  }
+  .preset header {
+    display: grid;
+    gap: 2px;
+  }
+  .preset .eyebrow {
+    font-size: 0.66rem;
+  }
+  :global(.prose) .preset h4 {
+    margin: 0;
+  }
+  :global(.prose) .preset p {
+    margin: 8px 0 10px;
+    font-size: 0.88rem;
+    color: var(--up-text-muted);
+  }
+  :global(.prose) .preset pre {
+    margin: 0;
+    padding: 10px 12px;
+    font-size: 0.74rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+</style>

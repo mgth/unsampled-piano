@@ -1,0 +1,556 @@
+---
+import { getCollection } from 'astro:content';
+import { Image } from 'astro:assets';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import GlowBackground from '../components/GlowBackground.astro';
+import FeatureCard from '../components/FeatureCard.astro';
+import DonateButton from '../components/DonateButton.astro';
+import SignalChain from '../components/SignalChain.astro';
+import HeroString from '../components/HeroString.astro';
+import DocIcon from '../components/DocIcon.astro';
+import { SITE, repoFile } from '../site';
+import { COUNTS } from '../lib/params';
+import interfaceShot from '../assets/interface.png';
+
+const docs = await getCollection('docs');
+const guides = docs.filter((d) => d.data.section === 'Guides').sort((a, b) => a.data.order - b.data.order);
+const paramPages = docs.filter((d) => d.data.section === 'Parameters').sort((a, b) => a.data.order - b.data.order);
+
+// owner/repo for the live stars badge in the hero.
+const githubRepo = new URL(SITE.github).pathname.slice(1);
+
+const stats = [
+  { n: 0, label: 'samples', note: 'not one byte of recorded sound' },
+  { n: COUNTS.total, label: 'parameters', note: 'every one a physical quantity' },
+  { n: COUNTS.live, label: 'live', note: 'automatable while you play' },
+  { n: 88, label: 'keys', note: '× up to 3 strings × 2 polarisations' },
+];
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: SITE.name,
+  description: SITE.description,
+  applicationCategory: 'MultimediaApplication',
+  operatingSystem: 'Linux, Windows, macOS',
+  license: 'https://www.gnu.org/licenses/gpl-3.0.html',
+  url: Astro.site?.toString(),
+  downloadUrl: new URL('/download/', Astro.site).toString(),
+  sameAs: [SITE.github],
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+};
+---
+
+<BaseLayout jsonLd={jsonLd}>
+  {/* ---------- 1. Hero ---------- */}
+  <section class="hero">
+    <GlowBackground />
+    <div class="container hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow">a piano with no samples in it</p>
+        <h1 class="hero-title glow-text">Unsampled<br /><span>Piano</span></h1>
+        <p class="hero-tagline">
+          Every note is computed while you play: a felt hammer hits stiff steel strings, the strings
+          shake a spruce soundboard, the board pushes the air towards two microphones in a hall.
+          Physics in real time, from MIDI, in Rust.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/download/">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"></path>
+            </svg>
+            Download
+          </a>
+          <a class="btn btn-secondary" href="/docs/parameters/">Explore the parameters</a>
+          <a class="hero-source" href={SITE.github} rel="noopener">or read the source &rarr;</a>
+          <a class="hero-stars" href={SITE.github} rel="noopener" data-stars data-repo={githubRepo} hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2.5l2.94 5.95 6.57.96-4.76 4.63 1.13 6.54L12 17.5l-5.88 3.08 1.13-6.54-4.76-4.63 6.57-.96z"></path>
+            </svg>
+            <span data-stars-count></span>
+          </a>
+        </div>
+        <p class="hero-platforms">Standalone for Linux, Windows &amp; macOS · CLAP &amp; VST3 plugin · GPL-3.0</p>
+      </div>
+
+      <div class="hero-visual">
+        <HeroString />
+      </div>
+    </div>
+  </section>
+
+  {/* ---------- 2. What it is ---------- */}
+  <section class="section" id="about">
+    <div class="container about-inner">
+      <div class="about-head" data-reveal>
+        <h2 class="section-title">No recordings. Just the piano's physics.</h2>
+        <p class="about-more">
+          <a href="/docs/how-it-works/">How it works, and what isn't right yet &rarr;</a>
+        </p>
+      </div>
+      <div class="about-body" data-reveal style="--reveal-delay: 120ms">
+        <p class="about-lede">
+          Sampled pianos replay recordings; Unsampled Piano <strong>builds the instrument</strong>
+          and lets it ring. Strings and soundboard are thousands of coupled modes, each a damped
+          oscillator; the hammer is a nonlinear felt spring; the sound you hear is what two
+          microphones pick up from a vibrating board, in a room. Change a string's tension or the
+          lid's angle and the piano changes — because there is nothing else to change.
+        </p>
+        <ul class="about-points">
+          <li><span class="dot"></span>Half pedal, sympathetic resonance, beating unisons, phantom partials: not effects, consequences.</li>
+          <li><span class="dot"></span>Grands and uprights from one engine — action, case, lid, wall behind the board.</li>
+          <li><span class="dot"></span>Edit any parameter while playing: the instrument rebuilds in the background without cutting notes.</li>
+          <li><span class="dot"></span>Calibrated on recordings of real pianos, step by step, every step documented.</li>
+        </ul>
+      </div>
+
+      <SignalChain />
+    </div>
+  </section>
+
+  {/* ---------- 3. Numbers ---------- */}
+  <section class="stats-band" aria-label="In numbers">
+    <div class="container stats">
+      {
+        stats.map((s, i) => (
+          <div class="stat" data-reveal style={`--reveal-delay: ${i * 90}ms`}>
+            <strong data-count={s.n}>{s.n}</strong>
+            <span class="stat-label">{s.label}</span>
+            <span class="stat-note">{s.note}</span>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  {/* ---------- 4. The pieces ---------- */}
+  <section class="section section-alt" id="pieces">
+    <div class="container">
+      <h2 class="section-title" data-reveal>Three ways to play it</h2>
+      <div class="grid-3">
+        <FeatureCard title="Standalone" eyebrow="unsampled-piano" href="/docs/getting-started/" cta="Get started" reveal={0}>
+          <p>An application with its interface, for a keyboard and an audio interface.</p>
+          <ul>
+            <li>Linux: a PipeWire/JACK graph node with MIDI in and a MIDI mirror out</li>
+            <li>Windows: WASAPI or ASIO; macOS: CoreAudio, universal</li>
+            <li>Sample-accurate MIDI, MIDI files back to back</li>
+          </ul>
+        </FeatureCard>
+        <FeatureCard title="Plugin" eyebrow="CLAP · VST3" href="/docs/midi/#plugin-automation" cta="Automation" reveal={100}>
+          <p>The same engine and interface, inside your DAW.</p>
+          <ul>
+            <li>Live parameters are host parameters: automate the pedals' behaviour, the velocity curve, the noises</li>
+            <li>The whole instrument and the learnt controllers saved with the project</li>
+          </ul>
+        </FeatureCard>
+        <FeatureCard title="Offline renderer" eyebrow="unsampled-piano-render" href="/docs/command-line/" cta="Command line" reveal={200}>
+          <p>MIDI in, stereo WAV out — deterministic, bit for bit.</p>
+          <ul>
+            <li>Render pieces, single notes or sweeps of the whole keyboard</li>
+            <li>Compare two presets on the very same performance</li>
+          </ul>
+        </FeatureCard>
+      </div>
+    </div>
+  </section>
+
+  {/* ---------- 5. Every knob ---------- */}
+  <section class="section" id="interface">
+    <div class="container knobs-inner">
+      <div class="knobs-head" data-reveal>
+        <p class="eyebrow">The interface</p>
+        <h2 class="section-title">Every knob is a piece of the piano</h2>
+        <p class="section-sub">
+          {COUNTS.total} parameters, no macros: felt hardness, string tension, board stiffness, lid angle,
+          wall absorption. Each comes with what it is on a real piano and how the model does it; each page
+          has a sketch drawn from your settings.
+        </p>
+        <a class="btn btn-secondary knobs-cta" href="/docs/parameters/">Parameter reference</a>
+      </div>
+      <div class="knobs-shot glow" data-reveal style="--reveal-delay: 120ms">
+        <Image src={interfaceShot} alt="The interface, Strings page: the C4 string, its partials, and per-key losses, string length and unison spread" widths={[640, 960, 1375]} sizes="(max-width: 980px) 92vw, 700px" />
+      </div>
+      <nav class="knob-pages" aria-label="Parameter pages">
+        {
+          paramPages.map((p, i) => (
+            <a href={`/docs/${p.id}/`} class="knob-page" data-reveal style={`--reveal-delay: ${i * 40}ms`}>
+              <DocIcon name={p.data.icon} />
+              <span>{p.data.title}</span>
+            </a>
+          ))
+        }
+      </nav>
+    </div>
+  </section>
+
+  {/* ---------- 6. Measured ---------- */}
+  <section class="section section-alt" id="measured">
+    <div class="container measured-inner">
+      <div data-reveal>
+        <p class="eyebrow">Measured, not guessed</p>
+        <h2 class="section-title">Fitted on real pianos, one hypothesis at a time</h2>
+      </div>
+      <div class="measured-body" data-reveal style="--reveal-delay: 120ms">
+        <p>
+          The defaults come from measurements: partial frequencies and decay rates of every note of a
+          recorded Yamaha C5 (ESPRIT analysis), a second recorded set for the spread between pianos,
+          and a commercial modelled piano for timbre at every dynamic, pedalling and the range of
+          instruments. Each change starts as a hypothesis, gets measured, and lands with its numbers.
+        </p>
+        <p>
+          The write-ups are in the repository — inharmonicity, bridge conductance, sustain, phantom
+          partials, the lid, uprights — <a href={repoFile('README.md#documentation')} rel="noopener">over twenty of them</a>.
+          And where the model still falls short, <a href="/docs/how-it-works/#honestly-what-is-not-right-yet">the docs say so</a>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  {/* ---------- 7. Docs ---------- */}
+  <section class="section" id="docs">
+    <div class="container">
+      <h2 class="section-title" data-reveal>Docs &amp; guides</h2>
+      <p class="section-sub" data-reveal>Install it, play it, drive it from MIDI, and find out what's inside.</p>
+      <div class="grid-docs">
+        {
+          guides.map((entry, i) => (
+            <FeatureCard title={entry.data.title} href={`/docs/${entry.id}/`} cta="Read" icon={entry.data.icon} reveal={i * 70}>
+              <p>{entry.data.description}</p>
+            </FeatureCard>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  {/* ---------- 8. Support ---------- */}
+  <section class="section section-alt" id="support">
+    <div class="container support-inner" data-reveal>
+      <h2 class="section-title">Keep the strings ringing</h2>
+      <p class="section-sub">
+        Unsampled Piano is free software under {SITE.license} — a nights-and-weekends project, not a
+        product. If it gave you a good evening at the keyboard, a coffee keeps it going.
+      </p>
+      <DonateButton />
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { fetchGitHubJson } from '../scripts/github';
+
+  // Live GitHub star count in the hero. Stays hidden on any failure — the
+  // "read the source" link already covers the destination.
+  async function loadStars() {
+    const el = document.querySelector<HTMLElement>('[data-stars]');
+    if (!el || el.dataset.loaded || !el.dataset.repo) return;
+    try {
+      const repo = await fetchGitHubJson(`/repos/${el.dataset.repo}`);
+      const n = repo?.stargazers_count;
+      if (typeof n !== 'number' || n === 0) return;
+      const count = el.querySelector('[data-stars-count]');
+      if (!count) return;
+      count.textContent = String(n);
+      el.setAttribute('aria-label', `${n} stars on GitHub`);
+      el.dataset.loaded = '1';
+      el.hidden = false;
+    } catch {
+      // Rate-limited or offline — keep the badge hidden.
+    }
+  }
+
+  // Numbers count up the first time they scroll into view.
+  function initCounts() {
+    const els = document.querySelectorAll<HTMLElement>('.stat [data-count]:not([data-counted])');
+    if (!els.length || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const el = e.target as HTMLElement;
+        io.unobserve(el);
+        el.dataset.counted = '1';
+        const end = Number(el.dataset.count);
+        const t0 = performance.now();
+        const step = (now: number) => {
+          const u = Math.min(1, (now - t0) / 1200);
+          el.textContent = String(Math.round(end * (1 - (1 - u) ** 3)));
+          if (u < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }
+    });
+    els.forEach((el) => io.observe(el));
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    loadStars();
+    initCounts();
+  });
+  loadStars();
+  initCounts();
+</script>
+
+<style>
+  /* Hero */
+  .hero {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--up-border);
+    background: radial-gradient(120% 100% at 30% 0%, var(--up-bg-radial-from), var(--up-bg-radial-to) 70%);
+  }
+  .hero-inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    align-items: center;
+    gap: clamp(32px, 6vw, 72px);
+    padding-block: clamp(56px, 10vw, 108px);
+  }
+  .hero-title {
+    margin: 14px 0 0;
+    font-size: clamp(3rem, 8.4vw, 5rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .hero-title span {
+    color: var(--up-accent);
+  }
+  .hero-tagline {
+    margin-top: 22px;
+    max-width: 34ch;
+    font-size: clamp(1.08rem, 2.2vw, 1.25rem);
+  }
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 18px;
+    margin-top: 32px;
+  }
+  .hero-source {
+    font-size: 0.95rem;
+    color: var(--up-text-muted);
+  }
+  .hero-stars {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid var(--up-border);
+    border-radius: 999px;
+    font-family: var(--up-font-mono);
+    font-size: 0.82rem;
+    color: var(--up-text-muted);
+  }
+  .hero-stars svg {
+    color: #ffc861;
+  }
+  .hero-stars[hidden] {
+    display: none;
+  }
+  .hero-platforms {
+    margin-top: 22px;
+    font-family: var(--up-font-mono);
+    font-size: 0.76rem;
+    color: var(--up-text-muted);
+  }
+
+  /* Shared section bits */
+  .section-alt {
+    background: linear-gradient(180deg, rgba(29, 36, 51, 0.32), transparent);
+    border-block: 1px solid var(--up-border);
+  }
+  .section-title {
+    font-size: clamp(1.6rem, 3.6vw, 2.2rem);
+  }
+  .section-sub {
+    margin-top: 12px;
+    max-width: 60ch;
+    color: var(--up-text-muted);
+  }
+  .about-inner,
+  .measured-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    gap: clamp(24px, 5vw, 72px);
+    align-items: start;
+  }
+  .about-more {
+    margin-top: 16px;
+    font-size: 0.92rem;
+  }
+  .about-lede {
+    font-size: 1.12rem;
+  }
+  .about-points {
+    list-style: none;
+    margin: 26px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+  }
+  .about-points li {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    color: var(--up-text-muted);
+  }
+  .dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--up-accent);
+    box-shadow: 0 0 10px var(--up-accent);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .dot {
+      animation: dot-pulse 3.6s ease-in-out infinite;
+    }
+  }
+  @keyframes dot-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 7px var(--up-accent);
+    }
+    50% {
+      box-shadow: 0 0 16px var(--up-accent);
+    }
+  }
+
+  /* Numbers */
+  .stats-band {
+    border-block: 1px solid var(--up-border);
+    background:
+      repeating-linear-gradient(90deg, rgba(242, 181, 68, 0.035) 0 1px, transparent 1px 44px),
+      rgba(20, 27, 43, 0.6);
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+    padding-block: clamp(32px, 5vw, 52px);
+  }
+  .stat {
+    display: grid;
+    gap: 2px;
+  }
+  .stat strong {
+    font-family: var(--up-font-display);
+    font-size: clamp(2.2rem, 5vw, 3.2rem);
+    line-height: 1;
+    color: var(--up-accent-light);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 22px rgba(242, 181, 68, 0.35);
+  }
+  .stat-label {
+    font-family: var(--up-font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--up-text-bright);
+  }
+  .stat-note {
+    font-size: 0.86rem;
+    color: var(--up-text-muted);
+  }
+
+  .grid-3 {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+  .grid-docs {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 18px;
+  }
+
+  /* Interface */
+  .knobs-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: clamp(24px, 5vw, 64px);
+    align-items: center;
+  }
+  .knobs-head .section-title {
+    margin-top: 12px;
+  }
+  .knobs-cta {
+    margin-top: 24px;
+  }
+  .knobs-shot {
+    border-radius: var(--up-radius);
+    overflow: hidden;
+    border: 1px solid var(--up-border-strong);
+  }
+  .knobs-shot :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .knob-pages {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .knob-page {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--up-border);
+    background: rgba(242, 181, 68, 0.04);
+    color: var(--up-text);
+    font-family: var(--up-font-display);
+    font-size: 0.92rem;
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+  }
+  .knob-page :global(.doc-icon) {
+    width: 18px;
+    height: 18px;
+    color: var(--up-accent);
+  }
+  .knob-page:hover {
+    color: var(--up-text-bright);
+    border-color: var(--up-accent);
+    background: rgba(242, 181, 68, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .measured-body p + p {
+    margin-top: 1.1em;
+  }
+
+  .support-inner {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .support-inner .section-sub {
+    margin-inline: auto;
+    margin-bottom: 28px;
+  }
+
+  @media (max-width: 980px) {
+    .hero-inner,
+    .about-inner,
+    .measured-inner,
+    .knobs-inner {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+    }
+    .grid-3 {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+</style>

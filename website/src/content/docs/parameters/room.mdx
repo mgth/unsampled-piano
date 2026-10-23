@@ -1,0 +1,43 @@
+---
+title: Room
+description: The hall around the piano — its size, walls and reverberation, the early echoes as image sources, and how much the piano beams its sound.
+order: 110
+icon: room
+section: Parameters
+page: Room
+---
+import RoomView from '../../../components/diagrams/RoomView.astro';
+
+The microphones do not stop at the direct sound: they also hear the room. The model places the
+piano and its microphones in a **shoebox** hall and computes what reaches them in two parts —
+the first echoes exactly, the late reverberation statistically.
+
+<RoomView />
+
+## Early reflections
+
+Each wall reflection is the sound of an **image** of the piano mirrored in that wall, arriving
+later and weaker; reflections of reflections are images of images. The model computes them up
+to `order` (3 by default), each with its own wall filtering: walls absorb more of some
+frequencies than others (`absorption_low` around 125 Hz, `absorption_high` around 4 kHz). For
+the reflections the piano is a point source at the board's centre; `piano` places the board in
+the room, and near a wall its echoes come early and strong.
+
+## Reverberation
+
+After the first echoes, a 16-line **feedback delay network** takes over and builds the dense
+tail. Its decay follows Sabine's formula, T60 = 0.161·V / (S·α), with the air absorbing more of
+the highs; `tail_gain` scales it (1 is physical: the reverberant energy is set from the room's
+critical distance).
+
+## Directivity
+
+A piano does not radiate evenly. A grand with its lid open beams its sound towards the audience
+side; an upright against a wall spreads it. Since the room is driven by the sound the
+microphones hear, `directivity` (a factor Q) says how much of it the piano sends everywhere
+else: the higher Q, the less it fills the room. 0 lets the instrument decide — 3 for a grand
+with its lid open, 2 with it closed or removed, 2 for an upright against a wall, 1.5 standing
+free.
+
+The *Room* listening presets are these halls; *Dry* turns the room off and leaves the piano
+alone with its microphones.

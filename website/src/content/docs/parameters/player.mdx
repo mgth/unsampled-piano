@@ -1,0 +1,76 @@
+---
+title: Player
+description: What your hands and feet drive — velocity, pedals, repetition and output level. Every one of them is live.
+order: 101
+icon: player
+section: Parameters
+page: Player
+---
+import CurveChart from '../../../components/diagrams/CurveChart.astro';
+import PedalCurve from '../../../components/diagrams/PedalCurve.astro';
+import SoftPedal from '../../../components/diagrams/SoftPedal.astro';
+import FigureRow from '../../../components/diagrams/FigureRow.astro';
+
+The **Player** page is the touch of the instrument: how a MIDI velocity becomes a hammer
+speed, what the three pedals do, how quickly an upright repeats a note, and the overall
+level. All of these are **live**: the engine applies them while you play, and in the plugin
+they are host parameters you can automate.
+
+## From velocity to hammer speed
+
+A MIDI keyboard sends a velocity from 1 to 127; a piano only knows how fast its hammer flies.
+The map between the two is exponential — the same law recording pianos use — so that a MIDI
+file recorded on a Disklavier keeps its dynamics:
+
+<p class="formula">v<sub>hammer</sub> = vmin · (vmax / vmin)<sup>(velocity − 1) / 126</sup></p>
+
+<CurveChart
+  title="Hammer speed by velocity"
+  caption="The default map, 0.6 m/s at velocity 1 to 4.2 m/s at 127 (logarithmic scale: a straight line is an exponential). Velocity 77 lands at 1.9 m/s, as on a Disklavier. Hover to read it."
+/>
+
+A faster hammer does not just play louder: it squeezes its felt harder, and felt stiffens the
+more it is squeezed, so a fortissimo is also much **brighter**. That is why raising `vmax`
+changes the timbre of the loudest notes, not only their level — see the [hammer](/docs/parameters/hammer/).
+
+## The sustain pedal
+
+The right pedal (CC 64) lifts every damper off the strings. It is continuous: between resting
+and lifted there is a **half pedal** where the dampers only brush the strings and notes die
+slowly — pianists use it all the time. Three parameters shape it.
+
+<PedalCurve />
+
+How quickly a damper actually falls back or lifts, and how hard it grips, is on the
+[Dampers](/docs/parameters/dampers/) page.
+
+## The soft pedal and the middle pedal
+
+The left pedal (CC 67) works differently on a grand and on an upright, and the model does
+both; presets choose with `una_corda_shift`.
+
+<SoftPedal />
+
+The middle pedal (CC 66) is a **sostenuto** on a grand: it keeps up the dampers of the keys
+held when it goes down. Many uprights use it instead to lower a strip of felt between hammers
+and strings, for practising quietly: give `mute_felt` a thickness and the middle pedal becomes
+that practice mute.
+
+## Repetition
+
+A grand's action has a double escapement: a key can strike again before it has come all the
+way up. An upright's cannot, so a note repeated too soon after its release comes out weaker.
+`repetition_time` is that recovery time (0 on a grand), `repetition_floor` how strong an
+immediate re-strike still is.
+
+<CurveChart
+  label="Repetition · hammer speed of a re-strike"
+  points={Array.from({ length: 101 }, (_, i) => { const t = i * 0.0012; const x = Math.min(1, t / 0.06); return [t, 0.5 + 0.5 * x * x * (3 - 2 * x)]; })}
+  x="plain"
+  xUnit="s"
+  y={[0, 1]}
+  caption="Share of the hammer speed for a key struck again Δt after its release, on an upright with <code>repetition_time</code> = 0.06 s (an estimate: uprights repeat up to about 7 notes a second, grands 14) and <code>repetition_floor</code> = 0.5 (about −8 dB). On a grand the curve is flat at 1."
+/>
+
+`output_gain_db` is the last stage: a gain after the room, smoothed so automation never
+clicks. It does not change the tone.

@@ -1,0 +1,92 @@
+---
+// The mechanical noises are short half-sine pushes, into the soundboard (the
+// key hitting the keybed, the pedal mechanism) or into the strings (a damper
+// landing). Left: their shapes over a few milliseconds. Right: their spectra —
+// flat, then falling above about 1/duration: a longer knock is a duller one.
+import Figure from './Figure.astro';
+import { def, fmt } from '../../lib/params';
+
+const knock = def('noise.knock_time');
+const landing = def('noise.damper_landing');
+const series = [
+  { T: knock, label: `keybed & pedal knock · ${fmt(knock * 1000)} ms`, color: '#ff6fb5' },
+  { T: landing, label: `damper landing · ${fmt(landing * 1000)} ms`, color: '#a78bfa' },
+];
+
+// Shapes: time 0–8 ms.
+const A0 = 22, A1 = 196, AY = 150, AH = 100;
+const ta = (t: number) => A0 + (t / 0.008) * (A1 - A0);
+const shape = (T: number) =>
+  Array.from({ length: 81 }, (_, i) => (i / 80) * 0.008)
+    .map((t, i) => `${i ? 'L' : 'M'}${ta(t).toFixed(1)} ${(AY - (t < T ? Math.sin((Math.PI * t) / T) : 0) * AH).toFixed(1)}`)
+    .join(' ');
+
+// Spectra: |cos(πfT) / (1 − (2fT)²)|, normalised, 20 Hz – 20 kHz, 0 to −60 dB.
+const B0 = 262, B1 = 466, BY0 = 40, BY1 = 150;
+const fx = (f: number) => B0 + (Math.log10(f / 20) / 3) * (B1 - B0);
+const dy = (db: number) => BY0 + (-db / 60) * (BY1 - BY0);
+const spectrum = (T: number) =>
+  Array.from({ length: 241 }, (_, i) => 20 * 10 ** ((3 * i) / 240))
+    .map((f, i) => {
+      const x = 2 * f * T;
+      const h = Math.abs(x) === 1 ? Math.PI / 4 : Math.abs(Math.cos(Math.PI * f * T) / (1 - x * x));
+      const db = Math.max(-60, 20 * Math.log10(h + 1e-9));
+      return `${i ? 'L' : 'M'}${fx(f).toFixed(1)} ${dy(db).toFixed(1)}`;
+    })
+    .join(' ');
+---
+
+<Figure
+  label="Knocks · shape and spectrum"
+  caption="Left: the force of each knock over time. Right: what it contains — flat up to about 1/duration, then falling at 12 dB per octave with notches. The knocks' strengths scale with how hard the key is struck or the pedal moved; the damper's thud with the release velocity."
+>
+  <svg viewBox="0 0 480 190" role="img" aria-label="Half-sine knock pulses and their spectra">
+    <text class="dg-title" x={A0} y="22">force over time</text>
+    <path class="dg-faint" d={`M${A0} ${AY - AH - 6}V${AY}H${A1}`}></path>
+    {[0, 2, 4, 6, 8].map((t) => <text class="dg-text dg-mid" x={ta(t / 1000)} y={AY + 13}>{t}</text>)}
+    <text class="dg-text dg-mid" x={(A0 + A1) / 2} y={AY + 27}>ms</text>
+    {series.map((s, i) => (
+      <path d={shape(s.T)} fill="none" stroke={s.color} stroke-width="2" class="knock" style={`--d: ${i * 0.5}s`}></path>
+    ))}
+
+    <text class="dg-title" x={B0} y="22">spectrum</text>
+    <path class="dg-faint" d={`M${B0} ${BY0}V${BY1}H${B1}`}></path>
+    {[0, -20, -40, -60].map((d) => <text class="dg-text dg-end" x={B0 - 4} y={dy(d) + 3}>{d}</text>)}
+    {[[20, '20'], [200, '200'], [2000, '2k'], [20000, '20k']].map(([f, l]) => (
+      <text class="dg-text dg-mid" x={fx(f as number)} y={BY1 + 13}>{l}</text>
+    ))}
+    <text class="dg-text dg-mid" x={(B0 + B1) / 2} y={BY1 + 27}>Hz</text>
+    {series.map((s) => (
+      <g>
+        <path d={spectrum(s.T)} fill="none" stroke={s.color} stroke-width="1.6"></path>
+        <line x1={fx(1 / s.T)} x2={fx(1 / s.T)} y1={BY0} y2={BY1} stroke={s.color} stroke-dasharray="2 3" opacity="0.6"></line>
+      </g>
+    ))}
+    {series.map((s, i) => (
+      <g transform={`translate(${A0} ${178 - 0}) translate(${i * 230} 0)`}>
+        <line x1="0" x2="16" y1="0" y2="0" stroke={s.color} stroke-width="2"></line>
+        <text class="dg-text" x="22" y="3.5">{s.label}</text>
+      </g>
+    ))}
+  </svg>
+</Figure>
+
+<style>
+  @media (prefers-reduced-motion: no-preference) {
+    .knock {
+      animation: knock-flash 2.4s ease-out infinite;
+      animation-delay: var(--d);
+    }
+  }
+  @keyframes knock-flash {
+    0% {
+      stroke-width: 4;
+      filter: drop-shadow(0 0 6px currentColor);
+    }
+    30%,
+    100% {
+      stroke-width: 2;
+      filter: none;
+    }
+  }
+</style>

@@ -1,0 +1,129 @@
+---
+// Where the hammer strikes decides which partials it excites: partial k gets
+// sin(kπ·x0/L) · sinc(kπ·w/2L). The bars are that, for middle C of the default
+// instrument; pick a bar to see its mode shape ringing on the string, with the
+// strike point on it.
+import Figure from './Figure.astro';
+import { curveAt, def, fmt } from '../../lib/params';
+
+const ratio = def('strike_ratio');
+const L = curveAt('String length', 60);
+// Contact width: 8 mm at A0 to 4 mm at C8 (key 1 to 88), times the scale.
+const w = (8 - (4 * (40 - 1)) / 87) * 1e-3 * def('contact_width_scale');
+const K = 20;
+const amp = Array.from({ length: K }, (_, i) => {
+  const k = i + 1;
+  const z = (k * Math.PI * w) / (2 * L);
+  return Math.abs(Math.sin(k * Math.PI * ratio) * (Math.sin(z) / z));
+});
+
+const SX0 = 34, SX1 = 446, SY = 62;
+const x0 = SX0 + ratio * (SX1 - SX0);
+const mode = (k: number) =>
+  Array.from({ length: 121 }, (_, i) => i / 120)
+    .map((t, i) => `${i ? 'L' : 'M'}${(SX0 + t * (SX1 - SX0)).toFixed(1)} ${(SY - 26 * Math.sin(k * Math.PI * t)).toFixed(1)}`)
+    .join(' ');
+const modes = Array.from({ length: K }, (_, i) => mode(i + 1));
+
+const BX0 = 34, BW = 412 / K, BY = 186, BH = 70;
+---
+
+<Figure
+  label="Strike point · which partials the hammer feeds"
+  caption={`The hammer strikes at <code>strike_ratio</code> = ${fmt(ratio)} of the string from the agraffe (middle C: ${fmt(L)} m long, felt ${fmt(w * 1000)} mm wide). Partials with a node near the strike point are barely excited — at 0.12, the 8th, which would sound harsh. The felt's width trims the highest partials a little more. Click a bar to see that partial's shape.`}
+>
+  <svg class="strike" viewBox="0 0 480 214" role="img" aria-label="Partial excitation by the strike point, with mode shapes" data-modes={JSON.stringify(modes)}>
+    <line class="dg-faint" x1={SX0} x2={SX1} y1={SY} y2={SY}></line>
+    <g class="mode-ring">
+      <path class="dg-string mode-path" d={modes[0]}></path>
+    </g>
+    <circle cx={SX0} cy={SY} r="4.5" fill="var(--up-ivory)"></circle>
+    <circle cx={SX1} cy={SY} r="4.5" fill="var(--up-copper)"></circle>
+    <text class="dg-text dg-mid" x={SX0} y={SY + 44}>agraffe</text>
+    <text class="dg-text dg-mid" x={SX1} y={SY + 44}>bridge</text>
+    <path d={`M${x0} ${SY + 34} l-6 10 h12 z`} fill="var(--up-ivory)"></path>
+    <line x1={x0} x2={x0} y1={SY + 4} y2={SY + 33} stroke="var(--up-ivory)" stroke-dasharray="2 2"></line>
+    <text class="dg-hl dg-mid" x={x0} y={SY + 57}>hammer</text>
+    <text class="dg-label mode-label" x={SX1} y="18" text-anchor="end">partial 1</text>
+
+    {amp.map((a, i) => (
+      <g class="bar" data-k={i + 1} tabindex="0" role="button" aria-label={`Partial ${i + 1}: excitation ${a.toFixed(2)}`}>
+        <rect x={BX0 + i * BW} y={BY - BH} width={BW} height={BH} fill="transparent"></rect>
+        <rect class="bar-fill" x={BX0 + i * BW + 3} y={BY - a * BH} width={BW - 6} height={a * BH} rx="2" style={`--i: ${i}`} data-low={a < 0.2 ? '' : undefined}></rect>
+        <text class="dg-text dg-mid" x={BX0 + i * BW + BW / 2} y={BY + 12} font-size="8.5">{i + 1}</text>
+      </g>
+    ))}
+  </svg>
+</Figure>
+
+<style>
+  .bar {
+    cursor: pointer;
+    outline: none;
+  }
+  .bar-fill {
+    fill: rgba(242, 181, 68, 0.55);
+    transform-box: fill-box;
+    transform-origin: bottom;
+    transition: fill 0.15s ease;
+  }
+  .bar-fill[data-low] {
+    fill: rgba(217, 130, 59, 0.75);
+  }
+  .bar:hover .bar-fill,
+  .bar:focus-visible .bar-fill,
+  .bar.on .bar-fill {
+    fill: var(--up-accent-light);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html.js) :global(.fig:not(.is-revealed)) .bar-fill {
+      transform: scaleY(0);
+    }
+    .bar-fill {
+      transition:
+        transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) calc(var(--i) * 40ms),
+        fill 0.15s ease;
+    }
+    .mode-ring {
+      transform-box: view-box;
+      transform-origin: 0 62px;
+      animation: mode-swing 0.9s ease-in-out infinite alternate;
+    }
+  }
+  @keyframes mode-swing {
+    to {
+      transform: scaleY(-1);
+    }
+  }
+</style>
+
+<script>
+  function initStrike() {
+    document.querySelectorAll<SVGSVGElement>('svg.strike:not([data-bound])').forEach((svg) => {
+      svg.dataset.bound = '1';
+      const modes: string[] = JSON.parse(svg.dataset.modes ?? '[]');
+      const path = svg.querySelector('.mode-path')!;
+      const label = svg.querySelector('.mode-label')!;
+      const bars = svg.querySelectorAll<SVGGElement>('.bar');
+      const pick = (bar: SVGGElement) => {
+        const k = Number(bar.dataset.k);
+        path.setAttribute('d', modes[k - 1]);
+        label.textContent = `partial ${k}`;
+        bars.forEach((b) => b.classList.toggle('on', b === bar));
+      };
+      bars.forEach((bar) => {
+        bar.addEventListener('click', () => pick(bar));
+        bar.addEventListener('mouseenter', () => pick(bar));
+        bar.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            pick(bar);
+          }
+        });
+      });
+      pick(bars[0]);
+    });
+  }
+  document.addEventListener('astro:page-load', initStrike);
+  initStrike();
+</script>

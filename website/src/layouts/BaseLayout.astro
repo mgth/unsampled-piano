@@ -1,0 +1,150 @@
+---
+import '../styles/global.css';
+import { ClientRouter } from 'astro:transitions';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { SITE } from '../site';
+// Preload the latin subsets of the three brand fonts: they are used above the
+// fold on every page, and preloading starts the fetch before CSS is parsed.
+import interWoff2 from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url';
+import groteskWoff2 from '@fontsource-variable/space-grotesk/files/space-grotesk-latin-wght-normal.woff2?url';
+import monoWoff2 from '@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Page-specific OG image path under the site root; defaults to the brand card. */
+  ogImage?: string;
+  /** Optional schema.org structured data, emitted as JSON-LD. */
+  jsonLd?: Record<string, unknown>;
+}
+
+const { title, description = SITE.description, ogImage = '/og-image.png', jsonLd } = Astro.props;
+
+const pageTitle = title ? `${title} — ${SITE.name}` : `${SITE.name} — a physically modelled piano`;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const ogUrl = new URL(ogImage, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <ClientRouter />
+
+    <!-- Gate for the scroll-reveal styles: without JS nothing is ever hidden. -->
+    <script is:inline>document.documentElement.classList.add('js');</script>
+
+    <link rel="preload" href={interWoff2} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={groteskWoff2} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={monoWoff2} as="font" type="font/woff2" crossorigin />
+
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="theme-color" content="#0b0f18" />
+
+    <!-- Icons -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Open Graph / Twitter -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={SITE.tagline} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogUrl} />
+
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    {jsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+  </head>
+  <body>
+    <a href="#main" class="skip-link">Skip to content</a>
+    <Header />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+
+    <script>
+      // Scroll reveals: elements tagged data-reveal fade/slide in the first time
+      // they enter the viewport. The CSS only hides them under `html.js`, so a
+      // script failure or disabled JS never hides content.
+      function initReveals() {
+        const els = document.querySelectorAll<HTMLElement>('[data-reveal]:not(.is-revealed)');
+        if (!els.length) return;
+        if (
+          !('IntersectionObserver' in window) ||
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ) {
+          els.forEach((el) => el.classList.add('is-revealed'));
+          return;
+        }
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const e of entries) {
+              if (!e.isIntersecting) continue;
+              e.target.classList.add('is-revealed');
+              io.unobserve(e.target);
+            }
+          },
+          { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
+        );
+        els.forEach((el) => io.observe(el));
+      }
+
+      // The client router swaps <html> attributes on navigation, dropping the
+      // runtime `js` class — restore it before paint so reveals keep working.
+      document.addEventListener('astro:after-swap', () =>
+        document.documentElement.classList.add('js'),
+      );
+      document.addEventListener('astro:page-load', initReveals);
+      initReveals();
+
+      // SVG (SMIL) animations of the diagrams ignore CSS media queries: under
+      // reduced motion, freeze them on their first frame.
+      function freezeSvg() {
+        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        document.querySelectorAll('svg').forEach((s) => {
+          s.pauseAnimations?.();
+          s.setCurrentTime?.(0);
+        });
+      }
+      document.addEventListener('astro:page-load', freezeSvg);
+      freezeSvg();
+    </script>
+
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+      .skip-link {
+        position: absolute;
+        left: -9999px;
+        top: 8px;
+        z-index: 100;
+        padding: 8px 14px;
+        background: var(--up-bg-elevated);
+        border: 1px solid var(--up-border-strong);
+        border-radius: var(--up-radius-sm);
+      }
+      .skip-link:focus {
+        left: 12px;
+      }
+    </style>
+  </body>
+</html>

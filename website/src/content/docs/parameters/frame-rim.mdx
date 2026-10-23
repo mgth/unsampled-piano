@@ -1,0 +1,37 @@
+---
+title: Frame & rim
+description: The cast-iron plate and the wooden case wall — the parts that hold the piano together, and ring a little too.
+order: 109
+icon: frame
+section: Parameters
+page: Frame & rim
+---
+import FrameRim from '../../../components/diagrams/FrameRim.astro';
+
+The strings of a grand pull with close to twenty tonnes in all. A **cast-iron frame** (the
+plate) takes that load, and a thick laminated **rim** — the curved wooden wall of the case —
+holds the soundboard at its edge. Neither is meant to sound, but both vibrate, and you hear
+them: a little metallic colour from the frame, some low and middle body from the rim.
+
+<FrameRim />
+
+## The frame
+
+The frame is modelled with the same modal machinery as the board: an isotropic clamped plate
+(`frame.a`, `frame.b`, `rho_h`, `stiffness`, `loss_factor`), driven at the agraffes by the
+strings' force, and radiating from its own height above the board. Only its metal radiates —
+`solidity` is the share of its outline that is not openings — and its underside largely cancels
+its top through those openings (`back_gain`). The default puts its first mode near 150 Hz.
+
+## The rim
+
+The rim is a ring following the board's perimeter, bending out of its plane and twisting
+(Love's theory for curved beams), driven by the forces the clamped board's edges exert on it.
+Its four faces radiate — the inner one half hidden under the board (`inner_gain`). Its size
+(`height`, `thickness`, `top`) and its laminated maple (`young`, `shear`, `density`) set its
+modes; `k_max` and `f_max` limit how many are computed.
+
+Both are **one way**: the frame and the rim take their motion from the strings and the board
+but do not feed it back, so they colour the sound without changing how long the notes last.
+`frame.gain` and `rim.gain` scale what they radiate (1 is physical). The derivations are in
+[docs/frame_rim.md](https://github.com/mgth/unsampled-piano/blob/main/docs/frame_rim.md).

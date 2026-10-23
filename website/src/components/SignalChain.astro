@@ -1,0 +1,148 @@
+---
+// The physical chain, left to right: a MIDI note throws a hammer, the hammer
+// strikes the strings, the strings drive the bridge and soundboard, the board
+// radiates to two microphones, the room adds its echoes. Frame and rim hang
+// off the chain (one way). Every node links to its parameter page; the wires
+// carry moving dashes, and a pulse travels the whole chain like a note.
+const nodes = [
+  { x: 10, title: 'MIDI', sub: 'velocity · pedals', href: '/docs/parameters/player/' },
+  { x: 128, title: 'hammer', sub: 'nonlinear felt', href: '/docs/parameters/hammer/' },
+  { x: 246, title: 'strings', sub: '1–3 · 2 polarisations', href: '/docs/parameters/strings/' },
+  { x: 364, title: 'soundboard', sub: 'modal plate', href: '/docs/parameters/soundboard/' },
+  { x: 482, title: 'mics', sub: 'Rayleigh · lid', href: '/docs/parameters/microphones/' },
+  { x: 600, title: 'room', sub: 'images · FDN', href: '/docs/parameters/room/' },
+];
+const W = 104;
+const Y = 70;
+const H = 62;
+const wires = nodes.slice(1).map((n, i) => [nodes[i].x + W, n.x]);
+const labels = ['speed', 'force', 'bridge', 'pressure', 'echoes'];
+const side = [
+  { x: 246, title: 'dampers', sub: 'felt dashpots', href: '/docs/parameters/dampers/', y: 168, from: 298, fromY: Y + H },
+  { x: 364, title: 'frame · rim', sub: 'one way', href: '/docs/parameters/frame-rim/', y: 168, from: 416, fromY: Y + H },
+];
+---
+
+<div class="chain" data-reveal>
+  <div class="chain-scroll">
+    <svg viewBox="0 0 716 236" role="img" aria-label="Signal chain: MIDI, hammer, strings, soundboard, microphones, room, with dampers and the frame and rim on the side">
+      <rect x="118" y="26" width="592" height="190" rx="16" class="engine-box"></rect>
+      <text x="414" y="46" class="engine-label">the instrument · computed, never played back</text>
+
+      {wires.map(([x1, x2], i) => (
+        <g>
+          <line x1={x1} x2={x2 - 6} y1={Y + H / 2} y2={Y + H / 2} class="wire"></line>
+          <path d={`M${x2 - 1} ${Y + H / 2} l-8 -4.5 v9 z`} class="wire-head"></path>
+          <text x={(x1 + x2) / 2} y={Y + H / 2 - 9} class="wire-label">{labels[i]}</text>
+        </g>
+      ))}
+      {side.map((s) => (
+        <g>
+          <line x1={s.from} x2={s.from} y1={s.fromY} y2={s.y} class="wire wire-side"></line>
+        </g>
+      ))}
+
+      {[...nodes.map((n) => ({ ...n, y: Y, h: H, t: 28, s: 46 })), ...side.map((n) => ({ ...n, h: 40, t: 17, s: 31 }))].map((n) => (
+        <a href={n.href} class="node">
+          <rect x={n.x} y={n.y} width={W} height={n.h} rx="11"></rect>
+          <text x={n.x + W / 2} y={n.y + n.t} class="node-title">{n.title}</text>
+          <text x={n.x + W / 2} y={n.y + n.s} class="node-sub">{n.sub}</text>
+        </a>
+      ))}
+
+      <circle r="5" class="pulse">
+        <animateMotion path={`M${nodes[0].x + W / 2} ${Y + H / 2} H${nodes[5].x + W / 2}`} dur="4s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.7;1" calcMode="linear"></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.05;0.65;0.72;1" dur="4s" repeatCount="indefinite"></animate>
+      </circle>
+    </svg>
+  </div>
+</div>
+
+<style>
+  .chain {
+    grid-column: 1 / -1;
+    margin-top: clamp(20px, 3vw, 36px);
+  }
+  .chain-scroll {
+    overflow-x: auto;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    min-width: 600px;
+    height: auto;
+  }
+  .engine-box {
+    fill: rgba(242, 181, 68, 0.03);
+    stroke: var(--up-border);
+    stroke-dasharray: 5 6;
+  }
+  .engine-label {
+    fill: var(--up-accent);
+    font-family: var(--up-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-anchor: middle;
+  }
+  .node rect {
+    fill: rgba(30, 38, 56, 0.75);
+    stroke: var(--up-border-strong);
+    transition: stroke 0.2s ease, filter 0.2s ease;
+  }
+  .node:hover rect,
+  .node:focus-visible rect {
+    stroke: var(--up-accent);
+    filter: drop-shadow(0 0 10px rgba(242, 181, 68, 0.4));
+  }
+  .node-title {
+    fill: var(--up-text-bright);
+    font-family: var(--up-font-display);
+    font-size: 15px;
+    font-weight: 600;
+    text-anchor: middle;
+  }
+  .node-sub {
+    fill: var(--up-text-muted);
+    font-family: var(--up-font-mono);
+    font-size: 9.5px;
+    text-anchor: middle;
+  }
+  .wire {
+    stroke: var(--up-accent);
+    stroke-width: 1.6;
+    stroke-dasharray: 6 8;
+    opacity: 0.75;
+  }
+  .wire-side {
+    stroke: var(--up-copper);
+  }
+  .wire-head {
+    fill: var(--up-accent);
+  }
+  .wire-label {
+    fill: var(--up-text-muted);
+    font-family: var(--up-font-mono);
+    font-size: 9.5px;
+    text-anchor: middle;
+  }
+  .pulse {
+    fill: var(--up-accent-light);
+    filter: drop-shadow(0 0 8px #f2b544);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .wire {
+      animation: wire-drift 1.4s linear infinite;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pulse {
+      display: none;
+    }
+  }
+  @keyframes wire-drift {
+    to {
+      stroke-dashoffset: -14;
+    }
+  }
+</style>

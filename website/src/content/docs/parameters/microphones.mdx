@@ -1,0 +1,45 @@
+---
+title: Microphones
+description: Where the two microphones stand, what they hear, and the lid between them and the board.
+order: 102
+icon: mic
+section: Parameters
+page: Microphones
+---
+import MicPlan from '../../../components/diagrams/MicPlan.astro';
+import LidSection from '../../../components/diagrams/LidSection.astro';
+import MicPattern from '../../../components/diagrams/MicPattern.astro';
+
+There is no "stereo width" knob in Unsampled Piano, because there is no stereo trick: the left
+channel is what a microphone at one point in space hears, the right channel what a second one
+hears. Each microphone sums the sound of every soundboard mode by the **Rayleigh integral** —
+the board pushing the air, patch by patch, each patch arriving with its own delay and
+distance — plus the reflections off the lid, the frame and the rim, then the room.
+
+Move a microphone and the balance between bass and treble, the attack and the sense of
+distance all change, exactly as they would at a real piano. Changing a position rebuilds the
+radiation weights, which takes a fraction of a second.
+
+## Set-ups
+
+The *Listening* presets are microphone set-ups you can combine with any instrument: loading one
+keeps the instrument, loading an instrument keeps the set-up.
+
+<MicPlan />
+
+Positions are in metres, in the soundboard's own coordinates: `x` along the strings from the
+keyboard end, `y` across from the treble side, `z` above the board. With `mics_relative` on, `x`
+and `y` are fractions of the board's length and width instead, so a set-up follows the board
+when you change instrument — the listening presets use that. `mic_gain_db` levels the set-up:
+close microphones hear the piano about 13 dB louder, so the close preset turns itself down.
+
+## The lid
+
+<LidSection />
+
+`lid_angle` = 0 takes the lid out of the model altogether: no reflection, no shadow. That is
+the default instrument, and the *audience, lid closed* set-up.
+
+## Pattern
+
+<MicPattern />

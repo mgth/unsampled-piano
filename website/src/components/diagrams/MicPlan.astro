@@ -1,0 +1,169 @@
+---
+// The microphone set-ups, from above and to scale: the default instrument's
+// soundboard and bridges, the keyboard, the lid when it is open (its top
+// view shortens with the angle), and each set-up's two microphones read from
+// presets/listening/Microphones — plus the default model's own pair.
+import Figure from './Figure.astro';
+import { BOARD, TREBLE_BRIDGE, BASS_BRIDGE, planView } from '../../lib/geometry';
+import { def, fmt } from '../../lib/params';
+import { preset, presetTitle } from '../../lib/presets';
+
+const { a, b } = BOARD;
+const v = planView(104, 236, 236);
+const line = (pts: [number, number][]) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${v.X(y).toFixed(1)} ${v.Y(x).toFixed(1)}`).join(' ');
+
+interface Setup {
+  title: string;
+  note: string;
+  lid: number;
+  pattern: number;
+  mics: [number, number, number][];
+}
+const fromPreset = (name: string): Setup => {
+  const p = preset('listening', name);
+  const sb = p.values.soundboard;
+  const rel = sb.mics_relative;
+  return {
+    title: presetTitle(name),
+    note: p.summary.split(/(?<=[.:])\s/)[0].replace(/[.:]$/, ''),
+    lid: sb.lid_angle,
+    pattern: sb.mic_pattern,
+    mics: sb.mics.map(([x, y, z]: number[]) => (rel ? [x * a, y * b, z] : [x, y, z])),
+  };
+};
+const setups: Setup[] = [
+  fromPreset('close'),
+  fromPreset('concert'),
+  fromPreset('audience_lid_closed'),
+  {
+    title: 'Model default',
+    note: 'The default instrument: lid removed, two omnis 1.5 m above the board',
+    lid: def('soundboard.lid_angle'),
+    pattern: def('soundboard.mic_pattern'),
+    mics: [0, 1].map((m) => [0, 1, 2].map((c) => def(`soundboard.mics[${m}][${c}]`)) as [number, number, number]),
+  },
+];
+const center = TREBLE_BRIDGE[2];
+const cx = v.X(center[1]);
+const cy = v.Y(center[0]);
+---
+
+<Figure
+  label="Microphones · from above, to scale"
+  caption="The soundboard (copper) with its two bridges, the keyboard at the bottom, treble on the right — the audience sits on that side, where the lid opens. Each microphone is labelled with its height above the board. Close microphones hear a detailed, dry piano; distant ones let the board blend and the room take over."
+>
+  <div class="micplan" data-micplan>
+    <div class="mp-tabs" role="tablist" aria-label="Microphone set-up">
+      {setups.map((s, i) => (
+        <button type="button" role="tab" aria-selected={i === 0 ? 'true' : 'false'} data-set={i}>{s.title}</button>
+      ))}
+    </div>
+    <svg viewBox="0 0 480 306" role="img" aria-label="Plan view of the piano with the microphone positions of each set-up">
+      <rect class="dg-board" x={v.X(b)} y={v.Y(a)} width={b * v.s} height={a * v.s} rx="3"></rect>
+      <path d={line(TREBLE_BRIDGE)} fill="none" stroke="var(--up-copper)" stroke-width="3" stroke-linecap="round"></path>
+      <path d={line(BASS_BRIDGE)} fill="none" stroke="var(--up-copper)" stroke-width="3" stroke-linecap="round"></path>
+      <text class="dg-text" x={v.X(b) + 6} y={v.Y(a) + 14}>soundboard {fmt(a)} × {fmt(b)} m</text>
+      <g>
+        <rect x={v.X(b)} y={v.Y(-0.06)} width={b * v.s} height={0.26 * v.s} rx="2" fill="var(--up-ivory)" opacity="0.85"></rect>
+        {Array.from({ length: 26 }, (_, i) => (
+          <line x1={v.X(b) + ((i + 1) * b * v.s) / 27} x2={v.X(b) + ((i + 1) * b * v.s) / 27} y1={v.Y(-0.06)} y2={v.Y(-0.32)} stroke="#9c9586" stroke-width="0.6"></line>
+        ))}
+        <text class="dg-text dg-mid" x={v.X(b / 2)} y={v.Y(-0.32) + 13}>keyboard · bass ← → treble</text>
+      </g>
+
+      {[0, 1, 2].map((i) => (
+        <circle cx={cx} cy={cy} r="4" fill="none" stroke="var(--up-accent)" stroke-width="1.4" opacity="0">
+          <animate attributeName="r" values="4;230" dur="3.6s" begin={`${i * 1.2}s`} repeatCount="indefinite"></animate>
+          <animate attributeName="opacity" values="0.7;0" dur="3.6s" begin={`${i * 1.2}s`} repeatCount="indefinite"></animate>
+        </circle>
+      ))}
+
+      {setups.map((s, i) => (
+        <g class="mp-set" data-set={i} visibility={i === 0 ? 'visible' : 'hidden'}>
+          {s.lid > 0 && (
+            <g>
+              <rect x={v.X(b)} y={v.Y(a)} width={b * Math.cos((s.lid * Math.PI) / 180) * v.s} height={a * v.s} fill="rgba(156,163,178,0.12)" stroke="var(--up-text-muted)" stroke-dasharray="5 4"></rect>
+              <text class="dg-text" x={v.X(b) + 6} y={v.Y(0) - 8}>lid open {s.lid}°</text>
+            </g>
+          )}
+          {s.mics.map(([x, y, z], m) => {
+            const X = v.X(y);
+            const Y = v.Y(x);
+            const ang = (Math.atan2(cy - Y, cx - X) * 180) / Math.PI;
+            return (
+              <g>
+                {s.pattern < 1 && (
+                  <path
+                    transform={`translate(${X} ${Y}) rotate(${ang})`}
+                    d={Array.from({ length: 49 }, (_, k) => {
+                      const t = (k / 48) * 2 * Math.PI;
+                      const r = 22 * (s.pattern + (1 - s.pattern) * Math.cos(t));
+                      return `${k ? 'L' : 'M'}${(r * Math.cos(t)).toFixed(1)} ${(r * Math.sin(t)).toFixed(1)}`;
+                    }).join(' ')}
+                    fill="rgba(108,184,255,0.12)"
+                    stroke="rgba(108,184,255,0.6)"
+                  ></path>
+                )}
+                {s.pattern >= 1 && <circle cx={X} cy={Y} r="15" fill="rgba(108,184,255,0.08)" stroke="rgba(108,184,255,0.45)" stroke-dasharray="2 3"></circle>}
+                <circle cx={X} cy={Y} r="7.5" fill="#0b0f18" stroke="#6cb8ff" stroke-width="2"></circle>
+                <text x={X} y={Y + 3.5} class="dg-mid" font-size="9" font-family="var(--up-font-mono)" fill="#6cb8ff">{m ? 'R' : 'L'}</text>
+                <text class="dg-hl" x={X + 11} y={Y - 9}>z {fmt(z)} m</text>
+              </g>
+            );
+          })}
+          <text class="dg-label" x="14" y="300">{s.note}{s.pattern < 1 ? ' · cardioids' : ' · omnis'}</text>
+        </g>
+      ))}
+      <path d={`M${v.X(-1.25)} 40 h40`} stroke="var(--up-text-muted)" marker-end="url(#mp-arr)"></path>
+      <text class="dg-text" x={v.X(-1.25)} y="32">audience</text>
+      <defs>
+        <marker id="mp-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0 10 5 0 10z" fill="var(--up-text-muted)"></path>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+</Figure>
+
+<style>
+  .mp-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .mp-tabs button {
+    appearance: none;
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--up-border);
+    background: transparent;
+    color: var(--up-text-muted);
+    font-family: var(--up-font-mono);
+    font-size: 0.76rem;
+    cursor: pointer;
+  }
+  .mp-tabs button[aria-selected='true'] {
+    color: #08131f;
+    background: #6cb8ff;
+    border-color: #6cb8ff;
+  }
+</style>
+
+<script>
+  function initMicPlan() {
+    document.querySelectorAll<HTMLElement>('[data-micplan]:not([data-bound])').forEach((box) => {
+      box.dataset.bound = '1';
+      const tabs = box.querySelectorAll<HTMLButtonElement>('button[data-set]');
+      const sets = box.querySelectorAll<SVGGElement>('g.mp-set');
+      tabs.forEach((t) =>
+        t.addEventListener('click', () => {
+          tabs.forEach((u) => u.setAttribute('aria-selected', String(u === t)));
+          sets.forEach((g) => g.setAttribute('visibility', g.dataset.set === t.dataset.set ? 'visible' : 'hidden'));
+        }),
+      );
+    });
+  }
+  document.addEventListener('astro:page-load', initMicPlan);
+  initMicPlan();
+</script>

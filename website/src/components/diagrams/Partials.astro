@@ -1,0 +1,111 @@
+---
+// Inharmonicity made visible: the partials of a stiff string (bottom) against
+// exact multiples of the fundamental (top), for three keys of the default
+// instrument. Partial k sits at k·f0·√(1 + B·k²); the lines between the two
+// rulers lean more and more, and the labels give the offset in cents.
+import Figure from './Figure.astro';
+import { curveAt, def, fmt, noteName } from '../../lib/params';
+
+const KEYS = [21, 60, 96];
+const a4 = def('a4');
+const X0 = 30, X1 = 462;
+const KMAX = 16;
+const sx = (r: number) => X0 + (r / (KMAX + 1.5)) * (X1 - X0);
+const data = KEYS.map((n) => {
+  const f0 = a4 * 2 ** ((n - 69) / 12) * 2 ** (curveAt('Stretch', n) / 1200);
+  const B = curveAt('Inharmonicity B', n);
+  const K = Math.min(KMAX, Math.floor(20000 / f0));
+  const partials = Array.from({ length: K }, (_, i) => {
+    const k = i + 1;
+    const r = k * Math.sqrt(1 + B * k * k);
+    return { k, r, cents: 1200 * Math.log2(r / k) };
+  });
+  return { n, f0, B, partials };
+});
+const labelled = new Set([2, 4, 8, 12, 16]);
+---
+
+<Figure
+  label="Inharmonicity · partials of a stiff string"
+  caption="Top: where the partials of an ideal, perfectly flexible string would be — exact multiples of the fundamental. Bottom: the default instrument's strings, whose stiffness pushes each partial sharp by √(1 + B·k²). Partials are drawn up to 20 kHz. Tuners stretch the octaves to follow this (next figure)."
+>
+  <div class="partials" data-partials>
+    <div class="partials-tabs" role="tablist" aria-label="Key">
+      {data.map((d, i) => (
+        <button type="button" role="tab" aria-selected={i === 0 ? 'true' : 'false'} data-key={i}>
+          {noteName(d.n)}
+        </button>
+      ))}
+    </div>
+    <svg viewBox="0 0 480 150" role="img" aria-label="Partial frequencies of a piano string compared with exact harmonics">
+      <text class="dg-text" x={X0} y="22">k · f0</text>
+      <text class="dg-text" x={X0} y="136">string</text>
+      <line class="dg-faint" x1={X0} x2={X1} y1="40" y2="40"></line>
+      <line class="dg-faint" x1={X0} x2={X1} y1="112" y2="112"></line>
+      {data.map((d, i) => (
+        <g class="partials-key" data-key={i} visibility={i === 0 ? 'visible' : 'hidden'}>
+          <text class="dg-hl dg-end" x={X1} y="22">
+            {noteName(d.n)} · f0 = {fmt(+d.f0.toFixed(1))} Hz · B = {fmt(d.B)}
+          </text>
+          {d.partials.map((p) => (
+            <g>
+              <line x1={sx(p.k)} x2={sx(p.k)} y1="34" y2="46" stroke="var(--up-text-muted)" stroke-width="1.4"></line>
+              <line x1={sx(p.k)} x2={sx(p.r)} y1="46" y2="106" stroke="rgba(242,181,68,0.35)"></line>
+              <line x1={sx(p.r)} x2={sx(p.r)} y1="106" y2="118" class="dg-string"></line>
+              {labelled.has(p.k) && (
+                <text class="dg-text dg-mid" x={sx(p.r)} y="131" font-size="9">
+                  +{Math.round(p.cents)}¢
+                </text>
+              )}
+              {p.k <= 2 || labelled.has(p.k) ? (
+                <text class="dg-text dg-mid" x={sx(p.k)} y="58" font-size="8.5">{p.k}</text>
+              ) : null}
+            </g>
+          ))}
+        </g>
+      ))}
+    </svg>
+  </div>
+</Figure>
+
+<style>
+  .partials-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .partials-tabs button {
+    appearance: none;
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--up-border);
+    background: transparent;
+    color: var(--up-text-muted);
+    font-family: var(--up-font-mono);
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .partials-tabs button[aria-selected='true'] {
+    color: #1a1206;
+    background: var(--up-accent);
+    border-color: var(--up-accent);
+  }
+</style>
+
+<script>
+  function initPartials() {
+    document.querySelectorAll<HTMLElement>('[data-partials]:not([data-bound])').forEach((box) => {
+      box.dataset.bound = '1';
+      const tabs = box.querySelectorAll<HTMLButtonElement>('button[data-key]');
+      const groups = box.querySelectorAll<SVGGElement>('g.partials-key');
+      tabs.forEach((t) =>
+        t.addEventListener('click', () => {
+          tabs.forEach((u) => u.setAttribute('aria-selected', String(u === t)));
+          groups.forEach((g) => g.setAttribute('visibility', g.dataset.key === t.dataset.key ? 'visible' : 'hidden'));
+        }),
+      );
+    });
+  }
+  document.addEventListener('astro:page-load', initPartials);
+  initPartials();
+</script>

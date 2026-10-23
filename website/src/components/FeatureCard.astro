@@ -1,0 +1,178 @@
+---
+import DocIcon from './DocIcon.astro';
+
+interface Props {
+  title: string;
+  href?: string;
+  eyebrow?: string;
+  cta?: string;
+  icon?: string;
+  /** Scroll-reveal stagger in ms; when set the card fades in on first view. */
+  reveal?: number;
+}
+const { title, href, eyebrow, cta, icon, reveal } = Astro.props;
+const Tag = href ? 'a' : 'div';
+
+// Per-topic accent, keyed by the card's icon: warm stage lights on night blue,
+// with a few cool ones so the twenty cards don't blur into one gold.
+const ACCENTS: Record<string, string> = {
+  rocket: '#ff7a59',
+  sliders: '#f2b544',
+  layers: '#a78bfa',
+  midi: '#6fd39a',
+  terminal: '#7c9cff',
+  atom: '#4fc9c0',
+  player: '#f2b544',
+  mic: '#6cb8ff',
+  hammer: '#ff7a59',
+  fork: '#ffc861',
+  string: '#ffd27a',
+  damper: '#a78bfa',
+  noise: '#ff6fb5',
+  board: '#e08a4a',
+  frame: '#9fb0c8',
+  room: '#4fc9c0',
+};
+const accent = icon ? ACCENTS[icon] : undefined;
+const styleParts = [
+  accent ? `--card-accent: ${accent};` : undefined,
+  reveal ? `--reveal-delay: ${reveal}ms;` : undefined,
+].filter(Boolean);
+const style = styleParts.length ? styleParts.join(' ') : undefined;
+---
+
+<Tag class="card feature-card" href={href} style={style} data-reveal={reveal !== undefined ? '' : undefined}>
+  {eyebrow && <span class="feature-eyebrow eyebrow">{eyebrow}</span>}
+  <div class="feature-head">
+    {icon && <span class="feature-icon" data-icon={icon}><DocIcon name={icon} /></span>}
+    <h3 class="feature-title">{title}</h3>
+  </div>
+  <div class="feature-body">
+    <slot />
+  </div>
+  {cta && <span class="feature-cta">{cta} <span aria-hidden="true">&rarr;</span></span>}
+</Tag>
+
+<style>
+  .feature-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    color: inherit;
+    height: 100%;
+  }
+  .feature-head {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+  }
+  .feature-icon {
+    --accent: var(--card-accent, var(--up-accent));
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 13%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+    transition:
+      color 0.2s ease,
+      background 0.2s ease,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+  }
+  a.feature-card:hover .feature-icon {
+    color: color-mix(in srgb, var(--accent) 80%, white);
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 40%, transparent);
+    transform: translateY(-1px);
+  }
+  .feature-eyebrow {
+    margin-bottom: 2px;
+  }
+  .feature-title {
+    margin: 0;
+    font-size: 1.28rem;
+  }
+  .feature-body {
+    color: var(--up-text-muted);
+    font-size: 0.97rem;
+  }
+  .feature-body :global(ul) {
+    margin: 0;
+    padding-left: 1.1em;
+    display: grid;
+    gap: 5px;
+  }
+  .feature-cta {
+    margin-top: auto;
+    padding-top: 14px;
+    font-family: var(--up-font-display);
+    font-weight: 500;
+    font-size: 0.92rem;
+    color: var(--card-accent, var(--up-accent));
+  }
+  a.feature-card:hover .feature-cta {
+    color: color-mix(in srgb, var(--card-accent, var(--up-accent)) 72%, white);
+  }
+
+  /* Tint the whole-card lift to match the topic accent. The data-attribute
+     scoping outweighs the base .card:hover, so this wins without !important. */
+  a.feature-card:hover {
+    border-color: color-mix(in srgb, var(--card-accent, var(--up-accent)) 45%, transparent);
+    box-shadow: 0 14px 44px -18px color-mix(in srgb, var(--card-accent, var(--up-accent)) 55%, transparent);
+  }
+
+  /* Per-icon micro-animation on hover: each glyph moves the way its topic
+     suggests (the rocket lifts off, the speaker pumps, the head tilts...). */
+  .feature-icon :global(.doc-icon) {
+    transition: transform 0.25s ease;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    a.feature-card:hover .feature-icon[data-icon='rocket'] :global(.doc-icon) {
+      transform: translate(2px, -2px) rotate(-8deg);
+    }
+    a.feature-card:hover .feature-icon[data-icon='sliders'] :global(.doc-icon) {
+      transform: translateX(2px);
+    }
+    a.feature-card:hover .feature-icon[data-icon='hammer'] :global(.doc-icon) {
+      transform: rotate(-14deg);
+    }
+    a.feature-card:hover .feature-icon[data-icon='string'] :global(.doc-icon),
+    a.feature-card:hover .feature-icon[data-icon='atom'] :global(.doc-icon) {
+      animation: icon-ring 0.18s linear 4 alternate;
+    }
+    a.feature-card:hover .feature-icon[data-icon='fork'] :global(.doc-icon),
+    a.feature-card:hover .feature-icon[data-icon='noise'] :global(.doc-icon) {
+      animation: icon-buzz 0.08s linear 6 alternate;
+    }
+    a.feature-card:hover .feature-icon[data-icon='damper'] :global(.doc-icon),
+    a.feature-card:hover .feature-icon[data-icon='player'] :global(.doc-icon) {
+      transform: translateY(2px);
+    }
+    a.feature-card:hover .feature-icon[data-icon='mic'] :global(.doc-icon),
+    a.feature-card:hover .feature-icon[data-icon='room'] :global(.doc-icon),
+    a.feature-card:hover .feature-icon[data-icon='board'] :global(.doc-icon) {
+      transform: scale(1.1);
+    }
+    a.feature-card:hover .feature-icon[data-icon='layers'] :global(.doc-icon),
+    a.feature-card:hover .feature-icon[data-icon='midi'] :global(.doc-icon) {
+      transform: rotate(-8deg);
+    }
+    a.feature-card:hover .feature-icon[data-icon='terminal'] :global(.doc-icon) {
+      transform: translateX(2px);
+    }
+  }
+  @keyframes icon-ring {
+    from { transform: scaleY(1); }
+    to { transform: scaleY(-1); }
+  }
+  @keyframes icon-buzz {
+    from { transform: translateX(-0.8px); }
+    to { transform: translateX(0.8px); }
+  }
+</style>

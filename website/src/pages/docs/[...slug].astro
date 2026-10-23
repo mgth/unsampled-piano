@@ -1,0 +1,61 @@
+---
+import { getCollection, render } from 'astro:content';
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import Figure from '../../components/diagrams/Figure.astro';
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import ParamList from '../../components/params/ParamList.astro';
+import { pageEntries, groupTitle } from '../../lib/params';
+
+export async function getStaticPaths() {
+  const docs = await getCollection('docs');
+  return docs.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+// A parameter page lists its parameters after the prose; their groups join
+// the "On this page" contents.
+const page = entry.data.page;
+// The interface's own page, captured by the UI demo (PIANO_UI_SHOT), as
+// src/assets/ui/<slug>.png.
+const shots = import.meta.glob<{ default: ImageMetadata }>('../../assets/ui/*.png', { eager: true });
+const shot = page ? shots[`../../assets/ui/${entry.id.split('/').pop()}.png`]?.default : undefined;
+const groupHeadings = page
+  ? [
+      { depth: 2, slug: 'parameters', text: 'Parameters' },
+      ...pageEntries(page).map(({ group }) => ({ depth: 3, slug: `group-${group}`, text: groupTitle(group) })),
+    ]
+  : [];
+---
+
+<DocsLayout title={entry.data.title} description={entry.data.description} headings={[...headings, ...groupHeadings]}>
+  <Content />
+  {
+    page && (
+      <Fragment>
+        {shot && (
+          <Figure label="In the application" caption={`The ${page} page of the interface, default instrument. Its sketch is drawn from the current settings; hover a parameter to light up the part it acts on, click its name for the help shown below.`}>
+            <Image src={shot} alt={`The ${page} page of the Unsampled Piano interface`} widths={[700, 1100, 1375]} sizes="(max-width: 860px) 92vw, 50rem" class="app-shot" />
+          </Figure>
+        )}
+        <h2 id="parameters">Parameters</h2>
+        <ParamList page={page} />
+      </Fragment>
+    )
+  }
+</DocsLayout>
+
+<style>
+  :global(.prose img.app-shot) {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0 !important;
+    max-width: 100% !important;
+    border-radius: 6px;
+  }
+</style>

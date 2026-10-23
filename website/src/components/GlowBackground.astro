@@ -1,0 +1,74 @@
+---
+// Decorative, GPU-cheap animated background: a few large blurred radial orbs in
+// the brand accent colours that drift slowly. Animation is disabled under
+// prefers-reduced-motion. Purely presentational — aria-hidden.
+---
+
+<div class="glow-bg" aria-hidden="true">
+  <span class="orb orb-1"></span>
+  <span class="orb orb-2"></span>
+  <span class="orb orb-3"></span>
+</div>
+
+<style>
+  .glow-bg {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(70px);
+    opacity: 0.5;
+    will-change: transform;
+  }
+  .orb-1 {
+    width: 46vw;
+    height: 46vw;
+    top: -12vw;
+    left: -8vw;
+    background: radial-gradient(circle, rgba(242, 181, 68, 0.5), transparent 70%);
+    animation: drift-1 26s ease-in-out infinite alternate;
+  }
+  .orb-2 {
+    width: 40vw;
+    height: 40vw;
+    top: 6vw;
+    right: -10vw;
+    background: radial-gradient(circle, rgba(224, 154, 42, 0.42), transparent 70%);
+    animation: drift-2 32s ease-in-out infinite alternate;
+  }
+  .orb-3 {
+    width: 32vw;
+    height: 32vw;
+    bottom: -14vw;
+    left: 28vw;
+    background: radial-gradient(circle, rgba(200, 114, 44, 0.22), transparent 70%);
+    animation: drift-3 38s ease-in-out infinite alternate;
+  }
+
+  @keyframes drift-1 {
+    to {
+      transform: translate3d(6vw, 4vw, 0) scale(1.1);
+    }
+  }
+  @keyframes drift-2 {
+    to {
+      transform: translate3d(-5vw, 6vw, 0) scale(1.08);
+    }
+  }
+  @keyframes drift-3 {
+    to {
+      transform: translate3d(4vw, -5vw, 0) scale(1.12);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orb {
+      animation: none;
+    }
+  }
+</style>

@@ -1,0 +1,169 @@
+---
+// The 88 keys, A0 to C8, with ranges of keys marked above them (strings per
+// key, wound strings, dampers…) and single keys pointed at. `pulses` makes
+// keys glow in turn — the struck key, then the ones that answer it.
+import { noteName } from '../../lib/params';
+
+interface Zone {
+  from: number;
+  to: number;
+  label: string;
+  color?: string;
+  /** Row above the keyboard (0: nearest). */
+  row?: number;
+}
+interface Mark {
+  note: number;
+  label: string;
+}
+interface Pulse {
+  note: number;
+  /** Seconds after the cycle starts. */
+  delay: number;
+  strength?: number;
+}
+interface Props {
+  zones?: Zone[];
+  marks?: Mark[];
+  pulses?: Pulse[];
+  /** Cycle length of the pulses (s). */
+  period?: number;
+  label?: string;
+}
+const { zones = [], marks = [], pulses = [], period = 4, label = 'Keyboard' } = Astro.props;
+
+const W = 520;
+const isBlack = (n: number) => [1, 3, 6, 8, 10].includes(n % 12);
+const whites: number[] = [];
+for (let n = 21; n <= 108; n++) if (!isBlack(n)) whites.push(n);
+const kw = W / whites.length;
+/** Left edge and width of a key. */
+function span(n: number): [number, number] {
+  if (!isBlack(n)) return [whites.indexOf(n) * kw, kw];
+  const left = whites.indexOf(n - 1);
+  return [(left + 1) * kw - kw * 0.32, kw * 0.64];
+}
+const rows = Math.max(0, ...zones.map((z) => (z.row ?? 0) + 1));
+const top = 8 + rows * 22 + (marks.length ? 18 : 0);
+const KH = 54;
+const H = top + KH + 18;
+const zoneY = (row: number) => top - 6 - (row + 1) * 22 + 4;
+const pulseOf = new Map(pulses.map((p) => [p.note, p]));
+---
+
+<svg class="kbd" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
+  {
+    zones.map((z) => {
+      const [x0] = span(z.from);
+      const [x1, w1] = span(z.to);
+      const y = zoneY(z.row ?? 0);
+      return (
+        <g style={`--zc: ${z.color ?? 'var(--up-accent)'}`}>
+          <rect class="zone" x={x0 + 0.5} y={y} width={x1 + w1 - x0 - 1} height="16" rx="4"></rect>
+          <text class="dg-text zone-text" x={(x0 + x1 + w1) / 2} y={y + 11.5} text-anchor="middle">
+            {z.label}
+          </text>
+        </g>
+      );
+    })
+  }
+  {
+    marks.map((m) => {
+      const [x, w] = span(m.note);
+      return (
+        <g>
+          <line class="mark" x1={x + w / 2} x2={x + w / 2} y1={top - 12} y2={top + 2}></line>
+          <text class="dg-hl" x={x + w / 2} y={top - 15} text-anchor={x > W * 0.8 ? 'end' : x < W * 0.2 ? 'start' : 'middle'}>
+            {m.label}
+          </text>
+        </g>
+      );
+    })
+  }
+  <g class="keys">
+    {
+      whites.map((n) => {
+        const [x, w] = span(n);
+        const p = pulseOf.get(n);
+        return (
+          <g>
+            <rect class="white" x={x + 0.4} y={top} width={w - 0.8} height={KH} rx="1.5"></rect>
+            {p && <rect class="glow" x={x + 0.4} y={top} width={w - 0.8} height={KH} rx="1.5" style={`--d: ${p.delay}s; --s: ${p.strength ?? 1}; --T: ${period}s`}></rect>}
+            <title>{noteName(n)}</title>
+          </g>
+        );
+      })
+    }
+    {
+      Array.from({ length: 88 }, (_, i) => i + 21)
+        .filter(isBlack)
+        .map((n) => {
+          const [x, w] = span(n);
+          const p = pulseOf.get(n);
+          return (
+            <g>
+              <rect class="black" x={x} y={top} width={w} height={KH * 0.62} rx="1"></rect>
+              {p && <rect class="glow" x={x} y={top} width={w} height={KH * 0.62} rx="1" style={`--d: ${p.delay}s; --s: ${p.strength ?? 1}; --T: ${period}s`}></rect>}
+              <title>{noteName(n)}</title>
+            </g>
+          );
+        })
+    }
+  </g>
+  {
+    [21, 24, 36, 48, 60, 72, 84, 96, 108].map((n) => (
+      <text class="dg-text" x={span(n)[0] + kw / 2} y={top + KH + 13} text-anchor="middle" font-size="8.5">
+        {noteName(n)}
+      </text>
+    ))
+  }
+</svg>
+
+<style>
+  .zone {
+    fill: color-mix(in srgb, var(--zc) 16%, transparent);
+    stroke: color-mix(in srgb, var(--zc) 60%, transparent);
+  }
+  .zone-text {
+    fill: var(--zc);
+    font-size: 9px;
+  }
+  .mark {
+    stroke: var(--up-accent-light);
+    stroke-width: 1.4;
+  }
+  .white {
+    fill: var(--up-ivory);
+  }
+  .black {
+    fill: #10141f;
+    stroke: #10141f;
+  }
+  .glow {
+    fill: var(--up-accent);
+    opacity: 0;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .glow {
+      animation: key-glow var(--T) ease-out infinite;
+      animation-delay: var(--d);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .glow {
+      opacity: calc(var(--s) * 0.8);
+    }
+  }
+  @keyframes key-glow {
+    0% {
+      opacity: 0;
+    }
+    4% {
+      opacity: calc(var(--s) * 0.95);
+    }
+    55%,
+    100% {
+      opacity: 0;
+    }
+  }
+</style>

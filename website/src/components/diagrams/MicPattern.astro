@@ -1,0 +1,61 @@
+---
+// Pick-up patterns: a + (1 − a)·cos θ, aimed at the piano. An omni (a = 1)
+// hears every direction alike; a cardioid (a = 0.5) hears the room — which
+// arrives from everywhere — with a random-incidence efficiency a² + (1 − a)²/3,
+// a third of an omni's: about 5 dB less room for the same piano.
+import Figure from './Figure.astro';
+
+const CX = 130, CY = 104, R = 74;
+const shape = (a: number) =>
+  Array.from({ length: 121 }, (_, k) => {
+    const t = (k / 120) * 2 * Math.PI;
+    const r = R * Math.abs(a + (1 - a) * Math.cos(t));
+    return `${k ? 'L' : 'M'}${(CX + r * Math.sin(t)).toFixed(1)} ${(CY - r * Math.cos(t)).toFixed(1)}`;
+  }).join(' ') + 'Z';
+const eff = (a: number) => a * a + (1 - a) ** 2 / 3;
+const db = (x: number) => (10 * Math.log10(x)).toFixed(1);
+---
+
+<Figure
+  label="Microphone pattern · mic_pattern"
+  caption="The piano is in front (up). 1 is an omni, 0.5 a cardioid: on axis both hear the piano the same, but the room's reflections and reverberation come from every direction, and the cardioid hears them with a third of the energy."
+>
+  <svg viewBox="0 0 480 210" role="img" aria-label="Polar patterns of an omnidirectional and a cardioid microphone">
+    {[0.25, 0.5, 0.75, 1].map((f) => <circle cx={CX} cy={CY} r={R * f} class="dg-faint"></circle>)}
+    <line class="dg-faint" x1={CX - R - 8} x2={CX + R + 8} y1={CY} y2={CY}></line>
+    <line class="dg-faint" x1={CX} x2={CX} y1={CY - R - 8} y2={CY + R + 8}></line>
+    <text class="dg-hl dg-mid" x={CX} y={CY - R - 12}>piano ↑</text>
+    <path d={shape(1)} fill="rgba(108,184,255,0.06)" stroke="#6cb8ff" stroke-dasharray="4 3"></path>
+    <path class="cardioid" d={shape(0.5)} fill="rgba(242,181,68,0.12)" stroke="var(--up-accent-light)" stroke-width="2" pathLength="1"></path>
+    <circle cx={CX} cy={CY} r="5" fill="#0b0f18" stroke="var(--up-text-bright)" stroke-width="1.5"></circle>
+    {[0, 1, 2, 3, 4, 5].map((i) => (
+      <circle r="2.5" fill="var(--up-text-muted)" opacity="0">
+        <animateMotion path={`M${CX + 100 * Math.cos(i)} ${CY + 100 * Math.sin(i)} L${CX} ${CY}`} dur="2.4s" begin={`${i * 0.4}s`} repeatCount="indefinite"></animateMotion>
+        <animate attributeName="opacity" values="0;0.8;0" dur="2.4s" begin={`${i * 0.4}s`} repeatCount="indefinite"></animate>
+      </circle>
+    ))}
+    <g transform="translate(262 52)">
+      <line x1="0" x2="22" y1="0" y2="0" stroke="#6cb8ff" stroke-dasharray="4 3"></line>
+      <text class="dg-label" x="30" y="4">omni · a = 1</text>
+      <text class="dg-text" x="30" y="19">room heard at {db(eff(1))} dB</text>
+      <line x1="0" x2="22" y1="50" y2="50" stroke="var(--up-accent-light)" stroke-width="2"></line>
+      <text class="dg-label" x="30" y="54">cardioid · a = 0.5</text>
+      <text class="dg-text" x="30" y="69">room heard at {db(eff(0.5))} dB</text>
+      <text class="dg-text" x="0" y="112">gain(θ) = a + (1 − a)·cos θ</text>
+      <text class="dg-text" x="0" y="128">room = a² + (1 − a)²/3</text>
+    </g>
+  </svg>
+</Figure>
+
+<style>
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html.js) :global(.fig:not(.is-revealed)) .cardioid {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+    }
+    .cardioid {
+      stroke-dasharray: 1;
+      transition: stroke-dashoffset 1.6s ease 0.2s;
+    }
+  }
+</style>

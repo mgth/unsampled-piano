@@ -1,0 +1,62 @@
+---
+title: Hammer
+description: Voicing, felt layers, weight and strike point — what the hammer gives the string, and how it changes with how hard you play.
+order: 103
+icon: hammer
+section: Parameters
+page: Hammer
+---
+import CurveChart from '../../../components/diagrams/CurveChart.astro';
+import FeltContact from '../../../components/diagrams/FeltContact.astro';
+import StrikePoint from '../../../components/diagrams/StrikePoint.astro';
+
+Everything a piano note becomes starts with a few milliseconds of contact: a felt-covered
+hammer, thrown by the key, hits the strings from below, squeezes against them and bounces off.
+How long it stays, how hard it pushes and how that push rises and falls decide which partials
+the string receives — the **timbre**, and how the timbre changes with how hard you play.
+
+## Felt is a nonlinear spring
+
+The model follows Stulov's measured hammers: the felt pushes back with
+
+<p class="formula">F = Q0 · [ u<sup>p</sup> + α · d(u<sup>p</sup>)/dt ]</p>
+
+where *u* is how much it is squeezed (in mm). With *p* around 4, doubling the compression
+multiplies the force by sixteen: a hammer thrown twice as fast does not only push twice as
+hard, its push gets **shorter and sharper**, and that is what brightens a forte. The second
+term is the hysteresis α — felt keeps part of the energy instead of springing back — which
+the contact solver applies in a form that can only remove energy, so the strike is stable
+whatever the settings.
+
+Real hammers are **layered**: soft felt outside, much denser felt underneath. The model adds
+that core below a top-felt depth *d*:
+
+<FeltContact />
+
+`hardness` is the **voicing** knob a technician has with needles and lacquer: it scales the
+top felt's stiffness on every key. The slopes spread it across the keyboard — treble hammers
+are smaller and harder — on top of Stulov's own growth of Q0 with the key:
+
+<CurveChart title="Felt stiffness Q0" caption="Top-felt stiffness per key (log scale), default voicing: a hundredfold from A0 to C8." />
+
+<CurveChart title="Felt exponent p" caption="How fast the felt stiffens as it is squeezed, per key (Stulov: p = 3.7 + 0.015·key, plus <code>p_offset</code> and <code>p_bass</code>)." />
+
+## Weight and strike point
+
+A **heavier** hammer (`hammer_mass_scale`) stays longer on the strings at the same speed:
+more energy, a fuller and rounder tone. Light hammers — fortepianos, small uprights — bounce
+off sooner, for a thinner, quicker attack.
+
+**Where** it hits matters as much as how. A string struck at a point cannot start the partials
+that have a still point (a node) there:
+
+<StrikePoint />
+
+Tuning `strike_ratio` toward the end of the string brightens and thins the tone; further in,
+it gets rounder. `contact_width_scale` widens the felt patch touching the string, a gentle
+low-pass on the highest partials.
+
+> The default voicing keeps the top felt softer than Stulov's and lets the core give the
+> bite at forte — the method and the measurements are in
+> [docs/middle_highs.md](https://github.com/mgth/unsampled-piano/blob/main/docs/middle_highs.md)
+> and [docs/presence.md](https://github.com/mgth/unsampled-piano/blob/main/docs/presence.md).

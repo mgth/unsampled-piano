@@ -1,0 +1,231 @@
+---
+// The soundboard's lowest modes, from the default instrument: an orthotropic
+// plate a × b clamped in the rim (Warburton's approximation, index m → m + ½),
+// stiffened by its crown. Frequencies are the model's; shapes are products of
+// clamped-beam functions, the ones Warburton's method assumes. Seen from above
+// like the plan (keyboard at the bottom, treble on the right), with the
+// bridges and every key's crossing point. Pick a mode to watch it vibrate.
+import Figure from './Figure.astro';
+import { BOARD, TREBLE_BRIDGE, BASS_BRIDGE, bridgePoint } from '../../lib/geometry';
+import { def, fmt, noteName } from '../../lib/params';
+
+const { a, b } = BOARD;
+const Dx = def('soundboard.dx');
+const Dy = def('soundboard.dy');
+const H = Math.sqrt(Dx * Dy);
+const rh = def('soundboard.rho_h');
+const crown = def('soundboard.crown_freq');
+const freq = (m: number, n: number) => {
+  const p = m + 0.5, q = n + 0.5;
+  const w2 = (Math.PI ** 4 / rh) * (Dx * (p / a) ** 4 + 2 * H * (p / a) ** 2 * (q / b) ** 2 + Dy * (q / b) ** 4);
+  return Math.sqrt(w2 + (2 * Math.PI * crown) ** 2) / (2 * Math.PI);
+};
+const modes = [];
+for (let m = 1; m <= 8; m++) for (let n = 1; n <= 8; n++) modes.push({ m, n, f: freq(m, n) });
+modes.sort((x, y) => x.f - y.f);
+const shown = modes.slice(0, 12);
+
+// Plan view in the canvas's own pixels.
+const CW = 260;
+const CH = Math.round((CW * a) / b);
+const px = (x: number, y: number): [number, number] => [CW - (y / b) * CW, CH - (x / a) * CH];
+const line = (pts: [number, number][]) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${px(x, y).map((v) => v.toFixed(1)).join(' ')}`).join(' ');
+const keys = [21, 24, 36, 48, 60, 72, 84, 96, 108].map((n) => ({ n, p: px(...bridgePoint(n)) }));
+const allKeys = Array.from({ length: 88 }, (_, i) => px(...bridgePoint(i + 21)));
+---
+
+<Figure
+  label="Soundboard modes · from above"
+  caption={`The board vibrates in modes, each a damped oscillator the strings drive through the bridge. With the default board (${fmt(a)} × ${fmt(b)} m, ρh = ${fmt(rh)} kg/m², Dx = ${fmt(Dx)} and Dy = ${fmt(Dy)} N·m, crown ${fmt(crown)} Hz) the first sits at ${fmt(+shown[0].f.toFixed(0))} Hz and they come about every 20 Hz higher up — thousands up to 20 kHz. A key only drives the modes that move under its bridge point: dots on a dark (nodal) line feed that mode nothing. Gold and blue are opposite phases.`}
+>
+  <div class="modes" data-modes={JSON.stringify({ a, b, modes: shown, CW, CH })}>
+    <div class="modes-view">
+      <canvas width={CW} height={CH} aria-label="Animated soundboard mode shape"></canvas>
+      <svg viewBox={`0 0 ${CW} ${CH}`} aria-hidden="true">
+        <path d={line(TREBLE_BRIDGE)} fill="none" stroke="#2a1606" stroke-width="5" stroke-linecap="round" opacity="0.55"></path>
+        <path d={line(BASS_BRIDGE)} fill="none" stroke="#2a1606" stroke-width="5" stroke-linecap="round" opacity="0.55"></path>
+        <path d={line(TREBLE_BRIDGE)} fill="none" stroke="#e8a060" stroke-width="2" stroke-linecap="round"></path>
+        <path d={line(BASS_BRIDGE)} fill="none" stroke="#e8a060" stroke-width="2" stroke-linecap="round"></path>
+        {allKeys.map(([x, y]) => <circle cx={x} cy={y} r="1.3" fill="#fff4dc"></circle>)}
+        {keys.map(({ n, p }) => (
+          <g>
+            <circle cx={p[0]} cy={p[1]} r="2.6" fill="#fff4dc" stroke="#1a1206"></circle>
+            <text x={p[0] + 5} y={p[1] - 4} font-size="9" font-family="var(--up-font-mono)" fill="#fff4dc" stroke="#0b0f18" stroke-width="2.5" paint-order="stroke">{noteName(n)}</text>
+          </g>
+        ))}
+      </svg>
+      <span class="modes-axis modes-axis-x">keyboard end ↓ · treble →</span>
+    </div>
+    <div class="modes-list" role="listbox" aria-label="Soundboard mode">
+      {shown.map((md, i) => (
+        <button type="button" role="option" aria-selected={i === 0 ? 'true' : 'false'} data-i={i}>
+          <span class="mn">({md.m},{md.n})</span>
+          <span class="hz">{md.f.toFixed(0)} Hz</span>
+        </button>
+      ))}
+    </div>
+  </div>
+</Figure>
+
+<style>
+  .modes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: start;
+  }
+  .modes-view {
+    position: relative;
+    max-width: 300px;
+    margin-inline: auto;
+    width: 100%;
+  }
+  .modes-view canvas,
+  .modes-view svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+  .modes-view canvas {
+    image-rendering: auto;
+    border: 1px solid rgba(217, 130, 59, 0.6);
+    background: #1d2433;
+  }
+  .modes-view svg {
+    position: absolute;
+    inset: 0;
+  }
+  .modes-axis {
+    display: block;
+    margin-top: 6px;
+    font-family: var(--up-font-mono);
+    font-size: 0.7rem;
+    color: var(--up-text-muted);
+    text-align: center;
+  }
+  .modes-list {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 4px;
+  }
+  .modes-list button {
+    appearance: none;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--up-border);
+    background: transparent;
+    color: var(--up-text-muted);
+    font-family: var(--up-font-mono);
+    font-size: 0.74rem;
+    cursor: pointer;
+  }
+  .modes-list button:hover {
+    color: var(--up-text-bright);
+    border-color: var(--up-border-strong);
+  }
+  .modes-list button[aria-selected='true'] {
+    color: #1a1206;
+    background: var(--up-accent);
+    border-color: var(--up-accent);
+  }
+  .modes-list .mn {
+    color: inherit;
+  }
+  @media (max-width: 560px) {
+    .modes {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .modes-list {
+      grid-template-columns: repeat(3, auto);
+    }
+  }
+</style>
+
+<script>
+  // Clamped-clamped beam function of order m (β = 4.730, then ≈ (m + ½)π), on 0–1.
+  function beam(m: number): (u: number) => number {
+    const B = m === 1 ? 4.73004 : (m + 0.5) * Math.PI;
+    const s = (Math.cosh(B) - Math.cos(B)) / (Math.sinh(B) - Math.sin(B));
+    return (u) => Math.cosh(B * u) - Math.cos(B * u) - s * (Math.sinh(B * u) - Math.sin(B * u));
+  }
+
+  function initModes() {
+    document.querySelectorAll<HTMLElement>('[data-modes]:not([data-bound])').forEach((box) => {
+      box.dataset.bound = '1';
+      const { modes, CW, CH } = JSON.parse(box.dataset.modes!);
+      const canvas = box.querySelector('canvas')!;
+      const ctx = canvas.getContext('2d')!;
+      // Field computed on a coarse grid, drawn smoothed.
+      const GW = 52;
+      const GH = Math.round((GW * CH) / CW);
+      const off = document.createElement('canvas');
+      off.width = GW;
+      off.height = GH;
+      const octx = off.getContext('2d')!;
+      const img = octx.createImageData(GW, GH);
+      let field = new Float32Array(GW * GH);
+
+      const select = (i: number) => {
+        const { m, n } = modes[i];
+        const fx = beam(m);
+        const fy = beam(n);
+        let max = 0;
+        for (let r = 0; r < GH; r++)
+          for (let c = 0; c < GW; c++) {
+            // Canvas row r is x from the tail (top) to the keyboard (bottom);
+            // column c is y from the bass (left) to the treble (right).
+            const x = 1 - (r + 0.5) / GH;
+            const y = 1 - (c + 0.5) / GW;
+            const v = fx(x) * fy(y);
+            field[r * GW + c] = v;
+            max = Math.max(max, Math.abs(v));
+          }
+        for (let k = 0; k < field.length; k++) field[k] /= max;
+        box.querySelectorAll('button[data-i]').forEach((b) => b.setAttribute('aria-selected', String(Number((b as HTMLElement).dataset.i) === i)));
+      };
+
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const draw = (phase: number) => {
+        for (let k = 0; k < field.length; k++) {
+          const v = field[k] * phase;
+          const t = Math.min(1, Math.abs(v));
+          const o = k * 4;
+          // Night blue base, gold for +, sky blue for −.
+          const [r, g, bl] = v >= 0 ? [242, 181, 68] : [108, 184, 255];
+          img.data[o] = 29 + (r - 29) * t;
+          img.data[o + 1] = 36 + (g - 36) * t;
+          img.data[o + 2] = 51 + (bl - 51) * t;
+          img.data[o + 3] = 255;
+        }
+        octx.putImageData(img, 0, 0);
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(off, 0, 0, CW, CH);
+      };
+
+      let visible = false;
+      new IntersectionObserver((e) => (visible = e[0].isIntersecting)).observe(canvas);
+      const start = performance.now();
+      const loop = (now: number) => {
+        if (!canvas.isConnected) return;
+        if (visible) draw(Math.cos(((now - start) / 1000) * 2 * Math.PI * 0.9));
+        requestAnimationFrame(loop);
+      };
+
+      box.querySelectorAll<HTMLButtonElement>('button[data-i]').forEach((b) =>
+        b.addEventListener('click', () => {
+          select(Number(b.dataset.i));
+          if (reduced) draw(1);
+        }),
+      );
+      select(0);
+      draw(1);
+      if (!reduced) requestAnimationFrame(loop);
+    });
+  }
+  document.addEventListener('astro:page-load', initModes);
+  initModes();
+</script>

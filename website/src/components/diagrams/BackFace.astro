@@ -1,0 +1,56 @@
+---
+// The board radiates from both faces, in opposite phase. The model keeps the
+// front face's Rayleigh integral and adds the back face as an image
+// back_depth below, with gain −β (back_gain): at low frequency the two
+// nearly cancel, at high frequency the rim and keybed shield the back.
+import Figure from './Figure.astro';
+import { def, fmt } from '../../lib/params';
+
+const depth = def('soundboard.back_depth');
+const beta = def('soundboard.back_gain');
+const S = 70;
+const BX0 = 120, BX1 = 300, BY = 118;
+const mic = [400, 30];
+const img = BY + depth * S;
+---
+
+<Figure
+  label="Front and back of the board"
+  caption={`Every patch of the board pushes air up as it pulls it down underneath. The model adds the underside as an image ${fmt(depth)} m below (<code>back_depth</code>), in opposite phase and scaled by <code>back_gain</code> = ${fmt(beta)}: the rim and keybed shield part of it. 0 would be an infinite baffle. An upright against a wall gets a second image in the wall.`}
+>
+  <svg viewBox="0 0 480 190" role="img" aria-label="Board radiating from its front face and from the image of its back face">
+    <defs>
+      <clipPath id="bf-up"><rect x="0" y="0" width="480" height={BY}></rect></clipPath>
+    </defs>
+    <g clip-path="url(#bf-up)">
+      {[0, 1, 2].map((i) => (
+        <ellipse cx={(BX0 + BX1) / 2} cy={BY} rx="10" ry="6" fill="none" stroke="var(--up-accent)" stroke-width="1.5" opacity="0">
+          <animate attributeName="rx" values="10;260" dur="3s" begin={`${i}s`} repeatCount="indefinite"></animate>
+          <animate attributeName="ry" values="6;200" dur="3s" begin={`${i}s`} repeatCount="indefinite"></animate>
+          <animate attributeName="opacity" values="0.8;0" dur="3s" begin={`${i}s`} repeatCount="indefinite"></animate>
+        </ellipse>
+      ))}
+      {[0, 1, 2].map((i) => (
+        <ellipse cx={(BX0 + BX1) / 2} cy={img} rx="10" ry="6" fill="none" stroke="#6cb8ff" stroke-width="1.2" stroke-dasharray="4 3" opacity="0">
+          <animate attributeName="rx" values="10;260" dur="3s" begin={`${i}s`} repeatCount="indefinite"></animate>
+          <animate attributeName="ry" values="6;200" dur="3s" begin={`${i}s`} repeatCount="indefinite"></animate>
+          <animate attributeName="opacity" values={`${0.8 * beta};0`} dur="3s" begin={`${i}s`} repeatCount="indefinite"></animate>
+        </ellipse>
+      ))}
+    </g>
+    <rect x={BX0 - 10} y={BY} width={BX1 - BX0 + 20} height="30" fill="#2a2018" stroke="#5a3a1e"></rect>
+    <line x1={BX0} x2={BX1} y1={BY} y2={BY} stroke="var(--up-copper)" stroke-width="4" stroke-linecap="round"></line>
+    <text class="dg-text dg-mid" x={(BX0 + BX1) / 2} y={BY + 19} style="fill:#c9a27c">rim · keybed</text>
+    <line x1={BX0} x2={BX1} y1={img} y2={img} stroke="#6cb8ff" stroke-width="2" stroke-dasharray="5 4"></line>
+    <text class="dg-text" x={BX1 + 10} y={img + 4} style="fill:#6cb8ff">back face image, −β</text>
+    <path class="dg-faint" d={`M${BX0 - 24} ${BY} V${img}`}></path>
+    <text class="dg-text dg-end" x={BX0 - 28} y={(BY + img) / 2 + 3}>{fmt(depth)} m</text>
+    <line x1={(BX0 + BX1) / 2 + 30} y1={BY} x2={mic[0]} y2={mic[1]} stroke="rgba(242,181,68,0.7)" stroke-dasharray="3 3"></line>
+    <line x1={(BX0 + BX1) / 2 + 30} y1={img} x2={mic[0]} y2={mic[1]} stroke="rgba(108,184,255,0.6)" stroke-dasharray="3 3"></line>
+    <text class="dg-hl" x="372" y="78">R</text>
+    <text class="dg-text" x="392" y="108" style="fill:#6cb8ff">R′</text>
+    <circle cx={mic[0]} cy={mic[1]} r="7.5" fill="#0b0f18" stroke="#6cb8ff" stroke-width="2"></circle>
+    <text class="dg-text" x={mic[0] + 12} y={mic[1] + 4}>mic</text>
+    <text class="dg-text" x={BX0} y={BY - 8}>board</text>
+  </svg>
+</Figure>

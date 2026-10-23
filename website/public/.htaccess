@@ -1,0 +1,33 @@
+# Apache config for o2switch static hosting.
+# Copied verbatim into dist/ by Astro (everything under public/ is emitted to the
+# site root), so it lands at the docroot the FTP deploy uploads to.
+
+# Serve the site's own 404 page.
+ErrorDocument 404 /404.html
+
+# Compress text responses.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml \
+    application/javascript application/json image/svg+xml application/xml
+</IfModule>
+
+# Cache static assets. Astro fingerprints everything under /_astro/, so those are
+# safe to cache long; HTML must always revalidate so new deploys show up.
+<IfModule mod_expires.c>
+  ExpiresActive On
+  <FilesMatch "\.(css|js|woff2|woff|ttf|svg|png|jpg|jpeg|webp|avif|ico)$">
+    ExpiresDefault "access plus 1 year"
+  </FilesMatch>
+  <FilesMatch "\.html$">
+    ExpiresDefault "access plus 0 seconds"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(css|js|woff2|woff|ttf|svg|png|jpg|jpeg|webp|avif|ico)$">
+    Header set Cache-Control "public, max-age=31536000"
+  </FilesMatch>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+  </FilesMatch>
+</IfModule>

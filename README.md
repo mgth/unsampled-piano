@@ -91,6 +91,8 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 
 ## Documentation
 
+Website, user guides and the reference of every parameter, with diagrams: <https://unsampled.mgth.fr> (source in [website/](website/)).
+
 - State of the art and plan: [reports/piano_physical_synthesis.md](reports/piano_physical_synthesis.md)
 - Phase 0 (tooling, CPU and precision measurements): [docs/phase0.md](docs/phase0.md)
 - Analysis of Salamander Grand (Yamaha C5): [docs/salamander.md](docs/salamander.md)

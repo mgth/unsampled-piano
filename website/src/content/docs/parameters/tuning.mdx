@@ -1,0 +1,45 @@
+---
+title: Tuning
+description: Pitch, inharmonicity and stretch — why a piano is never tuned to the equal-tempered table, and how the model follows a real one.
+order: 104
+icon: fork
+section: Parameters
+page: Tuning
+---
+import CurveChart from '../../../components/diagrams/CurveChart.astro';
+import Partials from '../../../components/diagrams/Partials.astro';
+
+A piano string is a steel wire, and steel is stiff. A perfectly flexible string would vibrate
+at exact multiples of its fundamental; a stiff one resists bending a little more for each
+shorter wave, so every partial comes out **sharp**, and more so the higher it is. That is the
+piano's **inharmonicity** — part of its slightly metallic colour, and the reason it cannot be
+tuned by the textbook.
+
+## Inharmonicity
+
+Each key gets a coefficient B, and partial *k* lands at
+
+<p class="formula">f<sub>k</sub> = k · f0 · √(1 + B · k²)</p>
+
+<Partials />
+
+B is large for the short, thick strings of the treble, and rises again in the bass where the
+strings are foreshortened to fit the case. The model uses the two-exponential law of Rigaud,
+David and Daudet (2013), fitted on the recordings of a Yamaha C5 (the Salamander Grand):
+
+<CurveChart title="Inharmonicity B" caption="B per key (log scale): the two exponentials meet in the tenor. Fitted on Salamander, rms 0.07 in log B." />
+
+## Stretch
+
+Because the partials are sharp, an octave tuned exactly 2:1 between fundamentals sounds flat:
+the upper note's fundamental beats against the lower note's sharp second partial. Tuners
+**stretch** the octaves instead — treble tuned sharp, bass flat — until they sound pure. The
+model follows a fitted stretch law, in cents from equal temperament:
+
+<p class="formula">cents(n) = a_t · e<sup>k_t (n − 69)</sup> − a_b · e<sup>−k_b (n − 69)</sup> + c</p>
+
+<CurveChart title="Stretch" caption="The default stretch, fitted on Salamander (C8 excluded, rms 2 cents): −16 cents at A0, +25 at C8. Hover to read any key." />
+
+`a4` moves everything: 440 Hz is the modern standard, orchestras often tune to 442, baroque
+ensembles to 415 — the *Baroque 415* character preset does exactly that. Changing it rebuilds
+the instrument, because each string's mass is computed from its pitch, length and tension.

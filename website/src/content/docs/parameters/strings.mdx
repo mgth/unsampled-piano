@@ -1,0 +1,86 @@
+---
+title: Strings
+description: Lengths, unisons, losses, polarisations and nonlinearity — how the strings ring, beat and die away.
+order: 105
+icon: string
+section: Parameters
+page: Strings
+---
+import CurveChart from '../../../components/diagrams/CurveChart.astro';
+import StringAnatomy from '../../../components/diagrams/StringAnatomy.astro';
+import Beating from '../../../components/diagrams/Beating.astro';
+import DoubleDecay from '../../../components/diagrams/DoubleDecay.astro';
+import Figure from '../../../components/diagrams/Figure.astro';
+import KeyboardStrip from '../../../components/diagrams/KeyboardStrip.astro';
+
+Each string is a set of **modes** — its partials — each a damped oscillator computed in
+complex form, thousands of them per note. The strings of one key are coupled through the
+bridge they share, and each vibrates in two directions. Nothing here is a filter on a recorded
+tone: what you hear is that system ringing.
+
+<StringAnatomy />
+
+## Scale
+
+The **scale** is the set of string lengths. From the top down, each octave is longer by
+`ratio_per_octave` (an ideal string would double; real ones do not, or a grand would be ten
+metres long). Below `break_note` the case runs out of room: the bass strings are shortened
+toward `len_a0` and made heavier by winding copper around them. With the tension and the pitch,
+the length gives each string its mass, μ = T / (2·L·f0)².
+
+<CurveChart title="String length" caption="Speaking length per key (log scale). The generic 2 m grand scale of the default instrument is a placeholder, not a measured one; the knee is the break note." />
+
+## Unisons
+
+Most keys have two or three strings, struck together. They are never exactly in tune with each
+other, and should not be: that slight spread is what gives a piano tone its life.
+
+<Figure label="Strings per key, default instrument">
+  <KeyboardStrip
+    zones={[
+      { from: 21, to: 27, label: '1', color: '#9fb0c8' },
+      { from: 28, to: 44, label: '2 strings', color: '#ffc861' },
+      { from: 45, to: 108, label: '3 strings per key', color: '#f2b544' },
+      { from: 21, to: 48, label: 'wound strings', color: '#e08a4a', row: 1 },
+      { from: 21, to: 64, label: 'phantom partials computed', color: '#ff6fb5', row: 2 },
+    ]}
+    label="Keyboard with the single, bichord and trichord ranges, the wound strings and the nonlinearity range"
+  />
+</Figure>
+
+<Beating />
+
+<CurveChart title="Unison spread" caption="Spread between the extreme strings of a key, in cents: flat to middle C (<code>width_mid</code>), then growing to <code>width_treble</code> at C8. Each key gets an irregular but fixed pattern within it." />
+
+`hit_spread` is the other half of the story: the hammer never strikes the strings of a key
+evenly, and the uneven part sets them swinging against each other from the start.
+
+## Two polarisations, two decays
+
+<DoubleDecay />
+
+The `polarization.*` parameters set how weakly the bridge holds the sideways motion
+(`h_coupling`), how much energy passes between the two directions (`cross` — clamped so the
+bridge stays passive), and how much of the sideways motion is heard.
+
+## Losses
+
+Strings lose energy on their own too — air drag, internal friction — on top of what the bridge
+and soundboard take. The intrinsic decay rate of a partial at frequency *f* is
+
+<p class="formula">σ = b1_floor·w(n) + e<sup>b1_slope·n + b1_offset + top(n)</sup> + b2·f²</p>
+
+with the T60 = 6.9 / σ. The `b2` term makes the high partials die sooner, so the sound
+darkens as it decays; `b1_floor` adds the losses of the wound bass strings; `top_slope` those
+of the top strings, which have no dampers and would otherwise ring on after the keys are
+released.
+
+<CurveChart title="Fundamental T60 (string losses alone)" caption="How long the fundamental would ring on the string's own losses, before the bridge and the soundboard take their share (log scale)." />
+
+## Nonlinearity
+
+Struck hard, a string stretches a little as it swings, and its tension rises and falls twice
+per cycle. That drives the string's **longitudinal** modes with sums and differences of its
+partials: the "phantom" partials that give a loud bass its growl. The model computes them up to
+`max_note` (E4 by default; above, they are too high to matter), with a level that grows as the
+square of the amplitude — they are there at forte, gone at piano.

@@ -1,0 +1,77 @@
+---
+title: Dampers
+description: How notes end — damper felt, its grip and timing, the undamped top strings, and the halo of sympathetic resonance with the pedal down.
+order: 106
+icon: damper
+section: Parameters
+page: Dampers
+---
+import DamperTimeline from '../../../components/diagrams/DamperTimeline.astro';
+import Figure from '../../../components/diagrams/Figure.astro';
+import KeyboardStrip from '../../../components/diagrams/KeyboardStrip.astro';
+
+A damper is a felt pad resting on the strings near the keyboard end. Pressing a key lifts it;
+releasing the key lets it fall back and stop the sound. The sustain pedal lifts all of them at
+once. In the model a damper is a **dashpot** on the string: it adds to partial *k* a decay rate
+proportional to how much that partial moves under the pad, sin²(kπx/L) averaged over its width.
+
+<DamperTimeline />
+
+## Grip
+
+`strength` is how firmly the felt stops the string. It is not "more is better": a damper is
+most absorbing when its resistance matches the string's own impedance (√(T·μ), strength 1).
+Softer and notes linger after release; much harder and the felt starts to reflect the vibration
+back instead of absorbing it.
+
+`contact_exponent` shapes how the damping grows as the felt settles: with a high exponent, a
+damper that only brushes the string barely stops it — which makes the half pedal usable and
+note endings softer. `node_floor` catches the partials that have a still point right under the
+pad and would otherwise escape it.
+
+## Which keys have dampers
+
+<Figure
+  label="Dampers across the keyboard"
+  caption="The short strings at the top have no dampers (above <code>highest_note</code>, F♯6 by default, as measured on a commercial modelled piano): they ring until they die on their own, and the extra string losses from C6 up (<code>losses.top_slope</code>) keep them from ringing on too long after a staccato."
+>
+  <KeyboardStrip
+    zones={[
+      { from: 21, to: 90, label: 'damped keys', color: '#a78bfa' },
+      { from: 91, to: 108, label: 'no damper', color: '#ff7a59' },
+      { from: 84, to: 108, label: 'extra top losses', color: '#ffc861', row: 1 },
+    ]}
+    marks={[{ note: 90, label: 'F♯6' }]}
+    label="Keyboard showing the damped range and the undamped top keys"
+  />
+</Figure>
+
+## Sympathetic resonance
+
+With the dampers lifted, every string is free to answer the ones being played: a C3 struck with
+the pedal down sets ringing the strings whose partials coincide with its own — C4, G4, C5, E5…
+and C2 or F1 below, whose upper partials meet its fundamental. That is the halo of a pedalled
+piano.
+
+<Figure
+  label="Sympathetic resonance · C3 with the pedal down"
+  caption="The struck key, then the strings that answer it, brighter the closer their partials match. The model computes this one way (Bank, Zambon and Fontana 2010): each undamped key gets listening strings driven by the bridge motion of the others, which do not drive the bridge back — stable for any gain. <code>gain</code> = 0.25 compensates the missing energy return, which would otherwise overshoot at the octaves."
+>
+  <KeyboardStrip
+    pulses={[
+      { note: 48, delay: 0, strength: 1 },
+      { note: 60, delay: 0.35, strength: 0.75 },
+      { note: 36, delay: 0.5, strength: 0.6 },
+      { note: 67, delay: 0.6, strength: 0.55 },
+      { note: 72, delay: 0.75, strength: 0.45 },
+      { note: 29, delay: 0.85, strength: 0.4 },
+      { note: 76, delay: 0.95, strength: 0.35 },
+      { note: 79, delay: 1.05, strength: 0.3 },
+      { note: 24, delay: 1.15, strength: 0.3 },
+      { note: 84, delay: 1.25, strength: 0.25 },
+    ]}
+    marks={[{ note: 48, label: 'struck: C3' }]}
+    period={4}
+    label="Keyboard: C3 struck, the harmonically related keys glowing in sympathy"
+  />
+</Figure>

@@ -18,3 +18,4 @@ egui = { workspace = true, features = ["default_fonts"] }
 [dev-dependencies]
 eframe.workspace = true
 midir.workspace = true
+serde_json.workspace = true
