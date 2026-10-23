@@ -5,7 +5,7 @@
 
 use crate::board::{self, BoardMode, MICS};
 use crate::complex::C64;
-use crate::modal::ModeSpec;
+use crate::modal::{ModeSpec, ModeTable};
 use crate::params::{self, NoteParams, PianoModel};
 use crate::soundboard::Soundboard;
 use crate::unison::{self, Cluster, MAX_OSC};
@@ -42,7 +42,18 @@ pub struct NoteModel {
     pub n_listen: usize,
     /// Geometric nonlinearity (phantom partials), when enabled for the key.
     pub longitudinal: Option<Longitudinal>,
+    /// `modes` as bank coefficients, for the primary bank and for the
+    /// sympathetic one (input gains advanced by e^{iωD}, D = [`BRIDGE_DELAY`]
+    /// samples: the bridge input arrives that late, and the coupling keeps its
+    /// physical, passive phase at each mode's frequency).
+    pub table: ModeTable,
+    pub sym_table: ModeTable,
 }
+
+/// Delay (samples) of the bridge acceleration seen by the strings: the
+/// engine's sub-block (the ring delay) plus the half sample of the backward
+/// difference.
+pub const BRIDGE_DELAY: f64 = crate::engine::SUB_BLOCK as f64 + 0.5;
 
 /// Precomputed longitudinal model of a key (see [`params::StringNonlinearity`]).
 ///
@@ -180,7 +191,19 @@ impl NoteModel {
             clusters.push(cl);
         }
         let longitudinal = longitudinal(model, &np, n_osc, &clusters, &modes, note, sample_rate);
-        Self { note, params: np, n_osc, clusters, phys, modes, region, has_damper, n_listen, longitudinal }
+        let delay = BRIDGE_DELAY / sample_rate;
+        let sym_modes: Vec<ModeSpec> = modes
+            .iter()
+            .map(|m| {
+                let adv = C64::polar(1.0, tau * m.freq_hz * delay);
+                let g1 = C64::new(m.gain_re, m.gain_im) * adv;
+                let g2 = C64::new(m.gain2_re, m.gain2_im) * adv;
+                ModeSpec { gain_re: g1.re, gain_im: g1.im, gain2_re: g2.re, gain2_im: g2.im, ..*m }
+            })
+            .collect();
+        let table = ModeTable::new(sample_rate, &modes);
+        let sym_table = ModeTable::new(sample_rate, &sym_modes);
+        Self { note, params: np, n_osc, clusters, phys, modes, region, has_damper, n_listen, longitudinal, table, sym_table }
     }
 
     /// Damper decay-rate factor at contact `engagement` (0 lifted, 1 resting).

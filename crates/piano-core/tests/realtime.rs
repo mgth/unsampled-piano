@@ -74,3 +74,12 @@ fn whole_keyboard_restrikes_stay_bounded() {
     }
     assert!(peak < 50.0, "peak {peak}");
 }
+
+/// Voices rendered by a pool of threads: the same output, bit for bit.
+#[test]
+fn threads_do_not_change_the_output() {
+    let cfg = EngineConfig::default();
+    let a = torture(&mut Engine::new(cfg), 600);
+    let b = torture(&mut Engine::new(EngineConfig { threads: 4, ..cfg }), 600);
+    assert!(a.iter().zip(&b).all(|(x, y)| x.to_bits() == y.to_bits()), "threads change the render");
+}
