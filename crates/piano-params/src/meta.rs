@@ -58,6 +58,8 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("soundboard.mics[1][2]", "Right mic height", "m", 0.05, 4.0, false),
     ("soundboard.mics_relative", "Positions relative to the board", "", 0.0, 1.0, false),
     ("soundboard.mic_gain_db", "Microphone gain", "dB", -30.0, 20.0, false),
+    ("soundboard.mic_pattern", "Mic pattern (1 omni, 0.5 cardioid)", "", 0.0, 1.0, false),
+    ("room.directivity", "Piano directivity Q", "", 1.0, 8.0, false),
     ("soundboard.lid_angle", "Lid angle", "°", 0.0, 60.0, false),
     ("soundboard.lid_hinge_height", "Lid hinge height", "m", 0.05, 0.6, false),
     ("soundboard.lid_reflection", "Lid reflection", "", 0.0, 1.0, false),

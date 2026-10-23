@@ -33,6 +33,8 @@ struct Setup {
     lid_angle: f64,
     /// Level keeping the loudness of the other set-ups.
     gain_db: f64,
+    /// Pick-up pattern: 1 omni, 0.5 cardioid.
+    pattern: f64,
 }
 
 /// The listening presets' microphone set-ups, and the calibrated one (the
@@ -40,21 +42,23 @@ struct Setup {
 const SETUPS: [Setup; 4] = [
     Setup {
         name: "Close",
-        hint: "40 cm above the bass and treble parts of the bridge, lid open at 35°",
+        hint: "Cardioids 40 cm above the bass and treble parts of the bridge, lid open at 35°",
         preset: Some("close"),
         mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
         relative: true,
         lid_angle: 35.0,
         gain_db: -9.6,
+        pattern: 0.5,
     },
     Setup {
         name: "Concert",
-        hint: "A pair in front of the opening, 2 m above the board, lid open at 35°",
+        hint: "An omni pair in front of the opening, 2 m above the board, lid open at 35°",
         preset: Some("concert"),
         mics: [(0.323529, -1.230769, 2.0), (0.735294, -1.230769, 2.0)],
         relative: true,
         lid_angle: 35.0,
         gain_db: 3.4,
+        pattern: 1.0,
     },
     Setup {
         name: "Audience",
@@ -64,6 +68,7 @@ const SETUPS: [Setup; 4] = [
         relative: true,
         lid_angle: 0.0,
         gain_db: 0.0,
+        pattern: 1.0,
     },
     Setup {
         name: "Above",
@@ -73,6 +78,7 @@ const SETUPS: [Setup; 4] = [
         relative: false,
         lid_angle: 0.0,
         gain_db: 0.0,
+        pattern: 1.0,
     },
 ];
 
@@ -271,7 +277,11 @@ impl MicView {
         ui.horizontal_wrapped(|ui| {
             ui.label("Set-up:");
             for s in &SETUPS {
-                let on = s.mics == raw.mics && s.relative == raw.mics_relative && s.lid_angle == raw.lid_angle && s.gain_db == raw.mic_gain_db;
+                let on = s.mics == raw.mics
+                    && s.relative == raw.mics_relative
+                    && s.lid_angle == raw.lid_angle
+                    && s.gain_db == raw.mic_gain_db
+                    && s.pattern == raw.mic_pattern;
                 let mut hint = format!("{}. Also sets the microphone gain ({} dB) to keep a comparable loudness.", s.hint, s.gain_db);
                 if let Some(p) = s.preset {
                     hint += &format!(" Same as the listening preset \u{201c}{p}\u{201d}.");
@@ -280,6 +290,7 @@ impl MicView {
                     let mut edits = vec![
                         ("soundboard.lid_angle".to_string(), s.lid_angle),
                         ("soundboard.mic_gain_db".to_string(), s.gain_db),
+                        ("soundboard.mic_pattern".to_string(), s.pattern),
                         ("soundboard.mics_relative".to_string(), if s.relative { 1.0 } else { 0.0 }),
                     ];
                     for (i, m) in s.mics.iter().enumerate() {
@@ -531,7 +542,7 @@ impl MicView {
             p.circle_filled(at(piano[0] + m[0], piano[1] + m[1]), 3.0, c);
         }
         resp.on_hover_text(format!(
-            "{lx} × {ly} m. Drag the piano to move it. The circle is the critical distance ({rc:.1} m): beyond it the reverberation is louder than the direct sound."
+            "{lx} × {ly} m. Drag the piano to move it. The circle is the critical distance for these microphones ({rc:.1} m): beyond it they hear the reverberation louder than the direct sound."
         ));
         let (t_lo, t_hi) = room.t60();
         ui.label(RichText::new(format!("Reverberation {t_lo:.1} s (low), {t_hi:.1} s (high)")).small().weak());
@@ -586,13 +597,17 @@ impl MicView {
 }
 
 /// The room's source point (board centre, room coordinates) and the
-/// distance at which reverberation equals the direct sound (tail level
-/// included), as the room model sets them.
+/// distance at which the mics hear as much reverberation as direct sound,
+/// as the room model sets them: the room's critical distance, shortened by
+/// the tail level and lengthened by the piano's directivity Q and the mics'
+/// pattern (their random-incidence efficiency a² + (1 − a)²/3).
 fn source_and_critical_distance(model: &PianoModel, sb: &SoundboardParams, piano: [f64; 3]) -> ([f64; 3], f64) {
     let room = &model.room;
     let src = [piano[0] + sb.a / 2.0, piano[1] + sb.b / 2.0, piano[2] + 0.1];
     let (t_lo, t_hi) = room.t60();
-    let rc = 0.057 * (room.volume() / (0.5 * (t_lo + t_hi))).sqrt() / room.tail_gain.max(1e-3);
+    let a = sb.mic_pattern.clamp(0.0, 1.0);
+    let source_gain = ((a * a + (1.0 - a) * (1.0 - a) / 3.0) / room.directivity.max(1.0)).sqrt();
+    let rc = 0.057 * (room.volume() / (0.5 * (t_lo + t_hi))).sqrt() / (room.tail_gain * source_gain).max(1e-3);
     (src, rc)
 }
 
@@ -700,7 +715,11 @@ mod tests {
             let Some(name) = s.preset else { continue };
             let m = piano_host::load_listening(&dir.join(format!("{name}.toml")), &PianoModel::default()).unwrap();
             let sb = m.soundboard.unwrap();
-            assert_eq!((sb.mics, sb.mics_relative, sb.lid_angle, sb.mic_gain_db), (s.mics, s.relative, s.lid_angle, s.gain_db), "{name}");
+            assert_eq!(
+                (sb.mics, sb.mics_relative, sb.lid_angle, sb.mic_gain_db, sb.mic_pattern),
+                (s.mics, s.relative, s.lid_angle, s.gain_db, s.pattern),
+                "{name}"
+            );
         }
     }
 
@@ -729,6 +748,23 @@ mod tests {
     fn default_setup_is_the_model_default() {
         let sb = PianoModel::default().soundboard.unwrap();
         let s = &SETUPS[3];
-        assert_eq!((s.mics, s.relative, s.lid_angle, s.gain_db), (sb.mics, sb.mics_relative, sb.lid_angle, sb.mic_gain_db));
+        assert_eq!(
+            (s.mics, s.relative, s.lid_angle, s.gain_db, s.pattern),
+            (sb.mics, sb.mics_relative, sb.lid_angle, sb.mic_gain_db, sb.mic_pattern)
+        );
+    }
+
+    #[test]
+    fn critical_distance_follows_directivity_and_pattern() {
+        let m = PianoModel::default();
+        let sb = m.soundboard.unwrap();
+        let (_, omni) = source_and_critical_distance(&m, &sb, m.room.piano);
+        let cardioid = SoundboardParams { mic_pattern: 0.5, ..sb };
+        let (_, card) = source_and_critical_distance(&m, &cardioid, m.room.piano);
+        // A cardioid hears the diffuse room 1/3 as much: r_c × √3.
+        assert!((card / omni - 3f64.sqrt()).abs() < 1e-9, "{omni} {card}");
+        let beamed = PianoModel { room: piano_core::room::RoomParams { directivity: 12.0, ..m.room }, ..m };
+        let (_, q) = source_and_critical_distance(&beamed, &sb, m.room.piano);
+        assert!((q / omni - 2.0).abs() < 1e-9, "{omni} {q}");
     }
 }
