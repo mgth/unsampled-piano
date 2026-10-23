@@ -39,6 +39,8 @@ tools/calibrate.sh data/salamander/Samples out/calib
 cargo test --workspace
 ```
 
+On Linux, `tools/install-app.sh` builds the player and installs it for the current user, with a menu entry (`installer/linux/unsampled-piano.desktop`, which opens the interface), its icon and the shipped presets, under `~/.local` (`PREFIX=/usr/local` for every user, as root). Saved presets go to `~/.config/unsampled-piano/presets`.
+
 ## Windows and macOS
 
 The standalone player for both comes from the `Standalone` workflow of GitHub Actions (run it from the Actions tab, or push a `v*` tag). Opened from the Explorer or the Finder, it shows the interface and plays through the default output, with the first MIDI keyboard; from a terminal it takes the same options as on Linux, e.g. `--device`, `--output-channel` for a pair other than 1–2 on a multichannel interface.

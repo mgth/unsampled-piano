@@ -27,8 +27,9 @@ pub fn config_dir() -> Option<PathBuf> {
 /// `%PROGRAMDATA%\Unsampled Piano\presets` (all users) and
 /// `%LOCALAPPDATA%\Unsampled Piano\presets` (current user) on Windows,
 /// `/Library/Application Support/Unsampled Piano/presets` and the user's
-/// own on macOS, `unsampled-piano/presets` in `$XDG_DATA_DIRS` (else
-/// /usr/local/share, /usr/share) elsewhere.
+/// own on macOS, `unsampled-piano/presets` in `$XDG_DATA_HOME` (else
+/// ~/.local/share, where tools/install-app.sh puts them) then in
+/// `$XDG_DATA_DIRS` (else /usr/local/share, /usr/share) elsewhere.
 pub fn installed_preset_dirs() -> Vec<PathBuf> {
     let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
     let dirs: Vec<PathBuf> = if cfg!(windows) {
@@ -37,8 +38,9 @@ pub fn installed_preset_dirs() -> Vec<PathBuf> {
         let support = |d: PathBuf| d.join("Library/Application Support/Unsampled Piano/presets");
         [Some(PathBuf::from("/")), env("HOME")].into_iter().flatten().map(support).collect()
     } else {
+        let home = env("XDG_DATA_HOME").filter(|d| d.is_absolute()).or_else(|| env("HOME").map(|h| h.join(".local/share")));
         let data = std::env::var("XDG_DATA_DIRS").ok().filter(|v| !v.is_empty()).unwrap_or("/usr/local/share:/usr/share".into());
-        data.split(':').map(|d| PathBuf::from(d).join("unsampled-piano").join("presets")).collect()
+        home.into_iter().chain(data.split(':').map(PathBuf::from)).map(|d| d.join("unsampled-piano").join("presets")).collect()
     };
     dirs.into_iter().filter(|d| d.is_dir()).collect()
 }
