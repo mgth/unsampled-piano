@@ -101,6 +101,12 @@ pub struct Engine {
     sostenuto_down: bool,
     /// Middle pedal down while it works a practice mute (`mute_felt` > 0).
     mute_down: bool,
+    /// Sample time of the event being handled.
+    now: u64,
+    /// Per key: down, or the time it was released (None: at rest since
+    /// long enough or never played), for the upright's repetition.
+    key_down: [bool; 128],
+    key_up_at: [Option<u64>; 128],
     /// Bridge force per region for the current block: primary (hammer
     /// response) and sympathetic.
     region: Vec<Vec<f32>>,
@@ -175,6 +181,9 @@ impl Engine {
             soft: 0.0,
             sostenuto_down: false,
             mute_down: false,
+            now: 0,
+            key_down: [false; 128],
+            key_up_at: [None; 128],
             region: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             region_sym: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             region_agraffe: vec![vec![0.0; SUB_BLOCK]; REGIONS],
@@ -319,6 +328,7 @@ impl Engine {
             let f = (ev.frame as usize).saturating_sub(offset).min(len);
             self.render(pos, f);
             pos = f;
+            self.now = t0 + f as u64;
             self.handle(ev.event);
         }
         self.render(pos, len);
@@ -561,6 +571,8 @@ impl Engine {
                     v.key_down = false;
                     v.sostenuto = false;
                 }
+                self.key_down = [false; 128];
+                self.key_up_at = [None; 128];
             }
             Event::Control { .. } => {}
             Event::Param { id, value } => id.set(&mut self.live, value as f64),
@@ -581,6 +593,7 @@ impl Engine {
 
     fn note_on(&mut self, note: u8, velocity: u8) {
         let cfg = self.cfg;
+        let repetition = self.repetition(note);
         // A key re-struck while its string still rings hits the moving string.
         let idx = self
             .voices
@@ -612,7 +625,7 @@ impl Engine {
         let vh = self.live.velocity.hammer_speed(velocity);
         // An upright's soft pedal shortens the throw (half-blow); a grand's
         // shifts the action (una corda).
-        let thrown = vh * (1.0 - self.live.half_blow * self.soft).max(0.0);
+        let thrown = vh * (1.0 - self.live.half_blow * self.soft).max(0.0) * repetition;
         let mute = if self.mute_down { self.live.mute_felt } else { 0.0 };
         v.strike(nm, thrown, contact_oversampling(&cfg, note), self.soft * self.live.una_corda_shift, softening, mute);
         v.damper_speed = 1.0;
@@ -623,6 +636,31 @@ impl Engine {
     fn note_off(&mut self, note: u8) {
         for v in self.voices.iter_mut().filter(|v| v.active && v.note == note) {
             v.key_down = false;
+        }
+        let k = note as usize & 127;
+        if self.key_down[k] {
+            self.key_down[k] = false;
+            self.key_up_at[k] = Some(self.now);
+        }
+    }
+
+    /// Hammer speed factor of a strike on `note` (also marks the key down):
+    /// an upright's action re-strikes slower until `repetition_time` after
+    /// the key's release, and a key struck again without a release (MIDI
+    /// overlap) from the floor.
+    fn repetition(&mut self, note: u8) -> f64 {
+        let k = note as usize & 127;
+        let since = if self.key_down[k] { Some(0) } else { self.key_up_at[k].map(|t| self.now - t) };
+        self.key_down[k] = true;
+        self.key_up_at[k] = None;
+        let rt = self.live.repetition_time;
+        match since {
+            Some(dt) if rt > 0.0 => {
+                let s = (dt as f64 / self.cfg.sample_rate / rt).min(1.0);
+                let floor = self.live.repetition_floor.clamp(0.0, 1.0);
+                floor + (1.0 - floor) * s * s * (3.0 - 2.0 * s)
+            }
+            _ => 1.0,
         }
     }
 }

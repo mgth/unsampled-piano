@@ -24,6 +24,8 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("una_corda_shift", "Una corda shift (1 grand, 0 upright)", "", 0.0, 1.0, false),
     ("half_blow", "Soft pedal half blow (upright)", "", 0.0, 0.5, false),
     ("mute_felt", "Practice mute felt (0: sostenuto)", "mm", 0.0, 6.0, false),
+    ("repetition_time", "Repetition reset time (0: grand)", "s", 0.0, 0.2, false),
+    ("repetition_floor", "Immediate re-strike speed", "", 0.0, 1.0, false),
     ("soundboard.wall_distance", "Wall behind the board (0: none)", "m", 0.0, 1.0, false),
     ("soundboard.wall_reflection", "Wall reflection", "", 0.0, 1.0, false),
     ("soundboard.case_open", "Case openings (1: no case)", "", 0.0, 1.0, false),

@@ -582,6 +582,15 @@ pub struct PianoModel {
     /// lowers between hammers and strings (practice mute); 0: the middle
     /// pedal is a sostenuto.
     pub mute_felt: f64,
+    /// Time (s) an upright's action needs after a key's release before it
+    /// can throw the hammer at full speed again: without the grand's double
+    /// escapement, the key must rise nearly all the way for the jack to
+    /// reset under the hammer. 0: a grand (repetition at any time).
+    pub repetition_time: f64,
+    /// Share of the hammer speed left for a re-strike right at the release
+    /// (smoothstep up to 1 over `repetition_time`): the hammer is thrown from
+    /// closer and slower, never not at all.
+    pub repetition_floor: f64,
     /// Output level (dB): close microphones hear the piano louder than
     /// distant ones; presets set it to keep a comparable loudness.
     pub output_gain_db: f64,
@@ -645,6 +654,8 @@ impl Default for PianoModel {
             una_corda_shift: 1.0,
             half_blow: 0.0,
             mute_felt: 0.0,
+            repetition_time: 0.0,
+            repetition_floor: 0.5,
             output_gain_db: 0.0,
             // Top felt 0.3 × Stulov, slightly harder towards the treble, with
             // the core shallower at C4 and less hysteresis: the middle's ff

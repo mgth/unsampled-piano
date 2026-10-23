@@ -81,6 +81,21 @@ const HELP: &[(&str, &str, &str)] = &[
         "While CC 66 is down, new strikes go through a strip of t mm in series with the felt: Q0 × \
          min(1, 0.09/t), hysteresis × 3, core reached t mm later. An estimate (no reference).",
     ),
+    (
+        "repetition_time",
+        "An upright repeats a note more slowly than a grand: it lacks the grand's double \
+         escapement, so the key must come back almost all the way up before the hammer can be \
+         thrown again. A note played again sooner than this after its key's release comes out \
+         weaker. 0: a grand, no limit.",
+        "Hammer speed × (floor + (1 − floor)·smoothstep(Δt/T)), Δt from the note-off to the \
+         next note-on of the same key (0 when there was no note-off). Uprights repeat up to \
+         ≈ 7 notes/s against ≈ 14 for a grand; 0.06 s is an estimate.",
+    ),
+    (
+        "repetition_floor",
+        "How strong a note played again at once is, on an upright: never silent, only weaker.",
+        "Share of the hammer speed at Δt = 0 (0.5: about −8 dB).",
+    ),
     // Velocity
     (
         "velocity.vmin",

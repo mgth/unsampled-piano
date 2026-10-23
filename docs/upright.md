@@ -43,6 +43,7 @@ The commercial piano's felt-strip pedal had no measurable effect on these models
 | `una_corda_shift` | 1 | 0 | share of the sideways shift at full soft pedal; the felt softening follows it |
 | `half_blow` | 0 | 0.1 | hammer speed lost at full soft pedal |
 | `mute_felt` | 0 | 3 mm | felt strip of the practice mute on the middle pedal (0: sostenuto) |
+| `repetition_time`, `repetition_floor` | 0, 0.5 | 0.06 s, 0.5 | slower repetition without double escapement (see below) |
 | `soundboard.crown_freq` | 90 Hz | 60 Hz | weaker crown on the smaller board (see the bass balance below) |
 | `soundboard.vertical` | false | true | the board stands vertically in the room |
 | `soundboard.wall_distance` | 0 | 0 (option: 0.2 m) | reflecting wall behind the board |
@@ -50,7 +51,7 @@ The commercial piano's felt-strip pedal had no measurable effect on these models
 | `soundboard.case_open`, `case_panel_mass` | 1, 6 kg/m² | 1 (option: 0.35) | the closed case in front of the board |
 | `room.directivity` | 3 | 0 = from the piano | see below |
 
-The three pedal parameters are live. The others change the radiation weights or the room, so changing them rebuilds the instrument.
+The pedal and repetition parameters are live. The others change the radiation weights or the room, so changing them rebuilds the instrument.
 
 **Practice mute.** While CC 66 is down, new strikes go through a strip of t mm of loose felt in series with the hammer felt:
 
@@ -78,6 +79,18 @@ At C4 v100 the attack is 1.9 dB quieter and its brightness 3.5 dB lower. The str
 The grand with its lid open, the close and concert set-ups, keeps the earlier 3. The audience set-up with the lid closed gets 2, so its room is 1.8 dB louder. The uprights get 1.5 (3 dB more room) or 2.
 
 Computing Q from the board's own radiation was tried first, with the Rayleigh integral over 96 directions and clusters of points around each mic, against the power radiated in every direction. Per octave from 125 Hz to 2 kHz it gave 0.1 to 8: with only a few modes per band, their interference at the mics dominates. Its mean, about 1, would also have raised the room by about 5 dB over the calibrated level (docs/room_level.md), so the rule was kept.
+
+## Repetition
+
+A grand's action has a double escapement (repetition lever): the hammer is caught halfway down, and a key that has risen only part of the way can throw it again. An upright's action lacks it, so the key must come back nearly all the way up for the jack to reset under the hammer. An upright repeats up to about 7 notes per second, against about 14 for a grand.
+
+The engine only gets note-on and note-off, not the key's position. It used to re-strike at full speed at any time, like an ideal action.
+
+New live parameters:
+- `repetition_time` (s, 0 on a grand; 0.06 on the upright presets): the time after a key's release before its action has reset. A strike sooner gets the hammer speed × (floor + (1 − floor)·smoothstep(Δt/T)). Δt runs from the note-off to the next note-on of the same key, and is 0 when there was no note-off.
+- `repetition_floor` (0.5): the share left at once. A note is never dropped, so a keyboard player's notes all sound.
+
+A re-strike 10 ms after the release comes out 4.5 dB weaker; one 100 ms after is unchanged. In the MAESTRO performances of `data/midi`, 0.1–1.1 % of the notes are re-struck within 60 ms of their release, 2.8 % in La Campanella. The 0.06 s value is an estimate, with no measurement behind it.
 
 ## Bass balance
 
