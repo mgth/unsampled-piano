@@ -100,6 +100,12 @@ pub struct SoundboardParams {
     pub main_bridge_from: u8,
     /// Microphones (m, plate coordinates, z above the board).
     pub mics: [(f64, f64, f64); 2],
+    /// `mics` x and y are fractions of the board's a and b (z stays in
+    /// metres): a listening preset then fits every board size.
+    pub mics_relative: bool,
+    /// Gain of the listening set-up (dB), on top of `output_gain_db` (the
+    /// instrument's own level): closer microphones hear the piano louder.
+    pub mic_gain_db: f64,
     /// Render the radiated pressure (false: output the bridge force, the
     /// board only sets the string coupling — for analysis).
     pub radiate: bool,
@@ -187,13 +193,15 @@ impl SoundboardParams {
         bass_bridge: [(0.72, 0.62), (0.86, 0.40)],
         main_bridge_from: 29,
         mics: [(0.45, 0.35, 1.5), (1.15, 0.85, 1.5)],
+        mics_relative: false,
+        mic_gain_db: 0.0,
         radiate: true,
         grid_step: 0.015,
         // Calibrated on the spectral tilt of Salamander (low bands).
         back_depth: 0.6,
         back_gain: 0.6,
         // Removed lid: the default mics hang above the board (calibrated
-        // set-up); see presets/concert.toml for an open lid.
+        // set-up); see presets/listening/Microphones/concert.toml for an open lid.
         lid_angle: 0.0,
         lid_hinge_height: 0.25,
         lid_reflection: 0.85,
@@ -327,6 +335,16 @@ pub struct PlateMode {
 pub struct Soundboard {
     pub params: SoundboardParams,
     pub modes: Vec<PlateMode>,
+}
+
+impl SoundboardParams {
+    /// The same set-up with the microphones in metres.
+    pub fn resolved(self) -> Self {
+        if !self.mics_relative {
+            return self;
+        }
+        Self { mics: self.mics.map(|(x, y, z)| (x * self.a, y * self.b, z)), mics_relative: false, ..self }
+    }
 }
 
 impl Soundboard {

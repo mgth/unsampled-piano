@@ -1,0 +1,10 @@
+# Concert set-up: lid open at 35°, a pair of microphones in front of the
+# opening (1.6 m on the calibrated board), 2 m above the board (at 1 m they
+# sat under the lid's reflection and lost 10 dB at 2–4 kHz in the middle,
+# docs/presence.md). Positions relative to the board.
+# Level: same loudness as the earlier 1 m set-up.
+[soundboard]
+lid_angle = 35.0
+mics_relative = true
+mics = [[0.323529, -1.230769, 2.0], [0.735294, -1.230769, 2.0]]
+mic_gain_db = 3.4

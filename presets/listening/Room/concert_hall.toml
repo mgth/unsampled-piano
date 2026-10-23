@@ -1,0 +1,7 @@
+# Concert hall (40 × 28 × 16 m): the default room.
+[room]
+enabled = true
+size = [40.0, 28.0, 16.0]
+piano = [6.0, 13.0, 0.9]
+absorption_low = 0.327
+absorption_high = 0.37

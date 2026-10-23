@@ -8,7 +8,7 @@ Compared with a commercial modelled piano, Iowa and Salamander, the model had a 
 
 ## Measurement
 
-Protocol from [comparison.md](comparison.md): one key in three, velocities 40, 60 and 100, key held for 4 s, close miking (`presets/close.toml`), no room or noises. Each trial is rendered then cut with the tools from that comparison.
+Protocol from [comparison.md](comparison.md): one key in three, velocities 40, 60 and 100, key held for 4 s, close miking (`presets/listening/Microphones/close.toml`), no room or noises. Each trial is rendered then cut with the tools from that comparison.
 
 Tools added:
 - `tools/partial_decay.py`: level of partials 1 to 12 at 0.1, 0.5, 1, 2 and 3 s;

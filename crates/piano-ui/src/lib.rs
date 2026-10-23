@@ -26,9 +26,13 @@ pub struct PianoUi {
     section: Vec<usize>,
     page: usize,
     search: String,
-    /// Preset folder (TOML files), when the host has one.
+    /// Preset folder (TOML files), when the host has one: either flat, or
+    /// `instruments/<family>/*.toml` and `listening/*.toml`.
     presets: Option<PathBuf>,
     preset_name: String,
+    /// Last listening preset loaded in each listening group (Microphones,
+    /// Room…): the groups combine, each shows its own choice.
+    listening_names: std::collections::BTreeMap<String, String>,
     /// Result of the last preset action.
     message: Option<Result<String, String>>,
     /// CPU load shown: the peak over the last second (the status gives the
@@ -58,11 +62,22 @@ impl PianoUi {
     pub fn new(presets: Option<PathBuf>) -> Self {
         let registry = Registry::new();
         let section = registry.params().iter().map(|p| section_of(&p.path)).collect();
-        Self { registry, section, page: 0, search: String::new(), presets, preset_name: String::new(), message: None, load: LoadMeter::default() }
+        Self { registry, section, page: 0, search: String::new(), presets, preset_name: String::new(), listening_names: Default::default(), message: None, load: LoadMeter::default() }
     }
 
-    /// The preset shown as loaded (its file name without `.toml`).
+    /// The preset shown as loaded (its file name without `.toml`): in the
+    /// menu of the listening group holding a file of that name, else as the
+    /// instrument.
     pub fn set_preset_name(&mut self, name: &str) {
+        if let Some(dir) = &self.presets {
+            for group in subdirs(&dir.join("listening")) {
+                if group.join(format!("{name}.toml")).is_file() {
+                    let g = group.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                    self.listening_names.insert(g, name.into());
+                    return;
+                }
+            }
+        }
         self.preset_name = name.into();
     }
 
@@ -285,42 +300,99 @@ impl PianoUi {
 
     fn preset_bar(&mut self, ui: &mut Ui, control: &mut dyn PianoControl, model: &PianoModel) {
         if let Some(dir) = self.presets.clone() {
-            let mut names: Vec<String> = std::fs::read_dir(&dir)
-                .into_iter()
-                .flatten()
-                .flatten()
-                .filter_map(|e| e.file_name().to_str()?.strip_suffix(".toml").map(String::from))
-                .collect();
-            names.sort();
-            egui::ComboBox::from_id_salt("preset")
-                .selected_text(if self.preset_name.is_empty() { "Preset…" } else { &self.preset_name })
-                .show_ui(ui, |ui| {
-                    for n in names {
-                        if ui.selectable_label(n == self.preset_name, &n).clicked() {
-                            let path = dir.join(format!("{n}.toml"));
-                            self.message = Some(match piano_host::load_preset(&path) {
-                                Ok(m) => {
-                                    control.load(m);
-                                    self.preset_name = n;
-                                    Ok(format!("Loaded {}", path.display()))
+            let instruments = dir.join("instruments");
+            let listening = dir.join("listening");
+            let structured = instruments.is_dir() || listening.is_dir();
+            if structured {
+                // Instruments, grouped by family (sub-folders; loose files last).
+                let mut families: Vec<(String, Vec<PathBuf>)> = subdirs(&instruments)
+                    .into_iter()
+                    .map(|d| (d.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), tomls(&d)))
+                    .collect();
+                let loose = tomls(&instruments);
+                if !loose.is_empty() {
+                    families.push(("Other".into(), loose));
+                }
+                egui::ComboBox::from_id_salt("instrument")
+                    .selected_text(if self.preset_name.is_empty() { "Instrument…" } else { &self.preset_name })
+                    .height(600.0)
+                    .show_ui(ui, |ui| {
+                        for (family, files) in &families {
+                            ui.label(RichText::new(family).strong());
+                            for path in files {
+                                let n = stem(path);
+                                if ui.selectable_label(n == self.preset_name, format!("   {n}")).clicked() {
+                                    self.message = Some(piano_host::load_instrument(path, model).map(|m| {
+                                        control.load(m);
+                                        self.preset_name = n.clone();
+                                        format!("Loaded {}", path.display())
+                                    }));
                                 }
-                                Err(e) => Err(e),
-                            });
+                            }
                         }
-                    }
-                });
+                    });
+                // Listening: one menu per group (sub-folder: Microphones,
+                // Room…); each preset changes only its own part, so the
+                // groups combine.
+                let mut groups: Vec<(String, Vec<PathBuf>)> = subdirs(&listening)
+                    .into_iter()
+                    .map(|d| (d.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), tomls(&d)))
+                    .collect();
+                let loose = tomls(&listening);
+                if !loose.is_empty() {
+                    groups.push(("Listening".into(), loose));
+                }
+                for (group, files) in &groups {
+                    let current = self.listening_names.get(group).cloned().unwrap_or_default();
+                    egui::ComboBox::from_id_salt(("listening", group.as_str()))
+                        .selected_text(if current.is_empty() { format!("{group}…") } else { current.clone() })
+                        .show_ui(ui, |ui| {
+                            for path in files {
+                                let n = stem(path);
+                                if ui.selectable_label(n == current, &n).clicked() {
+                                    self.message = Some(piano_host::load_listening(path, model).map(|m| {
+                                        control.load(m);
+                                        self.listening_names.insert(group.clone(), n.clone());
+                                        format!("{group}: {}", path.display())
+                                    }));
+                                }
+                            }
+                        });
+                }
+            } else {
+                egui::ComboBox::from_id_salt("preset")
+                    .selected_text(if self.preset_name.is_empty() { "Preset…" } else { &self.preset_name })
+                    .show_ui(ui, |ui| {
+                        for path in tomls(&dir) {
+                            let n = stem(&path);
+                            if ui.selectable_label(n == self.preset_name, &n).clicked() {
+                                self.message = Some(match piano_host::load_preset(&path) {
+                                    Ok(m) => {
+                                        control.load(m);
+                                        self.preset_name = n;
+                                        Ok(format!("Loaded {}", path.display()))
+                                    }
+                                    Err(e) => Err(e),
+                                });
+                            }
+                        }
+                    });
+            }
             ui.add(egui::TextEdit::singleline(&mut self.preset_name).hint_text("name").desired_width(120.0));
             let name = self.preset_name.trim().to_string();
             let valid = !name.is_empty() && !name.contains(['/', '\\']);
-            let path = dir.join(format!("{name}.toml"));
+            let path = if structured { instruments.join(format!("{name}.toml")) } else { dir.join(format!("{name}.toml")) };
             let exists = valid && path.exists();
             let save = egui::Button::new(if exists { "Overwrite" } else { "Save" });
             if ui.add_enabled(valid, save).on_hover_text("Write the current settings as a preset").clicked() {
+                if structured {
+                    let _ = std::fs::create_dir_all(&instruments);
+                }
                 self.message = Some(piano_host::save_preset(model, &path).map(|()| format!("Saved {}", path.display())));
             }
         }
-        if ui.button("Defaults").on_hover_text("Back to the default instrument").clicked() {
-            control.load(PianoModel::default());
+        if ui.button("Defaults").on_hover_text("Back to the default instrument (the listening set-up stays)").clicked() {
+            control.load(piano_host::with_listening(&PianoModel::default(), model));
             self.preset_name.clear();
             self.message = None;
         }
@@ -334,6 +406,30 @@ impl PianoUi {
             None => {}
         }
     }
+}
+
+/// Sub-folders of a folder, sorted.
+fn subdirs(dir: &std::path::Path) -> Vec<PathBuf> {
+    let mut v: Vec<PathBuf> = std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+    v.sort();
+    v
+}
+
+/// The `.toml` files of a folder, sorted.
+fn tomls(dir: &std::path::Path) -> Vec<PathBuf> {
+    let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "toml") && p.is_file())
+        .collect();
+    v.sort();
+    v
+}
+
+fn stem(path: &std::path::Path) -> String {
+    path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
 /// "soundboard" → "Soundboard"; top-level fields → "General".

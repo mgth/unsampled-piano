@@ -26,6 +26,71 @@ pub fn save_preset(model: &PianoModel, path: &Path) -> Result<(), String> {
     std::fs::write(path, preset_toml(model)).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Fields of a listening set-up (microphones, their gain, the lid opening,
+/// the room): what a listening preset sets, and what loading an instrument
+/// keeps.
+const LISTENING: &[(&str, &[&str])] = &[("soundboard", &["mics", "mics_relative", "mic_gain_db", "lid_angle"]), ("room", &[])];
+
+fn to_table(model: &PianoModel) -> toml::Table {
+    toml::Table::try_from(model).expect("model serialises")
+}
+
+/// Deep merge: every value of `top` replaces the one of `base`.
+fn merge(base: &mut toml::Table, top: toml::Table) {
+    for (k, v) in top {
+        match (base.get_mut(&k), v) {
+            (Some(toml::Value::Table(b)), toml::Value::Table(t)) => merge(b, t),
+            (_, v) => {
+                base.insert(k, v);
+            }
+        }
+    }
+}
+
+/// `base` with the fields a preset text sets (the others keep their value).
+pub fn overlay_preset(base: &PianoModel, text: &str) -> Result<PianoModel, String> {
+    let top: toml::Table = text.parse().map_err(|e| format!("{e}"))?;
+    let mut t = to_table(base);
+    merge(&mut t, top);
+    t.try_into().map_err(|e| format!("{e}"))
+}
+
+/// The listening part of a model (microphones, their gain, the room).
+pub fn listening_part(model: &PianoModel) -> toml::Table {
+    let t = to_table(model);
+    let mut out = toml::Table::new();
+    for (section, keys) in LISTENING {
+        let Some(toml::Value::Table(s)) = t.get(*section) else { continue };
+        let part: toml::Table = if keys.is_empty() {
+            s.clone()
+        } else {
+            s.iter().filter(|(k, _)| keys.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect()
+        };
+        out.insert(section.to_string(), toml::Value::Table(part));
+    }
+    out
+}
+
+/// `model` with the listening set-up of `current`.
+pub fn with_listening(model: &PianoModel, current: &PianoModel) -> PianoModel {
+    let mut t = to_table(model);
+    merge(&mut t, listening_part(current));
+    t.try_into().expect("a model with another model's listening fields is valid")
+}
+
+/// Loads an instrument preset on top of the default instrument, keeping
+/// the current listening set-up.
+pub fn load_instrument(path: &Path, current: &PianoModel) -> Result<PianoModel, String> {
+    Ok(with_listening(&load_preset(path)?, current))
+}
+
+/// Applies a listening preset (microphones, their gain, the room) to the
+/// current instrument.
+pub fn load_listening(path: &Path, current: &PianoModel) -> Result<PianoModel, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    overlay_preset(current, &text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
 /// Decodes a raw MIDI channel message (any channel) into an engine event.
 pub fn decode_midi(msg: &[u8]) -> Option<Event> {
     let (&status, data) = msg.split_first()?;
@@ -85,6 +150,29 @@ pub fn read_midi_file(path: &Path) -> Result<Vec<(f64, Event)>, String> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn listening_overlay_keeps_the_instrument() {
+        let mut inst = PianoModel { hardness: 0.77, ..Default::default() };
+        inst.scale.len_a0 = 2.0;
+        let l = "[soundboard]\nmics = [[0.3, 0.3, 0.4], [0.7, 0.7, 0.4]]\nmics_relative = true\nmic_gain_db = -9.0\n[room]\nenabled = false\n";
+        let m = overlay_preset(&inst, l).unwrap();
+        assert_eq!((m.hardness, m.scale.len_a0), (0.77, 2.0));
+        let sb = m.soundboard.unwrap();
+        assert!(sb.mics_relative && sb.mic_gain_db == -9.0 && !m.room.enabled);
+        // An instrument loaded afterwards keeps that listening set-up.
+        let dir = std::env::temp_dir().join(format!("piano-host-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("i.toml");
+        std::fs::write(&path, "hardness = 0.4\n[soundboard]\na = 2.0\nmics = [[1.0, 1.0, 2.0], [1.0, 1.0, 2.0]]\n").unwrap();
+        let n = load_instrument(&path, &m).unwrap();
+        let sb = n.soundboard.unwrap();
+        assert_eq!((n.hardness, sb.a, sb.mics[0].0, sb.mic_gain_db), (0.4, 2.0, 0.3, -9.0));
+        assert!(!n.room.enabled);
+        assert_eq!(n.scale.len_a0, PianoModel::default().scale.len_a0);
+        std::fs::remove_dir_all(dir).ok();
+    }
+
     use super::*;
 
     #[test]

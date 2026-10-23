@@ -34,7 +34,7 @@ The damper drop excites the strings, which then pass it on to the soundboard: th
 
 ```bash
 cargo run --release -p piano-render -- dump-preset presets/default.toml   # all parameters
-cargo run --release -p piano-render -- --preset presets/honky_tonk.toml note out/c4.wav --note 60
+cargo run --release -p piano-render -- --preset presets/instruments/Character/honky_tonk.toml note out/c4.wav --note 60
 ```
 
 Examples provided:
@@ -129,14 +129,14 @@ Listening feedback: “the sound is still a bit dry”. This was expected: the m
 - Test: the rendered T60 falls between the two Sabine T60s.
 - Cost: about 1 % of a core.
 - The room is disabled in `piano-eval`, because the calibrations compare the instrument alone with the recordings; `--room` re-enables it.
-- Preset `presets/dry.toml`: no room.
+- Preset `presets/listening/Room/dry.toml`: no room.
 
 **Lid** (`lid_*` in `[soundboard]`).
 - Reflecting rectangle hinged on the long right-hand side, open towards the audience.
 - For each soundboard element, the image source is its mirror image across the lid plane. It counts if the reflection point falls on the lid and if the microphone is on the soundboard side.
 - A microphone placed behind the lid is in its shadow (transmission 0.1, no diffraction).
 - By default, the lid is removed: the microphones matched to Salamander hang above the soundboard.
-- `presets/concert.toml`: lid at 35°, microphones at 1.6 m in front of the opening. For these microphones, the lid adds 2 dB on average (up to +4.7 dB in the bass), with direct/reflected interference dips specific to each note. Without diffraction at the edge of the lid, these dips are deeper than in reality.
+- `presets/listening/Microphones/concert.toml`: lid at 35°, microphones at 1.6 m in front of the opening. For these microphones, the lid adds 2 dB on average (up to +4.7 dB in the bass), with direct/reflected interference dips specific to each note. Without diffraction at the edge of the lid, these dips are deeper than in reality.
 
 **Not yet modelled: the rest of the piano body.**
 - The rim (the curved side) and the bottom of the case: mainly a bass contribution. The soundboard is assumed to be clamped in a rigid rim.

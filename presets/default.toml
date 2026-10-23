@@ -138,6 +138,8 @@ mics = [
     1.5,
 ],
 ]
+mics_relative = false
+mic_gain_db = 0.0
 radiate = true
 grid_step = 0.015
 back_depth = 0.6

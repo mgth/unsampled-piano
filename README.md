@@ -16,7 +16,11 @@ Physical chain: felt hammer (passive quadratised contact) → 1 to 3 stiff strin
 # personal defaults in ~/.config/unsampled-piano/play.toml, e.g.
 # device = "Stereo DJ X-Fade:In B")
 cargo run --release -p piano-play -- --list
-cargo run --release -p piano-play -- --buffer 128 [--preset presets/close.toml | presets/concert.toml]
+cargo run --release -p piano-play -- --buffer 128 [--preset presets/listening/Microphones/close.toml | …/concert.toml]
+# presets: presets/instruments/<family>/*.toml (an instrument) and
+# presets/listening/{Microphones,Room}/*.toml (microphones and lid, room);
+# in the interface (--ui), loading a listening preset keeps the instrument
+# and loading an instrument keeps the listening set-up
 # the preset is watched: when edited during play, the instrument is
 # rebuilt in the background (≈ 0.1 s) without cutting held notes
 # play MIDI files in sequence (sample-accurate timing; --from skips the beginning)

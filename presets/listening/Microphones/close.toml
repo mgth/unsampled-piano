@@ -1,9 +1,9 @@
 # Close miking: lid open at 35°, two microphones 40 cm above the board, over
 # the bass and the treble parts of the bridge (closest to the references'
-# spectral balance, docs/presence.md), in the default hall.
+# spectral balance, docs/presence.md). Positions relative to the board.
 # Level: close microphones hear the piano ≈ 13 dB louder.
-output_gain_db = -9.6
-
 [soundboard]
 lid_angle = 35.0
-mics = [[0.5, 0.45, 0.4], [1.2, 0.85, 0.4]]
+mics_relative = true
+mics = [[0.294118, 0.346154, 0.4], [0.705882, 0.653846, 0.4]]
+mic_gain_db = -9.6

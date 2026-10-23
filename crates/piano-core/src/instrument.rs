@@ -25,6 +25,8 @@ pub struct Instrument {
 
 impl Instrument {
     pub fn new(model: PianoModel, sample_rate: f64) -> Self {
+        // Microphones in metres from here on (the engine's room uses them too).
+        let model = PianoModel { soundboard: model.soundboard.map(|s| s.resolved()), ..model };
         let sb = model.soundboard.map(Soundboard::new);
         let modes = sb.as_ref().filter(|s| s.params.radiate).map(|s| board::board_modes(s, sample_rate));
         let table = PianoTable::new(&model, sb.as_ref(), modes.as_deref(), sample_rate, MAX_MODES);
@@ -39,14 +41,21 @@ impl Instrument {
         // the acceleration): every radiating bank gets acceleration weights.
         let mut modes = modes;
         let mut frame = frame;
+        // The listening set-up's gain scales every mic weight.
+        let mic_gain = 10f64.powf(model.soundboard.map_or(0.0, |s| s.mic_gain_db) / 20.0);
         for m in modes.iter_mut().chain(frame.iter_mut()) {
             board::to_acceleration_weights(m, sample_rate);
+            for bm in m.iter_mut() {
+                for o in &mut bm.outputs[..board::MICS] {
+                    *o = (o.0 * mic_gain, o.1 * mic_gain);
+                }
+            }
         }
         if let Some(r) = rim.as_mut() {
             for m in &mut r.modes {
                 let d = board::mic_differentiator(std::f64::consts::TAU * m.freq_hz, sample_rate);
                 m.mics = m.mics.map(|(re, im)| {
-                    let w = crate::complex::C64::new(re, im) / d;
+                    let w = crate::complex::C64::new(re, im).scale(mic_gain) / d;
                     (w.re, w.im)
                 });
             }

@@ -1,0 +1,7 @@
+# Audience microphones (1 m above the board, in front of it), lid closed
+# down onto the case. Positions relative to the board.
+[soundboard]
+lid_angle = 0.0
+mics_relative = true
+mics = [[0.323529, -1.230769, 1.0], [0.735294, -1.230769, 1.0]]
+mic_gain_db = 0.0
