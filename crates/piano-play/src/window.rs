@@ -10,6 +10,10 @@ use std::time::Duration;
 use piano_control::Controller;
 use piano_ui::PianoUi;
 
+/// The application's icon: assets/icon.svg rendered at 256 px
+/// (`rsvg-convert -w 256 -h 256 assets/icon.svg -o assets/icon-256.png`).
+const ICON: &[u8] = include_bytes!("../../../assets/icon-256.png");
+
 /// Repaints the window from other threads once it exists.
 pub type Repaint = Arc<OnceLock<egui::Context>>;
 
@@ -43,14 +47,15 @@ pub fn run(
     if let Some(p) = preset {
         ui.set_preset_name(&p);
     }
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1100.0, 760.0])
-            .with_min_inner_size([760.0, 480.0])
-            .with_title(title)
-            .with_app_id("unsampled-piano"),
-        ..Default::default()
-    };
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_inner_size([1100.0, 760.0])
+        .with_min_inner_size([760.0, 480.0])
+        .with_title(title)
+        .with_app_id("unsampled-piano");
+    if let Ok(icon) = eframe::icon_data::from_png_bytes(ICON) {
+        viewport = viewport.with_icon(icon);
+    }
+    let options = eframe::NativeOptions { viewport, ..Default::default() };
     eframe::run_native(
         "unsampled-piano",
         options,

@@ -1,5 +1,7 @@
 # Unsampled Piano
 
+<img src="assets/icon.svg" alt="" width="96" align="right">
+
 Physically modelled virtual piano, real-time from MIDI, in Rust. No samples are used to produce the sound (recordings are used only for analysis and calibration).
 
 ![The interface (`unsampled-piano --ui`), Strings page: the C4 string, its partials, and per-key losses, string length and unison spread over the keyboard](docs/img/interface.png)
