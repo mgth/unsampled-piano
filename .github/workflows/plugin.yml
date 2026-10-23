@@ -32,7 +32,7 @@ jobs:
             bundle: bundle-universal
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Linux libraries (X11 and OpenGL for the editor)
         if: runner.os == 'Linux'
@@ -66,7 +66,7 @@ jobs:
           archive="$GITHUB_WORKSPACE/unsampled-piano-${{ matrix.name }}.zip"
           if [ "$RUNNER_OS" = Windows ]; then 7z a -tzip "$archive" .; else zip -r -y "$archive" .; fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: unsampled-piano-${{ matrix.name }}
           path: unsampled-piano-${{ matrix.name }}.zip
@@ -78,9 +78,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: unsampled-piano-*.zip

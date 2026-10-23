@@ -18,7 +18,7 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -60,12 +60,12 @@ jobs:
           cp -r presets "$dir/"
           7z a -tzip unsampled-piano-standalone-windows-x86_64.zip "$dir"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: unsampled-piano-standalone-windows-x86_64
           path: unsampled-piano-standalone-windows-x86_64.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: unsampled-piano-setup-windows-x86_64
           path: target/installer/unsampled-piano-setup-windows-x86_64.exe
@@ -73,7 +73,7 @@ jobs:
   macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -92,7 +92,7 @@ jobs:
       - name: Archive
         run: ditto -c -k --keepParent "target/macos/Unsampled Piano.app" unsampled-piano-standalone-macos-universal.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: unsampled-piano-standalone-macos-universal
           path: unsampled-piano-standalone-macos-universal.zip
@@ -102,7 +102,7 @@ jobs:
     # Fedora 40 and later.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # JACK: only its pkg-config file at build time (jack-sys); the library
       # is loaded when the graph node is used.
@@ -132,7 +132,7 @@ jobs:
           test -x "$RUNNER_TEMP/home/.local/bin/unsampled-piano"
           HOME="$RUNNER_TEMP/home" "$dir/install.sh" --uninstall
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: unsampled-piano-linux-x86_64
           path: target/linux/*.tar.gz
@@ -144,10 +144,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: |
             unsampled-piano-standalone-*.zip
