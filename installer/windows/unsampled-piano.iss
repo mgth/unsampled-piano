@@ -37,6 +37,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir={#Root}\target\installer
 OutputBaseFilename=unsampled-piano-setup-windows-x86_64
+SetupIconFile={#Root}\assets\icon.ico
+; The executable carries the same icon (crates/piano-play/build.rs).
 UninstallDisplayIcon={app}\unsampled-piano.exe
 UninstallDisplayName={#AppName}
 Compression=lzma2/max

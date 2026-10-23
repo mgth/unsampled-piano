@@ -22,6 +22,7 @@ lipo -create -output "$app/Contents/MacOS/unsampled-piano" \
 sed "s/@VERSION@/$version/" crates/piano-play/macos/Info.plist > "$app/Contents/Info.plist"
 cp -R presets "$app/Contents/Resources/"
 cp LICENSE "$app/Contents/Resources/"
+cp assets/icon.icns "$app/Contents/Resources/"
 # Apple silicon runs only signed code: an ad-hoc signature, no identity.
 codesign --force --sign - "$app"
 echo "$app"

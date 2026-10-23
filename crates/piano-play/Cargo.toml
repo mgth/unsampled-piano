@@ -26,6 +26,11 @@ clap.workspace = true
 jack = "0.13"
 toml.workspace = true
 
+# The executable's icon (build.rs), for Windows targets: rc.exe on Windows,
+# MinGW's windres when cross-compiling.
+[build-dependencies]
+winresource = "0.1.31"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console", "Win32_UI_WindowsAndMessaging"] }
 

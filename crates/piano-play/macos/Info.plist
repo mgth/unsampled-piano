@@ -10,6 +10,8 @@
 	<string>fr.mgth.unsampled-piano</string>
 	<key>CFBundleExecutable</key>
 	<string>unsampled-piano</string>
+	<key>CFBundleIconFile</key>
+	<string>icon.icns</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
