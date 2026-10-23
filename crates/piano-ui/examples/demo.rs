@@ -39,7 +39,7 @@ fn main() -> eframe::Result {
         ui.show_help(&path);
     }
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1100.0, 760.0]).with_title("Piano"),
+        viewport: egui::ViewportBuilder::default().with_inner_size([1100.0, 760.0]).with_title("Unsampled Piano"),
         ..Default::default()
     };
     let model = match std::env::var("PIANO_UI_LOAD") {

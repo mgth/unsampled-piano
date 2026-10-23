@@ -137,7 +137,7 @@ impl PianoUi {
         egui::Panel::top("piano-top").show(ui, |ui| {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.heading("Piano");
+                ui.heading("Unsampled Piano");
                 ui.separator();
                 self.preset_bar(ui, control, &model);
             });
