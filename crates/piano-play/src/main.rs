@@ -3,11 +3,12 @@
 //! input with sample-accurate timing, and a MIDI output mirroring every
 //! event the piano plays; the keyboard and the speakers are connected
 //! automatically. Elsewhere, and with `--host`, it plays through cpal
-//! (WASAPI or ASIO on Windows; PipeWire, JACK or ALSA on Linux), with the
-//! keyboard read through midir and played at the start of each buffer. MIDI
-//! files play from a timeline owned by the audio thread, sample-accurately.
-//! The instrument is built on the main thread; the audio thread neither
-//! allocates nor locks. CPU load is reported once per second.
+//! (WASAPI or ASIO on Windows, CoreAudio on macOS; PipeWire, JACK or ALSA
+//! on Linux), with the keyboard read through midir and played at the start
+//! of each buffer. MIDI files play from a timeline owned by the audio
+//! thread, sample-accurately. The instrument is built on the main thread;
+//! the audio thread neither allocates nor locks. CPU load is reported once
+//! per second.
 
 // Windows: no console window when started from the Explorer (see console.rs).
 #![cfg_attr(windows, windows_subsystem = "windows")]
@@ -42,7 +43,8 @@ struct Args {
     /// Audio backend: node (Linux default: the piano as a graph node with
     /// MIDI in and out, through PipeWire's JACK API), or a cpal host without
     /// MIDI ports: pipewire, jack, alsa (Linux), wasapi (Windows default),
-    /// asio (Windows, built with the `asio` feature).
+    /// asio (Windows, built with the `asio` feature), coreaudio (macOS
+    /// default).
     #[arg(long)]
     host: Option<String>,
     /// Name of the graph node.
@@ -103,12 +105,12 @@ enum Backend {
 fn main() {
     let terminal = console::attach();
     let mut args = Args::parse();
-    // Started from the Explorer (no terminal to play from): the window.
+    // Started from the Explorer or the Finder (no terminal): the window.
     if !terminal {
         args.ui = true;
     }
     if let Err(e) = run(args) {
-        console::fatal(&e.to_string());
+        console::fatal(&e.to_string(), terminal);
         std::process::exit(1);
     }
 }
@@ -309,8 +311,12 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
     std::thread::spawn(move || sup.run(false));
     let presets = args.presets.clone().or_else(|| args.preset.as_ref().and_then(|p| p.parent()).map(Path::to_path_buf));
     let presets = presets.or_else(|| Some(PathBuf::from("presets")).filter(|p| p.is_dir()));
-    // An installed copy: the presets next to the program.
-    let beside = || std::env::current_exe().ok()?.parent().map(|d| d.join("presets")).filter(|p| p.is_dir());
+    // An installed copy: the presets next to the program, or in the macOS
+    // bundle's resources.
+    let beside = || {
+        let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+        [dir.join("presets"), dir.join("../Resources/presets")].into_iter().find(|p| p.is_dir())
+    };
     let presets = presets.or_else(beside);
     let preset = args.preset.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().into_owned());
     window::run(control, repaint, presets, preset, &if args.name == "unsampled-piano" { "Unsampled Piano".to_string() } else { format!("Unsampled Piano — {}", args.name) })?;

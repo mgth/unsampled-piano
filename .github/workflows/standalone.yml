@@ -1,6 +1,7 @@
-# Builds the standalone player for Windows (WASAPI and ASIO output) and
-# keeps it as an artifact, zipped with the presets. A version tag (v*) also
-# attaches it to a GitHub release.
+# Builds the standalone player for Windows (WASAPI and ASIO output, zipped
+# with the presets) and macOS (universal application bundle, CoreAudio) and
+# keeps them as artifacts. A version tag (v*) also attaches them to a GitHub
+# release.
 name: Standalone
 
 on:
@@ -47,9 +48,36 @@ jobs:
           name: unsampled-piano-standalone-windows-x86_64
           path: unsampled-piano-standalone-windows-x86_64.zip
 
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: standalone-macos
+
+      - name: Build (universal application bundle)
+        run: tools/macos-app.sh
+
+      - name: Smoke test (list the outputs)
+        run: '"target/macos/Unsampled Piano.app/Contents/MacOS/unsampled-piano" --list'
+
+      - name: Archive
+        run: ditto -c -k --keepParent "target/macos/Unsampled Piano.app" unsampled-piano-standalone-macos-universal.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsampled-piano-standalone-macos-universal
+          path: unsampled-piano-standalone-macos-universal.zip
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: windows
+    needs: [windows, macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
