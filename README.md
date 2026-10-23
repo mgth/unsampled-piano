@@ -4,6 +4,13 @@
 
 Physically modelled virtual piano, real-time from MIDI, in Rust. No samples are used to produce the sound (recordings are used only for analysis and calibration).
 
+**Website: [unsampled.mgth.fr](https://unsampled.mgth.fr)** ([en français](https://unsampled.mgth.fr/fr/))
+
+- [Listen](https://unsampled.mgth.fr/#listen): pieces and comparisons rendered by the engine, not recorded
+- [Download](https://unsampled.mgth.fr/download/) the standalone application and the CLAP/VST3 plugin for Windows, macOS and Linux
+- [Guides](https://unsampled.mgth.fr/docs/): getting started, the interface, presets, MIDI, the command line, how it works
+- [Parameter reference](https://unsampled.mgth.fr/docs/parameters/): every parameter, what it is on a real piano and how the model does it, with interactive diagrams (felt, strike point, inharmonicity, soundboard modes, lid, room…)
+
 ![The interface (`unsampled-piano --ui`), Strings page: the C4 string, its partials, and per-key losses, string length and unison spread over the keyboard](docs/img/interface.png)
 
 Physical chain: felt hammer (passive quadratised contact) → 1 to 3 stiff strings per key, two polarisations, coupled at the bridge (Weinreich modes) → modal soundboard (clamped orthotropic plate) → Rayleigh radiation to two microphones (optional lid) → room (image-source reflections, reverberation). The cast-iron frame (excited at the agraffes) and the rim (excited by the soundboard edges) also radiate. On top of this come the dampers, the pedals (half-pedal, sostenuto, una corda), sympathetic resonance through the bridge and impulse-driven mechanical noises.
@@ -112,6 +119,8 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 | `piano-bench` | modal kernel throughput, f32 precision |
 
 ## Documentation
+
+For playing and setting up the instrument, see the [website](https://unsampled.mgth.fr). The documents below are the development notes: the physics, the measurements and how each part was calibrated.
 
 - State of the art and plan: [reports/piano_physical_synthesis.md](reports/piano_physical_synthesis.md)
 - Phase 0 (tooling, CPU and precision measurements): [docs/phase0.md](docs/phase0.md)
