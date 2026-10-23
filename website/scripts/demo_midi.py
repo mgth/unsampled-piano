@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Writes the MIDI files the website's audio demos are rendered from: the
-opening of Bach's Prelude in C (BWV 846, public domain, written here note by
-note), a staccato chord without then with the sustain pedal, and one chord
-from pianissimo to fortissimo. No recorded performance is used.
+opening of Debussy's Clair de lune, cut from Bernd Krüger's MIDI file
+(midi/deb_clai.mid, piano-midi.de, CC BY-SA 3.0 DE), a staccato chord without
+then with the sustain pedal, and one chord from pianissimo to fortissimo.
 usage: python3 -I scripts/demo_midi.py <out dir>"""
-import random, struct, sys
+import struct, sys
 from pathlib import Path
 
 TPB = 480  # ticks per beat at 120 bpm: 1 s = 960 ticks
@@ -38,44 +38,79 @@ cc = lambda c, v: bytes([0xB0, c, v])
 
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
-rng = random.Random(846)
 
-# 1. Prelude in C, bars 1–11 and a final C major chord. Each half bar: the
-#    lowest note held, the second one held from the next sixteenth, the upper
-#    three broken twice. The pedal changes just after each new harmony.
-BARS = [
-    (48, 52, 55, 60, 64), (48, 50, 57, 62, 65), (47, 50, 55, 62, 65),
-    (48, 52, 55, 60, 64), (48, 52, 57, 64, 69), (48, 50, 54, 57, 62),
-    (47, 50, 55, 62, 67), (47, 48, 52, 55, 60), (45, 48, 52, 55, 60),
-    (38, 45, 50, 54, 60), (43, 47, 50, 55, 59),
-]
-SIXTEENTH = 60 / 66 / 4  # crotchet = 66
-# A gentle swell to bar 5, a dip, and a rise to the cadence (velocity base).
-SHAPE = [48, 52, 55, 58, 62, 58, 54, 50, 52, 58, 62]
-ev, t = [], 0.4
-for bar, (chord, base) in enumerate(zip(BARS, SHAPE)):
-    ev += [(t - 0.02, cc(64, 0)), (t + 0.08, cc(64, 110))]
-    # Slight broadening of the last bar before the final chord.
-    step = SIXTEENTH * (1.0 + 0.12 * (bar == len(BARS) - 1))
-    for half in range(2):
-        h = t + half * 8 * step
-        jit = lambda: rng.uniform(-0.008, 0.008)
-        ev += [(h + jit(), on(chord[0], base + 2 + rng.uniform(-3, 3))),
-               (h + 8 * step - 0.03, off(chord[0]))]
-        ev += [(h + step + jit(), on(chord[1], base - 4 + rng.uniform(-3, 3))),
-               (h + 8 * step - 0.03, off(chord[1]))]
-        for i, k in enumerate((2, 3, 4, 2, 3, 4)):
-            s = h + (2 + i) * step + jit()
-            # The top of each arpeggio leans a little.
-            v = base - 6 + 5 * (k == 4) + rng.uniform(-4, 4)
-            ev += [(s, on(chord[k], v)), (s + step * 0.95, off(chord[k]))]
-    t += 16 * step
-# Final chord, slightly rolled from the bass, held under the pedal.
-ev += [(t - 0.02, cc(64, 0)), (t + 0.08, cc(64, 110))]
-for i, n in enumerate((36, 48, 52, 55, 60, 64)):
-    ev += [(t + 0.035 * i, on(n, 56 - 2 * i)), (t + 3.5, off(n))]
-ev.append((t + 4.2, cc(64, 0)))
-write(out / "prelude.mid", ev)
+
+def read(path):
+    """A MIDI file's note and controller messages as (seconds, bytes), all
+    tracks merged, through the file's tempo map."""
+    data = Path(path).read_bytes()
+    ntrk, tpq = struct.unpack(">HH", data[10:14])
+    pos, raw = 14, []
+    for _ in range(ntrk):
+        size = struct.unpack(">I", data[pos + 4:pos + 8])[0]
+        p, end, tick, status = pos + 8, pos + 8 + size, 0, 0
+        while p < end:
+            dt = 0
+            while True:
+                dt = (dt << 7) | (data[p] & 0x7F)
+                p += 1
+                if not data[p - 1] & 0x80:
+                    break
+            tick += dt
+            if data[p] == 0xFF:  # meta: only the tempo matters
+                kind, n = data[p + 1], data[p + 2]
+                if kind == 0x51:
+                    raw.append((tick, 0, int.from_bytes(data[p + 3:p + 6], "big")))
+                p += 3 + n
+                continue
+            if data[p] in (0xF0, 0xF7):
+                p += 2 + data[p + 1]
+                continue
+            if data[p] & 0x80:
+                status, p = data[p], p + 1
+            n = 1 if status & 0xF0 in (0xC0, 0xD0) else 2
+            if status & 0xF0 in (0x80, 0x90, 0xB0):
+                raw.append((tick, 1, bytes([status & 0xF0]) + data[p:p + n]))
+            p += n
+        pos = end
+    raw.sort(key=lambda e: (e[0], e[1]))
+    out, last, sec, tempo = [], 0, 0.0, 500000
+    for tick, kind, val in raw:
+        sec += (tick - last) * tempo / tpq / 1e6
+        last = tick
+        if kind == 0:
+            tempo = val
+        else:
+            if val[0] == 0x90 and val[2] == 0:
+                val = off(val[1])
+            out.append((sec, val))
+    return out
+
+
+def excerpt(events, cut, ring):
+    """Everything before `cut` seconds; the notes and the pedal still down
+    then are let go `ring` seconds later."""
+    held, pedal, out = set(), 0, []
+    for t, msg in events:
+        if t >= cut:
+            break
+        out.append((t, msg))
+        if msg[0] == 0x90:
+            held.add(msg[1])
+        elif msg[0] == 0x80:
+            held.discard(msg[1])
+        elif msg[1] == 64:
+            pedal = msg[2]
+    out += [(cut + ring, off(n)) for n in sorted(held)]
+    if pedal:
+        out.append((cut + ring + 0.5, cc(64, 0)))
+    return out
+
+
+# 1. Clair de lune, bars 1–14: the first section, up to the "tempo rubato",
+#    its last chord left to ring under the pedal.
+here = Path(__file__).parent
+write(out / "clair.mid", excerpt(read(here / "midi" / "deb_clai.mid"), 54.2, 2.5))
 
 # 2. The same staccato chord without, then with the sustain pedal: with the
 #    dampers lifted every string answers through the bridge.

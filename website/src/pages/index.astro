@@ -93,10 +93,16 @@ const jsonLd = {
         </p>
       </div>
       <div class="listen-grid">
-        <DemoPlayer title="Prelude in C, BWV 846 — the opening" eyebrow="J. S. Bach" sources={[{ clip: 'prelude' }]} featured reveal={0}>
+        <DemoPlayer title="Clair de lune — the opening" eyebrow="Claude Debussy" sources={[{ clip: 'clair' }]} featured reveal={0}>
           <p>
-            Eleven bars and a final chord, entered note by note: the bass held under each broken chord, the
-            sustain pedal changed with every harmony.
+            The first fourteen bars, up to the <em>tempo rubato</em>: pianissimo, the tempo breathing
+            with each phrase, the pedal changed on every harmony so the undamped strings ring along.
+          </p>
+          <p class="demo-credit">
+            MIDI file by Bernd Krüger, <a href="http://www.piano-midi.de" rel="noopener">piano-midi.de</a>,
+            licensed <a href="https://creativecommons.org/licenses/by-sa/3.0/de/deed.en" rel="license noopener">CC BY-SA 3.0 DE</a>;
+            cut after bar 14 and rendered here. This clip and the microphone pair below are shared under
+            the same licence.
           </p>
         </DemoPlayer>
         <DemoPlayer title="Lift the dampers" eyebrow="Sustain pedal" sources={[{ clip: 'pedal' }]} reveal={90}>
@@ -121,14 +127,14 @@ const jsonLd = {
           reveal={270}
         >
           <p>
-            The first bars of the prelude, the same performance through two microphone set-ups: a pair 40 cm
+            The first bars of <em>Clair de lune</em>, the same performance through two microphone set-ups: a pair 40 cm
             above the soundboard, or a spaced pair two metres up in front of the open lid. Switch while it plays.
           </p>
         </DemoPlayer>
       </div>
       <p class="listen-note" data-reveal>
-        Every clip comes from MIDI written for this page — no recorded performance — and can be rendered again
-        bit for bit with <a href={repoFile('website/scripts/render-demos.sh')} rel="noopener"><code>website/scripts/render-demos.sh</code></a>.
+        <em>Clair de lune</em> comes from a MIDI file sequenced by hand, tempo and dynamics included, by Bernd Krüger;
+        the pedal and velocity tests were written for this page. Every clip can be rendered again bit for bit with <a href={repoFile('website/scripts/render-demos.sh')} rel="noopener"><code>website/scripts/render-demos.sh</code></a>.
       </p>
     </div>
   </section>
