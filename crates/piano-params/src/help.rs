@@ -454,6 +454,14 @@ const HELP: &[(&str, &str, &str)] = &[
          radiation weights.",
     ),
     (
+        "soundboard.mics_upright",
+        "Where the two microphones stand when the piano is an upright: in front of its \
+         soundboard. Each listening set-up places them for both kinds of piano.",
+        "Used instead of soundboard.mics on a vertical board: x down from the board's top, y \
+         across (bass at y = b, the listener's left), z in front of the board; fractions of a \
+         and b with mics_relative.",
+    ),
+    (
         "soundboard.mics_relative",
         "Microphone positions given as shares of the soundboard's length and width instead of \
          metres, so that a microphone set-up follows the board when the instrument changes size.",

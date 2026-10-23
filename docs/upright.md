@@ -106,6 +106,33 @@ The table compares the bass keys (A0–B2, ff, 0.1–1.1 s) with the commercial 
 
 A first fit had used the difference between the commercial upright and grand with the close microphones, and gave crown 50 Hz with the wall. Compared directly with the upright, that setting put 7 dB too much in the 100 Hz band and 8 dB too little at 500–800 Hz. The back face's depth and gain (`back_depth`, `back_gain`) moved the bass by only about 3 dB.
 
+## Listening set-ups
+
+Listening report: "with the upright, concert microphones and the concert hall, the room sounds far more reverberant than with a concert grand in the same set-up."
+
+The microphone presets placed their mics in a grand's board coordinates: the concert pair 1.6 m beyond the board's treble edge, in front of the lid's opening, and 2 m above the board. On a standing board the same coordinates put the pair one above the other, 0.5 and 1 m above the floor, off to the side of the upright. So low, the floor's reflection arrived almost with the direct sound and strengthened the room's bass.
+
+Room energy relative to the direct sound, in the concert hall, on a mono mix of C2 to C6 by octaves at velocities 50 and 100, each held 1 s:
+
+| | total | 125 Hz | 250 Hz | 500 Hz | 1 kHz |
+|---|---|---|---|---|---|
+| concert grand, concert set-up | −7.0 dB | −6.2 | −9.3 | −10.5 | −8.2 |
+| upright, the grand's coordinates | −5.2 dB | +1.0 | −0.6 | −9.7 | −9.1 |
+| upright, 2.6 m in front, 1.5 m high | −5.1 dB | −0.1 | −5.5 | −6.0 | −5.4 |
+| **upright, 2 m in front, 1.5 m high** | **−6.8 dB** | **−7.4** | **−6.1** | **−5.7** | **−7.0** |
+
+New `soundboard.mics_upright`: the mics used instead of `mics` on a vertical board, in the same coordinates (relative with `mics_relative`), with the left one on the bass side. Each listening preset now places them for both kinds of piano:
+
+| Preset | Upright mics | Room re direct (grand / upright) | Direct level (grand / upright) |
+|---|---|---|---|
+| close | 40 cm in front, over the same parts of the bridge | −24.0 / −23.7 dB | −48.6 / −48.8 dB |
+| concert | 2 m in front, 1.5 m high, 0.6 m apart | −7.0 / −6.8 dB | −48.8 / −48.0 dB |
+| audience_lid_closed | 1.6 m in front, 1.3 m high | −6.3 / −7.4 dB | −52.0 / −51.8 dB |
+
+At 2 m the upright is miked closer than the grand (about 3 m from the board's centre), as one would mic a piano that projects less. Its lower directivity (Q 1.5 against 3) thus no longer makes the room louder than the grand's.
+
+Most of the room's energy at these distances is in its early reflections, the image sources up to the third order, the floor's among them: without them the room falls to −17 dB for both pianos. The bass of the room is therefore sensitive to the mics' height and distance through the floor's reflection. Moving the upright's pair from 2.6 to 2 m changed the 125 Hz band by 7 dB.
+
 ## What is still grand-only
 
 - **The rim.** The model's case is a ring around the board, not an upright's back frame and posts.

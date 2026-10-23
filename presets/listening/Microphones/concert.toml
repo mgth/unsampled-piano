@@ -8,5 +8,9 @@
 lid_angle = 35.0
 mics_relative = true
 mics = [[0.323529, -1.230769, 2.0], [0.735294, -1.230769, 2.0]]
+# On an upright: 2 m in front of it, 0.2·a above the board's top (1.5 m high
+# on a 1.05 m board), 0.6 m apart, the left one on the bass side: the same
+# room level and direct level as a grand's set-up (docs/upright.md).
+mics_upright = [[-0.2, 0.7, 2.0], [-0.2, 0.3, 2.0]]
 mic_gain_db = 3.4
 mic_pattern = 1.0

@@ -51,7 +51,7 @@ pub const SECTIONS: &[Section] = &[
     },
     Section {
         title: "Microphones",
-        prefixes: &["soundboard.mics[", "soundboard.mics_relative", "soundboard.mic_gain_db", "soundboard.mic_pattern", "soundboard.lid_"],
+        prefixes: &["soundboard.mics[", "soundboard.mics_upright[", "soundboard.mics_relative", "soundboard.mic_gain_db", "soundboard.mic_pattern", "soundboard.lid_"],
         curves: &[],
         view: View::Mics,
     },

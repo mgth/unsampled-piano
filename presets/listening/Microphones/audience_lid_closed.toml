@@ -4,5 +4,7 @@
 lid_angle = 0.0
 mics_relative = true
 mics = [[0.323529, -1.230769, 1.0], [0.735294, -1.230769, 1.0]]
+# On an upright: 1.6 m in front of it, at the height of its top.
+mics_upright = [[0.0, 0.7, 1.6], [0.0, 0.3, 1.6]]
 mic_gain_db = 0.0
 mic_pattern = 1.0

@@ -68,7 +68,7 @@ pub fn save_preset(model: &PianoModel, path: &Path) -> Result<(), String> {
 /// Fields of a listening set-up (microphones, their gain, the lid opening,
 /// the room): what a listening preset sets, and what loading an instrument
 /// keeps.
-const LISTENING: &[(&str, &[&str])] = &[("soundboard", &["mics", "mics_relative", "mic_gain_db", "mic_pattern", "lid_angle"]), ("room", &[])];
+const LISTENING: &[(&str, &[&str])] = &[("soundboard", &["mics", "mics_upright", "mics_relative", "mic_gain_db", "mic_pattern", "lid_angle"]), ("room", &[])];
 
 fn to_table(model: &PianoModel) -> toml::Table {
     toml::Table::try_from(model).expect("model serialises")

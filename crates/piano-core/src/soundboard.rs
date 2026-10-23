@@ -105,6 +105,11 @@ pub struct SoundboardParams {
     pub main_bridge_from: u8,
     /// Microphones (m, plate coordinates, z above the board).
     pub mics: [(f64, f64, f64); 2],
+    /// The microphones used instead of `mics` when the board is vertical
+    /// (an upright): a listening set-up places them for both kinds of
+    /// piano. The same coordinates: x down from the board's top, y across
+    /// (the bass at y = b, on the listener's left), z in front of the board.
+    pub mics_upright: [(f64, f64, f64); 2],
     /// `mics` x and y are fractions of the board's a and b (z stays in
     /// metres): a listening preset then fits every board size.
     pub mics_relative: bool,
@@ -220,6 +225,8 @@ impl SoundboardParams {
         bass_bridge: [(0.72, 0.62), (0.86, 0.40)],
         main_bridge_from: 29,
         mics: [(0.45, 0.35, 1.5), (1.15, 0.85, 1.5)],
+        // 1.5 m in front of an upright's board, the left one on the bass side.
+        mics_upright: [(0.7, 1.0, 1.5), (0.3, 0.45, 1.5)],
         mics_relative: false,
         mic_gain_db: 0.0,
         mic_pattern: 1.0,
@@ -401,12 +408,13 @@ pub struct Soundboard {
 }
 
 impl SoundboardParams {
-    /// The same set-up with the microphones in metres.
+    /// The same set-up with the microphones in use (`mics_upright` on a
+    /// vertical board) in metres.
+    /// Idempotent.
     pub fn resolved(self) -> Self {
-        if !self.mics_relative {
-            return self;
-        }
-        Self { mics: self.mics.map(|(x, y, z)| (x * self.a, y * self.b, z)), mics_relative: false, ..self }
+        let metres = |m: [(f64, f64, f64); 2]| if self.mics_relative { m.map(|(x, y, z)| (x * self.a, y * self.b, z)) } else { m };
+        let (grand, upright) = (metres(self.mics), metres(self.mics_upright));
+        Self { mics: if self.vertical { upright } else { grand }, mics_upright: upright, mics_relative: false, ..self }
     }
 }
 
@@ -637,6 +645,15 @@ mod tests {
             .sum::<f64>()
             / n as f64;
         assert!(mean > 0.3 * p.mean_mobility() && mean < 3.0 * p.mean_mobility(), "mean Re Y {mean:e}");
+    }
+
+    #[test]
+    fn an_upright_uses_its_own_microphones() {
+        let p = SoundboardParams { mics_relative: true, mics: [(0.5, -1.0, 2.0); 2], mics_upright: [(-0.2, 0.7, 2.0), (-0.2, 0.3, 2.0)], ..SoundboardParams::GRAND_2M };
+        assert_eq!(p.resolved().mics[0], (0.5 * p.a, -p.b, 2.0));
+        let up = SoundboardParams { vertical: true, ..p }.resolved();
+        assert_eq!(up.mics[0], (-0.2 * p.a, 0.7 * p.b, 2.0));
+        assert_eq!(up.resolved().mics, up.mics, "resolving twice changes nothing");
     }
 
     #[test]

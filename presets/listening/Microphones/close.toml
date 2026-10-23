@@ -7,5 +7,8 @@
 lid_angle = 35.0
 mics_relative = true
 mics = [[0.294118, 0.346154, 0.4], [0.705882, 0.653846, 0.4]]
+# On an upright, 40 cm in front of the board over the same parts of the
+# bridge, the left microphone on the bass side.
+mics_upright = [[0.705882, 0.653846, 0.4], [0.294118, 0.346154, 0.4]]
 mic_gain_db = -9.6
 mic_pattern = 0.5
