@@ -430,6 +430,14 @@ const HELP: &[(&str, &str, &str)] = &[
          output_gain_db so that a listening preset and an instrument preset combine.",
     ),
     (
+        "soundboard.mic_pattern",
+        "Pick-up pattern of the microphones, aimed at the piano: 1 hears all around (omni), 0.5 is a \
+         cardioid, which hears the room about 5 dB less than the piano in front of it.",
+        "Pattern a + (1 − a)·cos θ. The direct sound arrives on axis; the room's reflections and tail \
+         come from every direction and are heard with the random-incidence efficiency \
+         a² + (1 − a)²/3 (1/3 for a cardioid).",
+    ),
+    (
         "soundboard.radiate",
         "Off: you hear the force on the bridge instead of the sound in the air (for analysis).",
         "False skips the Rayleigh radiation; the board still sets the string coupling.",
@@ -568,6 +576,7 @@ const HELP: &[(&str, &str, &str)] = &[
     ("room.absorption_low", "How much the walls absorb the low frequencies (≈ 125 Hz). Lower: longer, boomier reverb.", "Mean absorption coefficient α at low frequency."),
     ("room.absorption_high", "How much the walls absorb the high frequencies (≈ 4 kHz). Higher: a darker reverb.", "Mean absorption coefficient α at high frequency."),
     ("room.order", "How many wall bounces are computed as distinct echoes before the reverb takes over.", "Image-source order; each order gets its own wall low-pass."),
+    ("room.directivity", "How much the piano beams its sound towards the microphones (lid, open side) rather than all around: the more it does, the less it fills the room.", "Directivity factor Q: the room is driven by an omnidirectional source 1/Q as powerful as the level at the mics suggests (a grand with the lid open: Q ≈ 3–4, directivity index 4–6 dB)."),
     ("room.tail_gain", "Level of the reverb tail (1: physical).", "Scales the FDN output, set by default so the reverberant energy is (r/r_c)² times the direct, r_c = 0.057·√(V/T60)."),
     // Frame
     (

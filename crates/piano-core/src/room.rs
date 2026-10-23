@@ -37,6 +37,12 @@ pub struct RoomParams {
     pub order: usize,
     /// Scales the late tail (1 = physical level).
     pub tail_gain: f64,
+    /// Directivity factor Q of the piano: the mics sit in its main lobe
+    /// (lid, open side), so the power it sends into the room is that of an
+    /// omnidirectional source 1/Q as strong as the mics suggest. A grand
+    /// with the lid open has a directivity index of ≈ 4–6 dB (Q ≈ 3–4);
+    /// 1 = omnidirectional (the earlier behaviour).
+    pub directivity: f64,
 }
 
 impl RoomParams {
@@ -52,6 +58,7 @@ impl RoomParams {
         absorption_high: 0.37,
         order: 3,
         tail_gain: 1.0,
+        directivity: 3.0,
     };
 
     /// A small recording hall: 12 × 8 × 5 m, T60 ≈ 1.1 s low, 0.75 s high.
@@ -63,6 +70,7 @@ impl RoomParams {
         absorption_high: 0.25,
         order: 3,
         tail_gain: 1.0,
+        directivity: 3.0,
     };
 
     pub fn volume(&self) -> f64 {
@@ -124,12 +132,18 @@ pub struct Room {
     out_gain: f32,
     /// Distances mic → source, to estimate the source from the mics.
     r_direct: [f64; MICS],
+    /// √(diffuse-field efficiency of the mics / Q): the room is driven by
+    /// the power the piano radiates in every direction, not by its level
+    /// towards the mics, and heard through the mics' pattern.
+    source_gain: f32,
     sample_rate: f64,
 }
 
 impl Room {
     /// `mics` are the microphone positions in board coordinates (m).
-    pub fn new(p: &RoomParams, mics: &[(f64, f64, f64); MICS], board_size: (f64, f64), sample_rate: f64) -> Self {
+    /// `mic_pattern`: a of the microphones' pattern a + (1 − a)·cos θ (they
+    /// hear the room's diffuse sound with √(a² + (1 − a)²/3)).
+    pub fn new(p: &RoomParams, mics: &[(f64, f64, f64); MICS], board_size: (f64, f64), mic_pattern: f64, sample_rate: f64) -> Self {
         let sr = sample_rate;
         let src = [p.piano[0] + board_size.0 / 2.0, p.piano[1] + board_size.1 / 2.0, p.piano[2] + 0.1];
         let mic_room: [[f64; 3]; MICS] =
@@ -220,6 +234,10 @@ impl Room {
             lp_state: [0.0; LINES],
             pre,
             out_gain: 1.0,
+            source_gain: {
+                let a = mic_pattern.clamp(0.0, 1.0);
+                ((a * a + (1.0 - a) * (1.0 - a) / 3.0) / p.directivity.max(1.0)).sqrt() as f32
+            },
             r_direct,
             sample_rate,
         };
@@ -286,8 +304,9 @@ impl Room {
         let mask = self.hist.len() - 1;
         let r = [self.r_direct[0] as f32, self.r_direct[1] as f32];
         for (lo, ro) in left.iter_mut().zip(right.iter_mut()) {
-            // Source pressure at 1 m from the mics.
-            let s = 0.5 * (*lo * r[0] + *ro * r[1]);
+            // Equivalent omnidirectional source: pressure at 1 m from the
+            // mics, less the piano's directivity towards them.
+            let s = 0.5 * (*lo * r[0] + *ro * r[1]) * self.source_gain;
             self.hist[self.pos & mask] = s;
             let mut early = [0.0f32; MICS];
             for (m, e) in early.iter_mut().enumerate() {
@@ -323,7 +342,7 @@ mod tests {
 
     fn check_t60(p: RoomParams) {
         let sr = 48_000.0;
-        let mut room = Room::new(&p, &[(0.5, 0.4, 1.5), (1.2, 0.9, 1.5)], (1.7, 1.3), sr);
+        let mut room = Room::new(&p, &[(0.5, 0.4, 1.5), (1.2, 0.9, 1.5)], (1.7, 1.3), 1.0, sr);
         let n = (3.0 * sr) as usize;
         let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
         l[0] = 1.0;

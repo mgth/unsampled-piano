@@ -140,6 +140,7 @@ mics = [
 ]
 mics_relative = false
 mic_gain_db = 0.0
+mic_pattern = 1.0
 radiate = true
 grid_step = 0.015
 back_depth = 0.6
@@ -202,6 +203,7 @@ absorption_low = 0.327
 absorption_high = 0.37
 order = 3
 tail_gain = 1.0
+directivity = 3.0
 
 [frame]
 enabled = true

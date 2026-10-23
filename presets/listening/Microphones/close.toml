@@ -1,9 +1,11 @@
 # Close miking: lid open at 35°, two microphones 40 cm above the board, over
 # the bass and the treble parts of the bridge (closest to the references'
 # spectral balance, docs/presence.md). Positions relative to the board.
+# Cardioids aimed at the piano: they hear the room ≈ 5 dB less.
 # Level: close microphones hear the piano ≈ 13 dB louder.
 [soundboard]
 lid_angle = 35.0
 mics_relative = true
 mics = [[0.294118, 0.346154, 0.4], [0.705882, 0.653846, 0.4]]
 mic_gain_db = -9.6
+mic_pattern = 0.5

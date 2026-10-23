@@ -106,6 +106,10 @@ pub struct SoundboardParams {
     /// Gain of the listening set-up (dB), on top of `output_gain_db` (the
     /// instrument's own level): closer microphones hear the piano louder.
     pub mic_gain_db: f64,
+    /// Microphone pattern a + (1 − a)·cos θ, aimed at the piano: 1 omni,
+    /// 0.5 cardioid. The direct sound arrives on axis; the room's sound from
+    /// every direction, which a cardioid hears with a third of the energy.
+    pub mic_pattern: f64,
     /// Render the radiated pressure (false: output the bridge force, the
     /// board only sets the string coupling — for analysis).
     pub radiate: bool,
@@ -195,6 +199,7 @@ impl SoundboardParams {
         mics: [(0.45, 0.35, 1.5), (1.15, 0.85, 1.5)],
         mics_relative: false,
         mic_gain_db: 0.0,
+        mic_pattern: 1.0,
         radiate: true,
         grid_step: 0.015,
         // Calibrated on the spectral tilt of Salamander (low bands).
