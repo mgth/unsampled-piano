@@ -1,7 +1,8 @@
 # Builds the standalone player for Windows (WASAPI and ASIO output, zipped
 # with the presets, and an installer that also offers the VST3 and CLAP
-# plugins) and macOS (universal application bundle, CoreAudio) and keeps
-# them as artifacts. A version tag (v*) also attaches them to a GitHub
+# plugins), macOS (universal application bundle, CoreAudio) and Linux (an
+# archive with the plugins, the presets and install.sh) and keeps them as
+# artifacts. A version tag (v*) also attaches them to a GitHub
 # release.
 name: Standalone
 
@@ -96,9 +97,45 @@ jobs:
           name: unsampled-piano-standalone-macos-universal
           path: unsampled-piano-standalone-macos-universal.zip
 
+  linux:
+    # PipeWire 0.3.53 or later (cpal); glibc 2.39: Ubuntu 24.04, Debian 13,
+    # Fedora 40 and later.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Libraries (PipeWire, ALSA, X11 and OpenGL)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config clang \
+            libpipewire-0.3-dev libasound2-dev libgl-dev \
+            libx11-xcb-dev libxcb1-dev libxcb-dri2-0-dev libxcb-icccm4-dev \
+            libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: standalone-linux
+
+      - name: Build (archive)
+        run: echo "dir=$(installer/linux/make-archive.sh)" >> "$GITHUB_ENV"
+
+      - name: Smoke test (start, install, uninstall)
+        run: |
+          "$dir/bin/unsampled-piano" --help > /dev/null
+          HOME="$RUNNER_TEMP/home" "$dir/install.sh"
+          test -x "$RUNNER_TEMP/home/.local/bin/unsampled-piano"
+          HOME="$RUNNER_TEMP/home" "$dir/install.sh" --uninstall
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsampled-piano-linux-x86_64
+          path: target/linux/*.tar.gz
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, macos]
+    needs: [windows, macos, linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -111,3 +148,4 @@ jobs:
           files: |
             unsampled-piano-standalone-*.zip
             unsampled-piano-setup-*.exe
+            unsampled-piano-*-linux-*.tar.gz
