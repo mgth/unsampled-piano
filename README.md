@@ -39,6 +39,8 @@ tools/calibrate.sh data/salamander/Samples out/calib
 cargo test --workspace
 ```
 
+In the interface (`--ui`), the **Audio and MIDI** page chooses the backend, the output, the channel pair, the buffer size, the MIDI input and (graph node) the MIDI mirror while the piano plays: the node reconnects its ports, another backend or device restarts the audio with the instrument rebuilt at its sample rate (≈ 0.1 s), and a failed choice falls back to the previous set-up. The choices are saved to `play.toml`; options given on the command line still take precedence at the next start.
+
 On Linux, `tools/install-app.sh` builds the player and installs it for the current user, with a menu entry (`installer/linux/unsampled-piano.desktop`, which opens the interface), its icon and the shipped presets, under `~/.local` (`PREFIX=/usr/local` for every user, as root). Saved presets go to `~/.config/unsampled-piano/presets`.
 
 ## Windows, macOS and Linux packages

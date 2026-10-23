@@ -120,10 +120,29 @@ impl Running {
 
     /// MIDI inputs of the other nodes.
     pub fn midi_inputs(&self) -> Vec<String> {
+        self.others("midi", PortFlags::IS_INPUT)
+    }
+
+    /// MIDI sources and audio inputs of the other nodes, as now.
+    pub fn graph_ports(&self) -> (Vec<String>, Vec<String>) {
+        (self.others("midi", PortFlags::IS_OUTPUT), self.others("audio", PortFlags::IS_INPUT))
+    }
+
+    fn others(&self, kind: &str, flags: PortFlags) -> Vec<String> {
         let c = self.0.as_client();
         let own = format!("{}:", c.name());
-        let mut v = c.ports(None, Some("midi"), PortFlags::IS_INPUT);
+        let mut v = c.ports(None, Some(kind), flags);
         v.retain(|p| !p.starts_with(&own));
         v
+    }
+
+    /// Removes every connection of one of our ports.
+    pub fn disconnect_all(&self, port: &str) {
+        let c = self.0.as_client();
+        let Some(p) = c.port_by_name(port) else { return };
+        for other in p.get_connections() {
+            // Our outputs are the source, our inputs the destination.
+            let _ = c.disconnect_ports_by_name(port, &other).or_else(|_| c.disconnect_ports_by_name(&other, port));
+        }
     }
 }

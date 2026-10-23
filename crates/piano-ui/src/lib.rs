@@ -24,6 +24,17 @@ const KOFI: &str = "https://ko-fi.com/mgth";
 
 /// Page index of the MIDI map (after the sections).
 const MIDI_PAGE: usize = usize::MAX;
+/// Page index of the host's own page ([`HostPage`]).
+const HOST_PAGE: usize = usize::MAX - 1;
+
+/// A page the host adds to the interface, listed last: the standalone
+/// player's audio and MIDI settings (a plugin's host handles those).
+pub trait HostPage: Send {
+    /// Its name in the page list.
+    fn title(&self) -> &str;
+    /// Draws it into the central panel (scrolled).
+    fn show(&mut self, ui: &mut Ui);
+}
 
 pub struct PianoUi {
     registry: Registry,
@@ -56,6 +67,7 @@ pub struct PianoUi {
     /// CPU load shown: the peak over the last second (the status gives the
     /// peak since it was last read).
     load: LoadMeter,
+    host_page: Option<Box<dyn HostPage>>,
 }
 
 #[derive(Default)]
@@ -95,7 +107,13 @@ impl PianoUi {
             listening_names: Default::default(),
             message: None,
             load: LoadMeter::default(),
+            host_page: None,
         }
+    }
+
+    /// Adds the host's page, listed after the others.
+    pub fn set_host_page(&mut self, page: Box<dyn HostPage>) {
+        self.host_page = Some(page);
     }
 
     /// Adds read-only preset folders, listed after the one saving writes to
@@ -132,10 +150,14 @@ impl PianoUi {
         self.about = self.registry.params().iter().position(|p| p.path == path);
     }
 
-    /// Opens the page with this title (case-insensitive), or "MIDI".
+    /// Opens the page with this title (case-insensitive), "MIDI" or the
+    /// host page's.
     pub fn open_page(&mut self, title: &str) {
         if title.eq_ignore_ascii_case("midi") {
             self.page = MIDI_PAGE;
+            self.search.clear();
+        } else if self.host_page.as_ref().is_some_and(|h| h.title().eq_ignore_ascii_case(title)) {
+            self.page = HOST_PAGE;
             self.search.clear();
         } else if let Some(i) = SECTIONS.iter().position(|s| s.title.eq_ignore_ascii_case(title)) {
             self.page = i;
@@ -220,6 +242,13 @@ impl PianoUi {
                     self.search.clear();
                 }
             }
+            if let Some(h) = &self.host_page {
+                ui.add_space(6.0);
+                if ui.selectable_label(self.page == HOST_PAGE && self.search.is_empty(), h.title()).clicked() {
+                    self.page = HOST_PAGE;
+                    self.search.clear();
+                }
+            }
             ui.add_space(12.0);
             ui.horizontal(|ui| {
                 widgets::kind_mark(ui, true);
@@ -250,6 +279,8 @@ impl PianoUi {
             egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
                 if self.page == MIDI_PAGE && self.search.is_empty() {
                     self.midi_page(ui, control);
+                } else if let (HOST_PAGE, true, Some(h)) = (self.page, self.search.is_empty(), self.host_page.as_mut()) {
+                    h.show(ui);
                 } else {
                     self.page(ui, control, &model);
                 }
