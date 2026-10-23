@@ -20,6 +20,8 @@
 // Small fixed-size DSP loops read better with explicit indices.
 #![allow(clippy::needless_range_loop)]
 
+use crate::soundboard::SoundboardParams;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct RoomParams {
@@ -27,7 +29,10 @@ pub struct RoomParams {
     /// Room dimensions (m).
     pub size: [f64; 3],
     /// Position of the soundboard's corner (x = 0, y = 0) in the room (m);
-    /// the board lies in the horizontal plane at that height.
+    /// the board lies in the horizontal plane at that height. A vertical
+    /// (upright) board stands at x, y with its top edge at the board's
+    /// length above its foot ([`VERTICAL_FOOT`]), against the wall y = 0
+    /// when it has one ([`crate::soundboard::SoundboardParams::wall_distance`]).
     pub piano: [f64; 3],
     /// Mean absorption coefficient of the walls at low (≈ 125 Hz) and high
     /// (≈ 4 kHz) frequency.
@@ -39,9 +44,9 @@ pub struct RoomParams {
     pub tail_gain: f64,
     /// Directivity factor Q of the piano: the mics sit in its main lobe
     /// (lid, open side), so the power it sends into the room is that of an
-    /// omnidirectional source 1/Q as strong as the mics suggest. A grand
-    /// with the lid open has a directivity index of ≈ 4–6 dB (Q ≈ 3–4);
-    /// 1 = omnidirectional (the earlier behaviour).
+    /// omnidirectional source 1/Q as strong as the mics suggest. 0: from
+    /// the instrument and its set-up ([`piano_directivity`]); > 0: this
+    /// value (1 = omnidirectional).
     pub directivity: f64,
 }
 
@@ -58,7 +63,7 @@ impl RoomParams {
         absorption_high: 0.37,
         order: 3,
         tail_gain: 1.0,
-        directivity: 3.0,
+        directivity: 0.0,
     };
 
     /// A small recording hall: 12 × 8 × 5 m, T60 ≈ 1.1 s low, 0.75 s high.
@@ -70,7 +75,7 @@ impl RoomParams {
         absorption_high: 0.25,
         order: 3,
         tail_gain: 1.0,
-        directivity: 3.0,
+        directivity: 0.0,
     };
 
     pub fn volume(&self) -> f64 {
@@ -97,6 +102,8 @@ impl Default for RoomParams {
 }
 
 const C0: f64 = 343.0;
+/// Height of a vertical board's lower edge above the floor (m).
+pub const VERTICAL_FOOT: f64 = 0.25;
 const LINES: usize = 16;
 const MAX_TAPS: usize = 128;
 const MICS: usize = 2;
@@ -139,15 +146,73 @@ pub struct Room {
     sample_rate: f64,
 }
 
+/// A point in board coordinates (m, z towards the mics) in the room.
+pub fn to_room(p: &RoomParams, sb: &SoundboardParams, (x, y, z): (f64, f64, f64)) -> [f64; 3] {
+    if sb.vertical {
+        let wall_y = if sb.wall_distance > 0.0 { sb.wall_distance } else { p.piano[1] };
+        [p.piano[0] + y, wall_y + z, VERTICAL_FOOT + sb.a - x]
+    } else {
+        [p.piano[0] + x, p.piano[1] + y, p.piano[2] + z]
+    }
+}
+
+/// Directivity factor Q of the piano towards its microphones, when
+/// [`RoomParams::directivity`] is 0:
+/// - a grand with its lid open beams towards the lid's opening: Q = 3
+///   (directivity index ≈ 4–6 dB, Q ≈ 3–4, at mid and high frequencies);
+/// - a grand with the lid closed or removed still radiates mostly up and
+///   down, its two faces in antiphase: Q = 2;
+/// - an upright against a wall radiates into the half space in front of it:
+///   Q = 2; standing free, 1.5.
+///
+/// Computing Q from the board's own radiation in every direction gave 0.1
+/// to 8 from one octave to the next (interference of the few modes per band
+/// at the mics), too erratic to drive the room (docs/upright.md).
+pub fn piano_directivity(p: &RoomParams, sb: &SoundboardParams) -> f64 {
+    if p.directivity > 0.0 {
+        return p.directivity;
+    }
+    if sb.vertical {
+        if sb.wall_distance > 0.0 { 2.0 } else { 1.5 }
+    } else if sb.lid_angle > 0.0 && sb.lid_reflection > 0.0 {
+        3.0
+    } else {
+        2.0
+    }
+}
+
+/// The point the room takes as the source, in board coordinates: 10 cm in
+/// front of the board's centre.
+pub fn source_point(sb: &SoundboardParams) -> (f64, f64, f64) {
+    (sb.a / 2.0, sb.b / 2.0, 0.1)
+}
+
+/// √(diffuse-field efficiency of the mics / Q): the room is driven by the
+/// power the piano radiates in every direction, not by its level towards
+/// the mics, and heard through the mics' pattern a + (1 − a)·cos θ, which
+/// takes √(a² + (1 − a)²/3) of the diffuse sound.
+pub fn source_gain(sb: &SoundboardParams, directivity: f64) -> f64 {
+    let a = sb.mic_pattern.clamp(0.0, 1.0);
+    ((a * a + (1.0 - a) * (1.0 - a) / 3.0) / directivity.max(1.0)).sqrt()
+}
+
+/// Critical distance (m) at which the room's sound equals the direct one,
+/// as heard through the mics and with the piano's directivity.
+pub fn critical_distance(p: &RoomParams, sb: &SoundboardParams) -> f64 {
+    let (t_lo, t_hi) = p.t60();
+    0.057 * (p.volume() / (0.5 * (t_lo + t_hi))).sqrt() / (p.tail_gain * source_gain(sb, piano_directivity(p, sb))).max(1e-3)
+}
+
 impl Room {
-    /// `mics` are the microphone positions in board coordinates (m).
-    /// `mic_pattern`: a of the microphones' pattern a + (1 − a)·cos θ (they
-    /// hear the room's diffuse sound with √(a² + (1 − a)²/3)).
-    pub fn new(p: &RoomParams, mics: &[(f64, f64, f64); MICS], board_size: (f64, f64), mic_pattern: f64, sample_rate: f64) -> Self {
+    /// `sb`: the soundboard with its microphones in metres.
+    pub fn new(p: &RoomParams, sb: &SoundboardParams, sample_rate: f64) -> Self {
+        let directivity = piano_directivity(p, sb);
         let sr = sample_rate;
-        let src = [p.piano[0] + board_size.0 / 2.0, p.piano[1] + board_size.1 / 2.0, p.piano[2] + 0.1];
-        let mic_room: [[f64; 3]; MICS] =
-            std::array::from_fn(|m| [p.piano[0] + mics[m].0, p.piano[1] + mics[m].1, p.piano[2] + mics[m].2]);
+        let src = to_room(p, sb, source_point(sb));
+        let mic_room: [[f64; 3]; MICS] = std::array::from_fn(|m| to_room(p, sb, sb.mics[m]));
+        // An upright against the wall y = 0: the board's radiation already
+        // has that wall's first reflection.
+        let own_wall = sb.vertical && sb.wall_distance > 0.0;
         let dist = |a: [f64; 3], b: [f64; 3]| ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt();
         let r_direct: [f64; MICS] = std::array::from_fn(|m| dist(src, mic_room[m]).max(0.3));
 
@@ -165,7 +230,7 @@ impl Room {
                 for ny in -o..=o {
                     for nz in -o..=o {
                         let refl = (nx.abs() + ny.abs() + nz.abs()) as usize;
-                        if refl == 0 || refl > p.order {
+                        if refl == 0 || refl > p.order || (own_wall && (nx, ny, nz) == (0, -1, 0)) {
                             continue;
                         }
                         // n even: n·L + s; n odd: (n + 1)·L − s (mirrored).
@@ -234,10 +299,7 @@ impl Room {
             lp_state: [0.0; LINES],
             pre,
             out_gain: 1.0,
-            source_gain: {
-                let a = mic_pattern.clamp(0.0, 1.0);
-                ((a * a + (1.0 - a) * (1.0 - a) / 3.0) / p.directivity.max(1.0)).sqrt() as f32
-            },
+            source_gain: source_gain(sb, directivity) as f32,
             r_direct,
             sample_rate,
         };
@@ -245,6 +307,7 @@ impl Room {
         // unit impulse at 1 m the direct energy at the mic is 1/r², so the
         // tail's impulse response must carry 1/r_c².
         let t60_mid = 0.5 * (t_lo + t_hi);
+        // r_c of the bare room: the source gain is applied to the input.
         let rc = 0.057 * (p.volume() / t60_mid).sqrt();
         let e = room.tail_energy(t60_mid);
         room.out_gain = (p.tail_gain / rc / e.sqrt()) as f32;
@@ -340,9 +403,29 @@ mod tests {
         }
     }
 
+    #[test]
+    fn an_upright_stands_against_its_wall() {
+        let p = RoomParams::HALL;
+        let sb = SoundboardParams { vertical: true, wall_distance: 0.2, a: 1.05, mics: [(0.3, 0.4, 0.5), (0.8, 1.0, 0.5)], ..SoundboardParams::GRAND_2M };
+        let m = to_room(&p, &sb, sb.mics[0]);
+        assert!((m[1] - 0.7).abs() < 1e-12 && (m[2] - (VERTICAL_FOOT + 1.05 - 0.3)).abs() < 1e-12, "{m:?}");
+        assert_eq!(piano_directivity(&p, &sb), 2.0);
+        assert_eq!(piano_directivity(&p, &SoundboardParams { wall_distance: 0.0, ..sb }), 1.5);
+        let grand = SoundboardParams { lid_angle: 35.0, ..SoundboardParams::GRAND_2M };
+        assert_eq!(piano_directivity(&p, &grand), 3.0);
+        assert_eq!(piano_directivity(&p, &SoundboardParams { lid_angle: 0.0, ..grand }), 2.0);
+        assert_eq!(piano_directivity(&RoomParams { directivity: 4.0, ..p }, &grand), 4.0);
+        let mut room = Room::new(&p, &sb, 48_000.0);
+        let (mut l, mut r) = (vec![0.0f32; 48_000], vec![0.0f32; 48_000]);
+        l[0] = 1.0;
+        room.process(&mut l, &mut r);
+        assert!(l.iter().chain(&r).all(|v| v.is_finite()));
+    }
+
     fn check_t60(p: RoomParams) {
         let sr = 48_000.0;
-        let mut room = Room::new(&p, &[(0.5, 0.4, 1.5), (1.2, 0.9, 1.5)], (1.7, 1.3), 1.0, sr);
+        let sb = SoundboardParams { mics: [(0.5, 0.4, 1.5), (1.2, 0.9, 1.5)], ..SoundboardParams::GRAND_2M };
+        let mut room = Room::new(&p, &sb, sr);
         let n = (3.0 * sr) as usize;
         let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
         l[0] = 1.0;

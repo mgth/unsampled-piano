@@ -484,6 +484,24 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("soundboard.wall_reflection", "How much sound the wall behind the piano reflects (1: hard wall).", "Pressure reflection coefficient r of the wall image."),
     (
+        "soundboard.vertical",
+        "On for an upright: the soundboard stands vertically, its top at the board's length above \
+         the floor, its string side towards the room (and against the room's wall when there is \
+         a wall behind it). It places the piano and the microphones in the room.",
+        "Board (x, y, z) → room (piano.x + y, y_wall + z, 0.25 m + a − x), y_wall = wall distance \
+         (then the room's first reflection off y = 0 is left to the board's own wall image) or \
+         piano.y. The board's radiation is unchanged.",
+    ),
+    (
+        "soundboard.case_open",
+        "An upright's case closes the front of its soundboard: action, keys and panels. Share of \
+         that side's sound that gets out through the openings; 1: no case, or panels removed. \
+         Lower: a darker, more boxed-in tone.",
+        "Gain of the front face's paths: open + (1 − open)·τ(f), τ = 1/√(1 + (ω·m/2ρc)²) the \
+         panels' mass-law transmission. The back face and the wall are not affected.",
+    ),
+    ("soundboard.case_panel_mass", "Weight of the case panels per square metre: heavier panels let less sound through.", "Surface mass m (kg/m²) in the mass law; 6 ≈ 1 cm of wood."),
+    (
         "soundboard.lid_angle",
         "How far the lid is open (0: removed). An open lid reflects the sound towards the audience \
          side and shadows the mics behind it.",
@@ -608,7 +626,15 @@ const HELP: &[(&str, &str, &str)] = &[
     ("room.absorption_low", "How much the walls absorb the low frequencies (≈ 125 Hz). Lower: longer, boomier reverb.", "Mean absorption coefficient α at low frequency."),
     ("room.absorption_high", "How much the walls absorb the high frequencies (≈ 4 kHz). Higher: a darker reverb.", "Mean absorption coefficient α at high frequency."),
     ("room.order", "How many wall bounces are computed as distinct echoes before the reverb takes over.", "Image-source order; each order gets its own wall low-pass."),
-    ("room.directivity", "How much the piano beams its sound towards the microphones (lid, open side) rather than all around: the more it does, the less it fills the room.", "Directivity factor Q: the room is driven by an omnidirectional source 1/Q as powerful as the level at the mics suggests (a grand with the lid open: Q ≈ 3–4, directivity index 4–6 dB)."),
+    (
+        "room.directivity",
+        "How much the piano beams its sound towards the microphones rather than all around: the \
+         more it does, the less it fills the room. 0 (default) sets it from the piano: a grand \
+         with its lid open beams the most, an upright standing free the least.",
+        "Directivity factor Q: the room is driven by an omnidirectional source 1/Q as powerful as \
+         the level at the mics suggests. 0: 3 for a grand with its lid open, 2 with the lid \
+         closed or removed, 2 for an upright against a wall, 1.5 standing free.",
+    ),
     ("room.tail_gain", "Level of the reverb tail (1: physical).", "Scales the FDN output, set by default so the reverberant energy is (r/r_c)² times the direct, r_c = 0.057·√(V/T60)."),
     // Frame
     (

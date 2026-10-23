@@ -160,7 +160,7 @@ impl Engine {
             .map(|m| BoardBank::new(cfg.sample_rate, m, SUB_BLOCK));
         let room = match (inst.model.soundboard, inst.board.is_some()) {
             (Some(sb), true) if inst.model.room.enabled => {
-                Some(crate::room::Room::new(&inst.model.room, &sb.mics, (sb.a, sb.b), sb.mic_pattern, cfg.sample_rate))
+                Some(crate::room::Room::new(&inst.model.room, &sb, cfg.sample_rate))
             }
             _ => None,
         };

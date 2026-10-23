@@ -35,6 +35,9 @@
 use crate::complex::C64;
 use std::f64::consts::{PI, TAU};
 
+const RHO0: f64 = 1.2;
+const C0: f64 = 343.0;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct SoundboardParams {
@@ -130,6 +133,18 @@ pub struct SoundboardParams {
     /// the wall's pressure reflection coefficient `wall_reflection`.
     pub wall_distance: f64,
     pub wall_reflection: f64,
+    /// An upright's board stands vertically (its x axis pointing down from
+    /// the top, its front face towards the room): this places it and the
+    /// microphones in the room, against the room's wall when
+    /// `wall_distance` > 0. The radiation itself is the same.
+    pub vertical: bool,
+    /// The closed case in front of an upright's board (action, keys and
+    /// panels): share of the front face's sound that leaves through its
+    /// openings (1: no case, or panels off), the rest passing through the
+    /// panels by the mass law, τ = 1/√(1 + (ω·m/2ρc)²), with
+    /// `case_panel_mass` (kg/m²).
+    pub case_open: f64,
+    pub case_panel_mass: f64,
     /// Lid opening angle (degrees); 0 = lid removed. It is hinged along the
     /// board's long side y = b, `lid_hinge_height` m above the board, as long
     /// as the board is wide, and opens towards y < 0 (the audience).
@@ -215,6 +230,9 @@ impl SoundboardParams {
         back_gain: 0.6,
         wall_distance: 0.0,
         wall_reflection: 0.9,
+        vertical: false,
+        case_open: 1.0,
+        case_panel_mass: 6.0,
         // Removed lid: the default mics hang above the board (calibrated
         // set-up); see presets/listening/Microphones/concert.toml for an open lid.
         lid_angle: 0.0,
@@ -225,6 +243,34 @@ impl SoundboardParams {
 
     fn h(&self) -> f64 {
         (self.dx * self.dy).sqrt()
+    }
+
+    /// Gain of the front face's sound through the case at ω.
+    pub fn case_gain(&self, omega: f64) -> f64 {
+        let tau = 1.0 / (1.0 + (omega * self.case_panel_mass / (2.0 * RHO0 * C0)).powi(2)).sqrt();
+        self.case_open + (1.0 - self.case_open) * tau
+    }
+
+    /// Radiation paths from the board cell `c` to the point `m`.
+    fn path(&self, lid: Option<&Lid>, c: [f64; 3], m: [f64; 3]) -> Path {
+        let d2 = (c[0] - m[0]).powi(2) + (c[1] - m[1]).powi(2);
+        let at = |z: f64| (d2 + z * z).sqrt();
+        let z = m[2];
+        if z < 0.0 {
+            // Below (behind) the board: the back face directly, the front
+            // one around the case.
+            return Path { front: (at(-z + self.back_depth), self.back_gain), back: (at(-z), 1.0), wall: (1.0, 0.0), image: (1.0, 0.0) };
+        }
+        let (direct, image) = match lid {
+            Some(l) => (l.direct_gain(c, m), l.image(c, m)),
+            None => (1.0, None),
+        };
+        let wall = if self.wall_distance > 0.0 {
+            (at(z + self.back_depth + 2.0 * self.wall_distance), self.wall_reflection * self.back_gain)
+        } else {
+            (1.0, 0.0)
+        };
+        Path { front: (at(z), direct), back: (at(z + self.back_depth), self.back_gain), wall, image: image.unwrap_or((1.0, 0.0)) }
     }
 
     /// Mean (infinite-plate) mobility 1/(8√(D·ρh)) with D = H.
@@ -255,17 +301,17 @@ impl SoundboardParams {
     }
 }
 
-/// One radiation path from a board cell to a mic.
+/// The radiation paths from a board cell to a point: (length, gain).
 #[derive(Clone, Copy)]
 struct Path {
-    r: f64,
-    /// 1, or the lid's transmission when it shadows the mic.
-    direct: f64,
-    /// Distance of the back-face image.
-    rb: f64,
-    /// Distance of its reflection in the wall (0: no wall).
-    rw: f64,
-    /// Lid image: (distance, gain), gain 0 when the reflection misses.
+    /// Front face: direct (shadowed by the lid or the case), or around the
+    /// case for a point below the board.
+    front: (f64, f64),
+    /// Back face: around the case, or direct for a point below.
+    back: (f64, f64),
+    /// Back face reflected by the wall (gain 0: no wall).
+    wall: (f64, f64),
+    /// Front face reflected by the lid (gain 0 when the reflection misses).
     image: (f64, f64),
 }
 
@@ -502,76 +548,62 @@ impl Soundboard {
     /// Complex radiation weight of each mode at each microphone: pressure
     /// (Pa) per unit modal velocity, by the Rayleigh integral at ω_n.
     pub fn radiation(&self) -> Vec<[C64; 2]> {
-        const RHO0: f64 = 1.2;
-        const C0: f64 = 343.0;
         let p = &self.params;
-        let nx = (p.a / p.grid_step).ceil() as usize;
-        let ny = (p.b / p.grid_step).ceil() as usize;
+        let mics = p.mics.map(|(x, y, z)| [x, y, z]);
+        self.field(&mics, p.grid_step, self.modes.len()).into_iter().map(|v| [v[0], v[1]]).collect()
+    }
+
+    /// Pressure per unit modal velocity of the first `n_modes` modes at
+    /// `points` (board coordinates, z < 0 below or behind the board), on
+    /// a radiation grid of `step` m.
+    fn field(&self, points: &[[f64; 3]], step: f64, n_modes: usize) -> Vec<Vec<C64>> {
+        let p = &self.params;
+        let nx = (p.a / step).ceil() as usize;
+        let ny = (p.b / step).ceil() as usize;
         let (dx, dy) = (p.a / nx as f64, p.b / ny as f64);
-        // Paths from every grid cell to every mic, computed once: direct
-        // (possibly shadowed by the lid), back face, and lid reflection.
+        // Paths from every grid cell to every point, computed once.
         let lid = Lid::new(p);
-        let mut geo: Vec<[Path; 2]> = Vec::with_capacity(nx * ny);
+        let np = points.len();
+        let mut geo: Vec<Path> = Vec::with_capacity(nx * ny * np);
         for i in 0..nx {
             for j in 0..ny {
-                let (x, y) = ((i as f64 + 0.5) * dx, (j as f64 + 0.5) * dy);
-                geo.push(std::array::from_fn(|mic| {
-                    let (mx, my, mz) = p.mics[mic];
-                    let (c, m) = ([x, y, 0.0], [mx, my, mz]);
-                    let d2 = (x - mx).powi(2) + (y - my).powi(2);
-                    let (direct, image) = match &lid {
-                        Some(l) => (l.direct_gain(c, m), l.image(c, m)),
-                        None => (1.0, None),
-                    };
-                    Path {
-                        r: (d2 + mz * mz).sqrt(),
-                        direct,
-                        rb: (d2 + (mz + p.back_depth).powi(2)).sqrt(),
-                        rw: if p.wall_distance > 0.0 {
-                            (d2 + (mz + p.back_depth + 2.0 * p.wall_distance).powi(2)).sqrt()
-                        } else {
-                            0.0
-                        },
-                        image: image.unwrap_or((0.0, 0.0)),
-                    }
-                }));
+                let c = [(i as f64 + 0.5) * dx, (j as f64 + 0.5) * dy, 0.0];
+                geo.extend(points.iter().map(|&m| p.path(lid.as_ref(), c, m)));
             }
         }
         let ds = dx * dy;
-        crate::par::map(self.modes.len(), |i| {
-                let md = &self.modes[i];
-                let k = md.omega / C0;
-                let pre = C64::new(0.0, md.omega * RHO0 / TAU);
-                let mut acc = [C64::ZERO; 2];
-                // Separable mode shape: tabulate the sines once per mode.
-                let piston = md.m == 0;
-
-                let sx: Vec<f64> = (0..nx)
-                    .map(|i| if piston { 1.0 } else { (md.m as f64 * PI * (i as f64 + 0.5) * dx / p.a).sin() })
-                    .collect();
-                let sy: Vec<f64> = (0..ny)
-                    .map(|j| if piston { 1.0 } else { (md.n as f64 * PI * (j as f64 + 0.5) * dy / p.b).sin() })
-                    .collect();
-                let norm = if piston {
-                    p.piston_radiation / p.piston_mass.sqrt()
-                } else {
-                    2.0 / (p.rho_h * p.a * p.b).sqrt()
-                };
-                for (c, g) in geo.iter().enumerate() {
-                    let phi = norm * sx[c / ny] * sy[c % ny];
-                    for (mic, pt) in g.iter().enumerate() {
-                        acc[mic] += C64::polar(pt.direct * phi * ds / pt.r, -k * pt.r)
-                            - C64::polar(p.back_gain * phi * ds / pt.rb, -k * pt.rb);
-                        if pt.rw > 0.0 {
-                            acc[mic] += C64::polar(-p.wall_reflection * p.back_gain * phi * ds / pt.rw, -k * pt.rw);
-                        }
-                        if pt.image.1 != 0.0 {
-                            acc[mic] += C64::polar(pt.image.1 * phi * ds / pt.image.0, -k * pt.image.0);
-                        }
+        crate::par::map(n_modes, |i| {
+            let md = &self.modes[i];
+            let k = md.omega / C0;
+            let pre = C64::new(0.0, md.omega * RHO0 / TAU);
+            let case = p.case_gain(md.omega);
+            // Separable mode shape: tabulate the sines once per mode.
+            let piston = md.m == 0;
+            let sx: Vec<f64> = (0..nx)
+                .map(|i| if piston { 1.0 } else { (md.m as f64 * PI * (i as f64 + 0.5) * dx / p.a).sin() })
+                .collect();
+            let sy: Vec<f64> = (0..ny)
+                .map(|j| if piston { 1.0 } else { (md.n as f64 * PI * (j as f64 + 0.5) * dy / p.b).sin() })
+                .collect();
+            let norm = if piston { p.piston_radiation / p.piston_mass.sqrt() } else { 2.0 / (p.rho_h * p.a * p.b).sqrt() };
+            let mut acc = vec![C64::ZERO; np];
+            for (c, g) in geo.chunks(np).enumerate() {
+                let phi = norm * sx[c / ny] * sy[c % ny] * ds;
+                for (a, pt) in acc.iter_mut().zip(g) {
+                    // Front face (through the case) and its lid image in
+                    // phase, back face and its wall image in antiphase.
+                    *a += C64::polar(case * pt.front.1 * phi / pt.front.0, -k * pt.front.0)
+                        - C64::polar(pt.back.1 * phi / pt.back.0, -k * pt.back.0);
+                    if pt.wall.1 != 0.0 {
+                        *a += C64::polar(-pt.wall.1 * phi / pt.wall.0, -k * pt.wall.0);
+                    }
+                    if pt.image.1 != 0.0 {
+                        *a += C64::polar(case * pt.image.1 * phi / pt.image.0, -k * pt.image.0);
                     }
                 }
-                [pre * acc[0], pre * acc[1]]
-            })
+            }
+            acc.into_iter().map(|a| pre * a).collect()
+        })
     }
 
     /// Modal density (modes per Hz) between f1 and f2.

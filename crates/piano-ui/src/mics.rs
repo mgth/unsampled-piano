@@ -602,13 +602,9 @@ impl MicView {
 /// the tail level and lengthened by the piano's directivity Q and the mics'
 /// pattern (their random-incidence efficiency a² + (1 − a)²/3).
 pub(crate) fn source_and_critical_distance(model: &PianoModel, sb: &SoundboardParams, piano: [f64; 3]) -> ([f64; 3], f64) {
-    let room = &model.room;
-    let src = [piano[0] + sb.a / 2.0, piano[1] + sb.b / 2.0, piano[2] + 0.1];
-    let (t_lo, t_hi) = room.t60();
-    let a = sb.mic_pattern.clamp(0.0, 1.0);
-    let source_gain = ((a * a + (1.0 - a) * (1.0 - a) / 3.0) / room.directivity.max(1.0)).sqrt();
-    let rc = 0.057 * (room.volume() / (0.5 * (t_lo + t_hi))).sqrt() / (room.tail_gain * source_gain).max(1e-3);
-    (src, rc)
+    use piano_core::room;
+    let rp = room::RoomParams { piano, ..model.room };
+    (room::to_room(&rp, sb, room::source_point(sb)), room::critical_distance(&rp, sb))
 }
 
 fn dashed_rect(p: &egui::Painter, r: Rect, stroke: Stroke) {
@@ -757,6 +753,7 @@ mod tests {
     #[test]
     fn critical_distance_follows_directivity_and_pattern() {
         let m = PianoModel::default();
+        let m = PianoModel { room: piano_core::room::RoomParams { directivity: 3.0, ..m.room }, ..m };
         let sb = m.soundboard.unwrap();
         let (_, omni) = source_and_critical_distance(&m, &sb, m.room.piano);
         let cardioid = SoundboardParams { mic_pattern: 0.5, ..sb };
