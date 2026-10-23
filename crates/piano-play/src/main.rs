@@ -76,6 +76,11 @@ struct Args {
     /// ./presets).
     #[arg(long)]
     presets: Option<PathBuf>,
+    /// Serve the instrument to AI assistants (MCP over HTTP: parameters,
+    /// presets, status) on this address, 127.0.0.1:7426 when no value is
+    /// given; the endpoint is http://ADDR/mcp.
+    #[arg(long, value_name = "ADDR", num_args = 0..=1, default_missing_value = piano_mcp::DEFAULT_ADDR)]
+    mcp: Option<String>,
 }
 
 /// Silence between two files (s), and after the last one before quitting.
@@ -268,6 +273,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    let presets = args.presets.clone().or_else(|| args.preset.as_ref().and_then(|p| p.parent()).map(Path::to_path_buf));
+    let presets = presets.or_else(|| Some(PathBuf::from("presets")).filter(|p| p.is_dir()));
+    if let Some(addr) = &args.mcp {
+        match piano_mcp::serve(addr, control.clone(), presets.clone()) {
+            Ok(url) => eprintln!("MCP server: {url}"),
+            Err(e) => eprintln!("{e}"),
+        }
+    }
+
     let sup = Supervisor { control: control.clone(), watch, midi_map, stats, pieces, end_s, sr, repaint: Default::default() };
     if !args.ui {
         sup.run(true);
@@ -276,8 +290,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let repaint = sup.repaint.clone();
     // Keeps polling (MIDI learn, preset file) while the window is hidden.
     std::thread::spawn(move || sup.run(false));
-    let presets = args.presets.clone().or_else(|| args.preset.as_ref().and_then(|p| p.parent()).map(Path::to_path_buf));
-    let presets = presets.or_else(|| Some(PathBuf::from("presets")).filter(|p| p.is_dir()));
     let preset = args.preset.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().into_owned());
     window::run(control, repaint, presets, preset, &if args.name == "unsampled-piano" { "Unsampled Piano".to_string() } else { format!("Unsampled Piano — {}", args.name) })?;
     Ok(())
@@ -531,7 +543,8 @@ fn file_timeline(args: &Args, sr: f64) -> Result<(Vec<(u64, Event)>, Vec<(f64, S
 /// Personal defaults from `$XDG_CONFIG_HOME/unsampled-piano/play.toml` (else
 /// `~/.config/unsampled-piano/play.toml`), used for what the command line leaves out:
 /// `device`, `midi`, `midi_out`, `name`, `preset`, `presets` (strings),
-/// `buffer`, `gain_db` (numbers), `ui` (boolean).
+/// `buffer`, `gain_db` (numbers), `ui` (boolean), `mcp` (true for the
+/// default address, or the address as a string).
 fn apply_user_config(args: &mut Args) {
     let Some(path) = config_dir().map(|d| d.join("play.toml")) else { return };
     let Ok(text) = std::fs::read_to_string(&path) else { return };
@@ -572,6 +585,13 @@ fn apply_user_config(args: &mut Args) {
     }
     if table.get("ui").and_then(|v| v.as_bool()) == Some(true) {
         args.ui = true;
+    }
+    if !given("--mcp") {
+        args.mcp = match table.get("mcp") {
+            Some(toml::Value::Boolean(true)) => Some(piano_mcp::DEFAULT_ADDR.into()),
+            Some(toml::Value::String(a)) => Some(a.clone()),
+            _ => args.mcp.take(),
+        };
     }
     eprintln!("defaults from {}", path.display());
 }

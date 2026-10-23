@@ -49,6 +49,24 @@ tools/install-plugin.sh                      # Linux: into ~/.clap and ~/.vst3
 cargo build -p piano-plugin && cargo test -p piano-plugin   # loads the .clap as a host would
 ```
 
+## AI assistants (MCP)
+
+`unsampled-piano --mcp` serves the playing instrument to AI assistants through the [Model Context Protocol](https://modelcontextprotocol.io) (HTTP, `http://127.0.0.1:7426/mcp`; `--mcp ADDR` for another address, `mcp = true` in `play.toml` to have it always on). The assistant changes the sound while you play, through the same controller as the interface: live parameters apply at once, the others rebuild the instrument in the background without cutting the notes. Tools:
+
+| Tool | Does |
+|---|---|
+| `list_params` | parameters with their value, default, unit, range, live or rebuild (filter by word or group) |
+| `get` | one parameter, with what it changes on the piano and how the model does it |
+| `set` | changes one parameter; for a rebuild, answers once the new instrument plays |
+| `load_preset` | loads an instrument (keeps the listening set-up) or a listening preset (keeps the instrument) from the preset folder, or a file |
+| `status` | rebuild pending, last build time, voices, CPU load, last error |
+
+The server listens on the loopback interface only by default and has no authentication: any program on the machine can reach it while it runs. With Claude Code:
+
+```bash
+claude mcp add --transport http unsampled-piano http://127.0.0.1:7426/mcp
+```
+
 ## Reference performances
 
 The files in `data/midi/` come from [MAESTRO v3](https://magenta.tensorflow.org/datasets/maestro) (Google Magenta, CC BY-NC-SA 4.0): Piano-e-Competition pianists recorded on a Disklavier, with the actual key velocities and pedals. `data/` is not under version control; to retrieve them:
@@ -67,6 +85,7 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 | `piano-control` | control of a playing instrument: live parameters, background rebuild and engine swap without cutting notes (standalone player and plugin) |
 | `piano-ui` | egui interface on top of `PianoControl` |
 | `piano-plugin` | CLAP and VST3 instrument plugin (nice-plug), with the `piano-ui` editor |
+| `piano-mcp` | MCP server of the standalone player (`--mcp`): parameters, presets and status for AI assistants |
 | `xtask` | plugin bundles for the current platform (`cargo xtask bundle piano-plugin --release`) |
 | `piano-play` | real-time application (`unsampled-piano` binary): PipeWire/JACK node (audio, MIDI in, MIDI mirror), or cpal + midir |
 | `piano-render` | deterministic offline MIDI → WAV rendering (`unsampled-piano-render` binary) |

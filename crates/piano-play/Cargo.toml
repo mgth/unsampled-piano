@@ -17,6 +17,7 @@ piano-host.workspace = true
 piano-control.workspace = true
 piano-params.workspace = true
 piano-ui.workspace = true
+piano-mcp.workspace = true
 eframe.workspace = true
 egui.workspace = true
 cpal = { workspace = true, features = ["pipewire", "jack", "realtime"] }

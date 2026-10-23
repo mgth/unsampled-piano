@@ -17,6 +17,7 @@ piano-host = { path = "crates/piano-host" }
 piano-params = { path = "crates/piano-params" }
 piano-control = { path = "crates/piano-control" }
 piano-ui = { path = "crates/piano-ui" }
+piano-mcp = { path = "crates/piano-mcp" }
 hound = "3.5"
 midly = "0.5"
 realfft = "3.5"
@@ -25,10 +26,12 @@ claxon = "0.4"
 nalgebra = "0.35"
 rustfft = "6.4"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 toml = "1.1"
 cpal = "0.18"
 midir = "0.11"
 rtrb = "0.4"
+tiny_http = "0.12"
 criterion = "0.8"
 assert_no_alloc = "1.1"
 egui = "0.37.0"

@@ -1,0 +1,15 @@
+[package]
+name = "piano-mcp"
+description = "MCP server of the standalone player: an AI assistant reads and sets the playing instrument's parameters and loads presets (Model Context Protocol, HTTP on localhost)."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+piano-core.workspace = true
+piano-host.workspace = true
+piano-params.workspace = true
+serde_json.workspace = true
+tiny_http.workspace = true
