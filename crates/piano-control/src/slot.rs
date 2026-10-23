@@ -205,10 +205,10 @@ impl EngineSlot {
             }
         }
         for i in 0..self.unsent.len() {
-            if let Some(e) = self.unsent[i].take() {
-                if let Err(rtrb::PushError::Full(e)) = self.reclaim.push(e) {
-                    self.unsent[i] = Some(e);
-                }
+            if let Some(e) = self.unsent[i].take()
+                && let Err(rtrb::PushError::Full(e)) = self.reclaim.push(e)
+            {
+                self.unsent[i] = Some(e);
             }
         }
         self.shared.voices.store(self.active_voices() as u32, Ordering::Relaxed);
