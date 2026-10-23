@@ -19,6 +19,9 @@ use piano_params::{PianoControl, Registry};
 use sections::{section_of, View, SECTIONS};
 pub use widgets::show as format_value;
 
+/// The author's page for support.
+const KOFI: &str = "https://ko-fi.com/mgth";
+
 /// Page index of the MIDI map (after the sections).
 const MIDI_PAGE: usize = usize::MAX;
 
@@ -170,6 +173,11 @@ impl PianoUi {
                     ui.separator();
                     ui.colored_label(ui.visuals().error_fg_color, e);
                 }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.hyperlink_to("Support on Ko-fi", KOFI)
+                        .on_hover_text("Unsampled Piano is free software: a coffee keeps it going");
+                    widgets::heart(ui);
+                });
             });
         });
 
