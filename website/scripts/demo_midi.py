@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Writes the MIDI files the website's audio demos are rendered from: the
-opening of Debussy's Clair de lune, cut from Bernd Krüger's MIDI file
-(midi/deb_clai.mid, piano-midi.de, CC BY-SA 3.0 DE), a staccato chord without
-then with the sustain pedal, and one chord from pianissimo to fortissimo.
+openings of Debussy's Clair de lune and Chopin's "Revolutionary" Étude, cut
+from Bernd Krüger's MIDI files (midi/, piano-midi.de, CC BY-SA 3.0 DE), a
+staccato chord without then with the sustain pedal, and one chord from
+pianissimo to fortissimo.
 usage: python3 -I scripts/demo_midi.py <out dir>"""
 import struct, sys
 from pathlib import Path
@@ -111,6 +112,10 @@ def excerpt(events, cut, ring):
 #    its last chord left to ring under the pedal.
 here = Path(__file__).parent
 write(out / "clair.mid", excerpt(read(here / "midi" / "deb_clai.mid"), 54.2, 2.5))
+
+# Étude op. 10 no. 12, bars 1–28 and the chord on the first beat of bar 29:
+# the left hand's runs over the whole keyboard, up to fortissimo.
+write(out / "etude.mid", excerpt(read(here / "midi" / "chpn_op10_e12.mid"), 46.2, 2.0))
 
 # 2. The same staccato chord without, then with the sustain pedal: with the
 #    dampers lifted every string answers through the bridge.

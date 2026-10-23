@@ -30,12 +30,12 @@ npm run dev        # http://localhost:4321
   parameter, its help or its range, and commit the JSON with the change. The diagrams read their
   values from it too, so they follow the default instrument.
 - **Audio demos** — `public/media/*.mp3` and their waveforms in `src/data/demo-peaks.json` are
-  rendered by the engine from the MIDI written by `scripts/demo_midi.py`: the opening of
-  Debussy's *Clair de lune*, cut from `scripts/midi/deb_clai.mid`, and a few pedal and velocity
-  tests. `npm run demos` renders and encodes them again; commit the MP3s and the JSON together.
-  `deb_clai.mid` is Bernd Krüger's, from <http://www.piano-midi.de>, under
-  [CC BY-SA 3.0 DE](https://creativecommons.org/licenses/by-sa/3.0/de/deed.en): `clair.mp3`
-  and `mics-*.mp3` are adaptations and carry the same licence, credited on the home page and in
+  rendered by the engine from the MIDI written by `scripts/demo_midi.py`: the openings of
+  Debussy's *Clair de lune* and Chopin's *Revolutionary* Étude, cut from `scripts/midi/`, and a
+  few pedal and velocity tests. `npm run demos` renders and encodes them again; commit the MP3s and the JSON together.
+  Both MIDI files are Bernd Krüger's, from <http://www.piano-midi.de>, under
+  [CC BY-SA 3.0 DE](https://creativecommons.org/licenses/by-sa/3.0/de/deed.en): `clair.mp3`,
+  `etude.mp3` and `mics-*.mp3` are adaptations and carry the same licence, credited on the home page and in
   the MP3 tags.
 - **Presets** — the figures and lists that show presets read `../presets` at build time.
 - **Interface screenshots** — `src/assets/ui/<page>.png`, captured by the UI demo:

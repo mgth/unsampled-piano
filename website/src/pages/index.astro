@@ -105,13 +105,24 @@ const jsonLd = {
             the same licence.
           </p>
         </DemoPlayer>
-        <DemoPlayer title="Lift the dampers" eyebrow="Sustain pedal" sources={[{ clip: 'pedal' }]} reveal={90}>
+        <DemoPlayer title="Étude op. 10 no. 12 — “Revolutionary”" eyebrow="Frédéric Chopin" sources={[{ clip: 'etude' }]} featured reveal={90}>
+          <p>
+            Allegro con fuoco: the left hand races over the whole keyboard under octaves in the right,
+            from the opening crash to the first fortissimo. Twenty-eight bars and the chord that ends them.
+          </p>
+          <p class="demo-credit">
+            MIDI file by Bernd Krüger, <a href="http://www.piano-midi.de" rel="noopener">piano-midi.de</a>,
+            licensed <a href="https://creativecommons.org/licenses/by-sa/3.0/de/deed.en" rel="license noopener">CC BY-SA 3.0 DE</a>;
+            cut after the first beat of bar 29 and rendered here. This clip is shared under the same licence.
+          </p>
+        </DemoPlayer>
+        <DemoPlayer title="Lift the dampers" eyebrow="Sustain pedal" sources={[{ clip: 'pedal' }]} reveal={0}>
           <p>
             The same short chord twice, released at once: first with the dampers down, then with the pedal
             held. The second time every free string answers through the bridge.
           </p>
         </DemoPlayer>
-        <DemoPlayer title="Pianissimo to fortissimo" eyebrow="Velocity" sources={[{ clip: 'dynamics' }]} reveal={180}>
+        <DemoPlayer title="Pianissimo to fortissimo" eyebrow="Velocity" sources={[{ clip: 'dynamics' }]} reveal={90}>
           <p>
             One chord at four velocities. The felt stiffens the harder it is squeezed, so a faster hammer
             brings out more upper partials: loud is not just louder.
@@ -124,7 +135,7 @@ const jsonLd = {
             { clip: 'mics-close', label: 'Close' },
             { clip: 'mics-concert', label: 'Concert' },
           ]}
-          reveal={270}
+          reveal={180}
         >
           <p>
             The first bars of <em>Clair de lune</em>, the same performance through two microphone set-ups: a pair 40 cm
@@ -133,8 +144,8 @@ const jsonLd = {
         </DemoPlayer>
       </div>
       <p class="listen-note" data-reveal>
-        <em>Clair de lune</em> comes from a MIDI file sequenced by hand, tempo and dynamics included, by Bernd Krüger;
-        the pedal and velocity tests were written for this page. Every clip can be rendered again bit for bit with <a href={repoFile('website/scripts/render-demos.sh')} rel="noopener"><code>website/scripts/render-demos.sh</code></a>.
+        <em>Clair de lune</em> and the étude come from MIDI files sequenced by hand, tempo and dynamics included,
+        by Bernd Krüger; the pedal and velocity tests were written for this page. Every clip can be rendered again bit for bit with <a href={repoFile('website/scripts/render-demos.sh')} rel="noopener"><code>website/scripts/render-demos.sh</code></a>.
       </p>
     </div>
   </section>
@@ -587,11 +598,14 @@ const jsonLd = {
   .listen-grid {
     margin-top: 32px;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 20px;
   }
+  .listen-grid > :global(.demo) {
+    grid-column: span 2;
+  }
   .listen-grid > :global(.demo-featured) {
-    grid-column: 1 / -1;
+    grid-column: span 3;
   }
   .listen-note {
     margin-top: 22px;
@@ -625,6 +639,10 @@ const jsonLd = {
     .grid-3,
     .listen-grid {
       grid-template-columns: minmax(0, 1fr);
+    }
+    .listen-grid > :global(.demo),
+    .listen-grid > :global(.demo-featured) {
+      grid-column: auto;
     }
     .stats {
       grid-template-columns: repeat(2, minmax(0, 1fr));

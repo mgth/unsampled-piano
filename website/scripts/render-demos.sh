@@ -4,6 +4,7 @@
 # to small MP3s in public/media/. Needs cargo, python3, ffmpeg and lame.
 #
 # Usage:  npm run demos
+# The intermediate WAVs (~100 MB) go to $TMPDIR, /tmp by default.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -54,12 +55,14 @@ encode() {
 
 render "$WORK/clair.mid" "$MICS/concert.toml" "$WORK/clair_concert.wav" 2
 render "$WORK/clair.mid" "$MICS/close.toml" "$WORK/clair_close.wav" 2
+render "$WORK/etude.mid" "$MICS/concert.toml" "$WORK/etude.wav" 2
 render "$WORK/pedal.mid" "$MICS/concert.toml" "$WORK/pedal.wav" 2
 render "$WORK/dynamics.mid" "$MICS/concert.toml" "$WORK/dynamics.wav" 2
 
 # Adaptations of Bernd Krüger's MIDI file: credit and licence in the tags.
 CREDIT="MIDI: Bernd Krueger, piano-midi.de, CC BY-SA 3.0 DE; this audio: same licence"
 encode "$WORK/clair_concert.wav" "$OUT/clair.mp3"
+encode "$WORK/etude.wav" "$OUT/etude.mp3"
 # The microphone pair at one loudness, as loud as the louder peak allows:
 # switching compares the sound, not the level.
 MIC_CUT=23
