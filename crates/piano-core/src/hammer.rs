@@ -49,22 +49,39 @@ const RELEASE_AFTER_S: f64 = 0.004;
 /// Hard limit of a contact episode.
 const MAX_CONTACT_S: f64 = 0.03;
 
-pub struct ContactSolver {
-    // Per mode.
-    c: Vec<f64>,
-    ps: Vec<f64>,
-    e: Vec<f64>,
-    gphi: Vec<f64>,
-    phi: Vec<f64>,
-    /// Inverse of γ_k (energy weights), and output weights (bridge force).
-    inv_gamma: Vec<f64>,
-    out_w: Vec<f64>,
+/// Modes per chunk of the update loop (f64 lanes of an AVX-512 register).
+const CL: usize = 8;
+
+/// Per-mode data of [`CL`] modes, in lanes: the update loop vectorises
+/// across modes. Padding lanes are all zero and stay zero.
+#[derive(Clone, Copy, Default)]
+#[repr(C, align(64))]
+struct Lanes {
+    c: [f64; CL],
+    e: [f64; CL],
+    gphi: [f64; CL],
+    phi: [f64; CL],
+    /// Output weights (bridge force).
+    out_w: [f64; CL],
     /// Force on the agraffe end, −T·∂y/∂x(L) = T·Σ (kπ/L)·(−1)^{k+1}·q_k
     /// (k from 1: the fundamental pulls both ends the same way).
-    out_a: Vec<f64>,
-    q0: Vec<f64>,
-    q1: Vec<f64>,
+    out_a: [f64; CL],
+    q0: [f64; CL],
+    q1: [f64; CL],
+    /// Free prediction of the next displacement, 2c·q0 − e·q1.
+    pred: [f64; CL],
+}
+
+pub struct ContactSolver {
+    lanes: Vec<Lanes>,
+    // Per mode, outside the update loop.
+    ps: Vec<f64>,
+    /// Inverse of γ_k (energy weights).
+    inv_gamma: Vec<f64>,
     n: usize,
+    /// Σ φ·pred: string displacement under the hammer if no force acted.
+    w_star: f64,
+    isa: crate::modal::Isa,
     // Hammer and contact.
     /// Base sample period, and the solver's (base / oversample).
     base_dt: f64,
@@ -96,19 +113,13 @@ pub struct ContactSolver {
 
 impl ContactSolver {
     pub fn new(max_modes: usize, sample_rate: f64) -> Self {
-        let v = || vec![0.0; max_modes];
         Self {
-            c: v(),
-            ps: v(),
-            e: v(),
-            gphi: v(),
-            phi: v(),
-            inv_gamma: v(),
-            out_w: v(),
-            out_a: v(),
-            q0: v(),
-            q1: v(),
+            lanes: vec![Lanes::default(); max_modes.div_ceil(CL)],
+            ps: vec![0.0; max_modes],
+            inv_gamma: vec![0.0; max_modes],
             n: 0,
+            w_star: 0.0,
+            isa: crate::modal::Isa::detect(),
             base_dt: 1.0 / sample_rate,
             oversample: 1,
             dt: 1.0 / sample_rate,
@@ -199,9 +210,11 @@ impl ContactSolver {
         // allocation: the iterator is walked twice.)
         let modes = modes.into_iter();
         let share: f64 = modes.clone().take_while(|m| m.k == 1).map(|m| m.hit).sum::<f64>().max(1e-9);
-        for m in modes.take(self.c.len()) {
+        for m in modes.take(self.ps.len()) {
             let i = n;
             n += 1;
+            let ln = &mut self.lanes[i / CL];
+            let l = i % CL;
             let k = m.k as f64;
             let r = (-m.sigma * dt).exp();
             let th = std::f64::consts::TAU * m.freq * dt;
@@ -215,24 +228,33 @@ impl ContactSolver {
             let phi = m.hit / share
                 * (k * std::f64::consts::PI * (1.0 - note.strike_pos)).sin()
                 * if x > 1e-9 { x.sin() / x } else { 1.0 };
-            self.c[i] = r * cs;
+            ln.c[l] = r * cs;
             self.ps[i] = r * sn;
-            self.e[i] = r * r;
-            self.phi[i] = phi;
-            self.gphi[i] = gamma * phi;
+            ln.e[l] = r * r;
+            ln.phi[l] = phi;
+            ln.gphi[l] = gamma * phi;
             self.inv_gamma[i] = 1.0 / gamma;
             // Bridge force T·∂y/∂x(0) = T·Σ (kπ/L)·q_k.
-            self.out_w[i] = note.tension * k * std::f64::consts::PI / note.length;
-            self.out_a[i] = if m.k % 2 == 0 { -self.out_w[i] } else { self.out_w[i] };
+            ln.out_w[l] = note.tension * k * std::f64::consts::PI / note.length;
+            ln.out_a[l] = if m.k % 2 == 0 { -ln.out_w[l] } else { ln.out_w[l] };
             lambda += phi * phi * gamma;
             // Displacements now and one sub-step earlier from the complex amplitude.
             let pole = C64::new(r * cs, r * sn);
-            self.q0[i] = m.state.re;
-            self.q1[i] = (m.state / pole).re;
-            w0 += phi * self.q0[i];
-            w1 += phi * self.q1[i];
+            ln.q0[l] = m.state.re;
+            ln.q1[l] = (m.state / pole).re;
+            ln.pred[l] = 2.0 * ln.c[l] * ln.q0[l] - ln.e[l] * ln.q1[l];
+            w0 += phi * ln.q0[l];
+            w1 += phi * ln.q1[l];
         }
         self.n = n;
+        if n % CL != 0 {
+            // Padding lanes of the last chunk: inert.
+            let ln = &mut self.lanes[n / CL];
+            for a in [&mut ln.c, &mut ln.e, &mut ln.gphi, &mut ln.phi, &mut ln.out_w, &mut ln.out_a, &mut ln.q0, &mut ln.q1, &mut ln.pred] {
+                a[n % CL..].fill(0.0);
+            }
+        }
+        self.w_star = update::<false>(&mut self.lanes[..n.div_ceil(CL)], 0.0).3;
         let h = note.hammer;
         self.mass = h.mass_kg;
         self.q_si = h.q_si();
@@ -269,9 +291,10 @@ impl ContactSolver {
     /// Complex amplitude ζ of mode `i` now (q = Re ζ), independent of the
     /// sampling rate: this is what is handed back to the coupled modes.
     pub fn complex_state(&self, i: usize) -> C64 {
-        let (pr, pi, r2) = (self.c[i], self.ps[i], self.e[i]);
-        let a = self.q0[i];
-        C64::new(a, (r2 * self.q1[i] - a * pr) / pi)
+        let (ln, l) = (&self.lanes[i / CL], i % CL);
+        let (pr, pi, r2) = (ln.c[l], self.ps[i], ln.e[l]);
+        let a = ln.q0[l];
+        C64::new(a, (r2 * ln.q1[l] - a * pr) / pi)
     }
 
     /// Advances up to `out.len()` samples, *adding* the bridge force to
@@ -296,13 +319,9 @@ impl ContactSolver {
     }
 
     fn step(&mut self) -> (f64, f64) {
-        let n = self.n;
         let dt = self.dt;
-        // Free predictions and string displacement under the hammer.
-        let mut w_star = 0.0;
-        for i in 0..n {
-            w_star += self.phi[i] * (2.0 * self.c[i] * self.q0[i] - self.e[i] * self.q1[i]);
-        }
+        // String displacement under the hammer from the free predictions.
+        let w_star = self.w_star;
         let x_star = 2.0 * self.x0 - self.x1;
         let u_star = x_star - w_star;
         let u_now = self.x0 - self.w0;
@@ -335,16 +354,16 @@ impl ContactSolver {
 
         // Updates.
         let x_next = x_star - dt * dt / self.mass * f;
-        let mut w_next = 0.0;
-        let (mut out, mut out_a) = (0.0, 0.0);
-        for i in 0..n {
-            let q = 2.0 * self.c[i] * self.q0[i] - self.e[i] * self.q1[i] + self.gphi[i] * f;
-            self.q1[i] = self.q0[i];
-            self.q0[i] = q;
-            w_next += self.phi[i] * q;
-            out += self.out_w[i] * q;
-            out_a += self.out_a[i] * q;
-        }
+        let lanes = &mut self.lanes[..self.n.div_ceil(CL)];
+        let (w_next, out, out_a, w_star) = match self.isa {
+            crate::modal::Isa::Generic => update::<true>(lanes, f),
+            // SAFETY: only selected when detected.
+            #[cfg(target_arch = "x86_64")]
+            crate::modal::Isa::Avx2 => unsafe { update_avx2(lanes, f) },
+            #[cfg(target_arch = "x86_64")]
+            crate::modal::Isa::Avx512 => unsafe { update_avx512(lanes, f) },
+        };
+        self.w_star = w_star;
         self.x1 = self.x0;
         self.x0 = x_next;
         self.w1 = self.w0;
@@ -369,13 +388,51 @@ impl ContactSolver {
     pub fn energy(&self) -> f64 {
         let mut h = 0.0;
         for i in 0..self.n {
-            let s = (1.0 + self.e[i]) / 2.0;
-            h += (s * (self.q0[i] * self.q0[i] + self.q1[i] * self.q1[i]) - 2.0 * self.c[i] * self.q0[i] * self.q1[i])
-                * self.inv_gamma[i];
+            let (ln, l) = (&self.lanes[i / CL], i % CL);
+            let s = (1.0 + ln.e[l]) / 2.0;
+            h += (s * (ln.q0[l] * ln.q0[l] + ln.q1[l] * ln.q1[l]) - 2.0 * ln.c[l] * ln.q0[l] * ln.q1[l]) * self.inv_gamma[i];
         }
         let v = self.x0 - self.x1;
         h + self.mass / (self.dt * self.dt) * v * v + self.psi * self.psi
     }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+fn update_avx2(lanes: &mut [Lanes], f: f64) -> (f64, f64, f64, f64) {
+    update::<true>(lanes, f)
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx512f")]
+fn update_avx512(lanes: &mut [Lanes], f: f64) -> (f64, f64, f64, f64) {
+    update::<true>(lanes, f)
+}
+
+/// One pass over the modes: with `STEP`, q ← pred + γφ·F and the next
+/// prediction; returns Σφq, the bridge and agraffe forces, and Σφ·pred
+/// (the next step's free displacement under the hammer). Lane sums are
+/// reduced in a fixed order: the same result on every ISA.
+#[inline(always)]
+fn update<const STEP: bool>(lanes: &mut [Lanes], f: f64) -> (f64, f64, f64, f64) {
+    let (mut w, mut o, mut oa, mut ws) = ([0.0f64; CL], [0.0f64; CL], [0.0f64; CL], [0.0f64; CL]);
+    for ln in lanes {
+        for l in 0..CL {
+            let q = if STEP { ln.pred[l] + ln.gphi[l] * f } else { ln.q0[l] };
+            if STEP {
+                let p = 2.0 * ln.c[l] * q - ln.e[l] * ln.q0[l];
+                ln.q1[l] = ln.q0[l];
+                ln.q0[l] = q;
+                ln.pred[l] = p;
+            }
+            w[l] += ln.phi[l] * q;
+            o[l] += ln.out_w[l] * q;
+            oa[l] += ln.out_a[l] * q;
+            ws[l] += ln.phi[l] * ln.pred[l];
+        }
+    }
+    let sum = |a: [f64; CL]| ((a[0] + a[4]) + (a[1] + a[5])) + ((a[2] + a[6]) + (a[3] + a[7]));
+    (sum(w), sum(o), sum(oa), sum(ws))
 }
 
 #[cfg(test)]

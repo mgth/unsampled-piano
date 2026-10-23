@@ -109,23 +109,16 @@ impl Voice {
     }
 
     /// Prepares the strings of a key at rest; `listen_only` runs only the
-    /// partials needed for sympathetic resonance. The bridge input arrives
-    /// `delay` seconds late: each mode's input gains are advanced by e^{iωD}
-    /// so that the coupling keeps its physical (passive) phase at the mode's
-    /// frequency. Real-time safe.
-    pub fn setup(&mut self, nm: &NoteModel, listen_only: bool, delay: f64) {
+    /// partials needed for sympathetic resonance. Copies the key's
+    /// precomputed coefficients ([`NoteModel::table`]). Real-time safe.
+    pub fn setup(&mut self, nm: &NoteModel, listen_only: bool) {
         self.note = nm.note;
-        self.bank.set_modes(nm.modes.iter().copied());
+        self.bank.load(&nm.table);
         if listen_only {
             self.bank.set_active_len(0);
         }
         self.bank.reset();
-        self.sym.set_modes(nm.modes.iter().map(|m| {
-            let adv = C64::polar(1.0, std::f64::consts::TAU * m.freq_hz * delay);
-            let g1 = C64::new(m.gain_re, m.gain_im) * adv;
-            let g2 = C64::new(m.gain2_re, m.gain2_im) * adv;
-            crate::modal::ModeSpec { gain_re: g1.re, gain_im: g1.im, gain2_re: g2.re, gain2_im: g2.im, ..*m }
-        }));
+        self.sym.load(&nm.sym_table);
         self.sym.set_active_len(nm.n_listen);
         self.sym.reset();
         self.force.fill(0.0);
@@ -209,9 +202,16 @@ impl Voice {
         to: usize,
         bridge: Option<(&[f32], usize)>,
     ) {
+        self.compute(nm, out_agraffe.is_some(), t0, from, to, bridge);
+        self.mix(out, out_sym, out_agraffe, from, to);
+    }
+
+    /// The voice's part of [`Self::render`]: its forces for `from..to`,
+    /// kept until [`Self::mix`]. Touches nothing outside the voice, so
+    /// voices can compute in parallel.
+    pub fn compute(&mut self, nm: &NoteModel, with_agraffe: bool, t0: u64, from: usize, to: usize, bridge: Option<(&[f32], usize)>) {
         self.force[from..to].fill(0.0);
         let n = to - from;
-        let with_agraffe = out_agraffe.is_some();
         self.agraffe[..n].fill(0.0);
         let mut start = 0;
         if self.contact.is_active() {
@@ -235,13 +235,7 @@ impl Voice {
         if let (true, Some(lg)) = (nl_on, nl) {
             self.nl_run(lg, from + start, to);
         }
-        if let Some(out_agraffe) = out_agraffe {
-            for (o, a) in out_agraffe.iter_mut().zip(&self.agraffe[..n]) {
-                *o += a;
-            }
-        }
-        for (i, (o, f)) in out.iter_mut().zip(&self.force[from..to]).enumerate() {
-            *o += f;
+        for (i, f) in self.force[from..to].iter().enumerate() {
             self.force_ring[((t0 + (from + i) as u64) as usize) & (RING - 1)] = *f;
         }
         let f = &mut self.sym_force[..n];
@@ -253,13 +247,31 @@ impl Voice {
                     let t = t0 + (from + i) as u64;
                     self.x2[i] = self.force_ring[(t.wrapping_sub(delay as u64) as usize) & (RING - 1)];
                 }
-                self.sym.process_two_inputs(u, &self.x2[..n], f);
+                // A string at rest under a bridge at rest (the board asleep):
+                // nothing to compute.
+                let still = u.iter().chain(&self.x2[..n]).all(|&x| x == 0.0);
+                if !(still && self.sym.energy() < SYM_SILENCE) {
+                    self.sym.process_two_inputs(u, &self.x2[..n], f);
+                }
             }
             // Damped: the sympathetic part still decays freely.
             None if self.sym.energy() > SYM_SILENCE => self.sym.process(None, f),
             None => {}
         }
-        for (o, x) in out_sym.iter_mut().zip(f.iter()) {
+    }
+
+    /// Adds the forces of the last [`Self::compute`] to the region sums.
+    pub fn mix(&self, out: &mut [f32], out_sym: &mut [f32], out_agraffe: Option<&mut [f32]>, from: usize, to: usize) {
+        let n = to - from;
+        if let Some(out_agraffe) = out_agraffe {
+            for (o, a) in out_agraffe.iter_mut().zip(&self.agraffe[..n]) {
+                *o += a;
+            }
+        }
+        for (o, f) in out.iter_mut().zip(&self.force[from..to]) {
+            *o += f;
+        }
+        for (o, x) in out_sym.iter_mut().zip(&self.sym_force[..n]) {
             *o += x;
         }
     }

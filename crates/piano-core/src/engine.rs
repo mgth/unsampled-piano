@@ -20,9 +20,6 @@ pub use crate::voice::MAX_MODES;
 /// Internal processing granularity; also the fixed delay (samples) of the
 /// bridge displacement fed back to the strings.
 pub const SUB_BLOCK: usize = 64;
-/// Delay (samples) of the bridge acceleration seen by the strings: the ring
-/// delay plus the half sample of the backward difference.
-const INPUT_DELAY: f64 = SUB_BLOCK as f64 + 0.5;
 /// Output scaling without soundboard: bridge force (N) to full scale.
 /// Lowered by 2.7 dB with the faster hammer law (docs/brightness.md), same
 /// loudness for recorded performances.
@@ -73,6 +70,9 @@ pub struct EngineConfig {
     pub max_block: usize,
     pub polyphony: usize,
     pub model: PianoModel,
+    /// Threads rendering the voices (the audio thread included); 1: none
+    /// started. The output does not depend on it.
+    pub threads: usize,
 }
 
 impl Default for EngineConfig {
@@ -82,6 +82,7 @@ impl Default for EngineConfig {
             max_block: 128,
             polyphony: 128,
             model: PianoModel::default(),
+            threads: 1,
         }
     }
 }
@@ -142,7 +143,18 @@ pub struct Engine {
     sustain_prev: f64,
     /// Last summed mic outputs, for the differentiator.
     mic_last: [f32; MICS],
+    pool: Option<crate::par::Pool>,
+    /// Indices of the voices rendered in the current segment.
+    busy: Vec<usize>,
 }
+
+/// Lets the pool's workers reach disjoint voices.
+struct VoicesPtr(*mut Voice);
+// SAFETY: each item of a pool run touches only its own voice.
+unsafe impl Sync for VoicesPtr {}
+
+/// Segments with fewer voices are rendered on the audio thread alone.
+const PARALLEL_MIN_VOICES: usize = 4;
 
 impl Engine {
     /// Builds the instrument (≈ 0.5 s): not for the audio thread.
@@ -207,6 +219,8 @@ impl Engine {
             room,
             sustain_prev: 0.0,
             mic_last: [0.0; MICS],
+            pool: (cfg.threads > 1).then(|| crate::par::Pool::new(cfg.threads)),
+            busy: Vec::with_capacity(cfg.polyphony),
         };
         // Strings without dampers always resonate.
         if e.sympathy() {
@@ -424,6 +438,28 @@ impl Engine {
         let sympathy = self.sympathy();
         let with_frame = self.frame.is_some();
         let t0 = self.clock;
+        self.busy.clear();
+        self.busy.extend(self.voices.iter().enumerate().filter(|(_, v)| v.active).map(|(i, _)| i));
+        if let Some(pool) = self.pool.as_mut().filter(|_| self.busy.len() >= PARALLEL_MIN_VOICES) {
+            // Every voice computes its forces in parallel, then they are summed
+            // in voice order: the same result as one thread, bit for bit.
+            let (table, disp_in, busy) = (&self.inst.table, &self.disp_in, &self.busy);
+            let voices = VoicesPtr(self.voices.as_mut_ptr());
+            pool.run(busy.len(), &|i| {
+                let _ = &voices;
+                // SAFETY: `busy` holds distinct indices into `voices`.
+                let v = unsafe { &mut *voices.0.add(busy[i]) };
+                let nm = table.get(v.note);
+                let bridge = (sympathy && v.engagement < 0.99).then(|| (&disp_in[region_of(v.note)][from..to], SUB_BLOCK));
+                v.compute(nm, with_frame, t0, from, to, bridge);
+            });
+            for &i in &self.busy {
+                let v = &self.voices[i];
+                let r = region_of(v.note);
+                v.mix(&mut self.region[r][from..to], &mut self.region_sym[r][from..to], with_frame.then(|| &mut self.region_agraffe[r][from..to]), from, to);
+            }
+            return;
+        }
         for v in self.voices.iter_mut().filter(|v| v.active) {
             let nm = self.inst.table.get(v.note);
             let r = region_of(v.note);
@@ -512,7 +548,7 @@ impl Engine {
     fn add_listener(&mut self, note: u8) -> bool {
         let Some(v) = self.voices.iter_mut().find(|v| !v.active) else { return false };
         let nm = self.inst.table.get(note);
-        v.setup(nm, true, INPUT_DELAY / self.cfg.sample_rate);
+        v.setup(nm, true);
         v.active = true;
         v.key_down = false;
         let law = self.live.damper;
@@ -616,7 +652,7 @@ impl Engine {
         let nm = self.inst.table.get(note);
         let v = &mut self.voices[idx];
         if !(v.active && v.note == note) {
-            v.setup(nm, false, INPUT_DELAY / cfg.sample_rate);
+            v.setup(nm, false);
             v.engagement = 0.0;
         }
         v.active = true;
@@ -694,7 +730,7 @@ pub fn strike_stats_full(cfg: &EngineConfig, note: u8, velocity: u8, oversample:
     let board = cfg.model.soundboard.map(crate::soundboard::Soundboard::new);
     let nm = crate::note_model::NoteModel::build(&cfg.model, board.as_ref(), None, note, cfg.sample_rate, MAX_MODES);
     let mut v = Voice::new(cfg.sample_rate, cfg.max_block);
-    v.setup(&nm, false, 0.0);
+    v.setup(&nm, false);
     let os = oversample.unwrap_or_else(|| contact_oversampling(cfg, note));
     v.strike(&nm, hammer_velocity(cfg, velocity), os, 0.0, 0.0, 0.0);
     let mut out = vec![0.0f32; 256];

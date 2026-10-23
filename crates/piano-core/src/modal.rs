@@ -73,8 +73,17 @@ pub enum Isa {
 }
 
 impl Isa {
+    /// Best ISA of this CPU, capped by the `PIANO_ISA` environment variable
+    /// (`generic`, `avx2`) to measure what smaller machines would see.
     pub fn detect() -> Self {
-        *Self::available().last().unwrap()
+        let best = *Self::available().last().unwrap();
+        let cap = match std::env::var("PIANO_ISA").as_deref() {
+            Ok("generic") => Isa::Generic,
+            #[cfg(target_arch = "x86_64")]
+            Ok("avx2") => Isa::Avx2,
+            _ => return best,
+        };
+        Self::available().into_iter().rfind(|&i| i as u8 <= cap as u8).unwrap_or(best)
     }
 
     pub fn available() -> Vec<Isa> {
@@ -123,10 +132,100 @@ struct Chunk {
     zi: [f32; LANES],
 }
 
+impl Chunk {
+    /// Takes `o`'s coefficients, keeping this chunk's states.
+    fn copy_coefs(&mut self, o: &Chunk) {
+        let (zr, zi) = (self.zr, self.zi);
+        *self = *o;
+        self.zr = zr;
+        self.zi = zi;
+    }
+}
+
+/// Writes the coefficients of `modes` (at most `chunks.len()·LANES`) into
+/// `chunks` and `dw`, padding lanes of the last chunk silent; returns how
+/// many were written. States are left alone.
+fn fill(chunks: &mut [Chunk], dw: &mut [f32], modes: impl IntoIterator<Item = ModeSpec>, sample_rate: f64) -> usize {
+    let t = 1.0 / sample_rate;
+    let mut n = 0;
+    for m in modes.into_iter().take(chunks.len() * LANES) {
+        let (c, l) = (&mut chunks[n / LANES], n % LANES);
+        let r = (-m.sigma * t).exp();
+        let (s, co) = (std::f64::consts::TAU * m.freq_hz * t).sin_cos();
+        c.pr[l] = (r * co) as f32;
+        c.pi[l] = (r * s) as f32;
+        c.br[l] = m.gain_re as f32;
+        c.bi[l] = m.gain_im as f32;
+        c.b2r[l] = m.gain2_re as f32;
+        c.b2i[l] = m.gain2_im as f32;
+        c.or[l] = m.out_re as f32;
+        c.oi[l] = m.out_im as f32;
+        c.o2r[l] = m.out2_re as f32;
+        c.o2i[l] = m.out2_im as f32;
+        dw[n] = (m.damp_w * t) as f32;
+        n += 1;
+    }
+    for i in n..n.next_multiple_of(LANES) {
+        let (c, l) = (&mut chunks[i / LANES], i % LANES);
+        for a in [&mut c.pr, &mut c.pi, &mut c.br, &mut c.bi, &mut c.b2r, &mut c.b2i, &mut c.or, &mut c.oi, &mut c.o2r, &mut c.o2i] {
+            a[l] = 0.0;
+        }
+        dw[i] = 0.0;
+    }
+    n
+}
+
+/// A bank's coefficients computed ahead, off the audio thread (they take
+/// an exp and a sin_cos per mode in f64): [`ModalBank::load`] only copies
+/// them.
+pub struct ModeTable {
+    chunks: Vec<Chunk>,
+    dw: Vec<f32>,
+    n: usize,
+}
+
+impl ModeTable {
+    pub fn new(sample_rate: f64, modes: &[ModeSpec]) -> Self {
+        let n_chunks = modes.len().div_ceil(LANES);
+        let mut chunks = vec![Chunk::default(); n_chunks];
+        let mut dw = vec![0.0; n_chunks * LANES];
+        let n = fill(&mut chunks, &mut dw, modes.iter().copied(), sample_rate);
+        Self { chunks, dw, n }
+    }
+
+    pub fn len(&self) -> usize {
+        self.n
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.n == 0
+    }
+}
+
+/// e^{−x} for x ≥ 0 in f32, within 2 ulp, written to vectorise:
+/// e^{−x} = 2^k·e^r with k = round(−x/ln 2) and |r| ≤ ½·ln 2 (Cody–Waite:
+/// ln 2 in two parts, so r is exact), e^r by its degree-7 series.
+#[inline(always)]
+fn exp_neg(x: f32) -> f32 {
+    const LN2_HI: f32 = 0.693_145_75;
+    const LN2_LO: f32 = 1.428_606_8e-6;
+    // Round to nearest without a libm call (exact for |t| < 2²²).
+    const MAGIC: f32 = 12_582_912.0;
+    let x = x.min(87.0);
+    let kk = -x * std::f32::consts::LOG2_E + MAGIC;
+    let k = kk - MAGIC;
+    // k as an integer, from the low mantissa bits of kk (no float→int
+    // conversion: it would not vectorise on SSE2).
+    let ki = kk.to_bits().wrapping_sub(MAGIC.to_bits());
+    let r = (-x - k * LN2_HI) - k * LN2_LO;
+    let p = 1.0
+        + r * (1.0 + r * (0.5 + r * (1.0 / 6.0 + r * (1.0 / 24.0 + r * (1.0 / 120.0 + r * (1.0 / 720.0 + r * (1.0 / 5040.0)))))));
+    p * f32::from_bits(ki.wrapping_add(127) << 23)
+}
+
 pub struct ModalBank {
     sample_rate: f64,
     chunks: Vec<Chunk>,
-    specs: Vec<ModeSpec>,
     n_modes: usize,
     /// Modes set by `set_modes` (≥ n_modes, see `set_active_len`).
     n_specs: usize,
@@ -134,9 +233,9 @@ pub struct ModalBank {
     acc2: Vec<[f32; LANES]>,
     isa: Isa,
     group: usize,
-    /// Per mode: rotation e^{iθ}, base decay, damper weight (for set_damping).
-    rot: Vec<(f32, f32)>,
-    sig: Vec<f32>,
+    /// Per mode: undamped pole and damper weight (for set_damping).
+    pr0: Vec<f32>,
+    pi0: Vec<f32>,
     dw: Vec<f32>,
     damping: f32,
 }
@@ -148,22 +247,21 @@ impl ModalBank {
         Self {
             sample_rate,
             chunks: vec![Chunk::default(); n_chunks],
-            specs: vec![ModeSpec::default(); n_chunks * LANES],
             n_modes: 0,
             n_specs: 0,
             acc: vec![[0.0; LANES]; max_block],
             acc2: vec![[0.0; LANES]; max_block],
             isa: Isa::detect(),
             group: Isa::detect().best_group(),
-            rot: vec![(0.0, 0.0); n_chunks * LANES],
-            sig: vec![0.0; n_chunks * LANES],
+            pr0: vec![0.0; n_chunks * LANES],
+            pi0: vec![0.0; n_chunks * LANES],
             dw: vec![0.0; n_chunks * LANES],
             damping: 0.0,
         }
     }
 
     pub fn capacity(&self) -> usize {
-        self.specs.len()
+        self.chunks.len() * LANES
     }
 
     pub fn len(&self) -> usize {
@@ -191,66 +289,79 @@ impl ModalBank {
     }
 
     /// Replaces the modes, keeping the state of modes that keep their index.
-    /// Modes beyond the capacity are dropped. Real-time safe.
+    /// Modes beyond the capacity are dropped. Real-time safe, but computes
+    /// an exp and a sin_cos per mode: see [`Self::load`].
     pub fn set_modes(&mut self, modes: impl IntoIterator<Item = ModeSpec>) {
-        let mut n = 0;
-        for m in modes.into_iter().take(self.specs.len()) {
-            self.specs[n] = m;
-            n += 1;
+        let n = fill(&mut self.chunks, &mut self.dw, modes, self.sample_rate);
+        self.took(n);
+    }
+
+    /// Replaces the modes by a precomputed table (a copy), keeping the
+    /// state of modes that keep their index. Real-time safe.
+    pub fn load(&mut self, table: &ModeTable) {
+        let nc = table.chunks.len().min(self.chunks.len());
+        for (c, t) in self.chunks[..nc].iter_mut().zip(&table.chunks) {
+            c.copy_coefs(t);
+        }
+        let n = table.n.min(nc * LANES);
+        self.dw[..nc * LANES].copy_from_slice(&table.dw[..nc * LANES]);
+        self.took(n);
+    }
+
+    /// After new coefficients for `n` modes: undamped poles, and silence
+    /// in the padding lanes and the modes that disappeared.
+    fn took(&mut self, n: usize) {
+        for (i, c) in self.chunks[..n.div_ceil(LANES)].iter().enumerate() {
+            self.pr0[i * LANES..(i + 1) * LANES].copy_from_slice(&c.pr);
+            self.pi0[i * LANES..(i + 1) * LANES].copy_from_slice(&c.pi);
         }
         let old = self.n_modes;
         self.n_modes = n;
         self.n_specs = n;
-        self.update_poles(0.0);
-        // Padding lanes and modes that disappeared must stay silent.
-        for i in n..old.max(n).next_multiple_of(LANES).min(self.specs.len()) {
+        self.damping = 0.0;
+        for i in n..old.max(n).next_multiple_of(LANES).min(self.capacity()) {
             let c = &mut self.chunks[i / LANES];
             c.zr[i % LANES] = 0.0;
             c.zi[i % LANES] = 0.0;
         }
     }
 
-    /// Recomputes poles from the stored specs with an extra decay rate added
-    /// to every mode, and resets the damper scale. Real-time safe.
-    pub fn update_poles(&mut self, extra_sigma: f64) {
-        let t = 1.0 / self.sample_rate;
-        self.damping = 0.0;
-        for i in 0..self.n_modes.next_multiple_of(LANES).min(self.specs.len()) {
-            let c = &mut self.chunks[i / LANES];
-            let l = i % LANES;
-            let m = if i < self.n_modes { self.specs[i] } else { ModeSpec { out_re: 0.0, ..Default::default() } };
-            let live = i < self.n_modes;
-            let r = (-(m.sigma + extra_sigma) * t).exp();
-            let (s, co) = (std::f64::consts::TAU * m.freq_hz * t).sin_cos();
-            let (s, co) = if live { (s, co) } else { (0.0, 0.0) };
-            self.rot[i] = (co as f32, s as f32);
-            self.sig[i] = ((m.sigma + extra_sigma) * t) as f32;
-            self.dw[i] = (m.damp_w * t) as f32;
-            c.pr[l] = (r * co) as f32;
-            c.pi[l] = (r * s) as f32;
-            c.br[l] = m.gain_re as f32;
-            c.bi[l] = m.gain_im as f32;
-            c.b2r[l] = m.gain2_re as f32;
-            c.b2i[l] = m.gain2_im as f32;
-            c.or[l] = m.out_re as f32;
-            c.oi[l] = m.out_im as f32;
-            c.o2r[l] = m.out2_re as f32;
-            c.o2i[l] = m.out2_im as f32;
-        }
-    }
-
     /// Adds `scale·damp_w` to every mode's decay rate (dampers). Cheap: one
-    /// exp per mode, no trigonometry. Real-time safe.
+    /// vectorised exp per mode, no trigonometry. Real-time safe.
     pub fn set_damping(&mut self, scale: f32) {
         if scale == self.damping {
             return;
         }
         self.damping = scale;
-        for i in 0..self.n_modes {
-            let r = (-(self.sig[i] + scale * self.dw[i])).exp();
-            let c = &mut self.chunks[i / LANES];
-            c.pr[i % LANES] = r * self.rot[i].0;
-            c.pi[i % LANES] = r * self.rot[i].1;
+        self.apply_damping(0, self.n_modes);
+    }
+
+    /// Damped poles of modes `from..to` at the current damper scale.
+    fn apply_damping(&mut self, from: usize, to: usize) {
+        let d = self.damping;
+        let lane = |c: &mut Chunk, l: usize, i: usize, pr0: &[f32], pi0: &[f32], dw: &[f32]| {
+            let r = if d == 0.0 { 1.0 } else { exp_neg(d * dw[i]) };
+            c.pr[l] = r * pr0[i];
+            c.pi[l] = r * pi0[i];
+        };
+        let (pr0, pi0, dw) = (&self.pr0[..], &self.pi0[..], &self.dw[..]);
+        let (first, last) = (from.next_multiple_of(LANES).min(to), to - to % LANES);
+        for i in from..first {
+            lane(&mut self.chunks[i / LANES], i % LANES, i, pr0, pi0, dw);
+        }
+        // Whole chunks: vectorises.
+        let (c0, c1) = (first / LANES, last.max(first) / LANES);
+        let (chunks, p0, q0, w) = (&mut self.chunks[c0..c1], &pr0[c0 * LANES..c1 * LANES], &pi0[c0 * LANES..c1 * LANES], &dw[c0 * LANES..c1 * LANES]);
+        match self.isa {
+            Isa::Generic => damp_chunks(chunks, p0, q0, w, d),
+            // SAFETY: only selectable when detected.
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx2 => unsafe { damp_chunks_avx2(chunks, p0, q0, w, d) },
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx512 => unsafe { damp_chunks_avx512(chunks, p0, q0, w, d) },
+        }
+        for i in last.max(first)..to {
+            lane(&mut self.chunks[i / LANES], i % LANES, i, pr0, pi0, dw);
         }
     }
 
@@ -265,18 +376,12 @@ impl ModalBank {
         let old = self.n_modes;
         self.n_modes = n;
         if n > old {
-            // Newly enabled modes start at rest with fresh poles.
-            let damping = self.damping;
-            self.update_poles(0.0);
-            self.set_damping(damping);
+            // Newly enabled modes start at rest, damped like the others.
+            self.apply_damping(old, n);
             for i in old..n {
                 self.set_state(i, 0.0, 0.0);
             }
         }
-    }
-
-    pub fn spec(&self, i: usize) -> ModeSpec {
-        self.specs[i]
     }
 
     /// Complex state z of mode `i`.
@@ -375,6 +480,39 @@ impl ModalBank {
             for (o, a) in out2.iter_mut().zip(acc2.iter()) {
                 *o += a.iter().sum::<f32>();
             }
+        }
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+fn damp_chunks_avx2(chunks: &mut [Chunk], pr0: &[f32], pi0: &[f32], dw: &[f32], d: f32) {
+    damp_chunks(chunks, pr0, pi0, dw, d)
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx512f")]
+fn damp_chunks_avx512(chunks: &mut [Chunk], pr0: &[f32], pi0: &[f32], dw: &[f32], d: f32) {
+    damp_chunks(chunks, pr0, pi0, dw, d)
+}
+
+/// Damped poles of whole chunks: p = e^{−d·dw}·p0 (same result on every ISA).
+#[inline(always)]
+fn damp_chunks(chunks: &mut [Chunk], pr0: &[f32], pi0: &[f32], dw: &[f32], d: f32) {
+    let (p0, q0, w) = (pr0.as_chunks::<LANES>().0, pi0.as_chunks::<LANES>().0, dw.as_chunks::<LANES>().0);
+    for (((c, p0), q0), w) in chunks.iter_mut().zip(p0).zip(q0).zip(w) {
+        if d == 0.0 {
+            c.pr = *p0;
+            c.pi = *q0;
+            continue;
+        }
+        let mut r = [0.0f32; LANES];
+        for l in 0..LANES {
+            r[l] = exp_neg(d * w[l]);
+        }
+        for l in 0..LANES {
+            c.pr[l] = r[l] * p0[l];
+            c.pi[l] = r[l] * q0[l];
         }
     }
 }
@@ -512,7 +650,7 @@ mod tests {
         let mut b = ModalBank::new(48_000.0, 200, 128);
         b.set_isa(isa);
         b.set_group(group);
-        b.set_modes((1..=150).map(|k| ModeSpec::driven(27.5 * k as f64, 0.5 + 0.01 * k as f64, 1e-3)));
+        b.set_modes((1..=150).map(|k| ModeSpec { damp_w: 0.2 * k as f64, ..ModeSpec::driven(27.5 * k as f64, 0.5 + 0.01 * k as f64, 1e-3) }));
         b
     }
 
@@ -543,7 +681,8 @@ mod tests {
             for g in [1, 2, 4] {
                 let mut b = bank(isa, g);
                 let mut out = vec![0.0f32; 128 * 4];
-                for blk in out.chunks_mut(128) {
+                for (i, blk) in out.chunks_mut(128).enumerate() {
+                    b.set_damping(0.7 * i as f32);
                     b.process(Some(&x), blk);
                 }
                 match &reference {
@@ -625,6 +764,40 @@ mod tests {
         for (p, q) in o1.iter().zip(&o2) {
             assert!((p - q).abs() < 1e-5);
         }
+    }
+
+    #[test]
+    fn exp_neg_is_accurate() {
+        let mut worst = 0.0f64;
+        for i in 0..200_000 {
+            let x = (i as f32 * 1e-4).powi(2);
+            let want = (-(x as f64)).exp();
+            if want > 1e-30 {
+                worst = worst.max(((exp_neg(x) as f64) - want).abs() / want);
+            }
+        }
+        assert!(worst < 2.5e-7, "relative error {worst:e}");
+    }
+
+    #[test]
+    fn loading_a_table_equals_setting_the_modes() {
+        let specs: Vec<ModeSpec> =
+            (1..=150).map(|k| ModeSpec { damp_w: 0.3 * k as f64, ..ModeSpec::driven(27.5 * k as f64, 0.5, 1e-3) }).collect();
+        let table = ModeTable::new(48_000.0, &specs);
+        let mut x = vec![0.0f32; 128];
+        x[0] = 1.0;
+        let (mut a, mut b) = (bank(Isa::Generic, 1), bank(Isa::Generic, 1));
+        a.set_modes(specs.iter().copied());
+        b.load(&table);
+        for bk in [&mut a, &mut b] {
+            bk.set_active_len(40);
+            bk.set_damping(2.0);
+            bk.set_active_len(150);
+        }
+        let (mut oa, mut ob) = (vec![0.0f32; 128], vec![0.0f32; 128]);
+        a.process(Some(&x), &mut oa);
+        b.process(Some(&x), &mut ob);
+        assert!(oa.iter().zip(&ob).all(|(p, q)| p.to_bits() == q.to_bits()));
     }
 
     #[test]
