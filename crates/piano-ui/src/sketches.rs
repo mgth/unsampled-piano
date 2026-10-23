@@ -14,6 +14,10 @@
 //! The plan: the case from above, to scale (soundboard, bridges, every
 //! key's string, frame, rim, keyboard choosing the key shown), and its
 //! side section for the heights.
+//!
+//! The room: from above and from the side, to scale, with the piano, the
+//! microphones, the first reflections and the piano's directivity; and the
+//! reverberation's decay at low and high frequency.
 
 use egui::{Align2, Color32, FontId, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, Vec2};
 use piano_core::params::PianoModel;
@@ -23,6 +27,7 @@ pub enum Sketch {
     Action,
     String,
     Plan,
+    Room,
 }
 
 /// A part of a sketch a parameter acts on.
@@ -88,6 +93,20 @@ pub enum Part {
     /// Heights, in the side section.
     FrameHeight,
     RimSection,
+    // The room.
+    /// Its size (walls, floor, ceiling).
+    RoomSize,
+    /// Where the piano stands in it.
+    PianoPlace,
+    /// Its absorption at low and at high frequency (decay curves).
+    AbsorbLow,
+    AbsorbHigh,
+    /// The early reflections computed one by one.
+    Reflections,
+    /// The reverberation's level.
+    Tail,
+    /// How much the piano beams towards the mics.
+    Directivity,
 }
 
 /// The sketch locating a parameter and the parts it acts on, if any.
@@ -140,6 +159,16 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("rim.inner_gain", &[RimSection]),
         ("rim.", &[Rim]),
     ];
+    const ROOM: &[(&str, &[Part])] = &[
+        ("room.enabled", &[RoomSize]),
+        ("room.size", &[RoomSize]),
+        ("room.piano", &[PianoPlace]),
+        ("room.absorption_low", &[AbsorbLow]),
+        ("room.absorption_high", &[AbsorbHigh]),
+        ("room.order", &[Reflections]),
+        ("room.tail_gain", &[Tail]),
+        ("room.directivity", &[Directivity]),
+    ];
     const ACTION: &[(&str, &[Part])] = &[
         ("velocity.", &[Key]),
         ("hardness", &[Felt]),
@@ -161,6 +190,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
     let found = find(STRING)
         .map(|parts| (Sketch::String, parts))
         .or_else(|| find(PLAN).map(|parts| (Sketch::Plan, parts)))
+        .or_else(|| find(ROOM).map(|parts| (Sketch::Room, parts)))
         .or_else(|| find(ACTION).map(|parts| (Sketch::Action, parts)));
     found.filter(|(_, parts)| !parts.is_empty())
 }
@@ -180,6 +210,7 @@ pub fn draw(ui: &mut Ui, sketch: Sketch, model: &PianoModel, path: &str, key: &m
         Sketch::Action => action(ui, model, lit, path, width),
         Sketch::String => string(ui, model, lit, path, key, width),
         Sketch::Plan => plan(ui, model, lit, key, width),
+        Sketch::Room => room(ui, model, lit, width),
     }
 }
 
@@ -723,6 +754,164 @@ pub fn plan(ui: &mut Ui, model: &PianoModel, lit: &[Part], key: &mut u8, width: 
     resp
 }
 
+/// The room from above (x up, y to the left, as the case is drawn) and
+/// from the side, to scale, and the decay of its reverberation.
+pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Response {
+    let rp = &model.room;
+    let Some(sb) = model.soundboard.map(|s| s.resolved()) else {
+        return ui.label("This model has no soundboard: no sound reaches the room.");
+    };
+    let k = width / W;
+    let [lx, ly, lz] = rp.size;
+    // Plan in the left column (250 units at most), side view and decay on
+    // the right.
+    let s = (250.0 / ly as f32).min(250.0 / lx as f32);
+    let (pw, ph) = (ly as f32 * s, lx as f32 * s);
+    let top = 18.0;
+    let rx = 8.0 + pw + 30.0;
+    let rw = W - 4.0 - rx;
+    let se = rw / lx as f32;
+    let side_h = lz as f32 * se;
+    let h = (top + ph + 22.0).max(top + side_h + 130.0);
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(W, h) * k, Sense::hover());
+    if !ui.is_rect_visible(rect) {
+        return resp;
+    }
+    let at = |x: f32, y: f32| rect.min + Vec2::new(x, y) * k;
+    let pl = |x: f64, y: f64| at(8.0 + (ly - y) as f32 * s, top + (lx - x) as f32 * s);
+    let side = |x: f64, z: f64| at(rx + x as f32 * se, top + (lz - z) as f32 * se);
+    let p = ui.painter_at(rect);
+    let vis = ui.visuals();
+    let (ink, weak) = (vis.text_color(), vis.weak_text_color());
+    let font = FontId::proportional((10.0 * k).max(9.0));
+    let lit = |part: Part| lit.contains(&part);
+    let line = |w: f32, c: Color32| Stroke::new(w * k.max(0.6), c);
+    let label = |pos: Pos2, align: Align2, text: &str, part: Option<Part>| {
+        let c = if part.is_some_and(lit) { ink } else { weak };
+        p.text(pos, align, text, font.clone(), c);
+    };
+    let piano = rp.piano;
+    let mics: Vec<[f64; 3]> = sb.mics.iter().map(|m| [piano[0] + m.0, piano[1] + m.1, piano[2] + m.2]).collect();
+    let (src, rc) = crate::mics::source_and_critical_distance(model, &sb, piano);
+    let walls = |part| if lit(part) { line(2.5, HIGHLIGHT) } else { line(1.0, weak) };
+    let absorb = lit(Part::AbsorbLow) || lit(Part::AbsorbHigh);
+    let wall_stroke = if absorb { line(4.0, HIGHLIGHT.gamma_multiply(0.7)) } else { walls(Part::RoomSize) };
+
+    // From above: walls, critical distance, piano, its beam, the mics, and
+    // the first reflections off the four walls towards the left mic.
+    p.text(at(8.0, top - 14.0), Align2::LEFT_TOP, format!("The room from above, {lx} × {ly} m"), font.clone(), weak);
+    let room = Rect::from_two_pos(pl(0.0, 0.0), pl(lx, ly));
+    p.rect_filled(room, 0.0, vis.extreme_bg_color);
+    p.rect_stroke(room, 0.0, wall_stroke, egui::StrokeKind::Middle);
+    let rc_stroke = if lit(Part::Directivity) || lit(Part::Tail) { line(1.5, HIGHLIGHT) } else { line(1.0, weak.gamma_multiply(0.7)) };
+    p.circle_stroke(pl(src[0], src[1]), rc as f32 * s * k, rc_stroke);
+    if lit(Part::Directivity) || lit(Part::Tail) {
+        let text = format!("reverberation = direct sound at {rc:.1} m");
+        label(room.left_bottom() + Vec2::new(0.0, 4.0 * k), Align2::LEFT_TOP, &text, Some(Part::Directivity));
+    }
+    if lit(Part::Reflections) && !mics.is_empty() {
+        let m = mics[0];
+        for (wall, mirror) in [(0, 0.0), (0, lx), (1, 0.0), (1, ly)] {
+            // Image of the source in the wall; the path bends where the
+            // line from the image to the mic crosses the wall.
+            let mut img = [src[0], src[1]];
+            img[wall] = 2.0 * mirror - src[wall];
+            let t = (mirror - img[wall]) / (m[wall] - img[wall]);
+            let hit = [img[0] + t * (m[0] - img[0]), img[1] + t * (m[1] - img[1])];
+            p.add(Shape::line(vec![pl(src[0], src[1]), pl(hit[0], hit[1]), pl(m[0], m[1])], line(1.0, HIGHLIGHT.gamma_multiply(0.8))));
+            p.circle_filled(pl(hit[0], hit[1]), 3.0 * k, HIGHLIGHT);
+        }
+        let o = rp.order as i64;
+        let paths = (-o..=o)
+            .flat_map(|a| (-o..=o).flat_map(move |b| (-o..=o).map(move |c| a.abs() + b.abs() + c.abs())))
+            .filter(|&n| n >= 1 && n <= o)
+            .count();
+        let text = format!("first reflections to the left mic; order {o}: {paths} paths per mic");
+        label(pl(0.0, ly) + Vec2::new(0.0, 4.0 * k), Align2::LEFT_TOP, &text, Some(Part::Reflections));
+    }
+    let board = Rect::from_two_pos(pl(piano[0], piano[1]), pl(piano[0] + sb.a, piano[1] + sb.b));
+    p.rect_filled(board, 0.0, if lit(Part::PianoPlace) { HIGHLIGHT } else { WOOD });
+    if lit(Part::Directivity) {
+        // The beam a + (1 − a)·cos θ of directivity factor Q, towards the
+        // lid's opening (−y): Q = 1/(a² + (1 − a)²/3).
+        let q = rp.directivity.max(1.0);
+        let a = ((1.0 + (12.0 / q - 3.0).max(0.0).sqrt()) / 4.0).clamp(0.25, 1.0);
+        let r0 = (rc * 0.6).min(lx.min(ly) * 0.3);
+        let pts: Vec<Pos2> = (0..=72)
+            .map(|i| i as f64 / 72.0 * std::f64::consts::TAU)
+            .map(|th| {
+                let g = (a + (1.0 - a) * th.cos()).abs() * r0;
+                pl(src[0] + g * th.sin(), src[1] - g * th.cos())
+            })
+            .collect();
+        p.add(Shape::closed_line(pts, line(1.5, HIGHLIGHT)));
+        label(pl(src[0], src[1] - r0) + Vec2::new(4.0 * k, 0.0), Align2::LEFT_CENTER, &format!("Q = {q:.1}"), Some(Part::Directivity));
+    }
+    for (m, c) in mics.iter().zip([Color32::from_rgb(127, 119, 221), Color32::from_rgb(29, 158, 117)]) {
+        p.circle_filled(pl(m[0], m[1]), 3.0 * k, c);
+    }
+    if lit(Part::PianoPlace) {
+        let text = format!("piano corner at {:.1}, {:.1} m", piano[0], piano[1]);
+        label(board.center_top() + Vec2::new(0.0, -4.0 * k), Align2::CENTER_BOTTOM, &text, Some(Part::PianoPlace));
+    }
+
+    // From the side: floor, ceiling, board height, mics; floor and ceiling
+    // reflections.
+    p.text(at(rx, top - 14.0), Align2::LEFT_TOP, format!("From the side, {lz} m high"), font.clone(), weak);
+    let elev = Rect::from_two_pos(side(0.0, 0.0), side(lx, lz));
+    p.rect_filled(elev, 0.0, vis.extreme_bg_color);
+    p.rect_stroke(elev, 0.0, wall_stroke, egui::StrokeKind::Middle);
+    p.line_segment([side(piano[0], piano[2]), side(piano[0] + sb.a, piano[2])], line(3.0, if lit(Part::PianoPlace) { HIGHLIGHT } else { WOOD }));
+    if lit(Part::Reflections) && !mics.is_empty() {
+        let m = mics[0];
+        for mirror in [0.0, lz] {
+            let img = 2.0 * mirror - src[2];
+            let t = (mirror - img) / (m[2] - img);
+            let hit = src[0] + t * (m[0] - src[0]);
+            p.add(Shape::line(vec![side(src[0], src[2]), side(hit, mirror), side(m[0], m[2])], line(1.0, HIGHLIGHT.gamma_multiply(0.8))));
+            p.circle_filled(side(hit, mirror), 3.0 * k, HIGHLIGHT);
+        }
+    }
+    for (m, c) in mics.iter().zip([Color32::from_rgb(127, 119, 221), Color32::from_rgb(29, 158, 117)]) {
+        p.circle_filled(side(m[0], m[2]), 3.0 * k, c);
+    }
+
+    // Decay of the reverberation: −60 dB at T60, low and high frequency;
+    // the tail level shifts both.
+    let (t_lo, t_hi) = rp.t60();
+    let gy = top + side_h + 34.0;
+    let (gx0, gx1, gy0, gy1) = (rx + 20.0, W - 6.0, gy, gy + 70.0);
+    p.text(at(rx, gy - 16.0), Align2::LEFT_TOP, "Reverberation decay", font.clone(), weak);
+    let tmax = 1.15 * t_lo.max(t_hi).max(0.1);
+    let level = 20.0 * rp.tail_gain.max(1e-3).log10();
+    let gpt = |t: f64, db: f64| at(gx0 + (t / tmax) as f32 * (gx1 - gx0), gy0 + ((-db).clamp(0.0, 70.0) / 70.0) as f32 * (gy1 - gy0));
+    p.line_segment([gpt(0.0, 0.0), gpt(0.0, -70.0)], line(1.0, weak));
+    p.line_segment([gpt(0.0, -70.0), gpt(tmax, -70.0)], line(1.0, weak));
+    for (db, text) in [(0.0, "0 dB"), (-60.0, "−60")] {
+        p.text(gpt(0.0, db) + Vec2::new(-3.0 * k, 0.0), Align2::RIGHT_CENTER, text, font.clone(), weak);
+    }
+    let tail = lit(Part::Tail);
+    for (t60, part, name) in [(t_lo, Part::AbsorbLow, "low"), (t_hi, Part::AbsorbHigh, "high")] {
+        let c = if lit(part) || tail { HIGHLIGHT } else if name == "low" { ink } else { weak };
+        let end = (t60 * (60.0 + level) / 60.0).min(tmax);
+        p.line_segment([gpt(0.0, level), gpt(end, level - 60.0 * end / t60)], line(1.5, c));
+        // The slower (low) curve labelled above, the faster below.
+        let mid = 0.45 * end;
+        let slower = if name == "low" { t_lo >= t_hi } else { t_hi > t_lo };
+        let text = format!("{name}: {t60:.1} s");
+        let (off, align) = if slower { (-3.0, Align2::LEFT_BOTTOM) } else { (3.0, Align2::RIGHT_TOP) };
+        label(gpt(mid, level - 60.0 * mid / t60) + Vec2::new(0.0, off * k), align, &text, Some(part));
+    }
+    p.text(gpt(tmax, -70.0) + Vec2::new(0.0, 2.0 * k), Align2::RIGHT_TOP, format!("{tmax:.1} s"), font.clone(), weak);
+    if tail {
+        label(gpt(tmax, level) + Vec2::new(0.0, 2.0 * k), Align2::RIGHT_TOP, &format!("tail level {level:+.1} dB"), Some(Part::Tail));
+    }
+    if !rp.enabled {
+        p.text(room.center(), Align2::CENTER_CENTER, "Room off: the microphones hear the piano alone", font.clone(), ink);
+    }
+    resp
+}
+
 /// The keys a key-number parameter covers.
 fn key_range(model: &PianoModel, path: &str) -> Option<(u8, u8)> {
     let u = &model.unison;
@@ -821,6 +1010,7 @@ mod tests {
         assert_eq!(locate("soundboard.dx"), Some((Sketch::Plan, &[Part::Board][..])));
         assert!(locate("soundboard.mics[0][1]").is_none() && locate("soundboard.lid_angle").is_none());
         assert_eq!(locate("rim.top"), Some((Sketch::Plan, &[Part::RimSection][..])));
+        assert_eq!(locate("room.size[2]"), Some((Sketch::Room, &[Part::RoomSize][..])));
         // Every key-number parameter lit on the keyboard has its range.
         let m = PianoModel::default();
         for p in reg.params().iter().filter(|p| parts_of(&p.path).contains(&Part::Keys)) {
@@ -862,6 +1052,13 @@ mod tests {
             Part::Rim,
             Part::FrameHeight,
             Part::RimSection,
+            Part::RoomSize,
+            Part::PianoPlace,
+            Part::AbsorbLow,
+            Part::AbsorbHigh,
+            Part::Reflections,
+            Part::Tail,
+            Part::Directivity,
         ] {
             assert!(reg.params().iter().any(|p| parts_of(&p.path).contains(&part)), "{part:?}");
         }

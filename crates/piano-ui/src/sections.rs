@@ -104,7 +104,7 @@ pub const SECTIONS: &[Section] = &[
     Section { title: "Noises", prefixes: &["noise."], curves: &[], view: View::Sketches(&[Sketch::Action]) },
     Section { title: "Soundboard", prefixes: &["soundboard.", "bridge."], curves: &[], view: View::Sketches(&[Sketch::Plan]) },
     Section { title: "Frame & rim", prefixes: &["frame.", "rim."], curves: &[], view: View::Sketches(&[Sketch::Plan]) },
-    Section { title: "Room", prefixes: &["room."], curves: &[], view: View::None },
+    Section { title: "Room", prefixes: &["room."], curves: &[], view: View::Sketches(&[Sketch::Room]) },
     Section { title: "Other", prefixes: &[""], curves: &[], view: View::None },
 ];
 

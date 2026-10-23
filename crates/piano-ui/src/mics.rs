@@ -601,7 +601,7 @@ impl MicView {
 /// as the room model sets them: the room's critical distance, shortened by
 /// the tail level and lengthened by the piano's directivity Q and the mics'
 /// pattern (their random-incidence efficiency a² + (1 − a)²/3).
-fn source_and_critical_distance(model: &PianoModel, sb: &SoundboardParams, piano: [f64; 3]) -> ([f64; 3], f64) {
+pub(crate) fn source_and_critical_distance(model: &PianoModel, sb: &SoundboardParams, piano: [f64; 3]) -> ([f64; 3], f64) {
     let room = &model.room;
     let src = [piano[0] + sb.a / 2.0, piano[1] + sb.b / 2.0, piano[2] + 0.1];
     let (t_lo, t_hi) = room.t60();
