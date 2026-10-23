@@ -819,7 +819,9 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
         p.text(pos, align, text, font.clone(), c);
     };
     let piano = rp.piano;
-    let mics: Vec<[f64; 3]> = sb.mics.iter().map(|m| [piano[0] + m.0, piano[1] + m.1, piano[2] + m.2]).collect();
+    let mics: Vec<[f64; 3]> = sb.mics.iter().map(|m| crate::mics::in_room(model, &sb, piano, &[m.0, m.1, m.2])).collect();
+    // The board's extent in the room: flat, or standing on its foot.
+    let (blo, bhi) = crate::mics::footprint(model, &sb, piano);
     let (src, rc) = crate::mics::source_and_critical_distance(model, &sb, piano);
     let walls = |part| if lit(part) { line(2.5, HIGHLIGHT) } else { line(1.0, weak) };
     let absorb = lit(Part::AbsorbLow) || lit(Part::AbsorbHigh);
@@ -831,8 +833,10 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
     let room = Rect::from_two_pos(pl(0.0, 0.0), pl(lx, ly));
     p.rect_filled(room, 0.0, vis.extreme_bg_color);
     p.rect_stroke(room, 0.0, wall_stroke, egui::StrokeKind::Middle);
+    // What spreads from the piano stays inside the room's outline.
+    let inside = p.with_clip_rect(room.intersect(p.clip_rect()));
     let rc_stroke = if lit(Part::Directivity) || lit(Part::Tail) { line(1.5, HIGHLIGHT) } else { line(1.0, weak.gamma_multiply(0.7)) };
-    p.circle_stroke(pl(src[0], src[1]), rc as f32 * s * k, rc_stroke);
+    inside.circle_stroke(pl(src[0], src[1]), rc as f32 * s * k, rc_stroke);
     if lit(Part::Directivity) || lit(Part::Tail) {
         let text = format!("reverberation = direct sound at {rc:.1} m");
         label(room.left_bottom() + Vec2::new(0.0, 4.0 * k), Align2::LEFT_TOP, &text, Some(Part::Directivity));
@@ -846,7 +850,7 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
             img[wall] = 2.0 * mirror - src[wall];
             let t = (mirror - img[wall]) / (m[wall] - img[wall]);
             let hit = [img[0] + t * (m[0] - img[0]), img[1] + t * (m[1] - img[1])];
-            p.add(Shape::line(vec![pl(src[0], src[1]), pl(hit[0], hit[1]), pl(m[0], m[1])], line(1.0, HIGHLIGHT.gamma_multiply(0.8))));
+            inside.add(Shape::line(vec![pl(src[0], src[1]), pl(hit[0], hit[1]), pl(m[0], m[1])], line(1.0, HIGHLIGHT.gamma_multiply(0.8))));
             p.circle_filled(pl(hit[0], hit[1]), 3.0 * k, HIGHLIGHT);
         }
         let o = rp.order as i64;
@@ -857,23 +861,27 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
         let text = format!("first reflections to the left mic; order {o}: {paths} paths per mic");
         label(pl(0.0, ly) + Vec2::new(0.0, 4.0 * k), Align2::LEFT_TOP, &text, Some(Part::Reflections));
     }
-    let board = Rect::from_two_pos(pl(piano[0], piano[1]), pl(piano[0] + sb.a, piano[1] + sb.b));
+    let board = Rect::from_two_pos(pl(blo[0], blo[1]), pl(bhi[0], bhi[1])).expand(1.5 * k);
     p.rect_filled(board, 0.0, if lit(Part::PianoPlace) { HIGHLIGHT } else { WOOD });
     if lit(Part::Directivity) {
         // The beam a + (1 − a)·cos θ of directivity factor Q, towards the
         // lid's opening (−y): Q = 1/(a² + (1 − a)²/3).
-        let q = rp.directivity.max(1.0);
+        let q = piano_core::room::piano_directivity(rp, &sb);
+        // A grand beams towards its lid's opening (−y), an upright away
+        // from its wall (+y).
+        let towards = if sb.vertical { 1.0 } else { -1.0 };
         let a = ((1.0 + (12.0 / q - 3.0).max(0.0).sqrt()) / 4.0).clamp(0.25, 1.0);
         let r0 = (rc * 0.6).min(lx.min(ly) * 0.3);
         let pts: Vec<Pos2> = (0..=72)
             .map(|i| i as f64 / 72.0 * std::f64::consts::TAU)
             .map(|th| {
                 let g = (a + (1.0 - a) * th.cos()).abs() * r0;
-                pl(src[0] + g * th.sin(), src[1] - g * th.cos())
+                pl(src[0] + g * th.sin(), src[1] + towards * g * th.cos())
             })
             .collect();
-        p.add(Shape::closed_line(pts, line(1.5, HIGHLIGHT)));
-        label(pl(src[0], src[1] - r0) + Vec2::new(4.0 * k, 0.0), Align2::LEFT_CENTER, &format!("Q = {q:.1}"), Some(Part::Directivity));
+        inside.add(Shape::closed_line(pts, line(1.5, HIGHLIGHT)));
+        let text = if rp.directivity > 0.0 { format!("Q = {q:.1}") } else { format!("Q = {q:.1} (from the piano)") };
+        label(room.left_top() + Vec2::new(4.0, 4.0) * k, Align2::LEFT_TOP, &text, Some(Part::Directivity));
     }
     for (m, c) in mics.iter().zip([Color32::from_rgb(127, 119, 221), Color32::from_rgb(29, 158, 117)]) {
         p.circle_filled(pl(m[0], m[1]), 3.0 * k, c);
@@ -889,7 +897,8 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
     let elev = Rect::from_two_pos(side(0.0, 0.0), side(lx, lz));
     p.rect_filled(elev, 0.0, vis.extreme_bg_color);
     p.rect_stroke(elev, 0.0, wall_stroke, egui::StrokeKind::Middle);
-    p.line_segment([side(piano[0], piano[2]), side(piano[0] + sb.a, piano[2])], line(3.0, if lit(Part::PianoPlace) { HIGHLIGHT } else { WOOD }));
+    let standing = Rect::from_two_pos(side(blo[0], blo[2]), side(bhi[0], bhi[2])).expand(1.5 * k);
+    p.rect_filled(standing, 0.0, if lit(Part::PianoPlace) { HIGHLIGHT } else { WOOD });
     if lit(Part::Reflections) && !mics.is_empty() {
         let m = mics[0];
         for mirror in [0.0, lz] {
