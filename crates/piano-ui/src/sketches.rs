@@ -42,7 +42,10 @@ pub enum Part {
     /// The damper on the string, and its motion.
     Damper,
     SustainPedal,
+    /// The soft pedal: una corda shift (grand) or half blow (upright).
     UnaCorda,
+    /// The practice mute an upright's middle pedal lowers.
+    MuteFelt,
     /// The key bottoming on the keybed.
     KeybedKnock,
     /// The damper landing on the ringing string.
@@ -87,6 +90,8 @@ pub enum Part {
     Piston,
     /// The board's underside radiating in antiphase.
     BackFace,
+    /// The wall behind an upright's board.
+    Wall,
     Frame,
     Agraffes,
     Rim,
@@ -148,6 +153,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("soundboard.bridge_", &[Bridges, BridgeSpread]),
         ("soundboard.piston_", &[Piston]),
         ("soundboard.back_", &[BackFace]),
+        ("soundboard.wall_", &[Wall]),
         ("soundboard.", &[Board]),
         ("frame.agraffe_x", &[Agraffes]),
         ("frame.height", &[FrameHeight]),
@@ -178,7 +184,9 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("contact_width_scale", &[Felt]),
         ("hammer_mass_scale", &[Felt]),
         ("core_", &[Core]),
-        ("una_corda_softening", &[UnaCorda]),
+        ("una_corda_", &[UnaCorda]),
+        ("half_blow", &[UnaCorda]),
+        ("mute_felt", &[MuteFelt]),
         ("damper.pedal_", &[SustainPedal]),
         ("damper.", &[Damper]),
         ("noise.keybed", &[KeybedKnock]),
@@ -306,6 +314,23 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
         label(STRIKE_X + 20.0, 60.0, Align2::LEFT_CENTER, &text, Some(Part::Core));
     }
 
+    // Practice mute: a felt strip between hammers and strings while the
+    // middle pedal is down (drawn lowered when it exists).
+    if model.mute_felt > 0.0 || lit(Part::MuteFelt) {
+        let t = (model.mute_felt as f32 * 1.2).clamp(1.5, 6.0);
+        if model.mute_felt > 0.0 {
+            p.rect_filled(r(STRIKE_X - 30.0, STRING_Y + 0.5, STRIKE_X + 30.0, STRING_Y + 0.5 + t), 1.0, fill(Part::MuteFelt, FELT.gamma_multiply(0.8)));
+        }
+        if lit(Part::MuteFelt) {
+            let text = if model.mute_felt > 0.0 {
+                format!("Practice mute, {:.1} mm (middle pedal)", model.mute_felt)
+            } else {
+                "Middle pedal: sostenuto (no mute)".to_string()
+            };
+            label(STRIKE_X + 20.0, 60.0, Align2::LEFT_CENTER, &text, Some(Part::MuteFelt));
+        }
+    }
+
     // Damper: felt on the string, wire, lever lifted by the back of the key,
     // tray lifted by the pedal rod.
     let damper = r(DAMPER_X - 11.0, 12.0, DAMPER_X + 11.0, STRING_Y);
@@ -336,20 +361,9 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
     knock(&p, at(DAMPER_X, STRING_Y), 7.0 * k, lit(Part::DamperLanding), weak);
     knock(&p, at(290.0, TRAY_Y + 2.0), 7.0 * k, lit(Part::PedalKnock), weak);
 
-    // Below: the una corda from above, and the sustain pedal's travel.
+    // Below: the soft pedal, and the sustain pedal's travel.
     let y0 = 196.0;
-    label(20.0, y0, Align2::LEFT_TOP, "Una corda, from above", Some(Part::UnaCorda));
-    for (i, sy) in [214.0, 222.0, 230.0].into_iter().enumerate() {
-        let c = if i == 0 && lit(Part::UnaCorda) { HIGHLIGHT } else { ink };
-        p.line_segment([at(24.0, sy), at(170.0, sy)], line(1.0, c));
-    }
-    p.rect_stroke(r(80.0, 209.0, 96.0, 235.0), 2.0, line(1.0, weak), egui::StrokeKind::Inside);
-    p.rect_filled(r(104.0, 217.0, 120.0, 243.0), 2.0, fill(Part::UnaCorda, felt));
-    arrow(&p, at(97.0, 222.0), at(103.0, 230.0), line(1.0, weak));
-    if lit(Part::UnaCorda) {
-        let text = format!("softer by {:.0} %", 100.0 * model.una_corda_softening);
-        label(126.0, 238.0, Align2::LEFT_CENTER, &text, Some(Part::UnaCorda));
-    }
+    soft_pedal(&p, &at, model, lit(Part::UnaCorda), felt, ink, weak, &font, k);
     pedal_travel(&p, r(240.0, 213.0, W - 14.0, 237.0), model, lit(Part::SustainPedal), ink, weak, &font);
     label(240.0, y0, Align2::LEFT_TOP, "Damper contact by pedal travel", Some(Part::SustainPedal));
     resp
@@ -584,7 +598,7 @@ pub fn plan(ui: &mut Ui, model: &PianoModel, lit: &[Part], key: &mut u8, width: 
     // Plan extent (m): y across, x along; section extent: z.
     let (y0, y1) = (-t - 0.04, sb.b + t + 0.04);
     let (x0, x1) = (front - 0.04, sb.a + t + 0.04);
-    let z0 = (-sb.back_depth).min(rim.top - rim.height) - 0.05;
+    let z0 = (-sb.back_depth - sb.wall_distance).min(rim.top - rim.height) - 0.05;
     let z1 = f.height.max(rim.top) + 0.12;
     // Design units per metre: the plan 250 wide at most, 330 tall; the
     // section fills the rest of the width.
@@ -746,8 +760,22 @@ pub fn plan(ui: &mut Ui, model: &PianoModel, lit: &[Part], key: &mut u8, width: 
     let back = if lit(Part::BackFace) { line(1.5, HIGHLIGHT) } else { line(1.0, weak.gamma_multiply(0.6)) };
     p.extend(Shape::dashed_line(&[sec(0.0, -sb.back_depth), sec(sb.a, -sb.back_depth)], back, 4.0, 3.0));
     label(sec(sb.a * 0.5, -sb.back_depth) + Vec2::new(0.0, 2.0 * k), Align2::CENTER_TOP, "Underside (its image)", Some(Part::BackFace));
+    // An upright's wall, parallel to the board behind its underside.
+    if sb.wall_distance > 0.0 {
+        let wz = -sb.back_depth - sb.wall_distance;
+        let ws = if lit(Part::Wall) { line(3.0, HIGHLIGHT) } else { line(2.0, weak) };
+        p.line_segment([sec(x0, wz), sec(x1, wz)], ws);
+        for i in 0..12 {
+            let x = x0 + (x1 - x0) * i as f64 / 12.0;
+            p.line_segment([sec(x, wz), sec(x, wz) + Vec2::new(-4.0, 4.0) * k], line(1.0, weak));
+        }
+        let text = format!("Wall, {:.2} m behind (reflects {:.0} %)", sb.wall_distance, 100.0 * sb.wall_reflection);
+        label(sec(x1, wz) + Vec2::new(0.0, 6.0 * k), Align2::RIGHT_TOP, &text, Some(Part::Wall));
+    } else if lit(Part::Wall) {
+        label(sec(sb.a * 0.5, -sb.back_depth) + Vec2::new(0.0, 16.0 * k), Align2::CENTER_TOP, "No wall (distance 0)", Some(Part::Wall));
+    }
     // 10 cm scale under the section.
-    let y = sec_top + (z1 - z0) as f32 * s2 * STRETCH + 18.0;
+    let y = sec_top + (z1 - z0) as f32 * s2 * STRETCH + if sb.wall_distance > 0.0 { 30.0 } else { 18.0 };
     let l = 0.1 * s2;
     p.line_segment([at(sec_x, y), at(sec_x + l, y)], line(1.5, ink));
     p.text(at(sec_x + l + 4.0, y), Align2::LEFT_CENTER, "10 cm", font.clone(), weak);
@@ -935,6 +963,48 @@ fn seconds(t: f64) -> String {
     if t >= 10.0 { format!("{t:.0} s") } else { format!("{t:.1} s") }
 }
 
+/// The soft pedal at full travel: a grand's una corda shifts the hammer
+/// across (seen from above), an upright's half blow brings it closer to
+/// the strings (seen from the side); both may combine.
+#[allow(clippy::too_many_arguments)]
+fn soft_pedal(p: &egui::Painter, at: &dyn Fn(f32, f32) -> Pos2, model: &PianoModel, lit: bool, felt: Color32, ink: Color32, weak: Color32, font: &FontId, k: f32) {
+    let r = |x0: f32, y0: f32, x1: f32, y1: f32| Rect::from_two_pos(at(x0, y0), at(x1, y1));
+    let line = |w: f32, c: Color32| Stroke::new(w * k.max(0.6), c);
+    let text_c = if lit { ink } else { weak };
+    let fill = if lit { HIGHLIGHT.gamma_multiply(0.55) } else { felt };
+    let (shift, blow) = (model.una_corda_shift.clamp(0.0, 1.0) as f32, model.half_blow.max(0.0));
+    let y0 = 196.0;
+    if shift > 0.0 {
+        p.text(at(20.0, y0), Align2::LEFT_TOP, "Soft pedal: una corda, from above", font.clone(), text_c);
+        for (i, sy) in [214.0, 222.0, 230.0].into_iter().enumerate() {
+            let c = if i == 0 && lit { HIGHLIGHT } else { ink };
+            p.line_segment([at(24.0, sy), at(170.0, sy)], line(1.0, c));
+        }
+        p.rect_stroke(r(80.0, 209.0, 96.0, 235.0), 2.0, line(1.0, weak), egui::StrokeKind::Inside);
+        let dy = 8.0 * shift;
+        p.rect_filled(r(104.0, 209.0 + dy, 120.0, 235.0 + dy), 2.0, fill);
+        arrow(p, at(97.0, 222.0), at(103.0, 222.0 + dy), line(1.0, weak));
+    } else {
+        p.text(at(20.0, y0), Align2::LEFT_TOP, "Soft pedal: half blow, from the side", font.clone(), text_c);
+        p.line_segment([at(24.0, 217.0), at(170.0, 217.0)], line(1.5, ink));
+        p.add(ellipse(at(84.0, 236.0), 6.0 * k, 8.0 * k, Color32::TRANSPARENT, line(1.0, weak)));
+        let up = (60.0 * blow as f32).clamp(0.0, 12.0);
+        p.add(ellipse(at(112.0, 236.0 - up), 6.0 * k, 8.0 * k, fill, Stroke::NONE));
+        arrow(p, at(94.0, 240.0), at(104.0, 240.0 - up), line(1.0, weak));
+    }
+    if lit {
+        let mut effects = Vec::new();
+        if shift > 0.0 {
+            effects.push(format!("softer felt by {:.0} %", 100.0 * model.una_corda_softening * shift as f64));
+        }
+        if blow > 0.0 {
+            effects.push(format!("hammer {:.0} % slower", 100.0 * blow));
+        }
+        let text = if effects.is_empty() { "no effect".to_string() } else { effects.join(", ") };
+        p.text(at(126.0, 238.0), Align2::LEFT_CENTER, text, font.clone(), ink);
+    }
+}
+
 /// Top-felt depth (mm) shown for a parameter, and the key it is at.
 fn felt_depth(model: &PianoModel, path: &str) -> (f64, &'static str) {
     match path {
@@ -1011,6 +1081,9 @@ mod tests {
         assert!(locate("soundboard.mics[0][1]").is_none() && locate("soundboard.lid_angle").is_none());
         assert_eq!(locate("rim.top"), Some((Sketch::Plan, &[Part::RimSection][..])));
         assert_eq!(locate("room.size[2]"), Some((Sketch::Room, &[Part::RoomSize][..])));
+        assert_eq!(locate("half_blow"), Some((Sketch::Action, &[Part::UnaCorda][..])));
+        assert_eq!(locate("una_corda_shift"), Some((Sketch::Action, &[Part::UnaCorda][..])));
+        assert_eq!(locate("soundboard.wall_distance"), Some((Sketch::Plan, &[Part::Wall][..])));
         // Every key-number parameter lit on the keyboard has its range.
         let m = PianoModel::default();
         for p in reg.params().iter().filter(|p| parts_of(&p.path).contains(&Part::Keys)) {
@@ -1028,6 +1101,7 @@ mod tests {
             Part::KeybedKnock,
             Part::DamperLanding,
             Part::PedalKnock,
+            Part::MuteFelt,
             Part::Strike,
             Part::DamperPoint,
             Part::Length,
@@ -1047,6 +1121,7 @@ mod tests {
             Part::BridgeSpread,
             Part::Piston,
             Part::BackFace,
+            Part::Wall,
             Part::Frame,
             Part::Agraffes,
             Part::Rim,
