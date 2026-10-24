@@ -241,8 +241,12 @@ impl SoundboardParams {
         piston_mass: 6.0,
         // The case moving as a block barely radiates (the board's two faces
         // and the open bottom short-circuit it): 0.3 put the bass
-        // fundamentals 25–30 dB over the references below 40 Hz.
-        piston_radiation: 0.03,
+        // fundamentals 25–30 dB over the references below 40 Hz, and 0.03
+        // still left the fundamentals of C1–F#1, which drive this mode
+        // near its resonance, 7 dB over eight real grands at the attack
+        // (relative to the strongest partial; 3 dB with 0.003,
+        // docs/bass_decay.md).
+        piston_radiation: 0.003,
         // Set on the third-octave balance of the bass keys (commercial piano, Iowa,
         // Salamander, docs/bass_radiation.md): first mode 61 → 109 Hz.
         crown_freq: 90.0,

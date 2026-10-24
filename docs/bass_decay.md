@@ -71,4 +71,16 @@ Results:
 ## Still open
 
 - **Partial 2 of the middle** decays at −11.5 dB/s against −15.6. The mode loss helped it, the edge loss cannot.
-- **The low bass's fundamental is too strong at the attack.** A0 and C1 have partial 1 at −8 dB re the strongest partial, against −20 on the real grands.
+- **The low bass's fundamental in the sustain.** Relative to the strongest partial, the fundamentals of C1–F#1 sit 6–7 dB over the real grands' at 0.3–0.7 s: the plate modes still radiate them below their resonances.
+
+## The low bass's fundamental at the attack
+
+Partial 1 re the strongest of partials 1–8, first 0.1 s, ff. The real grands put the fundamentals of A0–F#1 at −32 to −47 dB (median of eight), the model C1–F#1 at about −25. These fundamentals (32–46 Hz) fall on the piston mode (40 Hz), which radiated 3 % of a bare board. When the whole case moves, the air pushed above returns below, so that radiation should be nearly nil.
+
+| piston_radiation | 0.03 | 0.01 | 0.003 | 0 |
+|---|---|---|---|---|
+| gap at the attack, A0–D#2, median (dB) | +5.5 | +3.0 | +2.0 | +1.5 |
+| C1–F#1 | +6.7 | +4.3 | +3.3 | +2.9 |
+| gap at 0.3–0.7 s, C1–F#1 | +10.2 | +7.7 | +6.7 | +6.2 |
+
+The default is 0.003. The bench stays at 1.52, its bass at 0.70 (0.74). The mode still absorbs as before: its radiation does not touch the strings' decay.

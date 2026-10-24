@@ -101,7 +101,7 @@ f_max = 20000.0
 piston_freq = 40.0
 piston_loss = 0.7
 piston_mass = 6.0
-piston_radiation = 0.03
+piston_radiation = 0.003
 crown_freq = 90.0
 treble_bridge = [
     [
