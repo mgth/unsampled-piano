@@ -24,7 +24,7 @@ The model had it 20 dB lower: its only knock was the key bottoming on the keybed
 - **The strikes:** each key strikes the bank with its own fixed amplitudes (±4 dB per resonance, random signs). It does so `noise.action_delay` (8 ms) after the hammer reaches the string, with a peak pressure of `noise.action` (0.05 Pa) per m/s of hammer speed at the microphones.
 - **The spectrum:** flat to 500 Hz, +6 dB at 1–1.5 kHz, falling at 36 dB per octave above.
 - **The decay:** T60 `noise.action_time` (0.2 s) at 500 Hz, shorter above as (500/f)^0.3.
-- **The microphones:** the left one hears the bass keys louder, the right one the treble keys. The signal joins the board's at the microphones, before the room.
+- **The microphones:** each key's knock is louder on the side where its strings are heard: the treble on the left, the bass on the right. The signal joins the board's at the microphones, before the room.
 - **The onset:** a strike is spread over a 0.6 ms Hann pulse; a one-sample impulse clicked.
 
 Below the top keys' fundamentals, at ff, the model now has −25/−25/−27/−20/−21 dB in the 125/250/500/1000/2000 Hz octaves. The real median is −26/−26/−26/−19/−20 (before: −56/−52/−44/−38/−42).
