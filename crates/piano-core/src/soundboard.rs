@@ -90,7 +90,9 @@ pub struct SoundboardParams {
     /// 100–200 Hz over Salamander, "a barrel"); a slightly negative one
     /// (stiffer bass side, ×2.2 at A0) keeps the bass sustain once the
     /// crown has packed the low modes between 150 and 300 Hz
-    /// (docs/bass_radiation.md).
+    /// (docs/bass_radiation.md). 0: the stiffer bass side left the bass's
+    /// attack 7.6 dB under the middle's, against 3.8 on eight real grands
+    /// (4.7 now, docs/bass_decay.md).
     pub impedance_slope_bass: f64,
     /// Highest mode kept (Hz).
     pub f_max: f64,
@@ -229,7 +231,7 @@ impl SoundboardParams {
         // strings lose their prompt sound faster into the bridge (bench
         // 1.53 → 1.51 with the top losses lowered, docs/top_treble.md).
         impedance_slope: 0.02,
-        impedance_slope_bass: -0.03,
+        impedance_slope_bass: 0.0,
         f_max: 20_000.0,
         // A broad mode near 40 Hz (docs/bass.md). Mass set on the late
         // sustain of the bass (docs/long_sustain.md): with 1.5 kg it took

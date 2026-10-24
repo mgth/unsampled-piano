@@ -73,7 +73,10 @@ pub struct LossLaw {
     /// Added to b1 below `wound_until` (wound strings: friction of the
     /// copper winding), fading out over the octave above it. 0.2 s⁻¹ puts
     /// the bass decay envelopes within 1 dB of Salamander (docs/sustain.md),
-    /// of the order of its ESPRIT aftersound rates there (0.15–0.18).
+    /// of the order of its ESPRIT aftersound rates there (0.15–0.18). 0
+    /// since the bass side of the board is as mobile as the rest: the
+    /// board takes that loss, and the bass sounds as loud as on the real
+    /// grands against the middle (docs/bass_decay.md).
     pub b1_floor: f64,
     pub wound_until: u8,
     /// Steeper growth of b1 above `top_from`: b1 × e^{top_slope·(key −
@@ -105,7 +108,7 @@ impl LossLaw {
     /// strings keep, −11 to −21 dB/s at C7 after the first 0.4 s on four
     /// real grands (docs/top_treble.md).
     pub const SALAMANDER_STRING: Self =
-        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.2, wound_until: 48, top_slope: 0.0, top_from: 84 };
+        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84 };
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
         let wound = ((self.wound_until as f64 + 12.0 - note as f64) / 12.0).clamp(0.0, 1.0);

@@ -68,6 +68,20 @@ Results:
 - **Bench**: 1.52 as before; the middle improves (RMS z 0.83 → 0.77) and the bass gets a little worse (0.70 → 0.74). The bass's broadband level at 2–3 s, mf and pp, falls 1 z lower, its 2 kHz attack band too, and its mf centroid improves.
 - **Liang's pieces**: the middle's partials 1–2 decay at −10.0 dB/s (recording −12.0; −15.1 with the mode loss), the bass's at −5.9 (−7.2; −6.9 with the 60 Hz piston).
 
+## The bass's level
+
+The register balance (`balance`, docs/top_level.md) put the bass's attack 7.6 dB under the middle's at ff, against 3.8 on eight real grands; in the lowest octave the deficit lay at 250 Hz–2 kHz. The bass side of the board was stiffer (`impedance_slope_bass` −0.03, ×2.2 at A0), so the bass strings drove it less.
+
+With `impedance_slope_bass` 0 the bass comes to −4.7 dB, but its strings lose more into the board: the bass's broadband envelopes at 1–3 s fell up to 2 z too fast (decay family 1.02 → 1.27). The board now takes the wound strings' extra loss: `losses.b1_floor` 0.2 → 0. The edge loss stays; without it partial 2 decayed at −3.5 dB/s against −7.2.
+
+| | balance bass ff | bass p1 / p2 / p3 (dB/s) | bench |
+|---|---|---|---|
+| real grands | −3.8 | −5.4 / −7.2 / −7.0 | |
+| before | −7.6 | −6.0 / −6.2 / −7.6 | 1.10 |
+| impedance_slope_bass 0, b1_floor 0 | −4.7 | −6.5 / −5.5 / −7.2 | 1.10 |
+
+Besides the balance (z −1.9 → −0.4), the bass's envelopes at 1 s move by −0.8 z (−0.3 to −0.5 → −1.1 to −1.3). Chosen after an A/B listen.
+
 ## Still open
 
 - **Partial 2 of the middle** decays at −11.5 dB/s against −15.6. The mode loss helped it, the edge loss cannot.
