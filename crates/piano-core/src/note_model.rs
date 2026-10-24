@@ -16,8 +16,9 @@ pub struct PhysOsc {
     pub k: u32,
     pub freq: f64,
     pub sigma: f64,
-    /// Share of the hammer force it receives.
+    /// Share of the hammer force it receives: hit·(1 + spread·uneven).
     pub hit: f64,
+    pub uneven: f64,
 }
 
 pub struct NoteModel {
@@ -38,6 +39,7 @@ pub struct NoteModel {
     /// Bridge region feeding / feeding back to this key.
     pub region: usize,
     pub has_damper: bool,
+    pub unison: crate::params::UnisonLaw,
     /// Modes run by a string that only listens (partials < max_freq).
     pub n_listen: usize,
     /// Geometric nonlinearity (phantom partials), when enabled for the key.
@@ -142,7 +144,7 @@ impl NoteModel {
         let n_osc = if pol.enabled { 2 * ns } else { ns };
         let nyq = 0.45 * sample_rate;
         let tau = std::f64::consts::TAU;
-        let hits = model.unison.hits(note);
+        let pattern = model.unison.pattern(note);
         let f0v: Vec<f64> = (0..ns).map(|j| np.f0 * 2f64.powf(np.detune[j] / 1200.0)).collect();
         let f0h: Vec<f64> = f0v.iter().map(|f| f * 2f64.powf(pol.detune_cents / 1200.0)).collect();
         let (mut clusters, mut phys, mut modes) = (Vec::new(), Vec::new(), Vec::new());
@@ -165,12 +167,12 @@ impl NoteModel {
             };
             let mut wout = [0.0; MAX_OSC];
             for j in 0..ns {
-                phys.push(PhysOsc { k, freq: fv[j], sigma: -dv[j].re, hit: hits[j] });
+                phys.push(PhysOsc { k, freq: fv[j], sigma: -dv[j].re, hit: 1.0, uneven: pattern[j] });
                 wout[j] = 1.0;
             }
             if pol.enabled {
                 for j in 0..ns {
-                    phys.push(PhysOsc { k, freq: fh[j], sigma: -dv[j].re, hit: pol.hammer_tilt * hits[j] });
+                    phys.push(PhysOsc { k, freq: fh[j], sigma: -dv[j].re, hit: pol.hammer_tilt, uneven: pattern[j] });
                     wout[ns + j] = pol.radiation;
                 }
             }
@@ -189,6 +191,15 @@ impl NoteModel {
             let damp_w = if has_damper { model.damper.shape(k, np.length) } else { 0.0 };
             for m in 0..n_osc {
                 let u = cl.output_weight(m, &wout).scale(wk);
+                // The felt rests on the strings: it brakes the vertical
+                // polarisation fully, the sideways one by friction only.
+                // First order in the damping: Σ_j w_j·V_jm² (Vᵀ·V = I).
+                let mut pw = C64::ZERO;
+                for j in 0..n_osc {
+                    pw += (cl.v[j][m] * cl.v[j][m]).scale(if j < ns { 1.0 } else { model.damper.horizontal });
+                }
+                let lo = model.damper.horizontal.min(1.0);
+                let damp_w = damp_w * pw.re.clamp(lo, lo.max(1.0));
                 // Own contribution at this coupled mode's exact frequency (the
                 // bridge stiffness shifts treble modes by several Hz).
                 // Rendered path: velocity transfer, then (v[n] − v[n−1])·fs.
@@ -248,6 +259,7 @@ impl NoteModel {
             modes,
             region,
             has_damper,
+            unison: model.unison,
             n_listen,
             longitudinal,
             table,

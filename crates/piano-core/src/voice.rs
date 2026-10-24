@@ -171,6 +171,7 @@ impl Voice {
             np.hammer.alpha *= MUTE_HYSTERESIS;
             np.hammer.core_depth += 1e-3 * mute;
         }
+        let spread = nm.unison.spread_at(v);
         let bank = &self.bank;
         let modes = nm.clusters.iter().enumerate().flat_map(move |(ki, cl)| {
             let mut c = [C64::ZERO; MAX_OSC];
@@ -181,7 +182,8 @@ impl Voice {
             let zeta = cl.to_strings(&c);
             (0..n).map(move |j| {
                 let p = nm.phys[ki * n + j];
-                let hit = if j % ns == 0 { p.hit * (1.0 - shift) } else { p.hit };
+                let hit = p.hit * (1.0 + spread * p.uneven);
+                let hit = if j % ns == 0 { hit * (1.0 - shift) } else { hit };
                 PhysMode { k: p.k, freq: p.freq, sigma: p.sigma, state: zeta[j], hit }
             })
         });

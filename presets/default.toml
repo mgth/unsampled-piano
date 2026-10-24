@@ -64,6 +64,8 @@ trichord_from = 45
 width_mid = 1.0
 width_treble = 5.0
 hit_spread = 0.2
+soft_exponent = 1.0
+soft_speed = 2.75
 
 [bridge]
 g_1k = 0.00046
@@ -181,13 +183,14 @@ lid_transmission = 0.1
 position = 0.14
 width = 0.02
 node_floor = 0.15
-strength = 1.0
-contact_exponent = 2.5
+strength = 0.1
+contact_exponent = 1.5
+horizontal = 0.03
 highest_note = 86
 pedal_free = 0.3
 pedal_contact = 0.6
-pedal_curve = 1.5
-fall_time = 0.012
+pedal_curve = 1.2
+fall_time = 0.015
 lift_time = 0.005
 
 [sympathetic]

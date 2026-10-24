@@ -130,6 +130,14 @@ pub struct UnisonLaw {
     /// string receives (0 = equal). The uneven part directly excites the
     /// slow out-of-phase modes, i.e. the aftersound.
     pub hit_spread: f64,
+    /// The spread grows as the hammer slows, hit_spread·(soft_speed/v)^soft_exponent
+    /// (capped at 1; exponent 0 keeps it constant): a light blow meets the
+    /// strings with the felt's surface only, unevenly. On eight real grands
+    /// the upper partials of the middle decay at about −20 dB/s over the
+    /// first 0.3 s at pp and −30 at ff; the model's decay did not depend on
+    /// the velocity (docs/release.md).
+    pub soft_exponent: f64,
+    pub soft_speed: f64,
 }
 
 impl UnisonLaw {
@@ -140,7 +148,7 @@ impl UnisonLaw {
     /// Salamander (docs/long_sustain.md; 0.35 cent left it 10 dB too weak
     /// and the notes died after 1 s); hit spread ±20 % set on the
     /// aftersound level of the treble (docs/sustain.md).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2 };
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2, soft_exponent: 1.0, soft_speed: 2.75 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 
@@ -173,21 +181,33 @@ impl UnisonLaw {
     /// Share of the hammer force each string receives (mean 1),
     /// deterministic but irregular per key and independent of the detuning.
     pub fn hits(&self, note: u8) -> [f64; 3] {
+        self.pattern(note).map(|d| 1.0 + self.hit_spread * d)
+    }
+
+    /// Uneven part of [`Self::hits`] per unit spread: zero mean, extreme ±1.
+    pub fn pattern(&self, note: u8) -> [f64; 3] {
         let g = ((note as f64 * 78.233).sin() * 12_345.678_9).rem_euclid(1.0);
-        let s = self.hit_spread;
         match self.strings(note) {
-            1 => [1.0, 1.0, 1.0],
+            1 => [0.0; 3],
             2 => {
                 let d = if g < 0.5 { -1.0 } else { 1.0 } * (0.5 + g.min(1.0 - g));
-                [1.0 + s * d, 1.0 - s * d, 1.0]
+                [d, -d, 0.0]
             }
             _ => {
-                // Zero-mean pattern with unit extreme, rotated by key.
+                // Rotated by key.
                 let base = [1.0, -0.5 + (g - 0.5), -0.5 - (g - 0.5)];
                 let r = (g * 3.0) as usize % 3;
-                [1.0 + s * base[r], 1.0 + s * base[(r + 1) % 3], 1.0 + s * base[(r + 2) % 3]]
+                [base[r], base[(r + 1) % 3], base[(r + 2) % 3]]
             }
         }
+    }
+
+    /// Spread of the hammer force at hammer speed `v` (m/s).
+    pub fn spread_at(&self, v: f64) -> f64 {
+        if self.soft_exponent == 0.0 {
+            return self.hit_spread;
+        }
+        (self.hit_spread * (self.soft_speed / v.max(1e-3)).powf(self.soft_exponent)).min(1.0)
     }
 }
 
@@ -269,12 +289,22 @@ pub struct DamperLaw {
     /// the bass (docs/release_ring.md).
     pub node_floor: f64,
     /// c_max / (2·Z0): 1 is the impedance-matched, most absorbing felt.
+    /// 0.1: a released note loses 15–30 dB in its first 0.25 s, as on a
+    /// Disklavier grand; at 1 the dampers stopped notes 2–4 times too fast
+    /// and left holes in pedalled passages (docs/release.md).
     pub strength: f64,
     /// Felt nonlinearity: the dashpot grows as contact^exponent (felt
     /// compression, as Stulov's p for hammers). With 1, a damper barely
     /// touching already absorbed 89 % of the full rate at half contact:
-    /// no real half pedal, and an abrupt stop as the damper lands.
+    /// no real half pedal, and an abrupt stop as the damper lands. 1.5
+    /// with the softer felt: a released note starts losing within 30 ms, as
+    /// on a Disklavier grand (docs/release.md).
     pub contact_exponent: f64,
+    /// Share of the rate the horizontal polarisation gets: the felt rests
+    /// on the strings and brakes their sideways motion by friction only.
+    /// A released note keeps a slow tail 25–40 dB down, as on a Disklavier
+    /// grand (docs/release.md).
+    pub horizontal: f64,
     /// Highest key with a damper: D6 (86), the top 22 keys ring freely. In
     /// the sustain of the top notes, real grands have lines at 0.7–1.4 kHz,
     /// the undamped strings answering sympathetically; with F#6 (90), set
@@ -303,18 +333,20 @@ impl DamperLaw {
         // bass (7 at A0–C3) die 23–45 dB down within 1.3 s of the release,
         // as on a commercial modelled piano (−25 to −39 dB).
         node_floor: 0.15,
-        strength: 1.0,
-        contact_exponent: 2.5,
+        strength: 0.1,
+        contact_exponent: 1.5,
+        horizontal: 0.03,
         highest_note: 86,
         // Dampers resting up to CC64 ≈ 38, off the strings from ≈ 76: on a
         // Disklavier grand (Liang's pedalling dataset, tools/pedal_bench.py)
         // CC64 = 64 is still a half pedal, a released note losing 7–28 dB
         // more in its first second than with the pedal down (bass to
-        // treble; the model 10–25 dB), and 96 is a full pedal.
+        // treble; the model 10–25 dB), and 96 is a full pedal. Curve 1.2
+        // with the softer felt (docs/release.md).
         pedal_free: 0.3,
         pedal_contact: 0.6,
-        pedal_curve: 1.5,
-        fall_time: 0.012,
+        pedal_curve: 1.2,
+        fall_time: 0.015,
         lift_time: 0.005,
     };
 

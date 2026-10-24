@@ -321,6 +321,15 @@ const HELP: &[(&str, &str, &str)] = &[
          rotated per key. Set on the aftersound level of the treble (docs/sustain.md).",
     ),
     (
+        "unison.soft_exponent",
+        "A soft blow touches the strings of a key less evenly than a hard one, so soft notes \
+         keep their upper partials longer. 0: the same unevenness at every speed.",
+        "Spread = hit_spread·(soft_speed/v)^exponent, capped at 1 (v: hammer speed). Set on the \
+         early decay of the middle's upper partials at pp and ff on eight real grands \
+         (docs/release.md).",
+    ),
+    ("unison.soft_speed", "Hammer speed at which the unevenness is `hit_spread`; slower blows are more uneven.", "Reference speed (m/s) of the soft-blow law."),
+    (
         "bridge.g_1k",
         "How easily the strings move the bridge, when no soundboard is modelled. More mobility: \
          louder but shorter notes.",
@@ -582,7 +591,15 @@ const HELP: &[(&str, &str, &str)] = &[
         "How firmly the dampers stop the strings. Too soft and notes linger after release; too \
          hard and the felt bounces the vibration back instead of absorbing it.",
         "c/(2·Z0), Z0 = √(T·μ): σ_k = c/(μL)·S_k·(2Z0/(c + 2Z0))². 1 matches the string's \
-         impedance (most absorbing). S_k: mean of sin²(kπx/L) over the pad.",
+         impedance (most absorbing). S_k: mean of sin²(kπx/L) over the pad. 0.1 set on the \
+         release of a Disklavier grand's notes (docs/release.md).",
+    ),
+    (
+        "damper.horizontal",
+        "The felt rests on top of the strings: it stops their up-and-down motion but only \
+         rubs against the sideways one, which leaves a faint tail after the release.",
+        "Share of the damper rate the horizontal polarisation gets (first order in each coupled \
+         mode: Σ_j w_j·V_jm²).",
     ),
     (
         "damper.contact_exponent",
