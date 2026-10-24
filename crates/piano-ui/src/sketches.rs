@@ -132,6 +132,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("damper.position", &[DamperPoint]),
         ("damper.width", &[DamperPoint]),
         ("damper.node_floor", &[DamperPoint]),
+        ("damper.horizontal", &[DamperPoint, Polarization]),
         ("damper.highest_note", &[DamperPoint, Keys]),
         ("scale.break_note", &[Length, Keys]),
         ("scale.", &[Length]),
@@ -1272,6 +1273,7 @@ mod tests {
         assert_eq!(locate("damper.pedal_free"), Some((Sketch::Action, &[Part::SustainPedal][..])));
         assert_eq!(locate("damper.fall_time"), Some((Sketch::Action, &[Part::Damper][..])));
         assert_eq!(locate("damper.position"), Some((Sketch::String, &[Part::DamperPoint][..])));
+        assert_eq!(locate("damper.horizontal"), Some((Sketch::String, &[Part::DamperPoint, Part::Polarization][..])));
         assert_eq!(locate("unison.bichord_from"), Some((Sketch::String, &[Part::Unison, Part::Keys][..])));
         assert_eq!(parts_of("core_depth_mid"), &[Part::Core]);
         assert_eq!(parts_of("hardness_slope_bass"), &[Part::Felt]);
