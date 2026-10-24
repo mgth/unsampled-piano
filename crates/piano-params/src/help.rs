@@ -433,7 +433,7 @@ const HELP: &[(&str, &str, &str)] = &[
          (docs/bass.md).",
     ),
     ("soundboard.piston_loss", "Damping of that whole-case motion.", "Loss factor of the piston mode."),
-    ("soundboard.piston_mass", "Mass moving in that whole-case motion. Lighter: it takes more energy from the bass notes.", "Effective mass (kg); set on the late sustain of the bass (docs/long_sustain.md)."),
+    ("soundboard.piston_mass", "Mass moving in that whole-case motion. Lighter: it takes more energy from the bass notes.", "Effective mass (kg); 3 kg at 60 Hz set on the decay of the bass fundamentals (docs/bass_decay.md)."),
     (
         "soundboard.piston_radiation",
         "How much of the whole-case motion is heard (little: air pushed above is returned below).",

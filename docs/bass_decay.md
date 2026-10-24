@@ -41,7 +41,24 @@ The bench score stays at 1.52 (1.51). It does not measure these decays directly:
 
 In Liang's recorded pieces (Disklavier grand), partials 1–2 of the bass decay at −5.1 dB/s (−3.9 before, recording −7.2), partials 3–6 at −7.3 (−6.1, recording −10.6).
 
+## Partial 1: the cabinet's piston mode
+
+Below the first clamped mode (109 Hz, raised there by the crown so that the bass fundamentals do not radiate too much, [bass_radiation.md](bass_radiation.md)), the bridge took almost nothing: the C2 fundamental lasted T60 ≈ 20 s, mostly on the string's own loss. A real piano's fundamentals lose energy there without radiating much. The board, rim and case move as a block on the case's compliance. The model has that path, a uniform "piston" mode that radiates 3 % of a bare board. But it sat at 40 Hz with 6 kg, too heavy to take much.
+
+Decay rates over 0.1–1.5 s at A0–A2 (median of eight keys, dB/s):
+
+| piston (Hz / loss / kg) | partial 1 | partial 2 | partial 3 | envelopes rms |
+|---|---|---|---|---|
+| real grands | −4.8 | −7.4 | −8.3 | — |
+| 40 / 0.7 / 6 (before) | −4.1 | −4.2 | −5.8 | 4.9 dB |
+| 40 / 0.7 / 3 | −5.4 | −4.5 | −5.9 | 4.7 |
+| 60 / 1.0 / 3 | −5.8 | −5.3 | −6.2 | 4.5 |
+| 60 / 1.0 / 1.5 | −9.0 | −6.7 | −6.8 | 5.5 |
+
+The default is 60 Hz, loss 1, 3 kg. The bench stays at 1.52, and the bass gets a little closer (RMS z 0.72 → 0.70). In Liang's pieces the bass's partials 1–2 decay at −6.9 dB/s, against −7.2 on the recording (−5.1 with the old piston). The 63–100 Hz bands lose 11–12 dB between 0.3 and 3 s at A0–A1, against 3–16 on the references. A mass of 1.5 kg at 40 Hz once took 37 dB there ([long_sustain.md](long_sustain.md)).
+
 ## Still open
 
-- **Partial 1 of the bass, and the whole low bass (A0–F#1).** They do not move with this loss: below 150 Hz the board has few modes where the partials fall, and the bridge takes almost nothing there. The model's C2 fundamental lasts T60 ≈ 20 s, of which the string's own loss is most. A real board's first modes (50–100 Hz, Conklin, Giordano) take more. The model's low board (crown, ribs, the lowest Warburton modes) is the next place to look.
-- The low bass's fundamental is also too strong at the attack: A0 and C1 have partial 1 at −8 dB re the strongest partial, against −20 on the real grands.
+- **Partials 2–3 of the low bass (A0–F#1)** still decay at −5 to −6 dB/s against −7 to −8.
+- **Partial 1 of the middle (C3–D#4)** decays too fast on the isolated notes: −22 dB/s with the low-frequency loss, against −12 on the real grands. It was −15 without it, already too fast. Liang's pieces put the middle's partials 1–2 at −15.1 dB/s against −12.0 on the recording. The loss acts on the board's low modes whichever bridge drives them. On a real board, the bass bridge sits near the rim and the main bridge in the board's middle, so a loss tied to the edge would spare the middle.
+- **The low bass's fundamental is too strong at the attack.** A0 and C1 have partial 1 at −8 dB re the strongest partial, against −20 on the real grands.

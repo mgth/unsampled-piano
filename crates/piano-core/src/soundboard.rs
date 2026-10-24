@@ -216,12 +216,17 @@ impl SoundboardParams {
         impedance_slope: 0.02,
         impedance_slope_bass: -0.03,
         f_max: 20_000.0,
-        // A broad mode near 40 Hz (docs/bass.md). Mass set on the late
-        // sustain of the bass (docs/long_sustain.md): with 1.5 kg it took
-        // 37 dB from the 63 Hz band between 0.3 and 3 s (references 6–21).
-        piston_freq: 40.0,
-        piston_loss: 0.7,
-        piston_mass: 6.0,
+        // A broad mode near 60 Hz (docs/bass.md, docs/bass_decay.md): the
+        // bass fundamentals lose into it what a real board's low modes take
+        // without radiating it. Fitted on the decay of partial 1 at A0–A2
+        // over the first 1.5 s, −5.5 dB/s against −4.8 on eight real grands
+        // (−4.1 with 6 kg at 40 Hz), and on Liang's pieces (bass partials
+        // 1–2: −6.9 dB/s, recording −7.2, −5.1 before). The 63–100 Hz bands
+        // still lose 11–12 dB between 0.3 and 3 s (references 3–16); 1.5 kg
+        // at 40 Hz took 37 dB (docs/long_sustain.md).
+        piston_freq: 60.0,
+        piston_loss: 1.0,
+        piston_mass: 3.0,
         // The case moving as a block barely radiates (the board's two faces
         // and the open bottom short-circuit it): 0.3 put the bass
         // fundamentals 25–30 dB over the references below 40 Hz.
