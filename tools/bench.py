@@ -42,6 +42,14 @@ HOLD = 20.0
 LISTENING = [os.path.join(ROOT, "presets", "listening", "Microphones", "close.toml"),
              os.path.join(ROOT, "presets", "listening", "Room", "studio.toml")]
 
+# The notes the references hold were played back by their instruments (the
+# Disklavier's scale, BiVib's measured velocities): the model plays them on
+# that scale, not on its default (a pianist's fingers).
+PLAYBACK = os.path.join(ROOT, "presets", "touch", "disklavier_playback.toml")
+
+def playback_args():
+    return ["--listening", PLAYBACK]
+
 def listening_args(files=None):
     """Renderer options for the listening presets (default: LISTENING;
     ["none"]: the engine's own)."""
@@ -280,7 +288,7 @@ def render(out, preset, listening=None):
         m, l, v = j
         cmd = [exe, "note", "--note", str(m), "--velocity", str(v), "--hold", str(HOLD), "--tail", "0.5"]
         if preset: cmd += ["--preset", preset]
-        cmd += listening_args(listening)
+        cmd += listening_args(listening) + playback_args()
         subprocess.run(cmd + [os.path.join(out, f"{name(m)}v{l}.wav")], check=True, capture_output=True)
     with ThreadPoolExecutor(6) as ex: list(ex.map(one, jobs))
 

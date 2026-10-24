@@ -37,7 +37,7 @@ def render_notes(notes, pedal, out, preset, jobs=6, listening=None):
         if before: ped.insert(0, (0.0, before[-1]))
         mid, wav = os.path.join(out, f"{i}.mid"), os.path.join(out, f"{i}.wav")
         midifile.write(mid, [(m, v, 1.0, off - t0)], ped)
-        cmd = [exe, "midi", mid, wav, "--tail", "4"] + (["--preset", preset] if preset else []) + bench.listening_args(listening)
+        cmd = [exe, "midi", mid, wav, "--tail", "4"] + (["--preset", preset] if preset else []) + bench.listening_args(listening) + bench.playback_args()
         tasks.append(cmd)
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(jobs) as ex:

@@ -1,0 +1,11 @@
+# Touch for MIDI a reproducing piano plays back (Disklavier files made by
+# hand or by a program, sample sets recorded at set velocities): the scale
+# fitted on BiVib's ten velocities and Liang's isolated notes
+# (tools/velocity_fit.py, docs/bench.md). The default follows a pianist's
+# fingers instead (recorded performances, keyboards). Applied over an
+# instrument as a listening preset is
+# (unsampled-piano-render --listening presets/touch/disklavier_playback.toml).
+[velocity]
+vmin = 0.26
+vmax = 4.4
+curve = 0.75

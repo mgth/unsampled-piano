@@ -603,7 +603,14 @@ impl NoteParams {
 /// third key, against 3.5). The two pianos differ by 20–25 % in their
 /// mid-range slope, the fit sits between them. The speed at velocity 100
 /// (2.8 m/s), where the felt and the brightness were set (docs/
-/// brightness.md), is kept.
+/// brightness.md), is kept: [`VelocityLaw::PLAYBACK`].
+///
+/// The default follows instead the velocities a pianist's fingers produce
+/// (what a keyboard sends, what a Disklavier records): within recorded
+/// performances an onset gains 1.4–1.6 times as much per velocity step as
+/// on the played-back scale. Fitted on Liang's and MAESTRO's performances
+/// with velocity 60 kept at the played-back law's speed (tools/
+/// velocity_fit_pieces.py, docs/bench.md).
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct VelocityLaw {
@@ -613,7 +620,9 @@ pub struct VelocityLaw {
 }
 
 impl VelocityLaw {
-    pub const DEFAULT: Self = Self { vmin: 0.26, vmax: 4.4, curve: 0.75 };
+    pub const DEFAULT: Self = Self { vmin: 0.205, vmax: 5.6, curve: 0.78 };
+    /// The scale a Disklavier plays back (BiVib's and Liang's isolated notes).
+    pub const PLAYBACK: Self = Self { vmin: 0.26, vmax: 4.4, curve: 0.75 };
     /// Fit of the Salamander layers (sampler velocity ranges), 1.4 dB rms.
     pub const SALAMANDER_LAYERS: Self = Self { vmin: 0.4, vmax: 4.0, curve: 1.0 };
 

@@ -1,12 +1,11 @@
-# Touch for MIDI recorded from a pianist on a reproducing piano (Disklavier
-# performances: MAESTRO, competition and concert files). The velocities such
-# an instrument records under the fingers rise faster in sound than the
-# scale it plays back, which the default law follows (tools/velocity_fit.py):
-# within Liang's and MAESTRO's performances the level of an onset gains
-# 1.4–1.6 times as much per velocity step as the model's. Fitted on those
-# performances with velocity 60 kept where it is (tools/velocity_fit_pieces.py,
-# docs/bench.md). Applied over an instrument as a listening preset is
-# (unsampled-piano-render --listening presets/touch/recorded_performances.toml).
+# Touch for MIDI recorded from a pianist (Disklavier performances: MAESTRO,
+# competition and concert files; a keyboard played live): the default
+# velocity law since 2026-10-24, kept here to select it explicitly over an
+# instrument that sets another. Within Liang's and MAESTRO's performances
+# the level of an onset gains 1.4–1.6 times as much per velocity step as on
+# the scale a Disklavier plays back (presets/touch/disklavier_playback.toml).
+# Fitted on those performances with velocity 60 kept where it was
+# (tools/velocity_fit_pieces.py, docs/bench.md).
 [velocity]
 vmin = 0.205
 vmax = 5.6

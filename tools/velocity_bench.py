@@ -32,7 +32,7 @@ def main():
     def render(j):
         m, v = j; p = os.path.join(out, f"{b.name(m)}_{v}.wav")
         if not (a.reuse and os.path.exists(p)):
-            cmd = [exe, "note", "--note", str(m), "--velocity", str(v), "--hold", "2", "--tail", "0.2"] + (["--preset", a.preset] if a.preset else []) + b.listening_args(a.listening)
+            cmd = [exe, "note", "--note", str(m), "--velocity", str(v), "--hold", "2", "--tail", "0.2"] + (["--preset", a.preset] if a.preset else []) + b.listening_args(a.listening) + b.playback_args()
             subprocess.run(cmd + [p], check=True, capture_output=True)
         return p
     with ThreadPoolExecutor(6) as ex: paths = dict(zip(jobs, ex.map(render, jobs)))

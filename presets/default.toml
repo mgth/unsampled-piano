@@ -29,9 +29,9 @@ shank_loss = 0.1
 strike_ratio = 0.12
 
 [velocity]
-vmin = 0.26
-vmax = 4.4
-curve = 0.75
+vmin = 0.205
+vmax = 5.6
+curve = 0.78
 
 [inharmonicity]
 a_bass = -0.111714
