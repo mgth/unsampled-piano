@@ -140,10 +140,8 @@ pub struct UnisonLaw {
     pub soft_speed: f64,
     /// Height spread of a unison's strings under the hammer (m): a blow at
     /// v meets the lowest string up to height_spread/v after the highest,
-    /// which then rings that much later. 0.1 mm: 0.2 ms at pp, a phase lag
-    /// of radians at 2–3 kHz, which feeds the slow out-of-phase modes; on
-    /// eight real grands the middle's partials 5–12 at pp lose about
-    /// −20 dB/s over 0.1–0.3 s, the model −29 to −45 without it
+    /// which takes no force until then. 0.1 mm: 0.2 ms at pp, short against
+    /// a 2–3 ms contact, so the strings' partials barely part
     /// (docs/release.md).
     pub height_spread: f64,
 }

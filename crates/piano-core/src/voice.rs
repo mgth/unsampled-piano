@@ -42,8 +42,6 @@ pub struct Voice {
     /// Speed factor of the next damper landing (from release velocity or
     /// pedal speed), 1 at mid release velocity.
     pub damper_speed: f64,
-    /// Time the last blow took to cross the unison's height spread (s).
-    strike_dt: f64,
     /// Response to the hammer.
     pub bank: ModalBank,
     /// Response to the bridge motion from the other keys.
@@ -95,7 +93,6 @@ impl Voice {
             struck: false,
             engagement: 1.0,
             damper_speed: 1.0,
-            strike_dt: 0.0,
             bank: ModalBank::new(sample_rate, modes, max_block),
             sym: ModalBank::new(sample_rate, modes, max_block),
             contact: ContactSolver::new(modes, sample_rate),
@@ -175,7 +172,11 @@ impl Voice {
             np.hammer.core_depth += 1e-3 * mute;
         }
         let spread = nm.unison.spread_at(v);
-        self.strike_dt = nm.unison.height_spread / v.max(0.05);
+        // The strings of a unison do not lie at one height: the hammer meets
+        // each a little after the highest.
+        let h = nm.unison.heights(nm.note);
+        let dt_h = nm.unison.height_spread / v.max(0.05);
+        let lag: [f64; 3] = std::array::from_fn(|j| h[j] * dt_h);
         let bank = &self.bank;
         let modes = nm.clusters.iter().enumerate().flat_map(move |(ki, cl)| {
             let mut c = [C64::ZERO; MAX_OSC];
@@ -188,7 +189,7 @@ impl Voice {
                 let p = nm.phys[ki * n + j];
                 let hit = p.hit * (1.0 + spread * p.uneven);
                 let hit = if j % ns == 0 { hit * (1.0 - shift) } else { hit };
-                PhysMode { k: p.k, freq: p.freq, sigma: p.sigma, state: zeta[j], hit }
+                PhysMode { k: p.k, freq: p.freq, sigma: p.sigma, state: zeta[j], hit, delay: lag[j % ns] }
             })
         });
         self.contact.strike(&np, v, oversample, modes);
@@ -197,22 +198,9 @@ impl Voice {
     fn hand_over(&mut self, nm: &NoteModel) {
         self.nl_age = 0;
         let n = nm.n_osc;
-        let ns = nm.params.strings;
-        // The strings of a unison do not lie at one height: the hammer meets
-        // each a little later than the highest, and each then rings that
-        // much later (a phase lag growing with frequency). The contact solve
-        // strikes them together; the lag is applied as it hands over.
-        let h = nm.unison.heights(nm.note);
-        let lag: [f64; 3] = std::array::from_fn(|j| h[j] * self.strike_dt);
         for (ki, cl) in nm.clusters.iter().enumerate() {
-            let zeta: [C64; MAX_OSC] = std::array::from_fn(|j| {
-                if j < n {
-                    let w = std::f64::consts::TAU * nm.phys[ki * n + j].freq;
-                    self.contact.complex_state(ki * n + j) * C64::polar(1.0, -w * lag[j % ns])
-                } else {
-                    C64::ZERO
-                }
-            });
+            let zeta: [C64; MAX_OSC] =
+                std::array::from_fn(|j| if j < n { self.contact.complex_state(ki * n + j) } else { C64::ZERO });
             let c = cl.to_modes(&zeta);
             for (m, cm) in c.iter().enumerate().take(n) {
                 self.bank.set_state(ki * n + m, cm.re, cm.im);

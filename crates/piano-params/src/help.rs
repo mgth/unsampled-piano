@@ -331,10 +331,9 @@ const HELP: &[(&str, &str, &str)] = &[
     (
         "unison.height_spread",
         "The strings of a key never lie exactly level: a slow hammer reaches them one after the \
-         other, so they ring a little out of step and soft notes keep their upper partials longer.",
-        "Height spread (m) of a unison's strings; string j rings h_j·spread/v later (h_j in \
-         0…1, irregular per key), a phase lag applied as the contact ends. 0.1 mm set on the \
-         early decay of the middle's partials 5–12 at pp on eight real grands (docs/release.md).",
+         other.",
+        "Height spread (m) of a unison's strings: string j takes no hammer force until \
+         h_j·spread/v (h_j in 0…1, irregular per key, v the hammer speed) (docs/release.md).",
     ),
     ("unison.soft_speed", "Hammer speed at which the unevenness is `hit_spread`; slower blows are more uneven.", "Reference speed (m/s) of the soft-blow law."),
     (

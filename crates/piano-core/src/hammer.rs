@@ -41,6 +41,9 @@ pub struct PhysMode {
     pub state: C64,
     /// Fraction of the hammer seen by this string (1, or 0 when shifted away).
     pub hit: f64,
+    /// Time (s) after the start of the strike at which the hammer reaches
+    /// this string (a unison's strings do not lie at one height).
+    pub delay: f64,
 }
 
 /// Separation time after which the hammer is considered gone (re-contacts
@@ -112,6 +115,13 @@ pub struct ContactSolver {
     /// What the residual was computed for (a voice keeps its key: the sums
     /// are redone only when the instrument changes).
     residual_key: [f64; 8],
+    /// Strings the hammer has not reached yet: per mode, the step at which
+    /// it does (0: from the start), its weight φ and γ; and the next such
+    /// step (usize::MAX: none left).
+    gate: Vec<usize>,
+    gate_phi: Vec<f64>,
+    gate_gamma: Vec<f64>,
+    next_gate: usize,
     /// Contact force at the last two steps (N).
     f0: f64,
     f1: f64,
@@ -153,6 +163,10 @@ impl ContactSolver {
             r_bridge: 0.0,
             r_agraffe: 0.0,
             residual_key: [f64::NAN; 8],
+            gate: vec![0; max_modes],
+            gate_phi: vec![0.0; max_modes],
+            gate_gamma: vec![0.0; max_modes],
+            next_gate: usize::MAX,
             f0: 0.0,
             f1: 0.0,
             x0: 0.0,
@@ -235,6 +249,7 @@ impl ContactSolver {
         let share: f64 = modes.clone().take_while(|m| m.k == 1).map(|m| m.hit).sum::<f64>().max(1e-9);
         let shares2: f64 = modes.clone().take_while(|m| m.k == 1).map(|m| (m.hit / share).powi(2)).sum();
         let mut k_max = 0;
+        self.next_gate = usize::MAX;
         for m in modes.take(self.ps.len()) {
             let i = n;
             n += 1;
@@ -257,6 +272,18 @@ impl ContactSolver {
             ln.c[l] = r * cs;
             self.ps[i] = r * sn;
             ln.e[l] = r * r;
+            // A string the hammer reaches later takes no force until then;
+            // at rest, it joins without moving the felt (w unchanged).
+            let gate = (m.delay.max(0.0) / dt).round() as usize;
+            self.gate[i] = gate;
+            self.gate_phi[i] = phi;
+            self.gate_gamma[i] = gamma;
+            let phi = if gate > 0 {
+                self.next_gate = self.next_gate.min(gate);
+                0.0
+            } else {
+                phi
+            };
             ln.phi[l] = phi;
             ln.gphi[l] = gamma * phi;
             self.inv_gamma[i] = 1.0 / gamma;
@@ -381,7 +408,33 @@ impl ContactSolver {
         out.len()
     }
 
+    /// The hammer reaches the strings due at this step: their modes start
+    /// taking the force (the felt sees their displacement from now on).
+    fn open_gates(&mut self) {
+        let step = self.samples;
+        let mut next = usize::MAX;
+        for i in 0..self.n {
+            let g = self.gate[i];
+            if g == step {
+                let (ln, l) = (&mut self.lanes[i / CL], i % CL);
+                let (phi, gamma) = (self.gate_phi[i], self.gate_gamma[i]);
+                ln.phi[l] = phi;
+                ln.gphi[l] = gamma * phi;
+                self.lambda += phi * phi * gamma;
+                self.w0 += phi * ln.q0[l];
+                self.w1 += phi * ln.q1[l];
+                self.w_star += phi * ln.pred[l];
+            } else if g > step {
+                next = next.min(g);
+            }
+        }
+        self.next_gate = next;
+    }
+
     fn step(&mut self) -> (f64, f64) {
+        if self.samples == self.next_gate {
+            self.open_gates();
+        }
         let dt = self.dt;
         // String displacement under the hammer from the free predictions.
         let w_star = self.w_star;
@@ -522,6 +575,7 @@ mod tests {
                     sigma: sigma_scale * (1.0 + 1e-6 * f * f),
                     state: C64::ZERO,
                     hit: 1.0,
+                    delay: 0.0,
                 })
             })
             .collect();

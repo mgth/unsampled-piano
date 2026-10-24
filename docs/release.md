@@ -68,22 +68,24 @@ Over the first 0.3 s at pp, the middle's partials 5–12 still decayed at −29 
 
 The real envelopes at pp hold these partials at −5 to −15 dB for up to a second. The model's dropped to −30 dB within 0.5 s, the in-phase mode dying into a beat trough before the slow modes took over.
 
-A unison's strings never lie exactly level, so a slow hammer reaches them one after the other: 0.1 mm at 0.5 m/s is 0.2 ms, a lag of radians at 2–3 kHz. The strings then ring out of step, which feeds the slow out-of-phase modes; at ff the lag is a few tens of microseconds. New `unison.height_spread` (0.1 mm): string j of a key rings h_j·height_spread/v later (h_j between 0 and 1, irregular per key), applied as a phase rotation of each string's partials when the contact ends. The contact itself still strikes the strings together; the rotation keeps their energy.
+A unison's strings never lie exactly level, so a slow hammer reaches them one after the other: 0.1 mm at 0.5 m/s is 0.2 ms, a lag of radians at 2–3 kHz. `unison.height_spread` (0.1 mm) gives string j of a key the delay h_j·height_spread/v (h_j between 0 and 1, irregular per key).
 
-| height_spread | 0 | 0.05 mm | 0.1 mm | 0.2 mm |
+The first version rotated each string's partials by that lag when the contact ended, as if each string had its own hammer, struck that much later:
+
+| height_spread, rotation | 0 | 0.05 mm | 0.1 mm | 0.2 mm |
 |---|---|---|---|---|
 | bench score | 1.06 | 1.03 | 1.02 | 1.05 |
 | attack (z rms) | 1.04 | 0.93 | 0.85 | 0.87 |
 
-At 0.1 mm, early decay 0.1–0.3 s at pp, median over the middle's keys (dB/s):
+Early decay 0.1–0.3 s at pp, median over the middle's keys (dB/s):
 
 | partial | 5 | 7 | 9 | 10 | 12 |
 |---|---|---|---|---|---|
 | real grands | −19 | −19 | −19 | −20 | −22 |
 | before | −36 | −33 | −29 | −34 | −45 |
-| after | −19 | −21 | −23 | −28 | −29 |
+| rotation, 0.1 mm | −19 | −21 | −23 | −28 | −29 |
 
-At ff the decays barely move. The middle's and treble's 4–8 kHz share at mf falls by about 1 z: the strings' partials add less coherently at the bridge. On quick pedal changes in Liang's pieces, the 1.5–6 kHz dip goes from 8.2 to 8.7 dB (recording 6.8).
+The rotation made the bridge force jump the moment the contact ended: a click at every note, loudest at pp ("glitches" in the A/B). The strings now take part in the contact itself: string j takes no hammer force until its delay. At rest it joins without moving the felt, so the scheme stays continuous and passive. But one hammer drives every string with nearly the same force, and 0.2 ms is short against a 2–3 ms contact: the strings' partials barely part, and the early decays and the bench (1.06) are back to what they were without it. The rotation's gain came from independent, shifted force pulses, which a single felt does not give. A felt compressed by each string separately, each with its own force history, would be the physical model.
 
 Two other levers were tried:
 - **A tighter unison** (0.4–0.6 cent): it helps partials 5–8 but thins the slow modes, so the 2–3 s sustain falls by 0.5–1 z.
@@ -91,5 +93,6 @@ Two other levers were tried:
 
 ## Still open
 
+- **The middle's upper partials at pp**: partials 5–12 still decay at −29 to −45 dB/s over 0.1–0.3 s against about −20 on the real grands.
 - **The cut after the soft chord** (Liang, Chopin op. 10 no. 3, 22.3 s): the model's 1.5–6 kHz band still drops 16 dB within 0.35 s, the recording 5. The chord's E4 dominates it, and isolated it sits within the real grands at pp, on their fast side.
 - **The bass's quick pedal changes**: 80–300 Hz still dips 2 dB deeper than recorded.
