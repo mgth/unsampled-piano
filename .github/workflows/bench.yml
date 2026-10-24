@@ -41,7 +41,8 @@ jobs:
           case "$RUNNER_OS" in
             macOS) sysctl -n machdep.cpu.brand_string; sysctl -n hw.ncpu ;;
             Linux) lscpu | head -20 ;;
-            Windows) wmic cpu get name,numberofcores,numberoflogicalprocessors || true ;;
+            # wmic is gone from the current images.
+            Windows) powershell -NoProfile -Command "Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List" ;;
           esac
 
       # Bit identity across ISAs and thread counts, the real-time contract.

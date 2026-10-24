@@ -220,7 +220,7 @@ A struck string, once the hammer has left, only decays: its high partials die fi
 
 - **Precomputed tables and all listeners at once.** Setting up a string is a copy since the first round (1 µs). The listening strings are therefore all set up when the pedal goes down, instead of 8 per sub-block, which started some of them 15 ms late. This is more exact, and costs about 3 % of one buffer once.
 - **String banks with two inputs on AVX2.** They are written explicitly, two chunks per time loop, with the 16-lane type the soundboard uses (`simd.rs`), and give bit-identical results. The kernel was limited by the latency of the recursion (one chunk at a time: 13.4 cycles per chunk and sample). It is now limited by the multiplier's throughput: 0.152 → 0.137 ns per mode and sample (−10 %). Fusing the multiply-adds would gain more, but would break the bit identity across ISAs, which the project keeps.
-- **NEON.** On aarch64 (Apple Silicon, ARM Linux), the soundboard and the string banks run on an explicit NEON implementation of the same 16-lane type. Three soundboard outputs fit in a tile on its 32 registers, and the banks run two chunks per time loop. It compiles for aarch64 Linux and macOS, but it has not been run here. The `Bench` workflow ([`bench.yml`](../.github/workflows/bench.yml)) runs the engine's tests and `perf_audit` on a macOS ARM runner, an x86 Linux one and a Windows one. On aarch64, `Isa::Generic` is that NEON path.
+- **NEON.** On aarch64 (Apple Silicon, ARM Linux), the soundboard and the string banks run on an explicit NEON implementation of the same 16-lane type. Three soundboard outputs fit in a tile on its 32 registers, and the banks run two chunks per time loop. It runs on an Apple M1 in CI (below), not here. The `Bench` workflow ([`bench.yml`](../.github/workflows/bench.yml)) runs the engine's tests and `perf_audit` on a macOS ARM runner, an x86 Linux one and a Windows one. On aarch64, `Isa::Generic` is that NEON path.
 - **The build leaves the audio thread's core alone.** An instrument is rebuilt while the piano plays; the build used every hardware thread, including the audio thread's SMT sibling. It now uses half of them: 78 → 91 ms per build.
 - **Offline renderer.** `unsampled-piano-render --quality overkill` renders the reference.
 
@@ -254,6 +254,35 @@ Mean / p99.9 load, best of three runs alternating `main` and this branch on an i
 Since the start of the audit, the Chopin on one AVX-512 thread went from 24.5 % to 16.4 %, and from 85 % to 41 % without AVX. With four threads it is at 6.9 %. On AVX2 with two threads it is at 13.3 %.
 
 The renders of `main` and of this branch differ by −69 dB overall on the Chopin, −64 dB on the Bach and −51 dB on the Rachmaninoff. The worst windows are at −41, −36 and −32 dB. The two intended changes account for this: the re-strike fix and the listeners set up all at once. Dropping the partials alone stays under −49 dB.
+
+### On GitHub's runners
+
+The `Bench` workflow ([run of October 24](https://github.com/mgth/unsampled-piano/actions/runs/40083458954)) ran the engine's tests and `perf_audit` on three shared virtual machines. Every test passes on all three. On the Apple M1 that includes the bit-identity tests, so the NEON path gives the same output as the x86 ones. Shared runners are noisy: read the means to about 10 %, and not the worst buffers.
+
+Kernels, ns per mode and sample (string bank free / with two inputs; soundboard with 16 inputs and 18 outputs):
+
+| Runner | ISA | String bank | Soundboard |
+|---|---|---|---|
+| Apple M1 (virtual, 3 vCPUs) | NEON | 0.24 / 0.38–0.43 | 3.84 |
+| AMD EPYC 9V45, Zen 5 (4 vCPUs) | AVX-512 | 0.049 / 0.100 | 1.10 |
+| Windows (CPU not reported, see below) | AVX2 | 0.136 / 0.266 | 2.95 |
+| *Ryzen 9950X, here* | *AVX-512* | *0.039 / 0.078* | *0.95* |
+
+Mean load, whole keyboard ff with the pedal:
+
+| Runner | Full, 1 / 2 / 4 threads | Balanced, 1 thread | Light, 1 thread |
+|---|---|---|---|
+| Apple M1 (NEON) | 117 / 56 / 50 % | 73 % | 25 % |
+| EPYC Zen 5 (AVX-512) | 37 / 22 / 20 % | 32 % | 10 % |
+| Windows (AVX2) | 78 / 46 / 44 % | 67 % | 23 % |
+
+The 10-key ff chord, Full, on 1 / 2 / 4 threads: M1 66 / 46 / 33 %, EPYC 21 / 13 / 13 %, Windows 48 / 30 / 29 %.
+
+- **Apple M1, virtual.** Per clock cycle, NEON does a little better than the x86 path without AVX, but this machine is slow and shared. On one thread Full does not hold the heaviest scenarios; it needs 2 or 3 threads, or Light. A real Mac, and the newer M2 to M4, should do clearly better; nothing here measures them.
+- **EPYC.** As here. Four threads gain little over two: four vCPUs are probably two physical cores.
+- **Windows.** The profile of a small machine: Full wants two threads, and Light holds on one.
+
+There is no `main` baseline on these runners, as the workflow only exists on this branch. The Windows job printed no CPU name because `wmic` is gone from its image; the workflow now asks PowerShell (`Get-CimInstance`).
 
 ## Quality levels
 
