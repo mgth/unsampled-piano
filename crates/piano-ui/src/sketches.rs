@@ -57,6 +57,8 @@ pub enum Part {
     KeybedKnock,
     /// The damper landing on the ringing string.
     DamperLanding,
+    /// The action's own knock, heard directly.
+    ActionKnock,
     /// The damper tray knocking when the pedal moves.
     PedalKnock,
     // The string.
@@ -202,6 +204,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("damper.pedal_", &[SustainPedal]),
         ("damper.", &[Damper]),
         ("noise.keybed", &[KeybedKnock]),
+        ("noise.action", &[ActionKnock]),
         ("noise.damper_", &[DamperLanding]),
         ("noise.pedal", &[PedalKnock]),
         ("noise.knock_time", &[KeybedKnock, PedalKnock]),
@@ -399,6 +402,10 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
         knock(&p, at(36.0, keybed_y), 7.0 * k, lit(Part::KeybedKnock), weak);
         knock(&p, at(sx, 106.0), 7.0 * k, lit(Part::DamperLanding), weak);
         knock(&p, at(sx + 12.0, 126.0), 7.0 * k, lit(Part::PedalKnock), weak);
+        knock(&p, at(sx - 58.0, 122.0), 7.0 * k, lit(Part::ActionKnock), weak);
+        if lit(Part::ActionKnock) {
+            label(sx - 60.0, 92.0, Align2::RIGHT_CENTER, "The action's knock, heard directly", Some(Part::ActionKnock));
+        }
     } else {
         // Frame and string, from the agraffe towards the bridge.
         p.add(Shape::convex_polygon(vec![at(54.0, 18.0), at(66.0, 18.0), at(60.0, STRING_Y)], weak, Stroke::NONE));
@@ -513,6 +520,10 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
         knock(&p, at(36.0, KEYBED_Y), 7.0 * k, lit(Part::KeybedKnock), weak);
         knock(&p, at(DAMPER_X, STRING_Y), 7.0 * k, lit(Part::DamperLanding), weak);
         knock(&p, at(290.0, TRAY_Y + 2.0), 7.0 * k, lit(Part::PedalKnock), weak);
+        knock(&p, at(240.0, 100.0), 7.0 * k, lit(Part::ActionKnock), weak);
+        if lit(Part::ActionKnock) {
+            label(STRIKE_X + 20.0, 60.0, Align2::LEFT_CENTER, "Action knock (direct)", Some(Part::ActionKnock));
+        }
 
     }
 
@@ -1304,6 +1315,7 @@ mod tests {
             Part::KeybedKnock,
             Part::DamperLanding,
             Part::PedalKnock,
+            Part::ActionKnock,
             Part::MuteFelt,
             Part::Repetition,
             Part::Strike,
