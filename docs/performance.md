@@ -265,7 +265,7 @@ Kernels, ns per mode and sample (string bank free / with two inputs; soundboard 
 |---|---|---|---|
 | Apple M1 (virtual, 3 vCPUs) | NEON | 0.24 / 0.38–0.43 | 3.84 |
 | AMD EPYC 9V45, Zen 5 (4 vCPUs) | AVX-512 | 0.049 / 0.100 | 1.10 |
-| Windows (CPU not reported, see below) | AVX2 | 0.136 / 0.266 | 2.95 |
+| Windows, AMD EPYC 7763, Zen 3 (2 cores, 4 threads) | AVX2 | 0.136 / 0.266 | 2.95 |
 | *Ryzen 9950X, here* | *AVX-512* | *0.039 / 0.078* | *0.95* |
 
 Mean load, whole keyboard ff with the pedal:
@@ -274,15 +274,15 @@ Mean load, whole keyboard ff with the pedal:
 |---|---|---|---|
 | Apple M1 (NEON) | 117 / 56 / 50 % | 73 % | 25 % |
 | EPYC Zen 5 (AVX-512) | 37 / 22 / 20 % | 32 % | 10 % |
-| Windows (AVX2) | 78 / 46 / 44 % | 67 % | 23 % |
+| Windows, EPYC Zen 3 (AVX2) | 78 / 46 / 44 % | 67 % | 23 % |
 
 The 10-key ff chord, Full, on 1 / 2 / 4 threads: M1 66 / 46 / 33 %, EPYC 21 / 13 / 13 %, Windows 48 / 30 / 29 %.
 
 - **Apple M1, virtual.** Per clock cycle, NEON does a little better than the x86 path without AVX, but this machine is slow and shared. On one thread Full does not hold the heaviest scenarios; it needs 2 or 3 threads, or Light. A real Mac, and the newer M2 to M4, should do clearly better; nothing here measures them.
 - **EPYC.** As here. Four threads gain little over two: four vCPUs are probably two physical cores.
-- **Windows.** The profile of a small machine: Full wants two threads, and Light holds on one.
+- **Windows.** A Zen 3 server core shared by a virtual machine, without AVX-512: the profile of a small machine. Full wants two threads, and Light holds on one. Four threads gain nothing over two on its two cores.
 
-There is no `main` baseline on these runners, as the workflow only exists on this branch. The Windows job printed no CPU name because `wmic` is gone from its image; the workflow now asks PowerShell (`Get-CimInstance`).
+There is no `main` baseline on these runners, as the workflow only exists on this branch. The Windows job's CPU name comes from PowerShell (`Get-CimInstance`): `wmic` is gone from the current images.
 
 ## Quality levels
 
