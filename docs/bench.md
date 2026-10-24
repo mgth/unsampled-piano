@@ -129,3 +129,17 @@ The attack's brightening with velocity follows without being fitted: at velocity
 The top treble is steeper than the Disklavier at low velocities (−37 dB at velocity 12 against −30): its hammer, not the map.
 
 The recorded performances agree ([pieces.md](pieces.md)): within a piece, the level rises 2 to 3 times as fast with velocity on a Bösendorfer SE and on a Disklavier as on the model.
+
+### Recorded performances: a second touch
+
+On the notes a Disklavier plays back (BiVib, Liang's isolated notes) the model follows the level partial by partial (middle, re velocity 100: partial 1 −13.8 dB at velocity 23 against −13.9, −9.2 at 45 against −9.6). Within the performances a pianist recorded on Disklaviers (Liang's pieces, 30 MAESTRO performances), the onset level of partial 1 gains 1.4–1.6 times as much per velocity step as the model's on the same notes. Middle, re each performance's notes at velocity 50–70:
+
+| velocity | 30–44 | 75–89 | 90–104 |
+|---|---|---|---|
+| Liang, recording / model | −6.4 / −4.6 | +6.3 / +2.8 | +11.2 / +2.4 |
+| MAESTRO, recording / model | −7.7 / −5.1 | +5.5 / +3.7 | +9.5 / +5.6 |
+
+The velocity an instrument records under the fingers is a measurement, on another scale than the one it plays back. A single law cannot follow both, and the default stays on the played-back scale.
+
+`presets/touch/recorded_performances.toml` is a velocity law for MIDI recorded from pianists. `tools/velocity_fit_pieces.py` fits it on the performances, keeping velocity 60 at the default law's speed (1.29 m/s, the mf timbre unchanged): 0.205–5.6 m/s, curve 0.78. The level against the performances is 2.0 dB rms, 2.2 with the default law. It is applied over an instrument as a listening preset is (`unsampled-piano-render --listening presets/touch/recorded_performances.toml`), and was chosen after an A/B on MAESTRO.
+

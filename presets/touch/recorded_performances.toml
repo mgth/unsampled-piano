@@ -1,0 +1,13 @@
+# Touch for MIDI recorded from a pianist on a reproducing piano (Disklavier
+# performances: MAESTRO, competition and concert files). The velocities such
+# an instrument records under the fingers rise faster in sound than the
+# scale it plays back, which the default law follows (tools/velocity_fit.py):
+# within Liang's and MAESTRO's performances the level of an onset gains
+# 1.4–1.6 times as much per velocity step as the model's. Fitted on those
+# performances with velocity 60 kept where it is (tools/velocity_fit_pieces.py,
+# docs/bench.md). Applied over an instrument as a listening preset is
+# (unsampled-piano-render --listening presets/touch/recorded_performances.toml).
+[velocity]
+vmin = 0.205
+vmax = 5.6
+curve = 0.78
