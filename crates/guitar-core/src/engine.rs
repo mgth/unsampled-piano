@@ -123,7 +123,8 @@ impl StringVoice {
         }
         let (from, to) = (table(inst, s, self.stop), table(inst, s, stop));
         self.read(from);
-        if self.sounding && !std::ptr::eq(from, to) {
+        // Same length (an open string muted): the same modes, no projection.
+        if self.sounding && from.length != to.length {
             project(from, to, &self.zeta, &mut self.scratch);
             std::mem::swap(&mut self.zeta, &mut self.scratch);
         }
@@ -137,6 +138,7 @@ impl StringVoice {
             self.release_pending = true;
             return;
         }
+        // Muted strings run their muted table (its output follows the mute).
         self.muted = true;
         match self.stop {
             Stop::Fret(f) => self.restop(inst, s, Stop::Released(f)),
@@ -534,5 +536,54 @@ mod tests {
         };
         let (bridge, neck) = (b(0), b(2));
         assert!(bridge > 1.5 * neck, "bridge {bridge} vs neck {neck}");
+    }
+
+    #[test]
+    fn muted_pickup_output_is_the_velocity_of_the_muted_string() {
+        // Low E released from the 12th fret, only its fundamental moving
+        // (0.1 mm), no bridge coupling: the muted bank's EMF must match the
+        // contact solver's, which computes the velocity from the state.
+        use crate::contact::{Contact, Law, Motion, Release};
+        use crate::params::{Admittance, SupportParams};
+        let mut m = GuitarModel::electric_solid();
+        m.support = SupportParams { perpendicular: Admittance::ZERO, parallel: Admittance::ZERO, cross: Admittance::ZERO };
+        let inst = Instrument::new(m, SR);
+        let t = inst.released(0, 12);
+        assert!(t.muted && t.velocity_out);
+        let mut zeta = vec![[C64::ZERO; 2]; t.len()];
+        zeta[0][PERP] = C64::new(1e-4, 0.0);
+        let mut bank = ModalBank::new(SR, 2 * t.len(), 64);
+        bank.load(&t.modes);
+        for (n, p) in t.partials.iter().enumerate() {
+            let z = p.coupled_of(zeta[n]);
+            bank.set_state(2 * n, z[0].re, z[0].im);
+            bank.set_state(2 * n + 1, z[1].re, z[1].im);
+        }
+        bank.set_damping(1.0);
+        let (mut a, mut a2) = (vec![0.0f32; 8], vec![0.0f32; 8]);
+        bank.process2(None, &mut a, &mut a2);
+        let mut sol = ContactSolver::new(t.len(), SR);
+        sol.begin(t, &zeta, 1.0);
+        sol.add(Contact { x: 0.1, pol: PERP, sign: 1.0, law: Law::Spring { stiffness: 0.0, damping: 0.0 }, motion: Motion::Fixed(0.0), release: Release::Never, group: 0 });
+        let (mut b, mut b2) = (vec![0.0f32; 8], vec![0.0f32; 8]);
+        sol.run(&mut b, &mut b2);
+        for (x, y) in a.iter().zip(&b) {
+            assert!((x - y).abs() < 1e-4 * y.abs(), "bank {x} vs velocity {y}");
+        }
+        // And ringing (not muted), the plain table agrees the same way.
+        let t = inst.table(0, 12);
+        bank.load(&t.modes);
+        for (n, p) in t.partials.iter().enumerate() {
+            let z = p.coupled_of(zeta[n]);
+            bank.set_state(2 * n, z[0].re, z[0].im);
+            bank.set_state(2 * n + 1, z[1].re, z[1].im);
+        }
+        bank.process2(None, &mut a, &mut a2);
+        sol.begin(t, &zeta, 0.0);
+        sol.add(Contact { x: 0.1, pol: PERP, sign: 1.0, law: Law::Spring { stiffness: 0.0, damping: 0.0 }, motion: Motion::Fixed(0.0), release: Release::Never, group: 0 });
+        sol.run(&mut b, &mut b2);
+        for (x, y) in a.iter().zip(&b) {
+            assert!((x - y).abs() < 1e-4 * y.abs(), "ringing: bank {x} vs velocity {y}");
+        }
     }
 }

@@ -401,8 +401,11 @@ impl ContactSolver {
             }
         }
         // States: compressions, ψ, modes.
-        self.q1[..mp + np].copy_from_slice(&self.q0[..mp + np]);
-        self.q0[..mp + np].copy_from_slice(&self.pred[..mp + np]);
+        for pol in 0..2 {
+            let r = pol * mp..pol * mp + np;
+            self.q1[r.clone()].copy_from_slice(&self.q0[r.clone()]);
+            self.q0[r.clone()].copy_from_slice(&self.pred[r]);
+        }
         for i in 0..m {
             let slot = idx[i];
             let mut s = self.slots[slot].unwrap();
@@ -459,9 +462,13 @@ impl ContactSolver {
             self.rebuild_g();
             self.active = self.slots.iter().any(|s| s.is_some());
         }
+        // Only each polarisation's active partials: past them lies what a
+        // longer string of an earlier episode left.
         let mut out = 0.0;
-        for i in 0..mp + np {
-            out += self.wa[i] * self.q0[i] + self.wb[i] * self.q1[i];
+        for pol in 0..2 {
+            for i in pol * mp..pol * mp + np {
+                out += self.wa[i] * self.q0[i] + self.wb[i] * self.q1[i];
+            }
         }
         let base = PERP * mp;
         let force = self.force[..np].iter().zip(&self.q0[base..base + np]).map(|(w, q)| w * q).sum();
@@ -610,5 +617,26 @@ mod tests {
         // Released where the string pushes back with the limit force.
         let expect = limit / k_string;
         assert!((y / expect - 1.0).abs() < 0.05, "released at {y} m, expected {expect}");
+    }
+
+    #[test]
+    fn a_shorter_string_does_not_hear_the_longer_one() {
+        // An episode on the open low E, then one on its 12th fret (half the
+        // partials) from rest with a contact that pushes nothing: silence.
+        let m = GuitarModel::default();
+        let (open, oct) = (open(&m, 0), StringTable::new(&m, 0, fret_length(m.scale_length, 12), 0.3, SR));
+        assert!(oct.len() < open.len());
+        let mut sol = ContactSolver::new(open.len(), SR);
+        let still = Contact { x: 0.1, pol: PERP, sign: 1.0, law: Law::Spring { stiffness: 0.0, damping: 0.0 }, motion: Motion::Fixed(0.0), release: Release::Never, group: 0 };
+        let plucked: Vec<[C64; 2]> = open.shape.iter().map(|a| [C64::new(a * 2e-3, 0.0), C64::new(a * 1e-3, 0.0)]).collect();
+        sol.begin(&open, &plucked, 0.0);
+        sol.add(still);
+        let (mut out, mut force) = (vec![0.0f32; 20], vec![0.0f32; 20]);
+        sol.run(&mut out, &mut force);
+        sol.begin(&oct, &vec![[C64::ZERO; 2]; oct.len()], 0.0);
+        sol.add(still);
+        let (mut out, mut force) = (vec![0.0f32; 20], vec![0.0f32; 20]);
+        sol.run(&mut out, &mut force);
+        assert!(out.iter().chain(&force).all(|&v| v == 0.0), "{out:?}");
     }
 }

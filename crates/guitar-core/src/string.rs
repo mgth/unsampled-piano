@@ -156,6 +156,8 @@ pub struct StringTable {
     /// pickups' EMF); output gain included.
     pub win: Vec<[f64; 2]>,
     pub velocity_out: bool,
+    /// Built to run muted ([`Self::muted`]).
+    pub muted: bool,
     /// Per partial: perpendicular bridge force per metre (N/m), T·nπ/L.
     pub force: Vec<f64>,
 }
@@ -191,9 +193,21 @@ fn output_weight(model: &GuitarModel, tension: f64, k: f64) -> ([f64; 2], bool) 
 }
 
 impl StringTable {
-    /// `string` stopped at `length`, muted (damper scale 1) by a fingertip
-    /// centred `mute_at` from the bridge.
+    /// `string` stopped at `length`, ringing freely; a fingertip centred
+    /// `mute_at` from the bridge would mute it (damper scale 1).
     pub fn new(model: &GuitarModel, string: usize, length: f64, mute_at: f64, sample_rate: f64) -> Self {
+        Self::build(model, string, length, mute_at, sample_rate, false)
+    }
+
+    /// The same, to be run muted (the bank at damper scale 1): a velocity
+    /// output (the pickups' EMF) then follows the extra decay. The bank's
+    /// output weights cannot change while it plays, so a muted string has
+    /// its own table.
+    pub fn muted(model: &GuitarModel, string: usize, length: f64, mute_at: f64, sample_rate: f64) -> Self {
+        Self::build(model, string, length, mute_at, sample_rate, true)
+    }
+
+    fn build(model: &GuitarModel, string: usize, length: f64, mute_at: f64, sample_rate: f64, muted: bool) -> Self {
         use std::f64::consts::PI;
         let s = &model.strings[string];
         let mu = linear_density(s, model.scale_length);
@@ -240,8 +254,9 @@ impl StringTable {
             force.push(s.tension * k);
             for kk in 0..2 {
                 let (om, sg) = (omega + shift[kk].re, sigma + shift[kk].im);
-                // Velocity of a mode z·e^{(−σ+iω)t}: (−σ + iω)·z.
-                let d = if vel { C64::new(-sg, om) } else { C64::ONE };
+                // Velocity of a mode z·e^{(−σ+iω)t}: (−σ + iω)·z, σ with the
+                // mute when the table runs muted.
+                let d = if vel { C64::new(-(sg + if muted { damp_w } else { 0.0 }), om) } else { C64::ONE };
                 let w = (e[PERP][kk].scale(wp[PERP]) + e[PAR][kk].scale(wp[PAR])) * d;
                 let w2 = e[PERP][kk].scale(s.tension * k);
                 specs.push(ModeSpec {
@@ -267,6 +282,7 @@ impl StringTable {
             modal_mass: mu * length / 2.0,
             win,
             velocity_out,
+            muted,
             force,
         }
     }
