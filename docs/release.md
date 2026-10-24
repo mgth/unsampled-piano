@@ -62,7 +62,34 @@ with `soft_speed` 2.75 m/s (velocity 100: unchanged at ff) and `soft_exponent` 1
 
 With 1, the middle's pp and mf sustain (2–3 s) come within the real pianos (z −1.0 → 0.0), and the treble's from −1.4 to −0.7; the top's attack partials 3–4 at mf improve. Exponent 2 overshoots in the treble (sustain at 1 s z +1.4, attack partial 2 z +4.3). The dampers' changes do not move the bench (1.13 either way): it holds every note 20 s.
 
+## Strings at different heights
+
+Over the first 0.3 s at pp, the middle's partials 5–12 still decayed at −29 to −45 dB/s against about −20 on the real grands. The comparison is made piano by piano and key by key, then the median taken: a median of the pianos' envelopes smooths their beats away and made the real decays look slower than they are. Partials 6 and 8 fared better only because they meet the undamped top strings, which hold them up sympathetically.
+
+The real envelopes at pp hold these partials at −5 to −15 dB for up to a second. The model's dropped to −30 dB within 0.5 s, the in-phase mode dying into a beat trough before the slow modes took over.
+
+A unison's strings never lie exactly level, so a slow hammer reaches them one after the other: 0.1 mm at 0.5 m/s is 0.2 ms, a lag of radians at 2–3 kHz. The strings then ring out of step, which feeds the slow out-of-phase modes; at ff the lag is a few tens of microseconds. New `unison.height_spread` (0.1 mm): string j of a key rings h_j·height_spread/v later (h_j between 0 and 1, irregular per key), applied as a phase rotation of each string's partials when the contact ends. The contact itself still strikes the strings together; the rotation keeps their energy.
+
+| height_spread | 0 | 0.05 mm | 0.1 mm | 0.2 mm |
+|---|---|---|---|---|
+| bench score | 1.06 | 1.03 | 1.02 | 1.05 |
+| attack (z rms) | 1.04 | 0.93 | 0.85 | 0.87 |
+
+At 0.1 mm, early decay 0.1–0.3 s at pp, median over the middle's keys (dB/s):
+
+| partial | 5 | 7 | 9 | 10 | 12 |
+|---|---|---|---|---|---|
+| real grands | −19 | −19 | −19 | −20 | −22 |
+| before | −36 | −33 | −29 | −34 | −45 |
+| after | −19 | −21 | −23 | −28 | −29 |
+
+At ff the decays barely move. The middle's and treble's 4–8 kHz share at mf falls by about 1 z: the strings' partials add less coherently at the bridge. On quick pedal changes in Liang's pieces, the 1.5–6 kHz dip goes from 8.2 to 8.7 dB (recording 6.8).
+
+Two other levers were tried:
+- **A tighter unison** (0.4–0.6 cent): it helps partials 5–8 but thins the slow modes, so the 2–3 s sustain falls by 0.5–1 z.
+- **A wider or heavier bridge drive**: it slows every partial, the low ones too, and the bench gets worse (1.08–1.22).
+
 ## Still open
 
-- **The middle's partials 5–7** (1.3–2.3 kHz) still decay at −40 to −47 dB/s over 0.1–0.3 s at every velocity, against −20 to −30 on the real grands; this is most of the cut after the soft chord. Partials 6 and 8 fare better only because they meet the undamped top strings, which hold them up sympathetically (without sympathy they fall to −44 dB/s as well).
+- **The cut after the soft chord** (Liang, Chopin op. 10 no. 3, 22.3 s): the model's 1.5–6 kHz band still drops 16 dB within 0.35 s, the recording 5. The chord's E4 dominates it, and isolated it sits within the real grands at pp, on their fast side.
 - **The bass's quick pedal changes**: 80–300 Hz still dips 2 dB deeper than recorded.

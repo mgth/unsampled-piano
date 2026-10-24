@@ -138,6 +138,14 @@ pub struct UnisonLaw {
     /// the velocity (docs/release.md).
     pub soft_exponent: f64,
     pub soft_speed: f64,
+    /// Height spread of a unison's strings under the hammer (m): a blow at
+    /// v meets the lowest string up to height_spread/v after the highest,
+    /// which then rings that much later. 0.1 mm: 0.2 ms at pp, a phase lag
+    /// of radians at 2–3 kHz, which feeds the slow out-of-phase modes; on
+    /// eight real grands the middle's partials 5–12 at pp lose about
+    /// −20 dB/s over 0.1–0.3 s, the model −29 to −45 without it
+    /// (docs/release.md).
+    pub height_spread: f64,
 }
 
 impl UnisonLaw {
@@ -148,7 +156,7 @@ impl UnisonLaw {
     /// Salamander (docs/long_sustain.md; 0.35 cent left it 10 dB too weak
     /// and the notes died after 1 s); hit spread ±20 % set on the
     /// aftersound level of the treble (docs/sustain.md).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2, soft_exponent: 1.0, soft_speed: 2.75 };
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 
@@ -197,6 +205,22 @@ impl UnisonLaw {
                 // Rotated by key.
                 let base = [1.0, -0.5 + (g - 0.5), -0.5 - (g - 0.5)];
                 let r = (g * 3.0) as usize % 3;
+                [base[r], base[(r + 1) % 3], base[(r + 2) % 3]]
+            }
+        }
+    }
+
+    /// Height of each string under the hammer, in units of `height_spread`
+    /// below the highest (0 … 1), irregular per key and independent of the
+    /// detuning and the force pattern.
+    pub fn heights(&self, note: u8) -> [f64; 3] {
+        let g = ((note as f64 * 51.719).sin() * 31_415.926_5).rem_euclid(1.0);
+        match self.strings(note) {
+            1 => [0.0; 3],
+            2 => if g < 0.5 { [0.0, 0.5 + g, 0.0] } else { [g, 0.0, 0.0] },
+            _ => {
+                let base = [0.0, 1.0, g];
+                let r = (g * 7.0) as usize % 3;
                 [base[r], base[(r + 1) % 3], base[(r + 2) % 3]]
             }
         }

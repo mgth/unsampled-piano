@@ -66,6 +66,7 @@ width_treble = 5.0
 hit_spread = 0.2
 soft_exponent = 1.0
 soft_speed = 2.75
+height_spread = 0.0001
 
 [bridge]
 g_1k = 0.00046
