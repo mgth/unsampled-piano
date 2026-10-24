@@ -418,14 +418,23 @@ pub struct NoiseLaw {
     pub pedal: f64,
     /// Duration (s) of the keybed / pedal knocks.
     pub knock_time: f64,
+    /// The action's knock heard directly (keybed, shanks, keyframe; not
+    /// through the board): peak pressure (Pa) at the microphones per m/s of
+    /// hammer speed, its decay time T60 (s) at 500 Hz and its delay after
+    /// the hammer reaches the string (s). 0: none (crate::action). 0.05 Pa
+    /// per m/s puts the knock below the top keys' fundamentals at the level
+    /// of eight real grands' (docs/action_noise.md).
+    pub action: f64,
+    pub action_time: f64,
+    pub action_delay: f64,
 }
 
 impl NoiseLaw {
     /// Levels set 20–30 dB below a mezzo-forte note (examples/noise_levels.rs).
     pub const DEFAULT: Self =
-        Self { keybed: 0.25, damper_mass: 0.007, damper_speed: 0.1, damper_landing: 0.004, pedal: 0.35, knock_time: 0.003 };
+        Self { keybed: 0.25, damper_mass: 0.007, damper_speed: 0.1, damper_landing: 0.004, pedal: 0.35, knock_time: 0.003, action: 0.05, action_time: 0.2, action_delay: 0.008 };
     pub const OFF: Self =
-        Self { keybed: 0.0, damper_mass: 0.0, damper_speed: 0.0, damper_landing: 0.004, pedal: 0.0, knock_time: 0.003 };
+        Self { keybed: 0.0, damper_mass: 0.0, damper_speed: 0.0, damper_landing: 0.004, pedal: 0.0, knock_time: 0.003, action: 0.0, action_time: 0.2, action_delay: 0.008 };
 
     /// |spectrum| of a unit-area half-sine pulse of duration τ at ω.
     pub fn half_sine_spectrum(omega: f64, tau: f64) -> f64 {

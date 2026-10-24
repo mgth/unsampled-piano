@@ -286,6 +286,9 @@ pub struct Engine {
     clock: u64,
     stereo: [Vec<f32>; MICS],
     knocks: [Knock; MAX_KNOCKS],
+    /// The action's knock, heard directly, and the decay time it was set to.
+    action: crate::action::ActionNoise,
+    action_time: f64,
     room: Option<crate::room::Room>,
     /// Damper engagement below which a landing damper counts as an impact.
     sustain_prev: f64,
@@ -320,6 +323,7 @@ impl Engine {
         let cfg = EngineConfig { polyphony: cfg.quality.polyphony(cfg.polyphony), ..cfg };
         let shortcuts = cfg.quality.shortcuts();
         let capacity = inst.table.capacity();
+        let action_time = inst.model.noise.action_time;
         let voices = (0..cfg.polyphony)
             .map(|_| {
                 let mut v = Voice::with_capacity(cfg.sample_rate, cfg.max_block, capacity);
@@ -377,6 +381,8 @@ impl Engine {
             clock: 0,
             stereo: std::array::from_fn(|_| vec![0.0; cfg.max_block]),
             knocks: [Knock::default(); MAX_KNOCKS],
+            action: crate::action::ActionNoise::new(cfg.sample_rate, action_time),
+            action_time,
             room,
             sustain_prev: 0.0,
             mic_last: [0.0; MICS],
@@ -644,6 +650,11 @@ impl Engine {
                 for x in left.iter_mut().chain(right.iter_mut()) {
                     *x *= out_gain * PRESSURE_GAIN;
                 }
+                if self.live.noise.action_time != self.action_time {
+                    self.action_time = self.live.noise.action_time;
+                    self.action.set_time(self.action_time);
+                }
+                self.action.render([&mut *left, &mut *right], out_gain * PRESSURE_GAIN);
                 if let Some(room) = self.room.as_mut() {
                     room.process(left, right);
                 }
@@ -919,6 +930,9 @@ impl Engine {
         v.damper_speed = 1.0;
         // The key bottoms on the keybed as the hammer reaches the string.
         self.knock(region_of(note), self.live.noise.keybed * vh);
+        if self.board.is_some() {
+            self.action.strike(note, self.live.noise.action * vh, self.live.noise.action_delay);
+        }
     }
 
     fn note_off(&mut self, note: u8) {

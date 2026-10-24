@@ -1,6 +1,7 @@
 //! Physics-based piano engine. Framework-agnostic: hosts (plugin, standalone,
 //! offline renderer) wrap [`engine::Engine`].
 
+pub mod action;
 pub mod board;
 pub mod complex;
 pub mod denormal;

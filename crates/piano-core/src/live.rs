@@ -73,6 +73,9 @@ live_params! {
     NoiseDamperLanding => "noise.damper_landing", noise.damper_landing;
     NoisePedal => "noise.pedal", noise.pedal;
     NoiseKnockTime => "noise.knock_time", noise.knock_time;
+    NoiseAction => "noise.action", noise.action;
+    NoiseActionTime => "noise.action_time", noise.action_time;
+    NoiseActionDelay => "noise.action_delay", noise.action_delay;
 }
 
 #[cfg(test)]

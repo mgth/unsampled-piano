@@ -217,6 +217,9 @@ damper_speed = 0.1
 damper_landing = 0.004
 pedal = 0.35
 knock_time = 0.003
+action = 0.05
+action_time = 0.2
+action_delay = 0.008
 
 [room]
 enabled = true

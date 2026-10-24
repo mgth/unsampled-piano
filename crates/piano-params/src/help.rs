@@ -682,6 +682,16 @@ const HELP: &[(&str, &str, &str)] = &[
     ("noise.damper_landing", "How soft the damper landing is: longer is a duller thud.", "Duration (s) of the half-sine impulse; its spectrum falls above 1/duration."),
     ("noise.pedal", "The knock of the sustain pedal mechanism, heard through the case.", "Peak force (N) into the board for a full-speed pedal move, split between two regions near the middle of the keyboard."),
     ("noise.knock_time", "Duration of the keybed and pedal knocks: longer is duller.", "Length (s) of the half-sine knock."),
+    (
+        "noise.action",
+        "The clack of the action itself, heard directly: the key hitting the keybed, the hammer \
+         shank and the keyframe. It gives the attack its percussive edge, most audible in the treble.",
+        "Peak pressure (Pa) at the microphones per m/s of hammer speed, from a bank of 24 damped \
+         resonances (80 Hz–2.6 kHz) shared by all keys, each key with its own amplitudes. Set on \
+         the knock below the top keys' fundamentals on eight real grands (docs/action_noise.md).",
+    ),
+    ("noise.action_time", "How long the action's clack rings.", "Decay time T60 (s) of the resonances at 500 Hz, shorter above as (500/f)^0.3."),
+    ("noise.action_delay", "How long after the hammer meets the string the action's clack comes.", "Delay (s) of the knock after the strike: the key bottoms just after the hammer reaches the string."),
     // Room
     ("room.enabled", "The hall around the piano: wall reflections and reverberation.", "Image sources for the early reflections, a 16-line feedback delay network for the tail."),
     (
