@@ -1,6 +1,6 @@
 # Engine performance audit
 
-October 2026. Where the engine's time goes, what makes it miss a deadline, what was fixed, what is left, which compromises smaller machines can take, and what multi-threading gives.
+October 2026. Where the engine's time goes, what makes it miss a deadline, what was fixed, which compromises smaller machines can take, and what multi-threading gives. Two rounds: the first (October 23) found the costs and spikes and fixed the worst; the second (October 24) added the Overkill reference level, dropped silent partials, spread the soundboard over threads and kept replaced engines from piling up. The sections up to "Fixes made in the first round" describe the state before the first round.
 
 All figures come from a Ryzen 9 9950X (Zen 5, AVX-512) unless stated otherwise. Smaller machines are emulated by capping the SIMD level (`PIANO_ISA=avx2` or `generic`). This removes the vector width but not the clock or cache differences, so real small machines are slower still.
 
@@ -8,7 +8,8 @@ All figures come from a Ryzen 9 9950X (Zen 5, AVX-512) unless stated otherwise. 
 
 ```
 cargo run --release -p piano-render --example perf_audit -- \
-    --midi-dir data/midi [--sr 48000] [--block 128] [--threads N] [--variants] [--preset p.toml]
+    --midi-dir data/midi [--sr 48000] [--block 128] [--threads N] \
+    [--quality overkill|full|balanced|light] [--variants] [--preset p.toml]
 ```
 
 Every buffer is timed as the real-time host would see it. The load is the render time over the buffer's duration, so 100 % means the deadline is missed. The tool reports the mean, the 99th and 99.9th percentiles and the worst buffer. A host fails on the worst buffer, not on the mean. The single worst buffer is noisy (one preemption by the OS is enough), so p99.9 is the more reliable spike measure.
@@ -25,7 +26,19 @@ Scenarios:
 - the whole keyboard ff with the pedal down (the old `stress_cost` case);
 - the six MIDI performances of `data/midi`.
 
-`--variants` repeats the run with each part of the physics switched off. `examples/voice_ops.rs` times the per-event voice operations. `examples/board_bench.rs` times the soundboard kernel on every ISA.
+`--variants` repeats the run with each part of the physics switched off.
+
+Other examples:
+
+| Example | What it measures |
+|---|---|
+| `voice_ops.rs` (piano-core) | the per-event voice operations |
+| `board_bench.rs` and `modal_kernels.rs` (piano-core) | the soundboard and string-bank kernels, on every ISA |
+| `shortcut_diff.rs` (piano-core) | what each engine shortcut changes in the signal |
+| `overkill_parts.rs` (piano-render) | what each of Overkill's differences from Full changes, on a MIDI file |
+| `edit_load.rs` (piano-control) | the load while a parameter is edited during playing |
+
+The `Bench` workflow runs the tests and `perf_audit` on GitHub's runners (macOS ARM, Linux, Windows). Measurements need an idle machine: another process rendering on a few cores was enough to double some means and to send p99s past 100 %.
 
 ## Starting point
 
@@ -97,7 +110,7 @@ These are measured at 5.7 GHz with Zen 5's caches. An AVX2 laptop at 3 GHz shoul
 
 The `Generic` path is the one **every ARM build uses**, including the universal macOS app on Apple Silicon. Its soundboard kernel was 4.3× slower than AVX2 (6.9 against 1.6 ns per mode and sample), more than the vector width explains. The new kernel (below) brings it to 2.8. Apple's cores are wide and may hide more of it, but nothing here measures them. Running `perf_audit` on a macOS ARM runner in CI would.
 
-## Fixes made in this audit
+## Fixes made in the first round
 
 Every fix keeps the model. Some sums are now taken in another order, and the damped poles are factored differently: e^{−d·w}·p₀ instead of e^{−(σ + d·w)}·e^{iθ}. Measured against an f64 reference over 200 000 random modes, both forms have the same decay-rate error (median 0.001/s, max 0.005/s), which is the f32 resolution of a pole. The renders before and after therefore differ only by that quantisation:
 
@@ -152,40 +165,119 @@ Result on one thread, from the same run for both columns (mean / p99.9 / worst):
 
 The onset spikes are halved on every ISA. The mean drops by 13 to 18 % on AVX-512 and by a third on the generic path. It hardly moves on AVX2, where the string banks dominate and were already near the hardware's limits.
 
-## Further optimisations, not done
+## Second round (October 24)
 
-By expected payoff:
+### Overkill: the reference without shortcuts
 
-1. **High sample rates.** Two steps:
-   - Cap string partials at 20 kHz instead of 0.45·fs. Inaudible, and −18 % at 96 kHz.
-   - Render at 44.1 or 48 kHz inside and resample to the host's rate, which roughly halves the cost at 88.2 and 96 kHz.
-2. **String banks on AVX2.** They are now the bulk of the load there. Their driven variants run one chunk per time loop with a second input or output, because more spills. A two-pass layout like the soundboard's (recursion, then outputs) may let them group chunks again.
-3. **Events per voice.** Today every event splits the sub-block for all voices (`render(pos, f)`). Handling a voice's own note-on and note-off inside its own render would give fewer, longer segments. Dense MIDI would cost less, and it suits multi-threading.
-4. **Engine swap.** Limit the old engines kept during an edit (`KEEP`) when the load is high, or fade them faster.
+A fourth quality level, `Quality::Overkill`, computes everything the model describes, without any of the shortcuts that change the signal, even those judged inaudible. It is the reference the other levels are measured against. Float rounding is not a shortcut: sums taken in another order stay in every level.
 
-## Compromises for smaller configurations
+What Overkill turns off ([`engine.rs`](../crates/piano-core/src/engine.rs), `Shortcuts`, `Quality::resolution`):
 
-Each line below can be switched off independently; most already exist as preset fields. Savings are the mean load on the whole keyboard / the Chopin, measured before the fixes, relative to 38 / 23 %. After them (35 / 21 %), switching sympathy off saves −8 / −11 points, phantom partials −10 / −1, frame and rim −6 / −3, one polarisation −7 / −4.
+| Shortcut (Full) | Overkill |
+|---|---|
+| A voice is freed below −100 dB of a loud note | 200 dB down, 56 dB under 24-bit resolution |
+| Soundboard, frame and rim sleep below a threshold | same, 200 dB down |
+| A sympathetic bank at rest is skipped; phantom partials are skipped below a tension threshold | same, 200 dB down |
+| A string damped beyond 99 % no longer hears the bridge | every string hears it |
+| Partials of a struck string dropped once silent (new, below) | never |
+| Sympathetic resonance on partials below 5 kHz | every partial |
+| Phantom partials up to E4, below 5 kHz, 48 partials, 16 longitudinal modes | every key, every partial and longitudinal mode below 0.45·fs |
+| 768 coupled modes per key at most | up to 0.45·fs |
+| Hammer contact stepped as finely as convergence requires | twice the steps |
+| Player behind outputs above 48 kHz: engine at 44.1/48 kHz | engine at the output's rate |
+
+It costs 2 to 3 times Full: Chopin 44.9 % of a core on one thread, 14.3 % on four. The whole keyboard ff does not hold on one thread (110 %) but does on four (31 %).
+
+**What each shortcut changes.** Measured on the first 60 s of the Bach and of the Chopin (examples `overkill_parts.rs`, `shortcut_diff.rs`). Each Overkill choice is applied to Full alone; the figures are the difference, overall / worst 100 ms window, in dB below the signal:
+
+| Applied alone to Full | Bach | Chopin |
+|---|---|---|
+| silences 200 dB down | −75 / −66 | −63 / −42 |
+| damped strings hear the bridge | −41 / −27 | −300 (no difference) |
+| no partial dropping | −90 / −78 | −70 / −62 |
+| modes up to 0.45·fs | no difference | −118 / −102 |
+| sympathy on every partial | −90 / −82 | −87 / −75 |
+| phantom partials on every key | −46 / −34 | −47 / −33 |
+| phantom partials on every partial | −38 / −31 | −45 / −34 |
+| twice the contact steps | −43 / −33 | −45 / −34 |
+| **Full against Overkill** | **−32 / −25** | **−38 / −26** |
+
+The engine's shortcuts are below audibility: −62 dB at worst. The 5 kHz sympathy limit and the 768-mode cap change nothing measurable. What separates Full from Overkill, about −25 dB in the worst window, is three resolution choices:
+
+- the phantom partials kept to the bass and middle;
+- the contact's step;
+- the damped strings left deaf to the bridge (in the Bach, which plays without pedal).
+
+They were judged inaudible when they were made; Overkill now lets them be compared by ear.
+
+**A defect found on the way.** A key re-struck while its released string still rang under the damper was struck damped: the damper only started lifting at the next sub-block, 5 to 20 ms later. A voice already freed was struck free. The attack of a repeated note therefore depended on whether its voice had been freed, which is what made the silence threshold look like a −15 dB change. The key lifts its damper on its way down, before the hammer arrives: the strike now always finds it lifted (test `a_restruck_key_is_struck_with_its_damper_lifted`). This changes the sound of repeated notes without pedal: louder, fuller attacks, as on a piano.
+
+### Silent partials dropped
+
+A struck string, once the hammer has left, only decays: its high partials die first, and a mode under the threshold never comes back. The engine now drops the last chunks of the primary bank while their summed energy stays 20 dB below the level at which a whole voice is freed (`ModalBank::drop_tail`). A landing damper or a new strike brings them back. In pedalled music the peak number of modes falls by a third (whole keyboard: 41,400 → 27,200) and the Chopin's mean by 12 to 15 %. The renders change by −69 to −90 dB overall (−49 to −78 dB in the worst window). Overkill keeps every partial.
+
+### Notes on the way
+
+- **Precomputed tables and all listeners at once.** Setting up a string is a copy since the first round (1 µs). The listening strings are therefore all set up when the pedal goes down, instead of 8 per sub-block, which started some of them 15 ms late. This is more exact, and costs about 3 % of one buffer once.
+- **String banks with two inputs on AVX2.** They are written explicitly, two chunks per time loop, with the 16-lane type the soundboard uses (`simd.rs`), and give bit-identical results. The kernel was limited by the latency of the recursion (one chunk at a time: 13.4 cycles per chunk and sample). It is now limited by the multiplier's throughput: 0.152 → 0.137 ns per mode and sample (−10 %). Fusing the multiply-adds would gain more, but would break the bit identity across ISAs, which the project keeps.
+- **NEON.** On aarch64 (Apple Silicon, ARM Linux), the soundboard and the string banks run on an explicit NEON implementation of the same 16-lane type. Three soundboard outputs fit in a tile on its 32 registers, and the banks run two chunks per time loop. It compiles for aarch64 Linux and macOS, but it has not been run here. The `Bench` workflow ([`bench.yml`](../.github/workflows/bench.yml)) runs the engine's tests and `perf_audit` on a macOS ARM runner, an x86 Linux one and a Windows one. On aarch64, `Isa::Generic` is that NEON path.
+- **The build leaves the audio thread's core alone.** An instrument is rebuilt while the piano plays; the build used every hardware thread, including the audio thread's SMT sibling. It now uses half of them: 78 → 91 ms per build.
+- **Offline renderer.** `unsampled-piano-render --quality overkill` renders the reference.
+
+### Tried and dropped
+
+- **Events per voice.** The idea was to have each voice handle its own note-ons and note-offs, so that a sub-block is no longer split at every event. It was measured first by moving every event to the start of its sub-block: no difference on the Chopin, the Rachmaninoff or La Campanella, on one thread or four. Splitting costs nothing worth a restructuring.
+- **Sparse sympathy** (for Balanced). Each listening string ran only its modes within a quarter semitone of a partial sounding on a struck string, or still ringing. It gained nothing (13.6 → 13.7 % on the Chopin), even when the keybed's knocks were no longer allowed to open the whole spectrum: in real music the struck partials cover the spectrum densely, and the modes once excited stay above the threshold. Removed.
+- **Bridge velocities computed only where a string listens** (first round): no gain once the soundboard kernel was rewritten, and a departure from the model. Removed.
+
+### Result
+
+Mean / p99.9 load, best of three runs alternating `main` and this branch on an idle machine:
+
+| | Chord ff | Pumping | Whole keyboard | Chopin | Debussy | Rachmaninoff |
+|---|---|---|---|---|---|---|
+| AVX-512, 1 thread, main | 17.4 / 28 | 21.9 / 40 | 34.0 / 39 | 20.3 / 32 | 17.8 / 26 | 17.9 / 28 |
+| AVX-512, 1 thread, now | 16.7 / 28 | 19.3 / 40 | 29.5 / 33 | 16.4 / 28 | 15.9 / 26 | 16.0 / 26 |
+| AVX2, 1 thread, main | 24.5 / 34 | 31.3 / 47 | 46.9 / 58 | 29.3 / 42 | 25.1 / 37 | 26.0 / 36 |
+| AVX2, 1 thread, now | 21.9 / 34 | 24.9 / 46 | 35.7 / 42 | **21.4** / 33 | 20.8 / 31 | 20.9 / 32 |
+| no AVX, 1 thread, main | 44.3 / 57 | 54.7 / 74 | 79.2 / 91 | 53.7 / 70 | 45.6 / 65 | 46.0 / 61 |
+| no AVX, 1 thread, now | 41.9 / 57 | 45.8 / 72 | 62.3 / 70 | **40.7** / 56 | 39.5 / 54 | 39.6 / 54 |
+| AVX-512, 2 threads, main | 12.9 / 20 | 15.2 / 28 | 21.8 / 28 | 14.4 / 27 | 13.4 / 22 | 13.0 / 24 |
+| AVX-512, 2 threads, now | 10.6 / 20 | 12.0 / 25 | 16.9 / 20 | 10.5 / 21 | 10.2 / 19 | 10.3 / 19 |
+| AVX2, 2 threads, main | 17.2 / 23 | 20.0 / 32 | 27.9 / 36 | 19.8 / 32 | 17.7 / 28 | 17.6 / 28 |
+| AVX2, 2 threads, now | 13.4 / 21 | 15.0 / 29 | 20.7 / 25 | **13.3** / 25 | 13.0 / 22 | 13.0 / 23 |
+| AVX-512, 4 threads, main | 10.5 / 20 | 11.9 / 18 | 15.5 / 19 | 11.5 / 24 | 10.7 / 22 | 10.7 / 20 |
+| AVX-512, 4 threads, now | 6.9 / 15 | 7.7 / 17 | 10.3 / 14 | **6.9** / 18 | 6.8 / 18 | 6.8 / 17 |
+| AVX2, 4 threads, main | 14.1 / 17 | 15.8 / 22 | 20.3 / 25 | 15.5 / 28 | 14.1 / 23 | 14.3 / 25 |
+| AVX2, 4 threads, now | 8.3 / 17 | 9.2 / 17 | 12.2 / 16 | **8.4** / 20 | 8.1 / 18 | 8.1 / 18 |
+
+Since the start of the audit, the Chopin on one AVX-512 thread went from 24.5 % to 16.4 %, and from 85 % to 41 % without AVX. With four threads it is at 6.9 %. On AVX2 with two threads it is at 13.3 %.
+
+The renders of `main` and of this branch differ by −69 dB overall on the Chopin, −64 dB on the Bach and −51 dB on the Rachmaninoff. The worst windows are at −41, −36 and −32 dB. The two intended changes account for this: the re-strike fix and the listeners set up all at once. Dropping the partials alone stays under −49 dB.
+
+## Quality levels
+
+Each level is a `Quality` ([`engine.rs`](../crates/piano-core/src/engine.rs)), chosen in the player's Audio and MIDI page, with `--quality` on the command line or `quality` in `play.toml`. A level only changes the model an instrument is built from and the engine's shortcuts: presets keep their values.
+
+| Level | What it leaves out | Chopin, 1 / 4 threads (AVX-512) | Whole keyboard ff, 1 / 4 |
+|---|---|---|---|
+| **Overkill** | nothing (see above) | 44.9 / 14.3 % | 110 / 30.8 % |
+| **Full** (default) | the shortcuts judged inaudible | 16.4 / 6.9 % | 29.5 / 10.3 % |
+| **Balanced** | sympathy above 2 kHz, phantom partials above C3, beyond 96 voices | 13.4 / 6.1 % | 25.9 / 9.4 % |
+| **Light** | sympathy, phantom partials, frame and rim, the horizontal polarisation | 5.6 / 3.8 % | 8.1 / 4.8 % |
+
+Against Overkill, over the whole pieces, Full differs by −30 dB on the Bach and −33 dB on the Rachmaninoff (−18 and −20 dB in the worst window). Balanced and Light differ more, as they leave parts of the model out. None of the levels has been compared by ear.
+
+Individual settings, for presets ([`params.rs`](../crates/piano-core/src/params.rs)), measured in the first round on the whole keyboard / the Chopin (mean, from 38 / 23 %):
 
 | Setting | Saving | What is lost |
 |---|---|---|
 | `sympathetic.max_freq` 5000 → 1500 Hz | −3 / −3 points | the high sympathetic shimmer; octaves and fifths still ring |
-| `sympathetic.enabled = false` | −8 / **−12** points | all sympathetic resonance and the pedal halo; this is the main one for real music |
+| `sympathetic.enabled = false` | −8 / **−12** points | all sympathetic resonance and the pedal halo |
 | `nonlinear.enabled = false` | **−10** / ≈ −1 points | phantom partials: the bass's growl at ff |
-| `nonlinear.max_note` 64 → 48 | part of the above | phantom partials above C3 |
 | `frame` and `rim` off | −5 points | the frame's ring and the rim's low body |
 | `polarization.enabled = false` | −6 / −4 points | the horizontal polarisation: part of the aftersound and of the double decay |
 | `room.enabled = false` | −1 point | the room: the host's reverb takes over |
-| polyphony 128 → 64 | bounds the worst case | voice stealing in long pedalled passages |
-| render at 48 kHz inside a 96 kHz host | ≈ −50 % | nothing audible |
-
-A "CPU quality" setting could group them in three levels:
-
-- **Full**: today's model.
-- **Balanced**: sympathy below 2 kHz, phantom partials up to C3, polyphony 96. This cuts about a third of the mean in dense music.
-- **Light**: no sympathy, no phantom partials, no frame or rim, one polarisation. It costs about a third of the Full level, and is meant for AVX2 laptops and ARM.
-
-These levels are proposals; they have not been listened to. Sympathetic resonance is a large part of the instrument's character with the pedal down, so it should go last.
 
 ## Outputs above 48 kHz
 
@@ -202,39 +294,30 @@ So the standalone player computes the piano at 44.1 or 48 kHz behind any output 
 
 ## Multi-threading
 
-### What can run in parallel
+`EngineConfig::threads` (the player's Audio and MIDI page; 1 by default), with every output **identical, bit for bit, whatever the thread count** (tests `threads_do_not_change_the_output`, `swap_on_two_threads_keeps_held_notes`).
 
-- **Voices**, within a sub-block. The bridge motion reaches the strings 64 samples late (`note_model::BRIDGE_DELAY`), so no voice depends on another during a sub-block. That makes this the natural cut. It is also where the onset spikes live.
-- **The independent banks**: sympathetic board, frame, rim and room could each run next to the primary board.
-- **The board itself**: its modes are independent given the inputs, so it can be split into halves whose outputs are summed in a fixed order.
-- **Pipelining** the board of one sub-block with the voices of the next would need a bridge delay of two sub-blocks (128 samples, 2.7 ms). The sympathetic coupling is one-way, so that would not threaten stability.
+**What runs in parallel.** The bridge motion reaches the strings 64 samples late (`note_model::BRIDGE_DELAY`), so no voice depends on another within a sub-block. Each sub-block makes two runs on a pool of persistent workers ([`par.rs`](../crates/piano-core/src/par.rs)):
 
-### Prototype
+1. **The voices.** Each voice computes its forces into its own buffers (`Voice::compute`). The audio thread adds them in voice order (`Voice::mix`).
+2. **The structures.** The soundboard's modes are split in two halves (`BoardBank::split`, `BoardPart`), and the frame and the sympathetic board each run whole into their own buffers. The audio thread then adds everything in the same order as one thread would. The halves are taken in every case, one thread or several, so the result does not depend on it.
 
-The prototype ([`par.rs`](../crates/piano-core/src/par.rs), [`engine.rs`](../crates/piano-core/src/engine.rs)) is opt-in through `EngineConfig::threads`, default 1:
+The rim (small, fed by the board) and the room stay on the audio thread.
 
-- A pool of persistent workers, started with the engine. Workers spin for 200 µs, which covers the sub-blocks of one buffer, then park. They have FTZ/DAZ set and never allocate.
-- Each run hands out the active voices one at a time; the main thread works too.
-- Each voice computes its forces into its own buffers (`Voice::compute`). The audio thread then adds them to the regions in voice order (`Voice::mix`). The output is therefore **identical, bit for bit, whatever the thread count** (test `threads_do_not_change_the_output`).
-- Segments with fewer than 4 voices stay on the audio thread.
+**Measured** (table above): two threads take a third off, four take 60 % off. On the Chopin at AVX-512: 16.4 → 10.5 → 6.9 %.
 
-Results with the fixes above (mean / p99.9):
+**Real-time priority.** The player gives its workers the audio thread's scheduling (`EngineConfig::worker_init`, [`audio.rs`](../crates/piano-play/src/audio.rs)). On Linux this is SCHED_FIFO at PipeWire's priority (88) within RLIMIT_RTPRIO; the `audio_thread_priority` crate cannot help there, as it needs rtkit over D-Bus. Windows uses MMCSS "Pro Audio" and macOS a time-constraint policy, through that crate. A test checks the Linux case where the system allows it. A worker the OS preempts would make the audio callback wait for it.
 
-| Scenario | 1 thread | 2 threads | 4 threads |
+**Edits while playing.** An edit that rebuilds the instrument keeps the replaced engines playing their notes for up to 2 s. Before, each engine had its own workers, and the audio thread ran them one after the other.
+
+Now the engine slot ([`slot.rs`](../crates/piano-control/src/slot.rs)) holds a single pool. It lends the pool to the current engine when that engine plays alone. When replaced engines are finishing, it runs the engines side by side, one per thread. Two threads therefore stay two threads. Nothing changes for the sound, or for how long the old notes last.
+
+Measured with `edit_load.rs`: thirty keys ring with the pedal down while a slider moves every 250 ms for 3 s, with a real-time audio thread.
+
+| p99 load | 1 thread | 2 threads | 4 threads |
 |---|---|---|---|
-| whole keyboard ff, AVX-512 | 35.3 / 42.7 % | 22.3 / 28.6 % | 15.8 / 22.5 % |
-| whole keyboard ff, AVX2 | 45.7 / 56.0 % | 28.5 / 36.3 % | 20.7 / 31.6 % |
-| Chopin, AVX-512 | 21.2 / 33.4 % | 15.2 / 28.7 % | 12.2 / 25.1 % |
-| Chopin, AVX2 | 29.6 / 44.0 % | 20.6 / 33.3 % | 16.3 / 28.8 % |
-| 10-key chord ff, AVX2 | 25.5 / 35.8 % | 18.5 / 25.2 % | 15.0 / 20.8 % |
-| 30 keys, pedal pumping, AVX2 | 30.5 / 48.2 % | 21.3 / 33.9 % | 17.1 / 34.5 % |
+| main (up to 4 engines) | 75.8 % | 67.8 % | 66.7 % |
+| now (up to 2 engines) | 47.8 % | 37.1 % | 26.0 % |
 
-Two threads remove a third of the load and flatten the onset spikes. Four threads add less: what stays on the audio thread is the soundboard banks, the room and the event handling. In the Chopin that is ≈ 10 of the 21 %, and it now bounds the gain (Amdahl). Going further means parallelising the board, by splitting it in halves or by running the independent banks side by side. That is the same order of work as the voices, and it would also make the board's cost scale.
+The worst buffer of the scenario (≈ 80 %) is the initial chord of thirty keys struck in one buffer, not the edits. It falls to 55 % on four threads.
 
-### Caveats before shipping it
-
-- **Real-time priority.** A worker that the OS preempts makes the audio thread wait, which turns a spike into a dropout. In the standalone app the workers should get the audio thread's priority (rtkit / PipeWire on Linux, `THREAD_TIME_CONSTRAINT_POLICY` on macOS, MMCSS on Windows). Inside a DAW the host already uses every core for its own tracks. Many hosts offer the plugin no thread pool (CLAP has an optional `thread-pool` extension that hands work to the host's pool). The default should stay at 1 thread in plugins, and the CLAP thread pool is worth using where the host provides it.
-- **Spinning** costs one core per worker during playing, for at most 200 µs after each sub-block. That is fine for a standalone player, and less so on a laptop's battery.
-- Hosts that call with large buffers (1024 frames) gain the most, since each buffer holds 16 sub-blocks.
-
-**Verdict:** worth it for the standalone player, especially on 4-core machines with AVX2 or ARM, for the voices first (done in the prototype) and the board second. Keep it optional and off by default in the plugins.
+**Plugins.** They stay at one thread. A plugin's own threads compete with the host's, which already uses every core for its tracks. The way out is CLAP's `thread-pool` extension, which hands the work to the host's pool, but nice-plug 0.4.2 does not implement it.

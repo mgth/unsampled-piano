@@ -28,9 +28,6 @@ pub const MAX_MODES: usize = 768;
 /// (hysteresis factor).
 const MUTE_STIFFNESS_MM: f64 = 0.09;
 const MUTE_HYSTERESIS: f64 = 3.0;
-/// Below this bridge-force energy (N²) a free-decaying sympathetic bank is
-/// left alone.
-const SYM_SILENCE: f32 = 1e-12;
 
 pub struct Voice {
     pub note: u8,
@@ -68,17 +65,26 @@ pub struct Voice {
     nl_ramp: u32,
     /// High-pass state (previous input, output).
     nl_hp: (f32, f32),
+    /// Below this bridge-force energy (N²) a sympathetic bank at rest is
+    /// left alone; below this tension modulation (N, times the coupling)
+    /// the longitudinal modes are not computed ([`crate::engine::Shortcuts`]).
+    sym_silence: f32,
+    nl_silence: f32,
 }
 
-/// Below this tension modulation (N, times the coupling) the longitudinal
-/// modes are not computed.
-const NL_SILENCE: f32 = 1e-4;
 
 /// Ring length for the delayed signals (power of two ≥ 2·SUB_BLOCK).
 pub const RING: usize = 1024;
 
 impl Voice {
     pub fn new(sample_rate: f64, max_block: usize) -> Self {
+        Self::with_capacity(sample_rate, max_block, (MAX_MODES, 48, 16))
+    }
+
+    /// A voice holding `modes` coupled modes and a phantom-partial model of
+    /// `nl.0` partials and `nl.1` longitudinal modes
+    /// ([`crate::note_model::PianoTable::capacity`]).
+    pub fn with_capacity(sample_rate: f64, max_block: usize, (modes, nl_partials, nl_long): (usize, usize, usize)) -> Self {
         Self {
             note: 0,
             active: false,
@@ -87,25 +93,32 @@ impl Voice {
             struck: false,
             engagement: 1.0,
             damper_speed: 1.0,
-            bank: ModalBank::new(sample_rate, MAX_MODES, max_block),
-            sym: ModalBank::new(sample_rate, MAX_MODES, max_block),
-            contact: ContactSolver::new(MAX_MODES, sample_rate),
+            bank: ModalBank::new(sample_rate, modes, max_block),
+            sym: ModalBank::new(sample_rate, modes, max_block),
+            contact: ContactSolver::new(modes, sample_rate),
             sym_force: vec![0.0; max_block],
             agraffe: vec![0.0; max_block],
             force: vec![0.0; max_block],
             force_ring: vec![0.0; RING],
             x2: vec![0.0; max_block],
-            nl_re: vec![0.0; 64],
-            nl_im: vec![0.0; 64],
-            nl_a: vec![0.0; 64],
-            nl_long: vec![(0.0, 0.0); 16],
+            nl_re: vec![0.0; nl_partials],
+            nl_im: vec![0.0; nl_partials],
+            nl_a: vec![0.0; nl_partials],
+            nl_long: vec![(0.0, 0.0); nl_long],
             nl_age: 0,
             // The stretching builds up while the hammer pushes: 2 ms ramp
             // from the hand-over (a step would ring the high longitudinal
             // modes like a click).
             nl_ramp: (0.002 * sample_rate) as u32,
             nl_hp: (0.0, 0.0),
+            sym_silence: crate::engine::Shortcuts::DEFAULT.sym_silence,
+            nl_silence: crate::engine::Shortcuts::DEFAULT.nl_silence,
         }
+    }
+
+    pub fn set_shortcuts(&mut self, s: &crate::engine::Shortcuts) {
+        self.sym_silence = s.sym_silence;
+        self.nl_silence = s.nl_silence;
     }
 
     /// Prepares the strings of a key at rest; `listen_only` runs only the
@@ -253,12 +266,12 @@ impl Voice {
                 // A string at rest under a bridge at rest (the board asleep):
                 // nothing to compute.
                 let still = u.iter().chain(&self.x2[..n]).all(|&x| x == 0.0);
-                if !(still && self.sym.energy() < SYM_SILENCE) {
+                if !(still && self.sym.energy() < self.sym_silence) {
                     self.sym.process_two_inputs(u, &self.x2[..n], f);
                 }
             }
             // Damped: the sympathetic part still decays freely.
-            None if self.sym.energy() > SYM_SILENCE => self.sym.process(None, f),
+            None if self.sym.energy() > self.sym_silence => self.sym.process(None, f),
             None => {}
         }
     }
@@ -301,7 +314,7 @@ impl Voice {
         }
         let long_e: f32 = self.nl_long[..lg.long_pole.len()].iter().map(|z| z.0 * z.0 + z.1 * z.1).sum();
         // Estimated board force: coupling · tension modulation (N).
-        if lg.coupling * lg.ea4 * s2 < NL_SILENCE && long_e < 1e-24 {
+        if lg.coupling * lg.ea4 * s2 < self.nl_silence && long_e < 1e-20 * self.nl_silence {
             self.nl_long.fill((0.0, 0.0));
             return false;
         }
@@ -384,6 +397,10 @@ impl Voice {
         let n = nm.n_osc;
         let ns = np.strings;
         let modal_mass = np.mu * np.length / 2.0;
+        // Partials dropped once silent ring again under the felt.
+        if !self.bank.is_empty() && self.bank.len() < nm.modes.len() {
+            self.bank.set_active_len(nm.modes.len());
+        }
         // A listening string only runs its sympathetic bank.
         let bank = if self.bank.is_empty() { &mut self.sym } else { &mut self.bank };
         for (ki, cl) in nm.clusters.iter().enumerate() {
@@ -405,6 +422,15 @@ impl Voice {
                 let (re, im) = bank.state(ki * n + m);
                 bank.set_state(ki * n + m, re + d.re, im + d.im);
             }
+        }
+    }
+
+    /// Stops running the struck strings' partials once they have died away
+    /// (below `threshold`, output-weighted energy, see
+    /// [`ModalBank::drop_tail`]); not during the hammer contact.
+    pub fn drop_silent_partials(&mut self, threshold: f32) {
+        if threshold > 0.0 && !self.contact.is_active() && !self.bank.is_empty() {
+            self.bank.drop_tail(threshold);
         }
     }
 

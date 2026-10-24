@@ -23,6 +23,10 @@ struct Cli {
     /// in order (presets/listening/…).
     #[arg(long, global = true)]
     listening: Vec<PathBuf>,
+    /// CPU quality: overkill (no shortcut, the reference), full (default),
+    /// balanced or light (docs/performance.md).
+    #[arg(long, global = true, default_value = "full")]
+    quality: String,
 }
 
 #[derive(Subcommand)]
@@ -63,8 +67,8 @@ fn midi_timeline(path: &std::path::Path) -> Result<Timeline, Box<dyn std::error:
 }
 
 /// Stereo render (two microphones), interleaved.
-fn render(tl: &Timeline, sr: u32, block: usize, tail: f64, model: piano_core::params::PianoModel) -> (Vec<f32>, usize) {
-    let cfg = EngineConfig { sample_rate: sr as f64, max_block: block, model, ..Default::default() };
+fn render(tl: &Timeline, sr: u32, block: usize, tail: f64, model: piano_core::params::PianoModel, quality: piano_core::Quality) -> (Vec<f32>, usize) {
+    let cfg = EngineConfig { sample_rate: sr as f64, max_block: block, model, quality, ..Default::default() };
     let mut engine = Engine::new(cfg);
     let end = tl.last().map_or(0.0, |e| e.0) + tail;
     let total = (end * sr as f64).ceil() as usize;
@@ -124,7 +128,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     let t = std::time::Instant::now();
-    let (audio, peak_voices) = render(&tl, cli.sr, cli.block, cli.tail, model);
+    let quality = piano_core::Quality::from_name(&cli.quality).ok_or_else(|| format!("unknown quality {:?}: overkill, full, balanced or light", cli.quality))?;
+    let (audio, peak_voices) = render(&tl, cli.sr, cli.block, cli.tail, model, quality);
     let wall = t.elapsed().as_secs_f64();
     let dur = audio.len() as f64 / 2.0 / cli.sr as f64;
     let peak = audio.iter().fold(0.0f32, |m, v| m.max(v.abs()));

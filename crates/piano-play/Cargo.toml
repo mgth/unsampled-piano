@@ -25,12 +25,18 @@ midir.workspace = true
 rtrb.workspace = true
 clap.workspace = true
 jack = "0.13"
+libc = "0.2"
 toml.workspace = true
 
 # The executable's icon (build.rs), for Windows targets: rc.exe on Windows,
 # MinGW's windres when cross-compiling.
 [build-dependencies]
 winresource = "0.1.31"
+
+# Real-time priority for the engine's voice workers (Linux: libc directly;
+# this crate needs rtkit over D-Bus there).
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+audio_thread_priority = { version = "0.35", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console", "Win32_UI_WindowsAndMessaging"] }

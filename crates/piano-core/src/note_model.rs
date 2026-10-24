@@ -55,6 +55,29 @@ pub struct NoteModel {
 /// difference.
 pub const BRIDGE_DELAY: f64 = crate::engine::SUB_BLOCK as f64 + 0.5;
 
+/// How finely the strings are resolved: caps that keep the cost bounded
+/// where the parts left out were judged inaudible.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Resolution {
+    /// Coupled modes per key at most (the partials stop at 0.45·fs anyway).
+    pub max_modes: usize,
+    /// Partials and longitudinal modes of the phantom-partial model at most.
+    pub nl_partials: usize,
+    pub nl_long: usize,
+}
+
+impl Resolution {
+    pub const DEFAULT: Self = Self { max_modes: crate::voice::MAX_MODES, nl_partials: 48, nl_long: 16 };
+    /// No cap below the sample rate's own limit.
+    pub const UNCAPPED: Self = Self { max_modes: 4096, nl_partials: 256, nl_long: 64 };
+}
+
+impl Default for Resolution {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
 /// Precomputed longitudinal model of a key (see [`params::StringNonlinearity`]).
 ///
 /// The slope of string j is y' = Σ_k a_k·cos(kπx/L), a_k = (kπ/L)·q_k. The
@@ -94,6 +117,19 @@ impl NoteModel {
         sample_rate: f64,
         max_modes: usize,
     ) -> Self {
+        Self::build_with(model, board, board_modes, note, sample_rate, Resolution { max_modes, ..Resolution::DEFAULT })
+    }
+
+    /// [`Self::build`] at a given [`Resolution`].
+    pub fn build_with(
+        model: &PianoModel,
+        board: Option<&Soundboard>,
+        board_modes: Option<&[BoardMode]>,
+        note: u8,
+        sample_rate: f64,
+        res: Resolution,
+    ) -> Self {
+        let max_modes = res.max_modes;
         let np = model.note(note);
         let region = board::region_of(note);
         let has_damper = note <= model.damper.highest_note;
@@ -190,7 +226,7 @@ impl NoteModel {
             }
             clusters.push(cl);
         }
-        let longitudinal = longitudinal(model, &np, n_osc, &clusters, &modes, note, sample_rate);
+        let longitudinal = longitudinal(model, &np, n_osc, &clusters, &modes, note, sample_rate, res);
         let delay = BRIDGE_DELAY / sample_rate;
         let sym_modes: Vec<ModeSpec> = modes
             .iter()
@@ -203,7 +239,20 @@ impl NoteModel {
             .collect();
         let table = ModeTable::new(sample_rate, &modes);
         let sym_table = ModeTable::new(sample_rate, &sym_modes);
-        Self { note, params: np, n_osc, clusters, phys, modes, region, has_damper, n_listen, longitudinal, table, sym_table }
+        Self {
+            note,
+            params: np,
+            n_osc,
+            clusters,
+            phys,
+            modes,
+            region,
+            has_damper,
+            n_listen,
+            longitudinal,
+            table,
+            sym_table,
+        }
     }
 
     /// Damper decay-rate factor at contact `engagement` (0 lifted, 1 resting).
@@ -216,6 +265,7 @@ impl NoteModel {
 }
 
 /// Longitudinal model of a key, or None when disabled or above `max_note`.
+#[allow(clippy::too_many_arguments)]
 fn longitudinal(
     model: &PianoModel,
     np: &NoteParams,
@@ -224,6 +274,7 @@ fn longitudinal(
     modes: &[ModeSpec],
     note: u8,
     sample_rate: f64,
+    res: Resolution,
 ) -> Option<Longitudinal> {
     let nl = &model.nonlinear;
     if !nl.enabled || note > nl.max_note || clusters.is_empty() {
@@ -241,8 +292,8 @@ fn longitudinal(
         .enumerate()
         .take_while(|(i, _)| modes[i * n_osc].freq_hz < nl.max_partial_hz)
         .count()
-        .min(48);
-    let n_long = (1..=16).take_while(|&n| n as f64 * c_long / (2.0 * np.length) < nl.max_long_hz.min(0.45 * sample_rate)).count();
+        .min(res.nl_partials);
+    let n_long = (1..=res.nl_long).take_while(|&n| n as f64 * c_long / (2.0 * np.length) < nl.max_long_hz.min(0.45 * sample_rate)).count();
     if n_part < 2 || n_long == 0 {
         return None;
     }
@@ -303,9 +354,26 @@ impl PianoTable {
         sample_rate: f64,
         max_modes: usize,
     ) -> Self {
+        Self::with_resolution(model, board, board_modes, sample_rate, Resolution { max_modes, ..Resolution::DEFAULT })
+    }
+
+    pub fn with_resolution(
+        model: &PianoModel,
+        board: Option<&Soundboard>,
+        board_modes: Option<&[BoardMode]>,
+        sample_rate: f64,
+        res: Resolution,
+    ) -> Self {
         // Independent keys: built in parallel (≈ 0.5 s on one core).
-        let notes = crate::par::map(88, |i| NoteModel::build(model, board, board_modes, 21 + i as u8, sample_rate, max_modes));
+        let notes = crate::par::map(88, |i| NoteModel::build_with(model, board, board_modes, 21 + i as u8, sample_rate, res));
         Self { notes }
+    }
+
+    /// Most modes of a key, and most partials and longitudinal modes of
+    /// the phantom-partial model: what a voice must hold.
+    pub fn capacity(&self) -> (usize, usize, usize) {
+        let nl = |f: fn(&Longitudinal) -> usize| self.notes.iter().filter_map(|n| n.longitudinal.as_ref().map(f)).max().unwrap_or(0);
+        (self.notes.iter().map(|n| n.modes.len()).max().unwrap_or(0), nl(|l| l.slope.len()), nl(|l| l.long_pole.len()))
     }
 
     pub fn get(&self, note: u8) -> &NoteModel {

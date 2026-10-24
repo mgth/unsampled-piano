@@ -16,6 +16,8 @@
 
 pub const LANES: usize = 16;
 
+use crate::simd::V16;
+
 /// Parameters of one mode, in physical units.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ModeSpec {
@@ -403,6 +405,36 @@ impl ModalBank {
         }
     }
 
+    /// Stops running the last modes while their output-weighted energy,
+    /// summed from the end, stays below `threshold` (whole chunks; their
+    /// states are cleared). For a bank decaying freely, whose high modes die
+    /// first. Returns the modes still run. Real-time safe.
+    pub fn drop_tail(&mut self, threshold: f32) -> usize {
+        let mut e = 0.0f32;
+        let mut c = self.n_modes.div_ceil(LANES);
+        while c > 0 {
+            let ch = &self.chunks[c - 1];
+            let mut ce = 0.0f32;
+            for l in 0..LANES {
+                ce += (ch.or[l] * ch.or[l] + ch.oi[l] * ch.oi[l]) * (ch.zr[l] * ch.zr[l] + ch.zi[l] * ch.zi[l]);
+            }
+            if e + ce >= threshold {
+                break;
+            }
+            e += ce;
+            c -= 1;
+        }
+        let n = (c * LANES).min(self.n_modes);
+        if n < self.n_modes {
+            for ch in &mut self.chunks[c..self.n_modes.div_ceil(LANES)] {
+                ch.zr = [0.0; LANES];
+                ch.zi = [0.0; LANES];
+            }
+            self.n_modes = n;
+        }
+        n
+    }
+
     /// Sum of |w·z|² over modes (output-weighted), a cheap loudness proxy
     /// for voice management.
     pub fn energy(&self) -> f32 {
@@ -448,6 +480,7 @@ impl ModalBank {
         // loop the kernel spills (≈ 20× slower, measured on all ISAs), and a
         // driven bank with a second input or output needs one chunk on AVX2.
         let heavy = x2.is_some() || O2;
+        #[cfg_attr(target_arch = "aarch64", allow(unused))]
         let g = match (x1.is_some(), heavy, self.isa) {
             #[cfg(target_arch = "x86_64")]
             (true, true, Isa::Avx2) => 1,
@@ -456,6 +489,9 @@ impl ModalBank {
             (false, false, _) => self.group,
         };
         let (a, b) = (x1.unwrap_or(&[]), x2.unwrap_or(&[]));
+        acc.fill([0.0; LANES]);
+        acc2.fill([0.0; LANES]);
+        #[cfg_attr(target_arch = "aarch64", allow(unused_macros))]
         macro_rules! go {
             ($run:ident) => {
                 match (x1.is_some(), x2.is_some()) {
@@ -466,6 +502,14 @@ impl ModalBank {
             };
         }
         match self.isa {
+            // aarch64: explicit NEON, two chunks per time loop.
+            #[cfg(target_arch = "aarch64")]
+            Isa::Generic => match (x1.is_some(), x2.is_some()) {
+                (false, _) => run_v::<crate::simd::arm::N, false, false, O2>(chunks, a, b, acc, acc2),
+                (true, false) => run_v::<crate::simd::arm::N, true, false, O2>(chunks, a, b, acc, acc2),
+                (true, true) => run_v::<crate::simd::arm::N, true, true, O2>(chunks, a, b, acc, acc2),
+            },
+            #[cfg(not(target_arch = "aarch64"))]
             Isa::Generic => go!(run),
             // SAFETY: these variants are only selectable when detected.
             #[cfg(target_arch = "x86_64")]
@@ -527,7 +571,13 @@ fn run_avx2<const IN: bool, const IN2: bool, const O2: bool>(
     acc2: &mut [[f32; LANES]],
     g: usize,
 ) {
-    run::<IN, IN2, O2>(chunks, x, x2, acc, acc2, g)
+    // Driven banks: explicit 8-lane halves, two chunks per time loop (the
+    // generic code spills there and runs one chunk, latency-bound).
+    if IN {
+        run_v::<crate::simd::x86::Y, IN, IN2, O2>(chunks, x, x2, acc, acc2)
+    } else {
+        run::<IN, IN2, O2>(chunks, x, x2, acc, acc2, g)
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -543,6 +593,7 @@ fn run_avx512<const IN: bool, const IN2: bool, const O2: bool>(
     run::<IN, IN2, O2>(chunks, x, x2, acc, acc2, g)
 }
 
+#[cfg_attr(target_arch = "aarch64", allow(dead_code))]
 #[inline(always)]
 fn run<const IN: bool, const IN2: bool, const O2: bool>(
     chunks: &mut [Chunk],
@@ -552,8 +603,6 @@ fn run<const IN: bool, const IN2: bool, const O2: bool>(
     acc2: &mut [[f32; LANES]],
     g: usize,
 ) {
-    acc.fill([0.0; LANES]);
-    acc2.fill([0.0; LANES]);
     let rest = match g {
         4 => {
             let (grps, rest) = chunks.as_chunks_mut::<4>();
@@ -576,6 +625,77 @@ fn run<const IN: bool, const IN2: bool, const O2: bool>(
     }
 }
 
+/// [`run`] with explicit 16-lane vectors, two chunks per time loop; the
+/// same operations in the same order (bit-identical results).
+#[inline(always)]
+fn run_v<V: V16, const IN: bool, const IN2: bool, const O2: bool>(
+    chunks: &mut [Chunk],
+    x: &[f32],
+    x2: &[f32],
+    acc: &mut [[f32; LANES]],
+    acc2: &mut [[f32; LANES]],
+) {
+    let (grps, rest) = chunks.as_chunks_mut::<2>();
+    for grp in grps {
+        group_v::<V, 2, IN, IN2, O2>(grp, x, x2, acc, acc2);
+    }
+    for grp in rest.as_chunks_mut::<1>().0 {
+        group_v::<V, 1, IN, IN2, O2>(grp, x, x2, acc, acc2);
+    }
+}
+
+/// [`group`] with the states in registers and the coefficients read from
+/// the chunks at every sample (loads are cheap; registers are not).
+#[inline(always)]
+fn group_v<V: V16, const G: usize, const IN: bool, const IN2: bool, const O2: bool>(
+    grp: &mut [Chunk; G],
+    x: &[f32],
+    x2: &[f32],
+    acc: &mut [[f32; LANES]],
+    acc2: &mut [[f32; LANES]],
+) {
+    let (mut zr, mut zi) = ([V::zero(); G], [V::zero(); G]);
+    for g in 0..G {
+        zr[g] = V::ld(&grp[g].zr);
+        zi[g] = V::ld(&grp[g].zi);
+    }
+    for n in 0..acc.len() {
+        let mut s = V::ld(&acc[n]);
+        let mut s2 = if O2 { V::ld(&acc2[n]) } else { V::zero() };
+        let xn = V::splat(if IN { x[n] } else { 0.0 });
+        let xn2 = V::splat(if IN2 { x2[n] } else { 0.0 });
+        for g in 0..G {
+            let c = &grp[g];
+            let (pr, pi) = (V::ld(&c.pr), V::ld(&c.pi));
+            let mut r = pr.mul(zr[g]).sub(pi.mul(zi[g]));
+            let mut i = pr.mul(zi[g]).add(pi.mul(zr[g]));
+            if IN {
+                r = r.add(V::ld(&c.br).mul(xn));
+                i = i.add(V::ld(&c.bi).mul(xn));
+            }
+            if IN2 {
+                r = r.add(V::ld(&c.b2r).mul(xn2));
+                i = i.add(V::ld(&c.b2i).mul(xn2));
+            }
+            zr[g] = r;
+            zi[g] = i;
+            s = s.add(V::ld(&c.or).mul(r).sub(V::ld(&c.oi).mul(i)));
+            if O2 {
+                s2 = s2.add(V::ld(&c.o2r).mul(r).sub(V::ld(&c.o2i).mul(i)));
+            }
+        }
+        s.st(&mut acc[n]);
+        if O2 {
+            s2.st(&mut acc2[n]);
+        }
+    }
+    for g in 0..G {
+        zr[g].st(&mut grp[g].zr);
+        zi[g].st(&mut grp[g].zi);
+    }
+}
+
+#[cfg_attr(target_arch = "aarch64", allow(dead_code))]
 #[inline(always)]
 fn group<const G: usize, const IN: bool, const IN2: bool, const O2: bool>(
     grp: &mut [Chunk; G],
@@ -683,7 +803,11 @@ mod tests {
                 let mut out = vec![0.0f32; 128 * 4];
                 for (i, blk) in out.chunks_mut(128).enumerate() {
                     b.set_damping(0.7 * i as f32);
-                    b.process(Some(&x), blk);
+                    if i % 2 == 0 {
+                        b.process(Some(&x), blk);
+                    } else {
+                        b.process_two_inputs(&x, &x, blk);
+                    }
                 }
                 match &reference {
                     None => reference = Some(out),

@@ -14,6 +14,9 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::modal::{Isa, LANES};
+use crate::simd::V16;
+#[cfg(target_arch = "x86_64")]
+use crate::simd;
 
 pub const REGIONS: usize = 16;
 pub const MICS: usize = 2;
@@ -57,20 +60,38 @@ impl Default for Chunk {
     }
 }
 
-pub struct BoardBank {
+/// The modes are split in this many parts, computed one after the other or
+/// on several threads ([`BoardBank::split`]): the same result either way.
+pub const PARTS: usize = 2;
+
+/// One part of a bank's modes, with its own working memory.
+pub struct BoardPart {
     chunks: Vec<Chunk>,
-    n_modes: usize,
-    /// Per output and sample: lane sums over the chunks done so far, then
-    /// the summed output; index `output·max_block + t` (the extra outputs
-    /// after the [`OUTPUTS`] ones).
+    /// Index of the first chunk in the bank.
+    c0: usize,
+    /// Per output and sample: lane sums over the part's chunks, index
+    /// `output·max_block + t` (the extra outputs after the [`OUTPUTS`] ones).
     lanes: Vec<[f32; LANES]>,
-    sums: Vec<f32>,
-    /// Direct feedthrough of one output over the block.
-    feed: Vec<f32>,
     /// State history of one block of [`BLOCK`] chunks over the block, index
     /// `chunk·max_block + t`.
     hist: Vec<Hist>,
+    isa: Isa,
+}
+
+pub struct BoardBank {
+    parts: [BoardPart; PARTS],
+    n_modes: usize,
+    /// Summed outputs, index `output·max_block + t`.
+    sums: Vec<f32>,
+    /// Direct feedthrough of one output over the block.
+    feed: Vec<f32>,
     max_block: usize,
+    /// This block: its length, the regions with input, outputs computed.
+    block_len: usize,
+    active: [usize; REGIONS],
+    na: usize,
+    no: usize,
+    n_ex: usize,
     /// Inputs transposed per sample, only the active regions.
     xin: Vec<[f32; REGIONS]>,
     /// Direct feedthrough correcting impulse invariance (index output, region):
@@ -111,6 +132,7 @@ impl BoardBank {
             }
         }
         let mut chunks = vec![Chunk::default(); modes.len().div_ceil(LANES)];
+        let isa = Isa::detect();
         let mut direct = [[0.0f64; REGIONS]; OUTPUTS];
         for m in modes {
             for (o, row) in direct.iter_mut().enumerate() {
@@ -134,20 +156,36 @@ impl BoardBank {
                 c.wi[o][l] = w.1 as f32;
             }
         }
+        // Low modes first: the extra outputs live in the first part.
+        let half = chunks.len().div_ceil(PARTS);
+        let mut rest = chunks;
+        let parts = std::array::from_fn(|p| {
+            let tail = rest.split_off(half.min(rest.len()));
+            BoardPart {
+                chunks: std::mem::replace(&mut rest, tail),
+                c0: p * half,
+                lanes: vec![[0.0; LANES]; (OUTPUTS + n_extra) * max_block],
+                hist: vec![([0.0; LANES], [0.0; LANES]); BLOCK * max_block],
+                isa,
+            }
+        });
         Self {
-            chunks,
+            parts,
             n_modes: modes.len(),
-            lanes: vec![[0.0; LANES]; (OUTPUTS + n_extra) * max_block],
             sums: vec![0.0; (OUTPUTS + n_extra) * max_block],
             feed: vec![0.0; max_block],
-            hist: vec![([0.0; LANES], [0.0; LANES]); BLOCK * max_block],
             max_block,
+            block_len: 0,
+            active: [0; REGIONS],
+            na: 0,
+            no: 0,
+            n_ex: 0,
             xin: vec![[0.0; REGIONS]; max_block],
             direct: direct.map(|row| row.map(|d| d as f32)),
             n_extra,
             extra_chunks,
             extra_w,
-            isa: Isa::detect(),
+            isa,
             fs2: (sample_rate * sample_rate) as f32,
         }
     }
@@ -162,6 +200,9 @@ impl BoardBank {
 
     pub fn set_isa(&mut self, isa: Isa) {
         self.isa = isa;
+        for p in &mut self.parts {
+            p.isa = isa;
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -173,7 +214,7 @@ impl BoardBank {
     /// differentiator's gain |1 − p|·fs at each mode restores the pressure.
     pub fn energy(&self) -> f32 {
         let mut e = 0.0;
-        for c in &self.chunks {
+        for c in self.parts.iter().flat_map(|p| &p.chunks) {
             for l in 0..LANES {
                 let w = c.wr[0][l] * c.wr[0][l] + c.wi[0][l] * c.wi[0][l];
                 let d = (1.0 - c.pr[l]) * (1.0 - c.pr[l]) + c.pi[l] * c.pi[l];
@@ -195,48 +236,73 @@ impl BoardBank {
         disp: Option<&mut [Vec<f32>]>,
         extra: Option<&mut [Vec<f32>]>,
     ) {
+        self.prepare(inputs, len, disp.is_some(), extra.is_some());
+        let (job, parts) = self.split();
+        for part in parts {
+            part.run(&job);
+        }
+        self.finish(mics, disp, extra);
+    }
+
+    /// [`Self::process`] in three steps, to run the parts in parallel:
+    /// `prepare`, then [`BoardPart::run`] on each part of [`Self::split`],
+    /// then `finish`.
+    pub fn prepare(&mut self, inputs: &[Vec<f32>], len: usize, disp: bool, extra: bool) {
         assert!(len <= self.max_block && inputs.len() == REGIONS);
         // Only regions with input this block take part in the projection.
-        let mut active = [0usize; REGIONS];
-        let mut na = 0;
+        self.na = 0;
         for (r, x) in inputs.iter().enumerate() {
             if x[..len].iter().any(|&v| v != 0.0) {
-                active[na] = r;
-                na += 1;
+                self.active[self.na] = r;
+                self.na += 1;
             }
         }
         for (t, xi) in self.xin[..len].iter_mut().enumerate() {
-            for (a, &r) in active[..na].iter().enumerate() {
+            for (a, &r) in self.active[..self.na].iter().enumerate() {
                 xi[a] = inputs[r][t];
             }
         }
         // Outputs computed: the mics, the bridge velocities when asked for
         // (then the extra outputs).
-        let outs: [usize; OUTPUTS] = std::array::from_fn(|o| o);
-        let no = if disp.is_some() { OUTPUTS } else { MICS };
-        let n_ex = if extra.is_some() { self.n_extra } else { 0 };
-        let job = Job {
-            xin: &self.xin[..len],
-            act: &active[..na],
+        self.block_len = len;
+        self.no = if disp { OUTPUTS } else { MICS };
+        self.n_ex = if extra { self.n_extra } else { 0 };
+    }
+
+    /// The block's work, shared by the parts, and the parts.
+    pub fn split(&mut self) -> (BoardJob<'_>, &mut [BoardPart; PARTS]) {
+        let job = BoardJob {
+            xin: &self.xin[..self.block_len],
+            act: &self.active[..self.na],
             mb: self.max_block,
-            len,
-            outs: &outs[..no],
-            n_ex,
-            ex_w: &self.extra_w[..self.extra_chunks * n_ex],
+            len: self.block_len,
+            outs: &ALL_OUTPUTS[..self.no],
+            n_ex: self.n_ex,
+            ex_w: &self.extra_w[..self.extra_chunks * self.n_ex],
             ex_chunks: self.extra_chunks,
         };
-        let mut st = State { chunks: &mut self.chunks[..], hist: &mut self.hist[..], lanes: &mut self.lanes[..], sums: &mut self.sums[..] };
-        match self.isa {
-            Isa::Generic => kernel::<[f32; LANES], 1, 1, 1>(&job, &mut st),
-            // SAFETY: only selectable when detected.
-            #[cfg(target_arch = "x86_64")]
-            Isa::Avx2 => unsafe { kernel_avx2(&job, &mut st) },
-            #[cfg(target_arch = "x86_64")]
-            Isa::Avx512 => unsafe { kernel_avx512(&job, &mut st) },
+        (job, &mut self.parts)
+    }
+
+    /// Adds the outputs of the parts, run since [`Self::prepare`].
+    pub fn finish(&mut self, mics: [&mut [f32]; MICS], disp: Option<&mut [Vec<f32>]>, extra: Option<&mut [Vec<f32>]>) {
+        let (mb, len) = (self.max_block, self.block_len);
+        let outs = ALL_OUTPUTS[..self.no].iter().chain(&EXTRA[..self.n_ex]);
+        // Lane by lane over the parts in order, then the lanes as a tree.
+        for &o in outs {
+            for t in 0..len {
+                let mut a = [0.0f32; LANES];
+                for p in self.parts.iter().filter(|p| !p.chunks.is_empty() && (o < OUTPUTS || p.c0 < self.extra_chunks)) {
+                    let l = &p.lanes[o * mb + t];
+                    for k in 0..LANES {
+                        a[k] += l[k];
+                    }
+                }
+                self.sums[o * mb + t] = hsum(&a);
+            }
         }
-        let mb = self.max_block;
         let [m0, m1] = mics;
-        let act = &active[..na];
+        let act = &self.active[..self.na];
         // Output plus direct feedthrough Σ_k direct·x_k (k in order, for
         // every sample at once: vectorises).
         let (xin, direct, sums, feed) = (&self.xin[..len], &self.direct, &self.sums, &mut self.feed[..len]);
@@ -269,13 +335,43 @@ impl BoardBank {
     }
 }
 
+impl BoardPart {
+    /// Advances this part's modes over the block and computes its lane sums.
+    pub fn run(&mut self, job: &BoardJob) {
+        let mut st = State { chunks: &mut self.chunks[..], c0: self.c0, hist: &mut self.hist[..], lanes: &mut self.lanes[..] };
+        match self.isa {
+            // aarch64: NEON is the baseline (32 registers: three outputs a tile).
+            #[cfg(target_arch = "aarch64")]
+            Isa::Generic => kernel::<crate::simd::arm::N, 1, 3, 1>(job, &mut st),
+            #[cfg(not(target_arch = "aarch64"))]
+            Isa::Generic => kernel::<[f32; LANES], 1, 1, 1>(job, &mut st),
+            // SAFETY: only selectable when detected.
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx2 => unsafe { kernel_avx2(job, &mut st) },
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx512 => unsafe { kernel_avx512(job, &mut st) },
+        }
+    }
+}
+
+/// Indices of the outputs.
+const ALL_OUTPUTS: [usize; OUTPUTS] = {
+    let mut o = [0; OUTPUTS];
+    let mut i = 0;
+    while i < OUTPUTS {
+        o[i] = i;
+        i += 1;
+    }
+    o
+};
+
 type Hist = ([f32; LANES], [f32; LANES]);
 
 /// Extra outputs' weights of the low chunks, `[c·n_ex + e]`.
 type ExtraW = [[f32; LANES]; 2];
 
-/// What one [`BoardBank::process`] computes.
-struct Job<'a> {
+/// What one [`BoardBank::process`] computes, shared by the parts.
+pub struct BoardJob<'a> {
     xin: &'a [[f32; REGIONS]],
     act: &'a [usize],
     mb: usize,
@@ -304,142 +400,23 @@ const BLOCK: usize = 4;
 
 struct State<'a> {
     chunks: &'a mut [Chunk],
+    /// Index of the first chunk in the bank (for the extra outputs).
+    c0: usize,
     hist: &'a mut [Hist],
     lanes: &'a mut [[f32; LANES]],
-    sums: &'a mut [f32],
 }
 
-/// 16 lanes of f32 as one ISA holds them. Only plain multiplies and adds
-/// (no fused multiply-add): every ISA gives the same result.
-trait V16: Copy {
-    fn zero() -> Self;
-    fn splat(x: f32) -> Self;
-    fn ld(a: &[f32; LANES]) -> Self;
-    fn st(self, a: &mut [f32; LANES]);
-    fn add(self, o: Self) -> Self;
-    fn sub(self, o: Self) -> Self;
-    fn mul(self, o: Self) -> Self;
-}
-
-impl V16 for [f32; LANES] {
-    #[inline(always)]
-    fn zero() -> Self {
-        [0.0; LANES]
-    }
-    #[inline(always)]
-    fn splat(x: f32) -> Self {
-        [x; LANES]
-    }
-    #[inline(always)]
-    fn ld(a: &[f32; LANES]) -> Self {
-        *a
-    }
-    #[inline(always)]
-    fn st(self, a: &mut [f32; LANES]) {
-        *a = self;
-    }
-    #[inline(always)]
-    fn add(self, o: Self) -> Self {
-        std::array::from_fn(|l| self[l] + o[l])
-    }
-    #[inline(always)]
-    fn sub(self, o: Self) -> Self {
-        std::array::from_fn(|l| self[l] - o[l])
-    }
-    #[inline(always)]
-    fn mul(self, o: Self) -> Self {
-        std::array::from_fn(|l| self[l] * o[l])
-    }
-}
-
-#[cfg(target_arch = "x86_64")]
-mod simd {
-    use super::{V16, LANES};
-    use std::arch::x86_64::*;
-
-    #[derive(Clone, Copy)]
-    pub struct Z(__m512);
-    #[derive(Clone, Copy)]
-    pub struct Y(__m256, __m256);
-
-    // SAFETY (all methods): only used inside functions compiled with the
-    // matching target features, selected when detected.
-    impl V16 for Z {
-        #[inline(always)]
-        fn zero() -> Self {
-            unsafe { Z(_mm512_setzero_ps()) }
-        }
-        #[inline(always)]
-        fn splat(x: f32) -> Self {
-            unsafe { Z(_mm512_set1_ps(x)) }
-        }
-        #[inline(always)]
-        fn ld(a: &[f32; LANES]) -> Self {
-            unsafe { Z(_mm512_loadu_ps(a.as_ptr())) }
-        }
-        #[inline(always)]
-        fn st(self, a: &mut [f32; LANES]) {
-            unsafe { _mm512_storeu_ps(a.as_mut_ptr(), self.0) }
-        }
-        #[inline(always)]
-        fn add(self, o: Self) -> Self {
-            unsafe { Z(_mm512_add_ps(self.0, o.0)) }
-        }
-        #[inline(always)]
-        fn sub(self, o: Self) -> Self {
-            unsafe { Z(_mm512_sub_ps(self.0, o.0)) }
-        }
-        #[inline(always)]
-        fn mul(self, o: Self) -> Self {
-            unsafe { Z(_mm512_mul_ps(self.0, o.0)) }
-        }
-    }
-
-    impl V16 for Y {
-        #[inline(always)]
-        fn zero() -> Self {
-            unsafe { Y(_mm256_setzero_ps(), _mm256_setzero_ps()) }
-        }
-        #[inline(always)]
-        fn splat(x: f32) -> Self {
-            unsafe { Y(_mm256_set1_ps(x), _mm256_set1_ps(x)) }
-        }
-        #[inline(always)]
-        fn ld(a: &[f32; LANES]) -> Self {
-            unsafe { Y(_mm256_loadu_ps(a.as_ptr()), _mm256_loadu_ps(a.as_ptr().add(8))) }
-        }
-        #[inline(always)]
-        fn st(self, a: &mut [f32; LANES]) {
-            unsafe {
-                _mm256_storeu_ps(a.as_mut_ptr(), self.0);
-                _mm256_storeu_ps(a.as_mut_ptr().add(8), self.1);
-            }
-        }
-        #[inline(always)]
-        fn add(self, o: Self) -> Self {
-            unsafe { Y(_mm256_add_ps(self.0, o.0), _mm256_add_ps(self.1, o.1)) }
-        }
-        #[inline(always)]
-        fn sub(self, o: Self) -> Self {
-            unsafe { Y(_mm256_sub_ps(self.0, o.0), _mm256_sub_ps(self.1, o.1)) }
-        }
-        #[inline(always)]
-        fn mul(self, o: Self) -> Self {
-            unsafe { Y(_mm256_mul_ps(self.0, o.0), _mm256_mul_ps(self.1, o.1)) }
-        }
-    }
-}
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
-fn kernel_avx2(job: &Job, st: &mut State) {
-    kernel::<simd::Y, 2, 1, 4>(job, st)
+fn kernel_avx2(job: &BoardJob, st: &mut State) {
+    kernel::<simd::x86::Y, 2, 1, 4>(job, st)
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f")]
-fn kernel_avx512(job: &Job, st: &mut State) {
-    kernel::<simd::Z, 4, 3, 4>(job, st)
+fn kernel_avx512(job: &BoardJob, st: &mut State) {
+    kernel::<simd::x86::Z, 4, 3, 4>(job, st)
 }
 
 /// Sum of the lanes as a tree (independent adds, not a serial chain).
@@ -463,12 +440,12 @@ fn hsum(a: &[f32; LANES]) -> f32 {
 /// its chunks in order, lane by lane, then its lanes as a tree: the same
 /// result for any G, tile or ISA.
 #[inline(always)]
-fn kernel<V: V16, const G: usize, const OT: usize, const TT: usize>(job: &Job, st: &mut State) {
+fn kernel<V: V16, const G: usize, const OT: usize, const TT: usize>(job: &BoardJob, st: &mut State) {
     let (mb, len) = (job.mb, job.len);
     let (ex_w, n_ex) = (job.ex_w, job.n_ex);
     let ex = &EXTRA[..n_ex];
     for (bi, blk) in st.chunks.chunks_mut(BLOCK).enumerate() {
-        let c0 = bi * BLOCK;
+        let c0 = st.c0 + bi * BLOCK;
         let (grps, rest) = blk.as_chunks_mut::<G>();
         for (gi, grp) in grps.iter_mut().enumerate() {
             recurse::<V, G>(grp, job, &mut st.hist[gi * G * mb..]);
@@ -486,16 +463,11 @@ fn kernel<V: V16, const G: usize, const OT: usize, const TT: usize>(job: &Job, s
             });
         }
     }
-    for &o in job.outs.iter().chain(ex) {
-        for t in 0..len {
-            st.sums[o * mb + t] = hsum(&st.lanes[o * mb + t]);
-        }
-    }
 }
 
 /// Advances `G` chunks over the sub-block, states into `hist[g·mb + t]`.
 #[inline(always)]
-fn recurse<V: V16, const G: usize>(grp: &mut [Chunk; G], job: &Job, hist: &mut [Hist]) {
+fn recurse<V: V16, const G: usize>(grp: &mut [Chunk; G], job: &BoardJob, hist: &mut [Hist]) {
     let mb = job.mb;
     let (mut pr, mut pi, mut zr, mut zi) = ([V::zero(); G], [V::zero(); G], [V::zero(); G], [V::zero(); G]);
     for g in 0..G {

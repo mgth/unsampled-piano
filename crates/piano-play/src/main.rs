@@ -103,7 +103,7 @@ struct Args {
     /// the sound is the same whatever the number.
     #[arg(long)]
     threads: Option<usize>,
-    /// CPU quality: full (default), balanced or light (see
+    /// CPU quality: overkill, full (default), balanced or light (see
     /// docs/performance.md).
     #[arg(long)]
     quality: Option<String>,
@@ -157,7 +157,7 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
         None => last.load(restore_last(&args)).unwrap_or_default(),
     };
     let quality = match args.quality.as_deref() {
-        Some(q) => piano_core::Quality::from_name(q).ok_or_else(|| format!("unknown quality {q:?}: full, balanced or light"))?,
+        Some(q) => piano_core::Quality::from_name(q).ok_or_else(|| format!("unknown quality {q:?}: overkill, full, balanced or light"))?,
         None => Default::default(),
     };
     let mut midi_map = MidiMapFile::new();

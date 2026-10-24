@@ -7,6 +7,7 @@
 //!   cargo run --release -p piano-render --example perf_audit -- \
 //!       [--sr 48000] [--block 128] [--poly 128] [--preset p.toml]... \
 //!       [--midi-dir data/midi] [--midi-seconds 60] [--only name,name] [--variants]
+//!       [--threads N] [--quality overkill|full|balanced|light]
 //!
 //! `PIANO_ISA=generic|avx2` caps the SIMD level (smaller machines).
 use piano_core::instrument::Instrument;
@@ -175,6 +176,7 @@ fn main() {
     let mut only: Option<Vec<String>> = None;
     let mut with_variants = false;
     let mut threads = 1;
+    let mut quality = piano_core::Quality::Full;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         let mut val = || args.next().expect("missing value");
@@ -188,11 +190,12 @@ fn main() {
             "--only" => only = Some(val().split(',').map(str::to_owned).collect()),
             "--variants" => with_variants = true,
             "--threads" => threads = val().parse().unwrap(),
+            "--quality" => quality = piano_core::Quality::from_name(&val()).expect("overkill, full, balanced or light"),
             _ => panic!("unknown argument {a}"),
         }
     }
     let isa = piano_core::modal::Isa::detect();
-    println!("{sr} Hz, {block}-frame buffers, polyphony {poly}, modal ISA {isa:?}, {threads} thread(s)");
+    println!("{sr} Hz, {block}-frame buffers, polyphony {poly}, modal ISA {isa:?}, {threads} thread(s), quality {}", quality.name());
     let models: Vec<(String, PianoModel)> = if presets.is_empty() {
         vec![("default".into(), PianoModel::default())]
     } else {
@@ -218,11 +221,11 @@ fn main() {
         let list = if with_variants { variants(model) } else { vec![("full model", model)] };
         for (vname, m) in list {
             let t = Instant::now();
-            let inst = Arc::new(Instrument::new(m, sr));
+            let inst = Arc::new(quality.instrument(&m, sr));
             let build = t.elapsed().as_secs_f64();
             let n_board = inst.board.as_ref().map_or(0, |b| b.len());
             println!("\n== {mname} / {vname}: built in {:.0} ms, {n_board} board modes", 1e3 * build);
-            let cfg = EngineConfig { sample_rate: sr, max_block: block, polyphony: poly, model: m, threads, quality: Default::default() };
+            let cfg = EngineConfig { sample_rate: sr, max_block: block, polyphony: poly, model: m, threads, quality, ..Default::default() };
             for (name, tl, dur) in sc.iter().filter(|s| wanted(s.0)) {
                 print(name, &run(&inst, cfg, tl, *dur));
             }

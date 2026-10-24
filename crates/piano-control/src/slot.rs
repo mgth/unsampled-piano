@@ -6,6 +6,7 @@
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
+use piano_core::par::Pool;
 use piano_core::{Engine, Event, TimedEvent};
 use piano_params::midi::RouteTable;
 
@@ -54,15 +55,20 @@ pub struct EngineSlot {
     pedals: [Option<u8>; PEDALS.len()],
     ev_new: Vec<TimedEvent>,
     ev_old: Vec<TimedEvent>,
-    l: Vec<f32>,
-    r: Vec<f32>,
+    /// Output of each replaced engine this block.
+    out: [[Vec<f32>; 2]; SLOTS],
+    /// Workers shared by the engines: lent to the current one when it plays
+    /// alone, else running the engines side by side.
+    pool: Option<Pool>,
     sample_rate: f64,
     shared: Arc<Shared>,
 }
 
 impl EngineSlot {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         engine: Box<Engine>,
+        pool: Option<Pool>,
         incoming: rtrb::Consumer<Box<Engine>>,
         reclaim: rtrb::Producer<Box<Engine>>,
         params: rtrb::Consumer<Event>,
@@ -84,8 +90,8 @@ impl EngineSlot {
             pedals: [None; PEDALS.len()],
             ev_new: Vec::with_capacity(MAX_EVENTS),
             ev_old: Vec::with_capacity(MAX_EVENTS),
-            l: vec![0.0; cfg.max_block],
-            r: vec![0.0; cfg.max_block],
+            out: std::array::from_fn(|_| [vec![0.0; cfg.max_block], vec![0.0; cfg.max_block]]),
+            pool,
             sample_rate: cfg.sample_rate,
             shared,
         }
@@ -164,14 +170,14 @@ impl EngineSlot {
             }
         }
 
-        self.current.process_stereo(&self.ev_new, left, right);
+        self.render(left, right);
         let quiet_after = (QUIET_S * self.sample_rate) as usize;
         let retire_after = (RETIRE_AFTER_S * self.sample_rate) as usize;
         let fade_len = (FADE_S * self.sample_rate) as usize;
         for i in 0..SLOTS {
             let Some(r) = self.retiring[i].as_mut() else { continue };
-            let (l, rr) = (&mut self.l[..len], &mut self.r[..len]);
-            r.engine.process_stereo(&self.ev_old, l, rr);
+            let [l, rr] = &self.out[i];
+            let (l, rr) = (&l[..len], &rr[..len]);
             let peak = l.iter().chain(rr.iter()).fold(0.0f32, |m, x| m.max(x.abs()));
             let done = match r.fade {
                 Some((left_n, total)) => {
@@ -213,6 +219,61 @@ impl EngineSlot {
         }
         self.shared.voices.store(self.active_voices() as u32, Ordering::Relaxed);
         self.shared.engines.store(self.engines() as u32, Ordering::Relaxed);
+    }
+
+    /// Renders the current engine into `left`/`right` and each replaced one
+    /// into its buffers: with the pool, the current one alone uses it; with
+    /// replaced ones, the engines run side by side, one per thread. Each
+    /// engine's output is the same either way.
+    fn render(&mut self, left: &mut [f32], right: &mut [f32]) {
+        let len = left.len();
+        let mut busy = [0usize; SLOTS];
+        let mut n = 0;
+        for (i, r) in self.retiring.iter().enumerate() {
+            if r.is_some() {
+                busy[n] = i;
+                n += 1;
+            }
+        }
+        match self.pool.as_mut() {
+            Some(pool) if n > 0 => {
+                struct Ptr<T>(*mut T);
+                // SAFETY: each item touches its own engine and buffers.
+                unsafe impl<T> Sync for Ptr<T> {}
+                let (cur, ret, out) = (Ptr(&mut *self.current as *mut Engine), Ptr(self.retiring.as_mut_ptr()), Ptr(self.out.as_mut_ptr()));
+                let (lp, rp) = (Ptr(left.as_mut_ptr()), Ptr(right.as_mut_ptr()));
+                let (ev_new, ev_old, busy) = (&self.ev_new, &self.ev_old, &busy);
+                pool.run(n + 1, &|k| {
+                    let _ = (&cur, &ret, &out, &lp, &rp);
+                    // SAFETY: item 0 is the current engine and the slot's
+                    // output; item k the k-th replaced engine and its buffers.
+                    unsafe {
+                        if k == 0 {
+                            let (l, r) = (std::slice::from_raw_parts_mut(lp.0, len), std::slice::from_raw_parts_mut(rp.0, len));
+                            (*cur.0).process_stereo(ev_new, l, r);
+                        } else {
+                            let i = busy[k - 1];
+                            let [l, r] = &mut *out.0.add(i);
+                            if let Some(e) = (*ret.0.add(i)).as_mut() {
+                                e.engine.process_stereo(ev_old, &mut l[..len], &mut r[..len]);
+                            }
+                        }
+                    }
+                });
+            }
+            _ => {
+                let lent = self.pool.take();
+                let had = self.current.swap_pool(lent);
+                self.current.process_stereo(&self.ev_new, left, right);
+                self.pool = self.current.swap_pool(had);
+                for &i in &busy[..n] {
+                    let [l, r] = &mut self.out[i];
+                    if let Some(e) = self.retiring[i].as_mut() {
+                        e.engine.process_stereo(&self.ev_old, &mut l[..len], &mut r[..len]);
+                    }
+                }
+            }
+        }
     }
 
     /// The current engine was just replaced: it finishes its notes.

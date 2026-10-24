@@ -8,11 +8,14 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-/// `(0..n).map(f).collect()` over the available cores, in order. Items are
-/// handed out one by one (their costs differ widely: bass keys, low modes).
+/// `(0..n).map(f).collect()` over half the hardware threads, in order.
+/// Items are handed out one by one (their costs differ widely: bass keys,
+/// low modes). Half: an instrument is rebuilt while the piano plays, and a
+/// build on every hardware thread also takes the audio thread's SMT
+/// sibling, slowing it down for the build's duration.
 pub fn map<T: Send, F: Fn(usize) -> T + Sync>(n: usize, f: F) -> Vec<T> {
     let threads = std::thread::available_parallelism()
-        .map_or(1, |p| p.get())
+        .map_or(1, |p| (p.get() / 2).max(1))
         .min(n);
     if threads <= 1 {
         return (0..n).map(f).collect();
@@ -88,6 +91,12 @@ pub struct Pool {
 impl Pool {
     /// `threads` counts the calling thread: `threads − 1` workers.
     pub fn new(threads: usize) -> Self {
+        Self::with_init(threads, || {})
+    }
+
+    /// Like [`Self::new`]; each worker first runs `init` (e.g. to take the
+    /// audio thread's real-time priority).
+    pub fn with_init(threads: usize, init: impl Fn() + Send + Sync + Clone + 'static) -> Self {
         let noop: &'static (dyn Fn(usize) + Sync) = &|_| {};
         let shared = Arc::new(Shared {
             ticket: AtomicU64::new(0),
@@ -97,10 +106,13 @@ impl Pool {
         });
         let workers = (1..threads.max(1))
             .map(|i| {
-                let sh = shared.clone();
+                let (sh, init) = (shared.clone(), init.clone());
                 std::thread::Builder::new()
                     .name(format!("piano-voice-{i}"))
-                    .spawn(move || worker(&sh))
+                    .spawn(move || {
+                        init();
+                        worker(&sh)
+                    })
                     .expect("spawn voice worker")
             })
             .collect();

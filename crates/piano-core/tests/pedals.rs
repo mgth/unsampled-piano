@@ -193,3 +193,18 @@ fn pedal_lets_the_octave_resonate_more_than_the_semitone() {
     assert!(octave > 30.0 * semitone, "octave {octave:e} semitone {semitone:e}");
     assert!(twelfth > 10.0 * semitone, "twelfth {twelfth:e} semitone {semitone:e}");
 }
+
+/// A key re-struck while its released string still rings under the damper
+/// is struck free, as a fresh one: the key lifts the damper on its way down,
+/// before the hammer arrives.
+#[test]
+fn a_restruck_key_is_struck_with_its_damper_lifted() {
+    let on = |t| (t, Event::NoteOn { note: 60, velocity: 100 });
+    let off = |t| (t, Event::NoteOff { note: 60, velocity: 64 });
+    // Released at 0.3 s; the damped string still rings at 0.6 s.
+    let (again, _) = render(&[on(0.0), off(0.3), on(0.6)], 0.7);
+    let (fresh, _) = render(&[on(0.6)], 0.7);
+    let peak = |x: &[f32]| x[(0.6 * 48_000.0) as usize..].iter().fold(0.0f32, |m, v| m.max(v.abs()));
+    let db = 20.0 * (peak(&again) / peak(&fresh)).log10();
+    assert!(db.abs() < 1.0, "re-struck attack {db:.1} dB from a fresh one");
+}

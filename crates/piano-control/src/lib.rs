@@ -25,7 +25,6 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use piano_core::instrument::Instrument;
 use piano_core::params::PianoModel;
 use piano_core::{Engine, EngineConfig, Event, LiveParam};
 use piano_params::midi::{CcAction, MidiLearn, MidiMap, RouteTable};
@@ -81,9 +80,13 @@ pub struct Controller {
 /// and the audio side. `cfg` gives the sample rate, block size and
 /// polyphony; `model` the instrument.
 pub fn new(model: PianoModel, cfg: EngineConfig) -> (Controller, EngineSlot) {
-    let cfg = EngineConfig { model, ..cfg };
+    // One worker pool for the slot, lent to the engine playing alone or
+    // running the engines side by side while replaced ones finish: the
+    // engines themselves start none.
+    let pool = Engine::pool_for(&cfg);
+    let cfg = EngineConfig { model, threads: 1, ..cfg };
     let t = Instant::now();
-    let engine = Box::new(Engine::with_instrument(cfg, Arc::new(Instrument::new(cfg.quality.apply(&model), cfg.sample_rate))));
+    let engine = Box::new(Engine::with_instrument(cfg, Arc::new(cfg.quality.instrument(&model, cfg.sample_rate))));
     let report = Arc::new(Mutex::new(Report { last_build: Some(t.elapsed()), error: None }));
     let shared = Arc::new(Shared::default());
     let (params_tx, params_rx) = rtrb::RingBuffer::new(1024);
@@ -100,7 +103,7 @@ pub fn new(model: PianoModel, cfg: EngineConfig) -> (Controller, EngineSlot) {
             .spawn(move || worker(cfg, req_rx, engine_tx, reclaim_rx, edited, shared, report))
             .expect("spawn the rebuild worker")
     };
-    let slot = EngineSlot::new(engine, engine_rx, reclaim_tx, params_rx, routes_rx, cc_tx, shared.clone());
+    let slot = EngineSlot::new(engine, pool, engine_rx, reclaim_tx, params_rx, routes_rx, cc_tx, shared.clone());
     let controller = Controller {
         model,
         edited,
@@ -266,7 +269,7 @@ fn worker(
         }
         let t = Instant::now();
         let built = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            let inst = Arc::new(Instrument::new(cfg.quality.apply(&model), cfg.sample_rate));
+            let inst = Arc::new(cfg.quality.instrument(&model, cfg.sample_rate));
             Box::new(Engine::with_instrument(EngineConfig { model, ..cfg }, inst))
         }));
         let mut engine = match built {

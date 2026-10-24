@@ -36,9 +36,20 @@ fn wait_until(mut f: impl FnMut() -> bool) {
 
 #[test]
 fn swap_keeps_held_notes_and_never_allocates() {
-    let (mut ctl, mut slot) = piano_control::new(PianoModel::default(), cfg());
+    swap_keeps_held_notes(cfg());
+}
+
+/// With a pool, the replaced engine and the new one run side by side on two
+/// threads: the same output, sample for sample.
+#[test]
+fn swap_on_two_threads_keeps_held_notes() {
+    swap_keeps_held_notes(EngineConfig { threads: 2, ..cfg() });
+}
+
+fn swap_keeps_held_notes(cfg: EngineConfig) {
+    let (mut ctl, mut slot) = piano_control::new(PianoModel::default(), cfg);
     let old = Arc::downgrade(slot.current().instrument());
-    let mut reference = Engine::with_instrument(cfg(), slot.current().instrument().clone());
+    let mut reference = Engine::with_instrument(EngineConfig { threads: 1, ..cfg }, slot.current().instrument().clone());
     let on = [TimedEvent { frame: 0, event: Event::NoteOn { note: 60, velocity: 100 } }];
     let (mut rl, mut rr) = ([0.0f32; BS], [0.0f32; BS]);
     let mut n = 0;
