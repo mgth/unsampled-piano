@@ -46,7 +46,7 @@ The baseline, `bench/baseline.json`, holds the measures of the run saved with `-
 | decay | `t60_ff` | median T60 of partials 1–4 and 5–12 (early decay) and 1–4 (late decay), `piano-survey` | ×1.28 |
 | tuning | `inharm`, `stretch` | median inharmonicity B (log10), tuning re equal temperament (cents) | 0.15, 5 c |
 
-Levels below −60 dB re the peak count as −60 dB, and a level within 6 dB of a recording's own noise (its quietest frames after the peak) is not read. Partials above 12 kHz are left out of the partial measures. The references are cut to the model's 20.5 s before their decays are fitted.
+Levels below −60 dB re the peak count as −60 dB, and a level within 6 dB of a recording's own noise (its quietest frames after the peak) is not read. Partials above 12 kHz are left out of the partial measures, and so is a partial standing less than 12 dB above the median of its search window (the recording's noise between the partials), when that window spans at least eight resolution cells: the real top notes' sustain (partials 3–8 at about −50 dB) and the treble's partial 8 sat on the recordings' noise, which the model was scored against (treble partial 8 of the sustain: z −4.2 → −1.0; score 1.10 → 1.04). The references are cut to the model's 20.5 s before their decays are fitted.
 
 ## The references
 

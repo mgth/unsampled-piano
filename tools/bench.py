@@ -100,7 +100,9 @@ def partial_level(x, m, k, t0=0.5, t1=1.5):
     s = onset(x); seg = x[s + int(t0 * SR): s + int(t1 * SR)]; N = 1 << 18
     P = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), N)) ** 2; f = np.fft.rfftfreq(N, 1 / SR)
     g = f0(m) * k; w = (f > g * 0.97) & (f < g * 1.03); fp = f[w][np.argmax(P[w])]
-    return 10 * np.log10(P[(f > fp * 0.995) & (f < fp * 1.005)].sum() + 1e-30)
+    lv = 10 * np.log10(P[(f > fp * 0.995) & (f < fp * 1.005)].sum() + 1e-30)
+    if 0.06 * g < 8 * 2 * SR / len(seg): return lv
+    return lv if 10 * np.log10(P[w].max() / (np.median(P[w]) + 1e-30)) >= NOISE_MARGIN else np.nan
 
 def envelope(x, m, times):
     """Level (dB re the peak) at `times` s after the peak, above 0.7·f0."""
@@ -116,8 +118,14 @@ def envelope(x, m, times):
         return max(e[i] - e[k], FLOOR_DB)
     return [at(t) for t in times]
 
+# A partial must stand this far (dB) above the median of its search window
+# (the recording's noise between the partials), else it is not measured:
+# the real top notes' sustain sits on the recordings' noise floor.
+NOISE_MARGIN = 12.0
+
 def partials(x, m, t0, dur, ks, fmax=12000):
-    """Levels of partials `ks` (dB re partial 1) in a window t0 s after the onset."""
+    """Levels of partials `ks` (dB re partial 1) in a window t0 s after the
+    onset; NaN for a partial lost in the noise."""
     s = onset(x) + int(t0 * SR); n = int(dur * SR); seg = x[s: s + n]
     if len(seg) < n: return [np.nan] * len(ks)
     N = max(n, 4096)
@@ -125,7 +133,12 @@ def partials(x, m, t0, dur, ks, fmax=12000):
     def lev(k):
         fk = k * f0(m) * np.sqrt(1 + 4e-4 * k * k * (1 if m > 60 else 0.3))  # loose inharmonic window
         w = (f > fk * 0.94) & (f < fk * 1.08)
-        return 20 * np.log10(S[w].max() + 1e-12) if w.any() and fk < fmax else np.nan
+        if not w.any() or fk >= fmax: return np.nan
+        peak = 20 * np.log10(S[w].max() + 1e-12)
+        # The median is a floor only when the window spans several of the
+        # analysis' resolution cells (Hann main lobe ±2·SR/n).
+        if 0.14 * fk < 8 * 2 * SR / n: return peak
+        return peak if peak - 20 * np.log10(np.median(S[w]) + 1e-12) >= NOISE_MARGIN else np.nan
     p1 = lev(1)
     return [lev(k) - p1 for k in ks]
 
@@ -215,7 +228,7 @@ def measure_set(d, survey_csv):
         if reg == "middle":
             ev = []
             for k in (1, 2):
-                lv = plev[k]; span = [m for m in sorted(lv) if 36 <= m <= 96]
+                lv = {m: v for m, v in plev[k].items() if np.isfinite(v)}; span = [m for m in sorted(lv) if 36 <= m <= 96]
                 res = [lv[m] - np.median([lv[j] for j in lv if abs(j - m) <= 6]) for m in span]
                 ev.append(float(np.sqrt(np.mean(np.square(res)))) if len(res) >= 8 else None)
             r["evenness"] = ev if any(v is not None for v in ev) else None
