@@ -94,6 +94,14 @@ def onset_level(x):
     X = np.fft.rfft(seg); X[np.fft.rfftfreq(len(seg), 1 / SR) < 250] = 0
     return peak_db(np.fft.irfft(X, len(seg)))
 
+def partial_level(x, m, k, t0=0.5, t1=1.5):
+    """Level (dB) of partial k between t0 and t1 s after the onset, its
+    peak found within ±3 % of k·f0."""
+    s = onset(x); seg = x[s + int(t0 * SR): s + int(t1 * SR)]; N = 1 << 18
+    P = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), N)) ** 2; f = np.fft.rfftfreq(N, 1 / SR)
+    g = f0(m) * k; w = (f > g * 0.97) & (f < g * 1.03); fp = f[w][np.argmax(P[w])]
+    return 10 * np.log10(P[(f > fp * 0.995) & (f < fp * 1.005)].sum() + 1e-30)
+
 def envelope(x, m, times):
     """Level (dB re the peak) at `times` s after the peak, above 0.7·f0."""
     X = np.fft.rfft(x); X[np.fft.rfftfreq(len(x), 1 / SR) < 0.7 * f0(m)] = 0
@@ -150,6 +158,10 @@ MEASURES = {
     "dyn":         ("dynamics", 3.0, ["ff-pp", "ff-mf"], False),
     # The register's attack re the middle's, same layer (above 250 Hz).
     "balance":     ("dynamics", 2.0, ["ff", "mf"], False),
+    # Key to key: rms of the levels of partials 1 and 2 (sustain, ff) about
+    # their trend (median of the keys within ±6), on the bench's keys from
+    # C2 to C7; one figure, filed under the middle.
+    "evenness":    ("sustain", 1.5, ["p1", "p2"], False),
     "bands_att":   ("brightness", 3.0, ["1k", "2k", "4k", "8k"], False),
     "bands_sus":   ("brightness", 3.0, ["1k", "2k", "4k", "8k"], False),
     "sustain_ff":  ("sustain", 4.0, ["p2", "p3", "p4", "p6", "p8", "p12"], False),
@@ -174,6 +186,8 @@ def measure_set(d, survey_csv):
         v = [onset_level(get(m, l)) for m in present if lo <= m <= hi and get(m, l) is not None]
         return float(np.median(v)) if v else None
     mid_level = {l: reg_level(48, 71, l) for l in (13, 8)}
+    # Partials 1–2 of every bench key that the set has, for the evenness.
+    plev = {k: {m: partial_level(get(m, 13), m, k) for m in KEYS if m in present and get(m, 13) is not None} for k in (1, 2)}
     for lo, hi, reg in REGS:
         # The keys the set has: sample libraries record every key, every
         # third or every fourth.
@@ -198,6 +212,13 @@ def measure_set(d, survey_csv):
         r["bright_mf"] = mean(lambda m, x: np.log(centroid(x, m, 0, 0.05)), [8])
         r["brightening"] = mean(lambda m, a, c: np.log(centroid(a, m, 0, 0.05) / centroid(c, m, 0, 0.05)), [13, 4])
         r["dyn"] = mean(lambda m, a, b, c: [peak_db(a) - peak_db(c), peak_db(a) - peak_db(b)], [13, 8, 4])
+        if reg == "middle":
+            ev = []
+            for k in (1, 2):
+                lv = plev[k]; span = [m for m in sorted(lv) if 36 <= m <= 96]
+                res = [lv[m] - np.median([lv[j] for j in lv if abs(j - m) <= 6]) for m in span]
+                ev.append(float(np.sqrt(np.mean(np.square(res)))) if len(res) >= 8 else None)
+            r["evenness"] = ev if any(v is not None for v in ev) else None
         if reg != "middle":
             lv = [reg_level(lo, hi, l) for l in (13, 8)]
             r["balance"] = [None if v is None or mid_level[l] is None else v - mid_level[l] for v, l in zip(lv, (13, 8))]

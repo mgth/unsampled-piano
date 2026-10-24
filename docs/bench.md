@@ -39,6 +39,7 @@ The baseline, `bench/baseline.json`, holds the measures of the run saved with `-
 | brightness | `bands_att`, `bands_sus` | octave bands 1–8 kHz re the strongest band at the attack, ff, 0.4 s windows at 0.05 and 0.6 s (8 kHz left out from C5: recording noise) | 3 dB |
 | dynamics | `dyn` | peak ff − pp and ff − mf | 3 dB |
 | dynamics | `balance` | the register's attack peak above 250 Hz re the middle's, ff and mf (median over the keys) | 2 dB |
+| sustain | `evenness` | key to key: rms of the levels of partials 1 and 2 (0.5–1.5 s, ff) about their trend (median of the keys within ±6), C2–C7, filed under the middle | 1.5 dB |
 | dynamics | `brightening` | centroid ff / pp at the attack | ×1.16 |
 | sustain | `sustain_ff` | partials 2, 3, 4, 6, 8, 12 re partial 1, 0.5–1 s | 4 dB |
 | decay | `env_ff`, `env_mf`, `env_pp` | level above 0.7·f0 at 0.3, 1, 2, 3 s re the peak | 3 dB |
