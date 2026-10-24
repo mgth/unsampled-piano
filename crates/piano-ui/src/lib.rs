@@ -324,14 +324,18 @@ impl PianoUi {
         }
 
         egui::CentralPanel::default().show(ui, |ui| {
-            egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-                if self.page == MIDI_PAGE && self.search.is_empty() {
-                    self.midi_page(ui, control);
-                } else if let (HOST_PAGE, true, Some(h)) = (self.page, self.search.is_empty(), self.host_page.as_mut()) {
-                    h.show(ui);
-                } else {
-                    self.page(ui, control, &model);
-                }
+            // A scope of its own: the help panel opening beside it must not
+            // shift its widgets' ids (a slider being dragged would let go).
+            ui.scope_builder(egui::UiBuilder::new().scope_id(egui::Id::NULL.with("piano-central")), |ui| {
+                egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+                    if self.page == MIDI_PAGE && self.search.is_empty() {
+                        self.midi_page(ui, control);
+                    } else if let (HOST_PAGE, true, Some(h)) = (self.page, self.search.is_empty(), self.host_page.as_mut()) {
+                        h.show(ui);
+                    } else {
+                        self.page(ui, control, &model);
+                    }
+                });
             });
         });
     }
@@ -390,11 +394,16 @@ impl PianoUi {
                     ui.end_row();
                     last = g;
                 }
-                let label = widgets::param_row(ui, &params[i], values[i], control);
-                if label.clicked() {
+                let row = widgets::param_row(ui, &params[i], values[i], control);
+                if row.label.clicked() {
                     self.about = if self.about == Some(i) { None } else { Some(i) };
                 }
-                if label.hovered() {
+                // Moving a value shows its help; pointing at the name or
+                // the value lights its part in the page's sketch.
+                if row.touched {
+                    self.about = Some(i);
+                }
+                if row.label.hovered() || row.pointing {
                     hovered = Some(i);
                 }
                 ui.end_row();
@@ -756,5 +765,48 @@ mod touch_tests {
         assert_eq!(control.model().velocity, own);
         assert_eq!(ui.with_touch(PianoModel::default()).velocity, own);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod slider_tests {
+    use super::*;
+    use crate::mock::MockControl;
+    use egui::{Event, PointerButton, Pos2, RawInput, Rect, Vec2};
+
+    fn frame(ui: &mut PianoUi, control: &mut MockControl, ctx: &egui::Context, events: Vec<Event>) {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1100.0, 800.0))), events, ..Default::default() };
+        ctx.run_ui(input, |root| ui.show(root, control)).drop_without_applying_deltas();
+    }
+
+    #[test]
+    fn a_slider_lights_its_part_and_opens_its_help() {
+        let ctx = egui::Context::default();
+        let mut ui = PianoUi::new(None);
+        ui.open_page("Hammer");
+        let mut control = MockControl::new(PianoModel::default());
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        // Down the sliders' column until the pointer is on one.
+        let at = (300..800)
+            .step_by(4)
+            .map(|y| Pos2::new(500.0, y as f32))
+            .find(|&p| {
+                frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(p)]);
+                frame(&mut ui, &mut control, &ctx, vec![]);
+                ui.hovered.is_some()
+            })
+            .expect("a slider under the pointer");
+        let i = ui.hovered.unwrap();
+        assert!(ui.about.is_none());
+        // Dragging it: the same parameter lit, its help open.
+        let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Default::default() };
+        frame(&mut ui, &mut control, &ctx, vec![button(at, true)]);
+        for k in 1..=6 {
+            frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(at + Vec2::new(6.0 * k as f32, 0.0))]);
+        }
+        assert_eq!((ui.about, ui.hovered), (Some(i), Some(i)));
+        frame(&mut ui, &mut control, &ctx, vec![button(at + Vec2::new(36.0, 0.0), false)]);
+        assert_ne!(piano_params::get(&control.model(), &ui.registry.params()[i].path), Some(ui.registry.params()[i].default));
     }
 }

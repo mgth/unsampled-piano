@@ -9,8 +9,8 @@ use crate::sections::Curve;
 
 /// One grid row: label, value, reset, kind. Edits go to `control` as a
 /// gesture (a drag is one begin/end pair; typed values are a whole one).
-/// Returns the label's response (clicked: show the parameter's help).
-pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn PianoControl) -> egui::Response {
+/// Returns what the name and the value did (see [`Row`]).
+pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn PianoControl) -> Row {
     let m = &p.meta;
     let modified = value.is_some_and(|v| v != p.default);
     let text = RichText::new(&m.label);
@@ -33,7 +33,7 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
         for _ in 0..3 {
             ui.label("");
         }
-        return label;
+        return Row { label, pointing: false, touched: false };
     };
     let r = match &mut v {
         Value::Float(x) => ui.add(
@@ -73,7 +73,21 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
     }
     kind_mark(ui, matches!(p.kind, Kind::Live(_)));
     midi_button(ui, p, control);
-    label
+    Row {
+        label,
+        pointing: r.hovered() || r.dragged() || r.has_focus(),
+        touched: r.drag_started() || r.changed() || r.clicked() || reset.clicked(),
+    }
+}
+
+/// What a parameter row's widgets did this frame.
+pub struct Row {
+    /// The name (clicked: the help).
+    pub label: egui::Response,
+    /// The pointer is on the value, or moving it.
+    pub pointing: bool,
+    /// The value was touched: dragged, clicked, typed or reset.
+    pub touched: bool,
 }
 
 /// The help of a parameter: where it acts, what it does on the piano, then
