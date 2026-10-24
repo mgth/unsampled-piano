@@ -2,7 +2,8 @@
 //! strings one by one; and two technique phrases. `cargo run --release -p
 //! guitar-core --example pluck [out_dir]` writes guitar_acoustic.wav,
 //! guitar_electric_neck.wav, guitar_electric_bridge.wav, guitar_bass.wav,
-//! guitar_bass_slap.wav and guitar_electric_legato.wav (default dir: out/).
+//! guitar_bass_slap.wav, guitar_electric_legato.wav and
+//! guitar_electric_bends.wav (default dir: out/).
 
 use std::sync::Arc;
 
@@ -124,4 +125,29 @@ fn main() {
         (2.2, note(40, 127, Pluck)),
     ];
     write(&format!("{dir}/guitar_electric_legato.wav"), &phrase(m, &lick, 4.0));
+
+    // Bends: A on the G string bent a whole tone up over 150 ms (wheel
+    // messages every 10 ms), vibrato, let down; then an E chord dived with
+    // the arm and brought back.
+    let mut bends = vec![(0.0, note(57, 100, Pluck))];
+    let ramp = |t0: f64, from: f64, to: f64, out: &mut Vec<(f64, Event)>| {
+        for i in 0..=15 {
+            let x = i as f64 / 15.0;
+            out.push((t0 + 0.01 * i as f64, Event::Bend { note: None, semitones: from + (to - from) * x }));
+        }
+    };
+    ramp(0.4, 0.0, 2.0, &mut bends);
+    bends.push((1.0, Event::Vibrato { depth: 0.25 }));
+    bends.push((2.0, Event::Vibrato { depth: 0.0 }));
+    ramp(2.1, 2.0, 0.0, &mut bends);
+    bends.push((2.6, off(57)));
+    for (i, n) in [40, 47, 52, 56, 59, 64].into_iter().enumerate() {
+        bends.push((2.8 + 0.02 * i as f64, note(n, 95, Pluck)));
+    }
+    for i in 0..=30 {
+        // Down to 0.8 and back, over 1.2 s.
+        let x = (std::f64::consts::PI * i as f64 / 30.0).sin();
+        bends.push((3.4 + 0.04 * i as f64, Event::Tremolo { position: 0.8 * x }));
+    }
+    write(&format!("{dir}/guitar_electric_bends.wav"), &phrase(GuitarModel::electric_solid(), &bends, 6.0));
 }

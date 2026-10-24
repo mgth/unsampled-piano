@@ -37,7 +37,7 @@
 
 use piano_core::complex::C64;
 
-use crate::string::{StringTable, PERP};
+use crate::string::{Bent, StringTable, PERP};
 
 /// Contacts on one string at the same time.
 pub const MAX_CONTACTS: usize = 24;
@@ -226,37 +226,75 @@ impl ContactSolver {
     /// `zeta` (one per partial), the mute at scale `damping`. Contacts are
     /// added next. Real-time safe.
     pub fn begin(&mut self, table: &StringTable, zeta: &[[C64; 2]], damping: f64) {
-        let dt = self.dt;
+        self.begin_bent(table, zeta, damping, None, 1.0);
+    }
+
+    /// [`Self::begin`] with the partials at another tension (`bent`, tension
+    /// ratio `rho`).
+    pub fn begin_bent(&mut self, table: &StringTable, zeta: &[[C64; 2]], damping: f64, bent: Option<&[Bent]>, rho: f64) {
         self.np = table.len().min(self.max_p);
-        for (n, p) in table.partials.iter().enumerate().take(self.np) {
-            self.k[n] = p.k;
-            self.force[n] = table.force[n];
+        for n in 0..self.np {
+            self.k[n] = table.partials[n].k;
+            self.force[n] = rho * table.force[n];
             for pol in 0..2 {
-                let i = pol * self.max_p + n;
-                let (omega, sigma) = p.polar[pol];
-                let r = (-(sigma + damping * p.damp_w) * dt).exp();
-                let (sn, cs) = (omega * dt).sin_cos();
-                self.c[i] = r * cs;
-                self.ps[i] = r * sn;
-                self.e[i] = r * r;
-                self.gamma[i] = dt * r * sn / (table.modal_mass * omega);
-                // ẏ = Re((−σ + iω)·ζ), ζ = q[n] + i·(e·q[n−1] − c·q[n])/ps.
-                let w = table.win[n][pol];
-                (self.wa[i], self.wb[i]) = if table.velocity_out {
-                    let sg = sigma + damping * p.damp_w;
-                    (w * (-sg + omega * self.c[i] / self.ps[i]), -w * omega * self.e[i] / self.ps[i])
-                } else {
-                    (w, 0.0)
-                };
-                let z = zeta[n][pol];
+                let (omega, sigma) = bent.map_or(table.partials[n].polar[pol], |b| b[n].polar[pol]);
+                let pole = self.set_mode(table, n, pol, omega, sigma, damping);
+                let (i, z) = (pol * self.max_p + n, zeta[n][pol]);
                 self.q0[i] = z.re;
-                self.q1[i] = (z / C64::new(r * cs, r * sn)).re;
+                self.q1[i] = (z / pole).re;
             }
         }
         self.slots = [None; MAX_CONTACTS];
         self.samples = 0;
         self.active = false;
         self.max_force = 0.0;
+    }
+
+    /// Coefficients and output weights of mode (`pol`, `n`); its pole.
+    fn set_mode(&mut self, table: &StringTable, n: usize, pol: usize, omega: f64, sigma: f64, damping: f64) -> C64 {
+        let dt = self.dt;
+        let p = &table.partials[n];
+        // Pushed past the cap by a bend: kept below Nyquist, and silent.
+        let audible = omega < std::f64::consts::TAU * table.f_cap;
+        let omega = omega.min(std::f64::consts::TAU * table.f_cap);
+        let i = pol * self.max_p + n;
+        let sg = sigma + damping * p.damp_w;
+        let r = (-sg * dt).exp();
+        let (sn, cs) = (omega * dt).sin_cos();
+        self.c[i] = r * cs;
+        self.ps[i] = r * sn;
+        self.e[i] = r * r;
+        self.gamma[i] = dt * r * sn / (table.modal_mass * omega);
+        // ẏ = Re((−σ + iω)·ζ), ζ = q[n] + i·(e·q[n−1] − c·q[n])/ps.
+        let w = if audible { table.win[n][pol] } else { 0.0 };
+        (self.wa[i], self.wb[i]) = if table.velocity_out {
+            (w * (-sg + omega * self.c[i] / self.ps[i]), -w * omega * self.e[i] / self.ps[i])
+        } else {
+            (w, 0.0)
+        };
+        if !audible && pol == PERP {
+            self.force[n] = 0.0;
+        }
+        C64::new(r * cs, r * sn)
+    }
+
+    /// Retunes the running episode to the partials `bent` (tension ratio
+    /// `rho`), the string's motion kept: each mode's complex amplitude
+    /// carries over, and its previous sample is recomputed for the new pole.
+    /// Real-time safe.
+    pub fn retune(&mut self, table: &StringTable, bent: &[Bent], rho: f64, damping: f64) {
+        for n in 0..self.np {
+            self.force[n] = rho * table.force[n];
+            for pol in 0..2 {
+                let z = self.complex_state(pol, n);
+                let (omega, sigma) = bent[n].polar[pol];
+                let pole = self.set_mode(table, n, pol, omega, sigma, damping);
+                let i = pol * self.max_p + n;
+                self.q0[i] = z.re;
+                self.q1[i] = (z / pole).re;
+            }
+        }
+        self.rebuild_g();
     }
 
     fn y(&self, q: &[f64], slot: usize, pol: usize) -> f64 {
@@ -722,5 +760,32 @@ mod tests {
         let (mut out, mut force) = (vec![0.0f32; 20], vec![0.0f32; 20]);
         sol.run(&mut out, &mut force);
         assert!(out.iter().chain(&force).all(|&v| v == 0.0), "{out:?}");
+    }
+
+    #[test]
+    fn retune_keeps_the_motion_and_moves_the_pitch() {
+        // A ringing string retuned a whole tone up: same displacement now,
+        // and its fundamental then turns at the new frequency.
+        let m = GuitarModel::electric_solid();
+        let t = open(&m, 3);
+        let zeta: Vec<[C64; 2]> = t.shape.iter().map(|a| [C64::new(a * 1e-3, 0.0), C64::new(a * 5e-4, 0.0)]).collect();
+        let mut sol = ContactSolver::new(t.len(), SR);
+        sol.begin(&t, &zeta, 0.0);
+        let still = Contact { x: 0.1, pol: PERP, sign: 1.0, law: Law::Spring { stiffness: 0.0, damping: 0.0 }, motion: Motion::Fixed(0.0), release: Release::Never, group: 0 };
+        sol.add(still);
+        let (mut o, mut f) = (vec![0.0f32; 100], vec![0.0f32; 100]);
+        sol.run(&mut o, &mut f);
+        let before: Vec<C64> = (0..t.len()).map(|n| sol.complex_state(PERP, n)).collect();
+        let rho = t.ratio_for_pitch(2f64.powf(2.0 / 12.0));
+        let bent: Vec<Bent> = (0..t.len()).map(|n| t.bent(n, rho)).collect();
+        sol.retune(&t, &bent, rho, 0.0);
+        for (n, b) in before.iter().enumerate().take(10) {
+            assert!((sol.complex_state(PERP, n) - *b).norm() < 1e-12 + 1e-9 * b.norm(), "partial {}", n + 1);
+        }
+        // One sample later the fundamental has turned by the new ω·dt.
+        sol.run(&mut o[..1], &mut f[..1]);
+        let turned = (sol.complex_state(PERP, 0) / before[0]).arg();
+        let expect = bent[0].polar[PERP].0 / SR;
+        assert!((turned - expect).abs() < 1e-6 * expect, "turned {turned}, expected {expect}");
     }
 }

@@ -190,21 +190,42 @@ All of them use the G1 contact solver with different contact laws.
   - the residual of truncated modes, for sharper contacts;
   - contact parameters and technique speeds measured on recordings.
 
-## G4 — Bends, vibrato, tremolo arm, nonlinearity
+## G4 — Bends, vibrato, tremolo arm, nonlinearity (done, except phantom partials)
 
-- **Bend**: the finger pushes the string sideways along the fret, which
-  raises the tension. f₀, B and the losses are then re-evaluated live
-  (left over from G1).
-  The bend amount comes from MIDI (see G9).
-- **Vibrato**: a periodic bend, or a lengthwise rocking of the finger
-  (classical style, a smaller pitch change).
-- **Tremolo arm**: the tension of every string changes together. The
-  springs make it detune unevenly per string; this is part of the model,
-  not a bug.
-- **Tension modulation** (geometric nonlinearity): pitch glides down after
-  a hard attack, and longitudinal modes appear (the "phantom" partials,
-  important on basses and plain strings). The piano's nonlinearity code is
-  the model to share.
+- **Tension, live** (`TensionParams`, `StringTable::bent`):
+  - each partial at tension ratio ρ = T/T₀ gets its frequency (stiffness
+    falls as 1/T), the string's own losses at the new frequency, and the
+    bridge shifts with the new Z₀ and Y(f);
+  - the mode shapes and the coupled modes' eigenvectors are kept (first
+    order, λ_k = (E⁻¹·M·E)_kk), so the state carries over;
+  - every 64 samples, a string whose tension moved by more than 2·10⁻⁵
+    (≈ 0.02 cent) is retuned in place: `set_modes` in the bank, `retune` in
+    the contact solver (each mode's previous sample recomputed for its new
+    pole);
+  - modes pushed past 0.48·fs are silenced, not aliased.
+- **Bend**: `Event::Bend { note, semitones }`, for one note or the held
+  strings (wheel). The tension that brings the fundamental to pitch is
+  exact for a stiff string: ρ = r²(1 + B₀) − B₀ (tested to 0.01 cent). The
+  control is followed with a 10 ms time constant. A new note starts
+  unbent.
+- **Vibrato**: `Event::Vibrato { depth }`, a periodic bend at
+  `vibrato_rate` on the held strings (tested both ways).
+- **Tremolo arm**: `Event::Tremolo { position }`. The bridge moves by up
+  to `tremolo_travel`, and each string's tension changes by EA·δ/L_total,
+  with L_total from the saddle's anchor to the tuner (friction-free nut and
+  saddle). The strings detune unevenly: 0.8 to 2.7 semitones at half
+  travel on the electric (tested).
+- **Tension modulation** (Kirchhoff–Carrier, averaged):
+  ΔT = EA·L·Σk²|ζ|²/(8·L_total), from both polarisations. Hard plucks
+  start sharp and glide down: about 5–6 cents on the guitars and 14 cents
+  on the bass at velocity 127, fading over seconds (tested).
+- **Remaining**:
+  - the fast part of the modulation (longitudinal modes and phantom
+    partials, from the piano's nonlinearity code);
+  - friction at the nut and saddle (bends that do not return exactly);
+  - the arm's springs (bridge balance, pulling up past its rest);
+  - bends set by finger displacement rather than pitch;
+  - MIDI mapping (G9).
 
 ## G5 — Electric outputs
 

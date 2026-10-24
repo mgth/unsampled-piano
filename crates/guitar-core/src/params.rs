@@ -301,6 +301,33 @@ impl Default for MuteParams {
     }
 }
 
+/// What sets the strings' tension while playing: bends, the tremolo arm,
+/// and the string's own motion.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct TensionParams {
+    /// String beyond the nut to the tuner, and behind the saddle to its
+    /// anchor (m): a tension change strains the whole length
+    /// (friction-free nut and saddle).
+    pub head_length: f64,
+    pub tail_length: f64,
+    /// Time constant a bend or the arm follows its control with (s).
+    pub follow_time: f64,
+    /// Vibrato rate (Hz); its depth comes from MIDI.
+    pub vibrato_rate: f64,
+    /// Bridge travel at full tremolo-arm position 1 (m, loosening).
+    pub tremolo_travel: f64,
+    /// The mean tension rise of a string's own motion (Kirchhoff–Carrier):
+    /// hard plucks start sharp and glide down.
+    pub modulation: bool,
+}
+
+impl Default for TensionParams {
+    fn default() -> Self {
+        Self { head_length: 0.10, tail_length: 0.05, follow_time: 0.01, vibrato_rate: 5.5, tremolo_travel: 1e-3, modulation: true }
+    }
+}
+
 /// The fingerboard under the strings: what they can hit.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
@@ -424,6 +451,7 @@ pub struct GuitarModel {
     pub mute: MuteParams,
     pub fretboard: FretboardParams,
     pub techniques: TechniqueParams,
+    pub tension: TensionParams,
     pub output: Output,
     /// Highest mode frequency (Hz), also capped below Nyquist.
     pub max_freq: f64,
@@ -453,6 +481,7 @@ impl GuitarModel {
             mute: MuteParams::default(),
             fretboard: FretboardParams::default(),
             techniques: TechniqueParams::default(),
+            tension: TensionParams::default(),
             output: Output::default(),
             max_freq: 16_000.0,
             output_gain: 1.0,
@@ -484,6 +513,9 @@ impl GuitarModel {
             mute: MuteParams::default(),
             fretboard: FretboardParams { fret_height: 1.1e-3, relief: 0.2e-3, body_fret: 16, action_bass: 1.8e-3, action_treble: 1.5e-3, ..FretboardParams::default() },
             techniques: TechniqueParams { slap_position: 0.15, pop_force: 4.0, pulloff_force: 1.0, ..TechniqueParams::default() },
+            // A vintage tremolo: the strings run through the block behind
+            // the saddle.
+            tension: TensionParams { tail_length: 0.06, ..TensionParams::default() },
             output: Output::Magnetic(MagneticOutput {
                 pickups: vec![Pickup::single_coil(0.041), Pickup::single_coil(0.098), Pickup::single_coil(0.160)],
                 selected: vec![2],
@@ -517,6 +549,7 @@ impl GuitarModel {
             mute: MuteParams::default(),
             fretboard: FretboardParams { fret_height: 1.2e-3, relief: 0.3e-3, body_fret: 16, action_bass: 2.4e-3, action_treble: 2.0e-3, ..FretboardParams::default() },
             techniques: TechniqueParams { slap_position: 0.27, pop_force: 12.0, slap_depth: 4e-3, pulloff_force: 3.0, ..TechniqueParams::default() },
+            tension: TensionParams { head_length: 0.12, ..TensionParams::default() },
             output: Output::Magnetic(MagneticOutput {
                 pickups: vec![
                     Pickup { inductance: 3.5, resistance: 7.0e3, ..Pickup::single_coil(0.092) },
