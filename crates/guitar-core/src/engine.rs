@@ -207,11 +207,10 @@ impl Engine {
     }
 
     fn pluck(&mut self, note: u8, velocity: u8) {
-        // A repeated key re-plucks its own string rather than another one.
-        if let Some(s) = self.strings.iter().position(|s| s.held == Some(note)) {
-            self.strings[s].held = None;
-        }
-        let Some((s, fret)) = self.place(note) else { return };
+        // A repeated key re-plucks its own string at its fret, even when a
+        // lower fret has come free elsewhere: moving would leave this string
+        // ringing with no key to mute it.
+        let Some((s, fret)) = self.position_of(note).or_else(|| self.place(note)) else { return };
         let inst = &*self.inst;
         let pl = inst.model.pluck;
         let h = pl.max_displacement * velocity as f64 / 127.0;
@@ -332,6 +331,25 @@ mod tests {
         e.handle(Event::NoteOn { note: 65, velocity: 90 });
         assert_eq!(e.position_of(64), Some((5, 0)));
         assert_eq!(e.position_of(65), Some((4, 6)));
+    }
+
+    #[test]
+    fn repeated_key_stays_on_its_string_and_mutes() {
+        // F4 goes to the B string (6th fret) while the E string is held;
+        // once E4 is released, repeating F4 must not move it to the free
+        // E string's 1st fret and leave the B string ringing unmuted.
+        let mut e = engine();
+        e.handle(Event::NoteOn { note: 64, velocity: 90 });
+        e.handle(Event::NoteOn { note: 65, velocity: 90 });
+        assert_eq!(e.position_of(65), Some((4, 6)));
+        e.handle(Event::NoteOff { note: 64 });
+        render(&mut e, 0.5);
+        e.handle(Event::NoteOn { note: 65, velocity: 90 });
+        assert_eq!(e.position_of(65), Some((4, 6)));
+        render(&mut e, 0.3);
+        e.handle(Event::NoteOff { note: 65 });
+        render(&mut e, 1.0);
+        assert_eq!(e.sounding(), 0, "a string still rings with no key holding it");
     }
 
     #[test]
