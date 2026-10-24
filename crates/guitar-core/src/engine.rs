@@ -347,7 +347,7 @@ impl StringVoice {
         }
         let tau = n as f64 / inst.sample_rate;
         for &(i, v) in &self.watch {
-            let g = t.frets[i];
+            let Some(&g) = t.frets.get(i) else { continue };
             let th = std::f64::consts::PI * g.x / t.length;
             let c2 = 2.0 * th.cos();
             let (mut s0, mut s1) = (0.0, th.sin());
@@ -389,6 +389,13 @@ impl StringVoice {
                 self.complete_hammer(inst, s, h.fret);
                 return;
             }
+        } else if self.release_pending && !self.busy() {
+            // The key went up while the hand touched the string, and the hand
+            // is gone: the finger lifts now, whatever the frets still do.
+            self.release_pending = false;
+            self.lift(inst, s);
+            self.engage(inst, s);
+            return;
         }
         self.engage(inst, s);
         if self.in_contact && (!self.solver.is_active() || self.idle as f64 >= IDLE * inst.sample_rate) {
@@ -616,10 +623,10 @@ impl Engine {
         }
         let t = table(inst, s, v.stop);
         let Some(g) = t.frets.iter().find(|g| g.fret == fret).copied() else { return false };
-        v.muted = false;
         v.release_pending = false;
         v.fret_force = 0.0;
-        v.write(t);
+        // The bank holds the string's current state (a ringing string goes
+        // on from where it is): the solver starts from it.
         v.begin(t);
         let fb = &inst.model.fretboard;
         let fret_law = Law::Unilateral { stiffness: fb.stiffness, exponent: fb.exponent, damping: fb.damping };
@@ -1127,5 +1134,63 @@ mod tests {
         let peak = |x: &[f32]| x.iter().fold(0.0f32, |m, v| m.max(v.abs()));
         assert!(peak(&after) < 2.0 * peak(&before), "hammer-on peak {} vs pluck {}", peak(&after), peak(&before));
         assert!(e.fret_force() < 20.0, "fret force {} N", e.fret_force());
+    }
+
+    /// ζ (perpendicular) of partial `n` of string `s` now, bank or solver.
+    fn perp_state(e: &Engine, s: usize, n: usize) -> C64 {
+        let v = &e.strings[s];
+        if v.in_contact {
+            v.solver.complex_state(PERP, n)
+        } else {
+            let p = table(&e.inst, s, v.stop).partials[n];
+            let (a, b) = (v.bank.state(2 * n), v.bank.state(2 * n + 1));
+            p.polar_of([C64::new(a.0, a.1), C64::new(b.0, b.1)])[PERP]
+        }
+    }
+
+    #[test]
+    fn a_tap_on_a_ringing_string_goes_on_from_its_state() {
+        // C3 on the A string rings in its bank; a hammer-on starts without
+        // time passing: the string's state must not jump.
+        let mut e = engine_with(GuitarModel::electric_solid());
+        e.handle(Event::NoteOn { note: 48, velocity: 40 });
+        render(&mut e, 0.2);
+        assert!(!e.strings[1].in_contact);
+        let before: Vec<C64> = (0..4).map(|n| perp_state(&e, 1, n)).collect();
+        play(&mut e, 50, 100, Technique::Tap);
+        assert!(e.strings[1].in_contact);
+        for (n, b) in before.iter().enumerate() {
+            let a = perp_state(&e, 1, n);
+            assert!((a - *b).norm() < 1e-6 * b.norm().max(1e-9), "partial {}: {b:?} → {a:?}", n + 1);
+        }
+    }
+
+    #[test]
+    fn a_note_off_during_a_pluck_mutes_once_the_hand_leaves() {
+        // The key goes up while the finger still holds the string: the mute
+        // waits for the finger, not for the frets to stop buzzing.
+        for (name, mut m) in [("electric", GuitarModel::electric_solid()), ("bass", GuitarModel::electric_bass())] {
+            m.fretboard.action_bass = 0.8e-3;
+            let low = m.strings[0].open_note;
+            let mut e = engine_with(m);
+            play(&mut e, low, 120, Technique::Pop);
+            let mut buf = vec![0.0f32; 16];
+            e.process(&mut buf[..16]);
+            e.handle(Event::NoteOff { note: low });
+            let (mut gone, mut muted) = (None, None);
+            for i in 1..2000 {
+                e.process(&mut buf);
+                let v = &e.strings[0];
+                if gone.is_none() && !v.busy() {
+                    gone = Some(i);
+                }
+                if muted.is_none() && v.muted {
+                    muted = Some(i);
+                    break;
+                }
+            }
+            let (gone, muted) = (gone.expect("hand never left"), muted.expect("never muted"));
+            assert!(muted <= gone + 1, "{name}: hand gone at chunk {gone}, muted at chunk {muted}");
+        }
     }
 }
