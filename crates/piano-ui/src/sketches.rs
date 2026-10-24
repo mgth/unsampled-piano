@@ -314,14 +314,23 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
         let (depth, key) = felt_depth(model, path);
         let t = (depth as f32 * 8.0).clamp(1.5, 10.0);
         p.add(ellipse(at(cx, sy), rx * k, ry * k, fill(Part::Felt, felt), outline(Part::Felt)));
-        let (core_l, core_r) = (cx - rx + 1.0, cx + rx - t);
-        p.add(ellipse(
-            at((core_l + core_r) / 2.0, sy),
-            (core_r - core_l) / 2.0 * k,
-            (ry - 0.45 * t) * k,
-            fill(Part::Core, CORE),
-            outline(Part::Core),
-        ));
+        if depth > 0.0 {
+            let (core_l, core_r) = (cx - rx + 1.0, cx + rx - t);
+            p.add(ellipse(
+                at((core_l + core_r) / 2.0, sy),
+                (core_r - core_l) / 2.0 * k,
+                (ry - 0.45 * t) * k,
+                fill(Part::Core, CORE),
+                outline(Part::Core),
+            ));
+        } else {
+            // Graded felt: denser towards the molding, in rings.
+            let left = cx - rx + 1.0;
+            for (f, c) in graded_rings(felt, lit(Part::Core)) {
+                let right = cx + rx - f * 2.0 * rx * 0.85;
+                p.add(ellipse(at((left + right) / 2.0, sy), (right - left) / 2.0 * k, ry * (1.0 - 0.45 * f) * k, c, Stroke::NONE));
+            }
+        }
         arrow(&p, at(cx - 26.0, sy - 22.0), at(cx + 2.0, sy - 22.0), outline(Part::Key));
         label(cx - 24.0, sy, Align2::RIGHT_CENTER, "Hammer", Some(Part::Felt));
         if lit(Part::Key) {
@@ -330,7 +339,7 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
             label(cx - 30.0, sy - 22.0, Align2::RIGHT_CENTER, &text, Some(Part::Key));
         }
         if lit(Part::Felt) || lit(Part::Core) {
-            let text = format!("Top felt {depth:.2} mm ({key})");
+            let text = felt_text(model, depth, key);
             label(cx - 24.0, sy + 14.0, Align2::RIGHT_CENTER, &text, Some(Part::Core));
         }
 
@@ -432,17 +441,25 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
         let (top, bottom, rx) = (STRING_Y + 2.0, 76.0, 15.0);
         p.rect_filled(r(STRIKE_X - 11.0, 72.0, STRIKE_X + 11.0, 84.0), 1.0, WOOD);
         p.add(ellipse(at(STRIKE_X, (top + bottom) / 2.0), rx * k, (bottom - top) / 2.0 * k, fill(Part::Felt, felt), outline(Part::Felt)));
-        let core_top = top + t;
-        p.add(ellipse(
-            at(STRIKE_X, (core_top + bottom) / 2.0),
-            (rx - 0.45 * t) * k,
-            (bottom - core_top) / 2.0 * k,
-            fill(Part::Core, CORE),
-            outline(Part::Core),
-        ));
+        if depth > 0.0 {
+            let core_top = top + t;
+            p.add(ellipse(
+                at(STRIKE_X, (core_top + bottom) / 2.0),
+                (rx - 0.45 * t) * k,
+                (bottom - core_top) / 2.0 * k,
+                fill(Part::Core, CORE),
+                outline(Part::Core),
+            ));
+        } else {
+            // Graded felt: denser towards the molding, in rings.
+            for (f, c) in graded_rings(felt, lit(Part::Core)) {
+                let ring_top = top + f * (bottom - top) * 0.85;
+                p.add(ellipse(at(STRIKE_X, (ring_top + bottom) / 2.0), rx * (1.0 - 0.5 * f) * k, (bottom - ring_top) / 2.0 * k, c, Stroke::NONE));
+            }
+        }
         label(STRIKE_X + 20.0, 46.0, Align2::LEFT_CENTER, "Hammer", Some(Part::Felt));
         if lit(Part::Felt) || lit(Part::Core) {
-            let text = format!("Top felt {depth:.2} mm ({key})");
+            let text = felt_text(model, depth, key);
             label(STRIKE_X + 20.0, 60.0, Align2::LEFT_CENTER, &text, Some(Part::Core));
         }
 
@@ -1156,6 +1173,27 @@ fn repetition_text(model: &PianoModel) -> String {
     } else {
         "re-strikes at full speed at once".to_string()
     }
+}
+
+/// The felt's layers: a top felt over a core at some depth, or a felt
+/// graded towards its core (depth 0).
+fn felt_text(model: &PianoModel, depth: f64, key: &str) -> String {
+    if depth > 0.0 {
+        format!("Top felt {depth:.2} mm ({key})")
+    } else {
+        format!("Graded felt, inner exponent {:.0}", model.core_p)
+    }
+}
+
+/// Rings of a graded felt from the surface inwards: (share of the way in,
+/// colour from the felt's to the core's, or to the highlight when lit).
+fn graded_rings(felt: Color32, lit: bool) -> impl Iterator<Item = (f32, Color32)> {
+    let inner = if lit { HIGHLIGHT } else { CORE };
+    let mix = move |t: f32| {
+        let m = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t) as u8;
+        Color32::from_rgb(m(felt.r(), inner.r()), m(felt.g(), inner.g()), m(felt.b(), inner.b()))
+    };
+    (1..=4).map(move |i| i as f32 / 5.0).map(move |f| (f, mix(f)))
 }
 
 /// Top-felt depth (mm) shown for a parameter, and the key it is at.
