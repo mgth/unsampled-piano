@@ -1,0 +1,65 @@
+# Engine tests and load measurements on machines this repository's
+# developers do not have: Apple Silicon (NEON), and the runners' x86 CPUs.
+# The load report (docs/performance.md) comes from perf_audit's synthetic
+# scenarios; shared runners are noisy, so read the means more than the
+# worst buffers.
+name: Bench
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/engine-perf-*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macos-arm64
+          - os: ubuntu-latest
+            name: linux-x86_64
+          - os: windows-latest
+            name: windows-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: bench-${{ matrix.name }}
+
+      - name: CPU
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            macOS) sysctl -n machdep.cpu.brand_string; sysctl -n hw.ncpu ;;
+            Linux) lscpu | head -20 ;;
+            # wmic is gone from the current images.
+            Windows) powershell -NoProfile -Command "Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List" ;;
+          esac
+
+      # Bit identity across ISAs and thread counts, the real-time contract.
+      - name: Engine tests
+        run: cargo test -p piano-core -p piano-control
+
+      - name: Kernels
+        run: |
+          cargo run --release -p piano-core --example modal_kernels
+          cargo run --release -p piano-core --example board_bench
+
+      - name: Load (perf_audit)
+        shell: bash
+        run: |
+          cargo build --release -p piano-render --example perf_audit
+          for q in full balanced light; do
+            for t in 1 2 4; do
+              ./target/release/examples/perf_audit --quality $q --threads $t --only "pedal held,chord ff, bass,re-struck,pumping,whole"
+            done
+          done

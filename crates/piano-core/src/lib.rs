@@ -13,6 +13,7 @@ pub mod note_model;
 pub mod par;
 pub mod params;
 pub mod room;
+mod simd;
 pub mod soundboard;
 pub mod structure;
 pub mod unison;

@@ -119,6 +119,33 @@ pub struct Start {
     pub demo: Option<Box<dyn FnOnce(Queue) + Send>>,
 }
 
+
+/// Gives a voice worker of the engine the real-time priority the audio
+/// thread has: a worker preempted by the OS makes the audio callback wait
+/// for it. SCHED_FIFO at PipeWire's priority (88) within RLIMIT_RTPRIO on
+/// Linux; MMCSS "Pro Audio" on Windows, a time-constraint policy on macOS.
+fn promote_worker(max_block: usize, sample_rate: f64) {
+    #[cfg(target_os = "linux")]
+    {
+        let _ = (max_block, sample_rate);
+        // SAFETY: plain libc calls on the current thread.
+        unsafe {
+            let mut lim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+            let max = if libc::getrlimit(libc::RLIMIT_RTPRIO, &mut lim) == 0 { lim.rlim_cur.min(88) as i32 } else { 0 };
+            let param = libc::sched_param { sched_priority: max };
+            if max < 1 || libc::pthread_setschedparam(libc::pthread_self(), libc::SCHED_FIFO, &param) != 0 {
+                eprintln!("voice worker: no real-time priority (RLIMIT_RTPRIO {max})");
+            }
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    match audio_thread_priority::promote_current_thread_to_real_time(max_block as u32, sample_rate as u32) {
+        // Kept for the thread's lifetime.
+        Ok(handle) => std::mem::forget(handle),
+        Err(e) => eprintln!("voice worker: no real-time priority ({e})"),
+    }
+}
+
 impl Audio {
     /// Starts playing `model`; returns the controller of its engine.
     /// `timeline` needs the sample rate, so it is built from it.
@@ -212,13 +239,15 @@ impl Audio {
     /// [`rate_factor`]), starts the backend and connects it.
     fn launch(&mut self, backend: Backend, model: PianoModel, map: Option<MidiMap>, start: Start) -> Result<Controller, String> {
         let sr = backend_rate(&backend);
-        let factor = rate_factor(sr, self.settings.full_rate);
+        // Overkill computes at the output's rate too.
+        let factor = rate_factor(sr, self.settings.full_rate || self.settings.quality == Quality::Overkill);
         self.engine_rate = sr / factor as f64;
         let cfg = EngineConfig {
             sample_rate: self.engine_rate,
             max_block: MAX_BLOCK,
             model,
             threads: self.settings.threads.max(1),
+            worker_init: Some(promote_worker),
             quality: self.settings.quality,
             ..Default::default()
         };
@@ -654,6 +683,34 @@ pub fn save_keys(path: &std::path::Path, entries: &[(&str, Option<String>)]) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The engine's voice workers run with real-time scheduling, where the
+    /// system allows it (RLIMIT_RTPRIO > 0).
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn voice_workers_are_real_time() {
+        let limit = std::fs::read_to_string("/proc/self/limits").unwrap_or_default();
+        let rtprio = limit.lines().find(|l| l.starts_with("Max realtime priority")).and_then(|l| l.split_whitespace().nth(3)).and_then(|v| v.parse::<u32>().ok());
+        if rtprio.unwrap_or(0) == 0 {
+            eprintln!("RLIMIT_RTPRIO is 0 here: nothing to check");
+            return;
+        }
+        let cfg = EngineConfig { threads: 3, worker_init: Some(promote_worker), quality: Quality::Light, ..Default::default() };
+        let _engine = piano_core::Engine::new(cfg);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let mut workers = 0;
+        for task in std::fs::read_dir("/proc/self/task").unwrap().flatten() {
+            let comm = std::fs::read_to_string(task.path().join("comm")).unwrap_or_default();
+            if comm.trim().starts_with("piano-voice") {
+                // Field 41 of stat: the scheduling policy (1 = SCHED_FIFO, 2 = SCHED_RR).
+                let stat = std::fs::read_to_string(task.path().join("stat")).unwrap();
+                let policy: u32 = stat.rsplit(')').next().unwrap().split_whitespace().nth(38).unwrap().parse().unwrap();
+                assert!(policy == 1 || policy == 2, "{comm}: policy {policy}");
+                workers += 1;
+            }
+        }
+        assert_eq!(workers, 2);
+    }
 
     fn settings(host: Option<&str>) -> Settings {
         Settings {

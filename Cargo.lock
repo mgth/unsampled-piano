@@ -3478,11 +3478,13 @@ dependencies = [
 name = "piano-play"
 version = "0.1.0"
 dependencies = [
+ "audio_thread_priority",
  "clap",
  "cpal",
  "eframe",
  "egui",
  "jack",
+ "libc",
  "midir",
  "piano-control",
  "piano-core",

@@ -43,7 +43,8 @@ pub const THEMES: [(&str, &str); 3] = [("system", "As the system"), ("dark", "Da
 /// What a quality level leaves out, for its menu entry.
 fn quality_text(q: Quality) -> &'static str {
     match q {
-        Quality::Full => "Full: the whole model",
+        Quality::Overkill => "Overkill: no shortcut at all, even inaudible ones; computed at the output's rate",
+        Quality::Full => "Full: the whole model, shortcuts judged inaudible",
         Quality::Balanced => "Balanced: sympathy below 2 kHz, phantom partials up to C3, 96 voices",
         Quality::Light => "Light: no sympathy, phantom partials, frame or rim; one polarisation",
     }
@@ -221,7 +222,7 @@ impl piano_ui::HostPage for SettingsPage {
                         }
                     }
                 });
-                if s.quality != Quality::Full {
+                if !matches!(s.quality, Quality::Full | Quality::Overkill) {
                     let note = "Overrides those parameters while it is on; presets keep their own values.";
                     ui.label(RichText::new(note).small().weak());
                 }

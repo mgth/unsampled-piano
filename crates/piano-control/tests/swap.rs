@@ -36,9 +36,20 @@ fn wait_until(mut f: impl FnMut() -> bool) {
 
 #[test]
 fn swap_keeps_held_notes_and_never_allocates() {
-    let (mut ctl, mut slot) = piano_control::new(PianoModel::default(), cfg());
+    swap_keeps_held_notes(cfg());
+}
+
+/// With a pool, the replaced engine and the new one run side by side on two
+/// threads: the same output, sample for sample.
+#[test]
+fn swap_on_two_threads_keeps_held_notes() {
+    swap_keeps_held_notes(EngineConfig { threads: 2, ..cfg() });
+}
+
+fn swap_keeps_held_notes(cfg: EngineConfig) {
+    let (mut ctl, mut slot) = piano_control::new(PianoModel::default(), cfg);
     let old = Arc::downgrade(slot.current().instrument());
-    let mut reference = Engine::with_instrument(cfg(), slot.current().instrument().clone());
+    let mut reference = Engine::with_instrument(EngineConfig { threads: 1, ..cfg }, slot.current().instrument().clone());
     let on = [TimedEvent { frame: 0, event: Event::NoteOn { note: 60, velocity: 100 } }];
     let (mut rl, mut rr) = ([0.0f32; BS], [0.0f32; BS]);
     let mut n = 0;
@@ -127,4 +138,14 @@ fn midi_learn_routes_a_controller() {
     assert_ne!(ctl.model().output_gain_db, before);
     std::thread::sleep(DEBOUNCE_AND_MORE);
     assert_eq!(ctl.shared().builds.load(std::sync::atomic::Ordering::Relaxed), 0);
+}
+
+/// Channels of different lengths are refused before any engine runs, on
+/// every path (the parallel one rebuilds the slices from `left`'s length).
+#[test]
+#[should_panic(expected = "channels of different lengths")]
+fn mismatched_channels_are_refused() {
+    let (_ctl, mut slot) = piano_control::new(PianoModel::default(), EngineConfig { threads: 2, ..cfg() });
+    let (mut l, mut r) = ([0.0f32; BS], [0.0f32; BS]);
+    slot.process_stereo(&[], &mut l, &mut r[..1]);
 }

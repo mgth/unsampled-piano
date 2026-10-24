@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use crate::board::BoardBank;
+use crate::board::{BoardBank, PARTS};
 use crate::denormal::DenormalGuard;
 use crate::instrument::{region_of, Instrument, MICS, REGIONS};
 use crate::live::LiveParam;
@@ -31,8 +31,6 @@ const PRESSURE_GAIN: f32 = 1.0 / 30.0;
 const SILENCE_ENERGY: f32 = (1e-5 / FORCE_GAIN) * (1e-5 / FORCE_GAIN);
 /// Below this mic energy and without input, the soundboard sleeps.
 const BOARD_SILENCE: f32 = (1e-6 / PRESSURE_GAIN) * (1e-6 / PRESSURE_GAIN);
-/// Listening strings set up per block when the dampers lift (spreads cost).
-const LISTENERS_PER_BLOCK: usize = 8;
 /// Time constant (s) of the output gain smoothing.
 const GAIN_SMOOTHING: f64 = 0.02;
 /// Pending frame knocks (keybed, pedal) at a time.
@@ -73,6 +71,10 @@ pub struct EngineConfig {
     /// Threads rendering the voices (the audio thread included); 1: none
     /// started. The output does not depend on it.
     pub threads: usize,
+    /// Run by each worker thread when it starts, with `max_block` and
+    /// `sample_rate`: the host gives it the audio thread's real-time
+    /// priority (a preempted worker makes the audio callback wait).
+    pub worker_init: Option<fn(usize, f64)>,
     /// CPU quality: parts of the model left out on smaller machines, applied
     /// to every instrument built ([`Quality::apply`]).
     pub quality: Quality,
@@ -86,6 +88,7 @@ impl Default for EngineConfig {
             polyphony: 128,
             model: PianoModel::default(),
             threads: 1,
+            worker_init: None,
             quality: Quality::Full,
         }
     }
@@ -93,10 +96,15 @@ impl Default for EngineConfig {
 
 /// CPU quality levels (docs/performance.md, "Compromises for smaller
 /// configurations"). The preset keeps its values: a level only changes the
-/// model the instrument is built from.
+/// model the instrument is built from and the engine's shortcuts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Quality {
-    /// The whole model.
+    /// The whole model with none of the shortcuts that change the signal,
+    /// even those judged inaudible ([`Shortcuts`]): every partial below
+    /// 0.45·fs, sympathy and phantom partials on every one, every string
+    /// hearing the bridge, silences 200 dB down, twice the contact steps.
+    Overkill,
+    /// The whole model, with shortcuts judged inaudible.
     #[default]
     Full,
     /// Sympathetic strings below 2 kHz, phantom partials up to C3, 96
@@ -108,12 +116,18 @@ pub enum Quality {
 }
 
 impl Quality {
-    pub const ALL: [Quality; 3] = [Quality::Full, Quality::Balanced, Quality::Light];
+    pub const ALL: [Quality; 4] = [Quality::Overkill, Quality::Full, Quality::Balanced, Quality::Light];
 
     /// The model an instrument is built from at this level.
     pub fn apply(self, model: &PianoModel) -> PianoModel {
         let mut m = *model;
         match self {
+            Quality::Overkill => {
+                m.sympathetic.max_freq = f64::INFINITY;
+                m.nonlinear.max_note = 108;
+                m.nonlinear.max_partial_hz = f64::INFINITY;
+                m.nonlinear.max_long_hz = f64::INFINITY;
+            }
             Quality::Full => {}
             Quality::Balanced => {
                 m.sympathetic.max_freq = m.sympathetic.max_freq.min(2000.0);
@@ -130,6 +144,28 @@ impl Quality {
         m
     }
 
+    /// Caps on the strings' resolution at this level.
+    pub fn resolution(self) -> crate::note_model::Resolution {
+        match self {
+            Quality::Overkill => crate::note_model::Resolution::UNCAPPED,
+            _ => crate::note_model::Resolution::DEFAULT,
+        }
+    }
+
+    /// The instrument for `model` at this level (≈ 0.1 s; Overkill longer):
+    /// not for the audio thread.
+    pub fn instrument(self, model: &PianoModel, sample_rate: f64) -> Instrument {
+        Instrument::with_resolution(self.apply(model), sample_rate, self.resolution())
+    }
+
+    /// The engine's shortcuts at this level.
+    pub fn shortcuts(self) -> Shortcuts {
+        match self {
+            Quality::Overkill => Shortcuts::NONE,
+            _ => Shortcuts::DEFAULT,
+        }
+    }
+
     /// Voices at this level, at most `polyphony`.
     pub fn polyphony(self, polyphony: usize) -> usize {
         match self {
@@ -141,6 +177,7 @@ impl Quality {
     /// Lowercase name, as in play.toml.
     pub fn name(self) -> &'static str {
         match self {
+            Quality::Overkill => "overkill",
             Quality::Full => "full",
             Quality::Balanced => "balanced",
             Quality::Light => "light",
@@ -152,8 +189,55 @@ impl Quality {
     }
 }
 
+/// Shortcuts of the engine that change the signal, judged inaudible:
+/// thresholds below which a part stops being computed. [`Quality::Overkill`]
+/// puts them 200 dB below a loud note (56 dB under 24-bit resolution) and
+/// lets every string hear the bridge.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Shortcuts {
+    /// A voice is freed below this bridge-force energy (N²·gain).
+    pub voice_silence: f32,
+    /// The soundboard, frame and rim sleep below this mic energy.
+    pub board_silence: f32,
+    /// A sympathetic bank at rest is left alone below this energy (N²).
+    pub sym_silence: f32,
+    /// Phantom partials are skipped below this tension modulation (N).
+    pub nl_silence: f32,
+    /// Strings damped beyond this engagement no longer hear the bridge.
+    pub deaf_above: f64,
+    /// Every string listens to the bridge, damped or not, pedal up or down,
+    /// and is never freed; otherwise only strings with their damper lifted
+    /// get a listening voice.
+    pub listen_all: bool,
+    /// A struck string drops its partials once they fall this far below a
+    /// loud note's bridge force (energy ratio); 0: never.
+    pub drop_partials: f32,
+}
+
+impl Shortcuts {
+    pub const DEFAULT: Self = Self {
+        voice_silence: SILENCE_ENERGY,
+        board_silence: BOARD_SILENCE,
+        sym_silence: 1e-12,
+        nl_silence: 1e-4,
+        deaf_above: 0.99,
+        listen_all: false,
+        drop_partials: 1e-2,
+    };
+    pub const NONE: Self = Self {
+        voice_silence: SILENCE_ENERGY * 1e-10,
+        board_silence: BOARD_SILENCE * 1e-10,
+        sym_silence: 1e-22,
+        nl_silence: 1e-14,
+        deaf_above: f64::INFINITY,
+        listen_all: true,
+        drop_partials: 0.0,
+    };
+}
+
 pub struct Engine {
     cfg: EngineConfig,
+    shortcuts: Shortcuts,
     inst: Arc<Instrument>,
     /// The instrument's model with the live parameters applied
     /// ([`LiveParam`]); its other fields always equal the instrument's.
@@ -201,7 +285,6 @@ pub struct Engine {
     /// Absolute sample index of the next sub-block.
     clock: u64,
     stereo: [Vec<f32>; MICS],
-    listen_cursor: u8,
     knocks: [Knock; MAX_KNOCKS],
     room: Option<crate::room::Room>,
     /// Damper engagement below which a landing damper counts as an impact.
@@ -209,14 +292,17 @@ pub struct Engine {
     /// Last summed mic outputs, for the differentiator.
     mic_last: [f32; MICS],
     pool: Option<crate::par::Pool>,
+    /// Mic outputs of the frame and of the sympathetic board when they run
+    /// on the pool, summed after the board's.
+    side_out: [[Vec<f32>; MICS]; 2],
     /// Indices of the voices rendered in the current segment.
     busy: Vec<usize>,
 }
 
-/// Lets the pool's workers reach disjoint voices.
-struct VoicesPtr(*mut Voice);
-// SAFETY: each item of a pool run touches only its own voice.
-unsafe impl Sync for VoicesPtr {}
+/// Lets the pool's workers reach disjoint voices, banks and buffers.
+struct Ptr<T>(*mut T);
+// SAFETY: each item of a pool run touches only its own target.
+unsafe impl<T> Sync for Ptr<T> {}
 
 /// Segments with fewer voices are rendered on the audio thread alone.
 const PARALLEL_MIN_VOICES: usize = 4;
@@ -224,15 +310,23 @@ const PARALLEL_MIN_VOICES: usize = 4;
 impl Engine {
     /// Builds the instrument (≈ 0.5 s): not for the audio thread.
     pub fn new(cfg: EngineConfig) -> Self {
-        Self::with_instrument(cfg, Arc::new(Instrument::new(cfg.quality.apply(&cfg.model), cfg.sample_rate)))
+        Self::with_instrument(cfg, Arc::new(cfg.quality.instrument(&cfg.model, cfg.sample_rate)))
     }
 
-    /// Engine on a prebuilt (shared) instrument, built from
-    /// `cfg.quality.apply(model)`; `cfg.model` is ignored.
+    /// Engine on a prebuilt (shared) instrument, built by
+    /// `cfg.quality.instrument`; `cfg.model` is ignored.
     pub fn with_instrument(cfg: EngineConfig, inst: Arc<Instrument>) -> Self {
         assert_eq!(inst.sample_rate, cfg.sample_rate);
         let cfg = EngineConfig { polyphony: cfg.quality.polyphony(cfg.polyphony), ..cfg };
-        let voices = (0..cfg.polyphony).map(|_| Voice::new(cfg.sample_rate, cfg.max_block)).collect();
+        let shortcuts = cfg.quality.shortcuts();
+        let capacity = inst.table.capacity();
+        let voices = (0..cfg.polyphony)
+            .map(|_| {
+                let mut v = Voice::with_capacity(cfg.sample_rate, cfg.max_block, capacity);
+                v.set_shortcuts(&shortcuts);
+                v
+            })
+            .collect();
         let rim_couple = inst.rim.as_ref().map_or(&[][..], |r| &r.couple[..]);
         let board = inst.board.as_ref().map(|m| BoardBank::with_extra(cfg.sample_rate, m, rim_couple, SUB_BLOCK));
         let frame = inst.frame.as_ref().map(|m| BoardBank::new(cfg.sample_rate, m, SUB_BLOCK));
@@ -252,6 +346,7 @@ impl Engine {
         let live = inst.model;
         let mut e = Self {
             cfg,
+            shortcuts,
             inst,
             live,
             gain: db_to_gain(live.output_gain_db),
@@ -281,12 +376,12 @@ impl Engine {
             disp_in: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             clock: 0,
             stereo: std::array::from_fn(|_| vec![0.0; cfg.max_block]),
-            listen_cursor: 21,
             knocks: [Knock::default(); MAX_KNOCKS],
             room,
             sustain_prev: 0.0,
             mic_last: [0.0; MICS],
-            pool: (cfg.threads > 1).then(|| crate::par::Pool::new(cfg.threads)),
+            pool: Self::pool_for(&cfg),
+            side_out: std::array::from_fn(|_| std::array::from_fn(|_| vec![0.0; SUB_BLOCK])),
             busy: Vec::with_capacity(cfg.polyphony),
         };
         // Strings without dampers always resonate.
@@ -296,6 +391,34 @@ impl Engine {
             }
         }
         e
+    }
+
+    /// The worker pool `cfg` asks for (`threads` > 1), each worker started
+    /// with `worker_init`.
+    pub fn pool_for(cfg: &EngineConfig) -> Option<crate::par::Pool> {
+        (cfg.threads > 1).then(|| {
+            let (init, mb, sr) = (cfg.worker_init, cfg.max_block, cfg.sample_rate);
+            crate::par::Pool::with_init(cfg.threads, move || {
+                if let Some(f) = init {
+                    f(mb, sr)
+                }
+            })
+        })
+    }
+
+    /// Lends the engine a worker pool (or takes it back with `None`) and
+    /// returns the one it had: a host running several engines shares one
+    /// pool between them. Real-time safe (moves, no allocation).
+    pub fn swap_pool(&mut self, pool: Option<crate::par::Pool>) -> Option<crate::par::Pool> {
+        std::mem::replace(&mut self.pool, pool)
+    }
+
+    /// Replaces the shortcuts set by the quality level (tests, comparisons).
+    pub fn set_shortcuts(&mut self, s: Shortcuts) {
+        self.shortcuts = s;
+        for v in &mut self.voices {
+            v.set_shortcuts(&s);
+        }
     }
 
     pub fn instrument(&self) -> &Arc<Instrument> {
@@ -313,7 +436,7 @@ impl Engine {
     /// Voices actually sounding: struck or set ringing, not the strings
     /// that only listen while their dampers are lifted (O(modes)).
     pub fn sounding_voices(&self) -> usize {
-        self.voices.iter().filter(|v| v.active && v.energy() >= SILENCE_ENERGY).count()
+        self.voices.iter().filter(|v| v.active && v.energy() >= self.shortcuts.voice_silence).count()
     }
 
     /// Takes the live parameters ([`LiveParam`]) of `model`, as if each had
@@ -434,28 +557,79 @@ impl Engine {
                 for f in &mut self.rim_force {
                     f[..len].fill(0.0);
                 }
-                if has_input || self.board_awake {
+                let run_board = has_input || self.board_awake;
+                let has_frame = self.region_agraffe.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
+                let run_frame = self.frame.is_some() && (has_frame || self.frame_awake);
+                let has_sym = self.region_sym.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
+                let run_sym = self.board_sym.is_some() && (has_sym || self.board_sym_awake);
+                if let Some(pool) = self.pool.as_mut().filter(|_| run_board) {
+                    // The board's parts, the frame and the sympathetic board in
+                    // parallel, each into its own buffers, summed below in the
+                    // same order as on one thread: the same result, bit for bit.
+                    board.prepare(&self.region, len, true, self.rim.is_some());
+                    for b in self.side_out.iter_mut().flatten() {
+                        b[..len].fill(0.0);
+                    }
+                    let (job, parts) = board.split();
+                    let parts = Ptr(parts.as_mut_ptr());
+                    let frame = Ptr(self.frame.as_mut().map_or(std::ptr::null_mut(), |f| f as *mut BoardBank));
+                    let sym = Ptr(self.board_sym.as_mut().map_or(std::ptr::null_mut(), |b| b as *mut BoardBank));
+                    let side = Ptr(self.side_out.as_mut_ptr());
+                    let (region_agraffe, region_sym) = (&self.region_agraffe, &self.region_sym);
+                    let n = PARTS + 2;
+                    pool.run(n, &|i| {
+                        let _ = (&parts, &frame, &sym, &side);
+                        // SAFETY: every item touches its own part, bank and buffers.
+                        unsafe {
+                            match i {
+                                i if i < PARTS => (*parts.0.add(i)).run(&job),
+                                _ => {
+                                    let (bank, run, input) = if i == PARTS { (frame.0, run_frame, region_agraffe) } else { (sym.0, run_sym, region_sym) };
+                                    if run {
+                                        let [l, r] = &mut *side.0.add(i - PARTS);
+                                        (*bank).process(input, len, [&mut l[..len], &mut r[..len]], None, None);
+                                    }
+                                }
+                            }
+                        }
+                    });
                     let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
-                    board.process(&self.region, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
-                    self.board_awake = has_input || board.energy() > BOARD_SILENCE;
-                }
-                if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
-                    rim.process(&self.rim_force, len, [&mut *left, &mut *right]);
-                    self.rim_awake = self.board_awake || rim.energy() > BOARD_SILENCE;
-                }
-                if let Some(frame) = self.frame.as_mut() {
-                    let has = self.region_agraffe.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
-                    if has || self.frame_awake {
+                    board.finish([&mut *left, &mut *right], Some(&mut self.disp), rim_force);
+                    self.board_awake = has_input || board.energy() > self.shortcuts.board_silence;
+                    if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
+                        rim.process(&self.rim_force, len, [&mut *left, &mut *right]);
+                        self.rim_awake = self.board_awake || rim.energy() > self.shortcuts.board_silence;
+                    }
+                    for (k, run) in [run_frame, run_sym].into_iter().enumerate() {
+                        if run {
+                            let [l, r] = &self.side_out[k];
+                            for (o, x) in left.iter_mut().zip(&l[..len]).chain(right.iter_mut().zip(&r[..len])) {
+                                *o += x;
+                            }
+                        }
+                    }
+                } else {
+                    if run_board {
+                        let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
+                        board.process(&self.region, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
+                        self.board_awake = has_input || board.energy() > self.shortcuts.board_silence;
+                    }
+                    if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
+                        rim.process(&self.rim_force, len, [&mut *left, &mut *right]);
+                        self.rim_awake = self.board_awake || rim.energy() > self.shortcuts.board_silence;
+                    }
+                    if let Some(frame) = self.frame.as_mut().filter(|_| run_frame) {
                         frame.process(&self.region_agraffe, len, [&mut *left, &mut *right], None, None);
-                        self.frame_awake = has || frame.energy() > BOARD_SILENCE;
+                    }
+                    if let Some(bs) = self.board_sym.as_mut().filter(|_| run_sym) {
+                        bs.process(&self.region_sym, len, [&mut *left, &mut *right], None, None);
                     }
                 }
-                if let Some(bs) = self.board_sym.as_mut() {
-                    let has_sym = self.region_sym.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
-                    if has_sym || self.board_sym_awake {
-                        bs.process(&self.region_sym, len, [&mut *left, &mut *right], None, None);
-                        self.board_sym_awake = has_sym || bs.energy() > BOARD_SILENCE;
-                    }
+                if let Some(frame) = self.frame.as_ref().filter(|_| run_frame) {
+                    self.frame_awake = has_frame || frame.energy() > self.shortcuts.board_silence;
+                }
+                if let Some(bs) = self.board_sym.as_ref().filter(|_| run_sym) {
+                    self.board_sym_awake = has_sym || bs.energy() > self.shortcuts.board_silence;
                 }
                 // The banks carry acceleration weights: the pressure is the
                 // derivative of their sum (board::to_acceleration_weights).
@@ -487,12 +661,14 @@ impl Engine {
         self.clock += len as u64;
 
         let sympathy = self.sympathy();
+        let drop = self.shortcuts.voice_silence * self.shortcuts.drop_partials;
         for v in &mut self.voices {
             if !v.active {
                 continue;
             }
-            let listening = sympathy && v.engagement < 0.5;
-            if !listening && v.energy() < SILENCE_ENERGY {
+            v.drop_silent_partials(drop);
+            let listening = sympathy && (v.engagement < 0.5 || self.shortcuts.listen_all);
+            if !listening && v.energy() < self.shortcuts.voice_silence {
                 v.active = false;
             }
         }
@@ -504,6 +680,7 @@ impl Engine {
         }
         let sympathy = self.sympathy();
         let with_frame = self.frame.is_some();
+        let deaf = self.shortcuts.deaf_above;
         let t0 = self.clock;
         self.busy.clear();
         self.busy.extend(self.voices.iter().enumerate().filter(|(_, v)| v.active).map(|(i, _)| i));
@@ -511,13 +688,13 @@ impl Engine {
             // Every voice computes its forces in parallel, then they are summed
             // in voice order: the same result as one thread, bit for bit.
             let (table, disp_in, busy) = (&self.inst.table, &self.disp_in, &self.busy);
-            let voices = VoicesPtr(self.voices.as_mut_ptr());
+            let voices = Ptr(self.voices.as_mut_ptr());
             pool.run(busy.len(), &|i| {
                 let _ = &voices;
                 // SAFETY: `busy` holds distinct indices into `voices`.
                 let v = unsafe { &mut *voices.0.add(busy[i]) };
                 let nm = table.get(v.note);
-                let bridge = (sympathy && v.engagement < 0.99).then(|| (&disp_in[region_of(v.note)][from..to], SUB_BLOCK));
+                let bridge = (sympathy && v.engagement < deaf).then(|| (&disp_in[region_of(v.note)][from..to], SUB_BLOCK));
                 v.compute(nm, with_frame, t0, from, to, bridge);
             });
             for &i in &self.busy {
@@ -531,7 +708,7 @@ impl Engine {
             let nm = self.inst.table.get(v.note);
             let r = region_of(v.note);
             // Fully damped strings do not resonate: skip their input.
-            let bridge = (sympathy && v.engagement < 0.99).then(|| (&self.disp_in[r][from..to], SUB_BLOCK));
+            let bridge = (sympathy && v.engagement < deaf).then(|| (&self.disp_in[r][from..to], SUB_BLOCK));
             v.render(
                 nm,
                 &mut self.region[r][from..to],
@@ -592,21 +769,21 @@ impl Engine {
         }
     }
 
-    /// While the dampers are lifted, give every damped key a listening string.
+    /// While the dampers are lifted (always, with [`Shortcuts::listen_all`]),
+    /// give every damped key a listening string (all at once: setting one up
+    /// is a copy, ≈ 1 µs).
     fn add_listeners(&mut self) {
         let law = self.live.damper;
-        if !self.sympathy() || law.pedal_engagement(self.sustain) >= 0.5 {
+        if !self.sympathy() || (law.pedal_engagement(self.sustain) >= 0.5 && !self.shortcuts.listen_all) {
             return;
         }
-        let mut added = 0;
-        for _ in 21..=law.highest_note.min(108) {
-            let note = self.listen_cursor;
-            self.listen_cursor = if note >= law.highest_note.min(108) { 21 } else { note + 1 };
-            if !self.voices.iter().any(|v| v.active && v.note == note) && self.add_listener(note) {
-                added += 1;
-                if added == LISTENERS_PER_BLOCK {
-                    break;
-                }
+        let mut sounding = [false; 128];
+        for v in self.voices.iter().filter(|v| v.active) {
+            sounding[v.note as usize & 127] = true;
+        }
+        for note in 21..=law.highest_note.min(108) {
+            if !sounding[note as usize] && !self.add_listener(note) {
+                break;
             }
         }
     }
@@ -720,7 +897,13 @@ impl Engine {
         let v = &mut self.voices[idx];
         if !(v.active && v.note == note) {
             v.setup(nm, false);
+        }
+        // The key lifts its damper on the way down, before the hammer
+        // arrives: a string still ringing under its damper is struck free
+        // (it used to be struck damped, the damper lifting only afterwards).
+        if v.engagement != 0.0 {
             v.engagement = 0.0;
+            v.set_damper_rate(nm.damper_rate(&self.live, 0.0));
         }
         v.active = true;
         v.key_down = true;
@@ -730,7 +913,9 @@ impl Engine {
         // shifts the action (una corda).
         let thrown = vh * (1.0 - self.live.half_blow * self.soft).max(0.0) * repetition;
         let mute = if self.mute_down { self.live.mute_felt } else { 0.0 };
-        v.strike(nm, thrown, contact_oversampling(&cfg, note), self.soft * self.live.una_corda_shift, softening, mute);
+        // Overkill: twice the contact steps.
+        let os = contact_oversampling(&cfg, note) * if cfg.quality == Quality::Overkill { 2 } else { 1 };
+        v.strike(nm, thrown, os, self.soft * self.live.una_corda_shift, softening, mute);
         v.damper_speed = 1.0;
         // The key bottoms on the keybed as the hammer reaches the string.
         self.knock(region_of(note), self.live.noise.keybed * vh);
