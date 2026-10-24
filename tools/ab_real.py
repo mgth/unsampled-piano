@@ -11,10 +11,13 @@ Writes <prefix>_real.mp3 and <prefix>_model.mp3. --listening default: the
 engine's own (a concert hall heard from 1.5 m), for hall recordings;
 close: close microphones in a studio (tools/bench.py), for close ones;
 auto: each room of presets/listening/Room heard by the engine's
-microphones and by each set of presets/listening/Microphones except the
-close one, keeping the pair whose room sounds closest to the recording's over the
-passage (L/R coherence at 0.5–4 kHz, and how far the envelope dips
-between notes: p90 − p10 of its 10 ms level).
+microphones and by each set of presets/listening/Microphones, keeping the pair whose room and balance sound closest to the recording's
+over the passage: L/R coherence at 0.5–4 kHz, how far the envelope dips
+between notes (p90 − p10 of its 10 ms level), and the long-term spectrum's
+octaves from 250 Hz to 4 kHz re 1 kHz (a closed lid sounds closed; the
+microphones above the board hear its 150–350 Hz modes 10 dB too loud for
+MAESTRO's recordings, which close microphones match; the 8 kHz octave holds
+the recordings' hiss).
 KEEP=1 keeps the intermediate WAV files (their folder is printed)."""
 import argparse, glob, os, re, subprocess, sys, tempfile
 import numpy as np
@@ -27,7 +30,8 @@ def loudness(path):
     return float(re.findall(r"I:\s+(-?[\d.]+) LUFS", r.stderr)[-1])
 
 def room_traits(path, notes, start, dur):
-    """(L/R coherence 0.5–4 kHz, envelope dip depth dB) over the passage."""
+    """(L/R coherence 0.5–4 kHz, envelope dip depth dB, octave levels at
+    250 Hz–8 kHz re 1 kHz) over the passage."""
     from scipy.signal import coherence, butter, sosfiltfilt
     mono = pb.load(path); t0, dr = pb.align(mono, notes)
     # From the first note on: before it the model is silent, the recording
@@ -40,7 +44,9 @@ def room_traits(path, notes, start, dur):
     f, c = coherence(s[:, 0], s[:, 1], fs=48000, nperseg=4096)
     y = sosfiltfilt(butter(3, (200, 5000), btype="band", fs=48000, output="sos"), s.mean(1)); h = 480; n = len(y) // h
     e = 10 * np.log10((y[:n * h].reshape(n, h) ** 2).mean(1) + 1e-20)
-    return c[(f > 500) & (f < 4000)].mean(), np.percentile(e, 90) - np.percentile(e, 10)
+    P = np.abs(np.fft.rfft(s.mean(1)[: 1 << 21] * np.hanning(min(len(s), 1 << 21)))) ** 2; fr = np.fft.rfftfreq(min(len(s), 1 << 21), 1 / 48000)
+    oct_ = np.array([10 * np.log10(P[(fr >= c / 1.414) & (fr < c * 1.414)].sum() + 1e-30) for c in (250, 500, 1000, 2000, 4000, 8000)])
+    return c[(f > 500) & (f < 4000)].mean(), np.percentile(e, 90) - np.percentile(e, 10), oct_ - oct_[2]
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -59,15 +65,16 @@ def main():
         want = room_traits(a.audio, notes, a.start, a.dur)
         best = None
         lst = os.path.join(bench.ROOT, "presets", "listening")
-        mics = [None] + [m for m in sorted(glob.glob(os.path.join(lst, "Microphones", "*.toml"))) if not m.endswith("close.toml")]
+        mics = [None] + sorted(glob.glob(os.path.join(lst, "Microphones", "*.toml")))
         rooms = [None] + sorted(glob.glob(os.path.join(lst, "Room", "*.toml")))
         for i, (mic, room) in enumerate((m, r) for m in mics for r in rooms):
             out = os.path.join(tmp, f"room_{i}.wav"); pre = [p for p in (mic, room) if p]
             render(out, [x for p in pre for x in ("--listening", p)])
             got = room_traits(out, notes, a.start, a.dur)
-            d = abs(got[0] - want[0]) / 0.05 + abs(got[1] - want[1]) / 2.0
+            tilt = float(np.sqrt(np.mean((got[2][:5] - want[2][:5]) ** 2)))
+            d = abs(got[0] - want[0]) / 0.05 + abs(got[1] - want[1]) / 2.0 + tilt / 1.0
             label = " + ".join(os.path.basename(p)[:-5] for p in pre) or "default"
-            print(f"  {label}: coherence {got[0]:.2f}, dips {got[1]:.1f} dB (recording {want[0]:.2f}, {want[1]:.1f})")
+            print(f"  {label}: coherence {got[0]:.2f}, dips {got[1]:.1f} dB, balance {tilt:.1f} dB rms (recording {want[0]:.2f}, {want[1]:.1f})")
             if best is None or d < best[0]: best = (d, out, label)
         os.replace(best[1], wav)
         print(f"  kept {best[2]}")
