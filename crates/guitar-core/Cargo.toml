@@ -1,0 +1,20 @@
+[package]
+name = "guitar-core"
+description = "Framework-agnostic DSP engine of the physical guitar (no plugin/host types here). Runs on piano-core's modal bank."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+serde = ["dep:serde"]
+
+[dependencies]
+# Only its instrument-agnostic modules (modal, complex, denormal, par,
+# upsample): they move to a shared crate once both instruments use them.
+piano-core.workspace = true
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+hound.workspace = true
