@@ -127,6 +127,13 @@ pub struct ContactSolver {
     f1: f64,
     x0: f64,
     x1: f64,
+    /// Flexible shank: its position now and one step earlier (m), effective
+    /// mass, stiffness and damping to the head (0 mass: rigid hammer).
+    y0: f64,
+    y1: f64,
+    shank_mass: f64,
+    shank_k: f64,
+    shank_c: f64,
     w0: f64,
     w1: f64,
     psi: f64,
@@ -171,6 +178,11 @@ impl ContactSolver {
             f1: 0.0,
             x0: 0.0,
             x1: 0.0,
+            y0: 0.0,
+            y1: 0.0,
+            shank_mass: 0.0,
+            shank_k: 0.0,
+            shank_c: 0.0,
             w0: 0.0,
             w1: 0.0,
             psi: 0.0,
@@ -336,9 +348,14 @@ impl ContactSolver {
         // Passivity must not depend on parameters: hysteresis only dissipates.
         self.alpha = h.alpha.max(0.0);
         self.lambda = lambda + dt * dt / self.mass + self.c_res;
-        // Hammer arrives at the string now, at speed v.
+        // Hammer arrives at the string now, at speed v, its shank unbent.
         self.x0 = w0;
         self.x1 = w0 - v * dt;
+        self.shank_mass = h.shank_mass;
+        self.shank_k = h.shank_k;
+        self.shank_c = h.shank_c;
+        self.y0 = self.x0;
+        self.y1 = self.x1;
         self.w0 = w0;
         self.w1 = w1;
         self.psi = 0.0;
@@ -438,7 +455,14 @@ impl ContactSolver {
         let dt = self.dt;
         // String displacement under the hammer from the free predictions.
         let w_star = self.w_star;
-        let x_star = 2.0 * self.x0 - self.x1;
+        // The shank pulls the head with a force known at this step (explicit
+        // central difference: stable while ω·dt < 2, ω some 10³ rad/s).
+        let fs = if self.shank_mass > 0.0 {
+            self.shank_k * (self.y0 - self.x0) + self.shank_c * ((self.y0 - self.y1) - (self.x0 - self.x1)) / dt
+        } else {
+            0.0
+        };
+        let x_star = 2.0 * self.x0 - self.x1 + dt * dt / self.mass * fs;
         let u_star = x_star - w_star;
         // The residual modes deflect with the force at once (no inertia).
         let u_now = self.x0 - self.w0 - self.c_res * self.f0;
@@ -471,6 +495,11 @@ impl ContactSolver {
 
         // Updates.
         let x_next = x_star - dt * dt / self.mass * f;
+        if self.shank_mass > 0.0 {
+            let y_next = 2.0 * self.y0 - self.y1 - dt * dt / self.shank_mass * fs;
+            self.y1 = self.y0;
+            self.y0 = y_next;
+        }
         let lanes = &mut self.lanes[..self.n.div_ceil(CL)];
         let (w_next, out, out_a, w_star) = match self.isa {
             crate::modal::Isa::Generic => update::<true>(lanes, f),
@@ -516,7 +545,16 @@ impl ContactSolver {
         // one step): the work F[n]·(ρ[n+1] − ρ[n−1])/2 is the change of
         // c·(F[n]² + F[n−1]²)/4 plus c·(F[n] − F[n−2])²/4 ≥ 0, dissipated.
         // Twice that stored energy:
-        h + self.mass / (self.dt * self.dt) * v * v + self.psi * self.psi + self.c_res * (self.f0 * self.f0 + self.f1 * self.f1) / 2.0
+        // The shank: its motion and the spring to the head, in the form the
+        // explicit central difference conserves (the spring's energy taken
+        // across two steps).
+        let shank = if self.shank_mass > 0.0 {
+            let vy = self.y0 - self.y1;
+            self.shank_mass / (self.dt * self.dt) * vy * vy + self.shank_k * (self.y0 - self.x0) * (self.y1 - self.x1)
+        } else {
+            0.0
+        };
+        h + self.mass / (self.dt * self.dt) * v * v + self.psi * self.psi + self.c_res * (self.f0 * self.f0 + self.f1 * self.f1) / 2.0 + shank
     }
 }
 
@@ -565,7 +603,10 @@ mod tests {
 
     fn setup(note: u8, sigma_scale: f64) -> (Vec<PhysMode>, NoteParams) {
         let sr = 48_000.0;
-        let np = PianoModel::default().note(note);
+        // A rigid hammer of the whole mass (the flexible shank has its own test).
+        let mut model = PianoModel::default();
+        model.shank_share = 0.0;
+        let np = model.note(note);
         let modes = (1..=512u32)
             .map_while(|k| {
                 let f = crate::params::partial_freq(np.f0, np.b, k);
@@ -637,6 +678,34 @@ mod tests {
                     assert!(h <= prev * (1.0 + 1e-12), "note {note} v {v}: {h} > {prev}");
                     assert!(out[0].is_finite());
                     prev = h;
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn flexible_shank_energy_never_grows() {
+        // With the shank (default model), lossless strings and felt: only
+        // the shank's damping and the guards remove energy; the explicit
+        // spring adds none beyond rounding.
+        let mut model = PianoModel::default();
+        model.shank_share = 0.3;
+        model.shank_loss = 0.0;
+        for note in [33u8, 60, 84, 100, 108] {
+            for v in [0.5, 3.0, 7.0] {
+                let (modes, _) = setup(note, 0.0);
+                let mut np = model.note(note);
+                np.hammer.alpha = 0.0;
+                let mut s = ContactSolver::new(512, 48_000.0);
+                s.strike(&np, v, 2, modes.iter().copied());
+                let mut out = [0.0f32; 1];
+                s.run(&mut out, None);
+                let h0 = s.energy();
+                while s.is_active() {
+                    s.run(&mut out, None);
+                    let h = s.energy();
+                    assert!(h <= h0 * (1.0 + 1e-3), "note {note} v {v}: {h} > {h0}");
+                    assert!(out[0].is_finite());
                 }
             }
         }

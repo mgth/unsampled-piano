@@ -12,6 +12,7 @@ output_gain_db = 0.0
 hardness = 0.3
 hardness_slope = 0.02
 hardness_slope_bass = 0.02
+hardness_slope_top = 0.2
 core_hardness = 2.0
 core_p = 7.0
 core_depth_bass = 0.0
@@ -22,6 +23,9 @@ p_offset = 0.0
 hysteresis = 0.3
 contact_width_scale = 1.0
 hammer_mass_scale = 1.0
+shank_share = 0.3
+shank_freq = 300.0
+shank_loss = 0.1
 strike_ratio = 0.12
 
 [velocity]

@@ -144,6 +144,12 @@ const HELP: &[(&str, &str, &str)] = &[
         "Q0 ×= e^(slope·(key − 40)) below C4.",
     ),
     (
+        "hardness_slope_top",
+        "Extra hardness of the top octave and a half's hammers, which voicers harden so that the \
+         highest notes ring out.",
+        "Q0 ×= e^(slope·(key − 64)) above C6, on top of hardness_slope (docs/top_level.md).",
+    ),
+    (
         "core_hardness",
         "Hammer felt is denser inside than outside. Played softly, only the soft outer felt is \
          squeezed and the tone is round; played harder, the hammer works into denser felt and \
@@ -202,6 +208,16 @@ const HELP: &[(&str, &str, &str)] = &[
          integrates m·x'' = −F, so at a given speed the strike's energy and duration grow with \
          the mass.",
     ),
+    (
+        "shank_share",
+        "The hammer's shank bends. In the treble the short blow meets the hammer head almost \
+         alone, which gives the top notes their strength; in the bass the whole hammer follows. \
+         Share of the hammer's mass in its shank (0: a rigid hammer).",
+        "The head (1 − share of the mass) is linked to the shank's effective mass by a spring and \
+         a dashpot; both start at the hammer speed (docs/top_level.md).",
+    ),
+    ("shank_freq", "How stiff the shank is: the frequency at which the head swings against it.", "Frequency (Hz) of the head-against-shank mode, k = m_r·(2πf)² with m_r the reduced mass."),
+    ("shank_loss", "Damping of the shank's swing.", "Loss factor of the head-against-shank mode (c = loss·m_r·2πf)."),
     (
         "strike_ratio",
         "Where the hammer hits the string, as a share of its length from the tuning-pin end. Near \

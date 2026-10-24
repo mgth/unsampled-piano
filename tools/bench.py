@@ -87,6 +87,13 @@ def onset(x):
 def peak_db(x):
     h = 480; n = len(x) // h; return 10 * np.log10((x[: n * h].reshape(n, h) ** 2).mean(1).max() + 1e-30)
 
+def onset_level(x):
+    """Peak level (dB, 10 ms frames) of the first 0.2 s above 250 Hz: the
+    attack as heard, without the fundamentals of the bass."""
+    s = max(onset(x) - int(0.01 * SR), 0); seg = x[s: s + int(0.2 * SR)]
+    X = np.fft.rfft(seg); X[np.fft.rfftfreq(len(seg), 1 / SR) < 250] = 0
+    return peak_db(np.fft.irfft(X, len(seg)))
+
 def envelope(x, m, times):
     """Level (dB re the peak) at `times` s after the peak, above 0.7·f0."""
     X = np.fft.rfft(x); X[np.fft.rfftfreq(len(x), 1 / SR) < 0.7 * f0(m)] = 0
@@ -141,6 +148,8 @@ MEASURES = {
     "bright_mf":   ("brightness", 0.15, ["centroid"], True),
     "brightening": ("dynamics", 0.15, ["ff/pp"], True),
     "dyn":         ("dynamics", 3.0, ["ff-pp", "ff-mf"], False),
+    # The register's attack re the middle's, same layer (above 250 Hz).
+    "balance":     ("dynamics", 2.0, ["ff", "mf"], False),
     "bands_att":   ("brightness", 3.0, ["1k", "2k", "4k", "8k"], False),
     "bands_sus":   ("brightness", 3.0, ["1k", "2k", "4k", "8k"], False),
     "sustain_ff":  ("sustain", 4.0, ["p2", "p3", "p4", "p6", "p8", "p12"], False),
@@ -161,6 +170,10 @@ def measure_set(d, survey_csv):
     out = {}
     sv = pd.read_csv(survey_csv) if survey_csv and os.path.exists(survey_csv) else None
     present = sorted({key_of(f) for f in os.listdir(d) if key_of(f) is not None})
+    def reg_level(lo, hi, l):
+        v = [onset_level(get(m, l)) for m in present if lo <= m <= hi and get(m, l) is not None]
+        return float(np.median(v)) if v else None
+    mid_level = {l: reg_level(48, 71, l) for l in (13, 8)}
     for lo, hi, reg in REGS:
         # The keys the set has: sample libraries record every key, every
         # third or every fourth.
@@ -185,6 +198,10 @@ def measure_set(d, survey_csv):
         r["bright_mf"] = mean(lambda m, x: np.log(centroid(x, m, 0, 0.05)), [8])
         r["brightening"] = mean(lambda m, a, c: np.log(centroid(a, m, 0, 0.05) / centroid(c, m, 0, 0.05)), [13, 4])
         r["dyn"] = mean(lambda m, a, b, c: [peak_db(a) - peak_db(c), peak_db(a) - peak_db(b)], [13, 8, 4])
+        if reg != "middle":
+            lv = [reg_level(lo, hi, l) for l in (13, 8)]
+            r["balance"] = [None if v is None or mid_level[l] is None else v - mid_level[l] for v, l in zip(lv, (13, 8))]
+            if all(v is None for v in r["balance"]): r["balance"] = None
         # Octave bands re the strongest band of the first 0.1 s; the 8 kHz
         # band of the treble is the recordings' noise.
         allc = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000]

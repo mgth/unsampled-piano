@@ -680,6 +680,10 @@ pub struct PianoModel {
     pub hardness_slope: f64,
     /// The same slope below key 40 (C4): bass hammers are large and soft.
     pub hardness_slope_bass: f64,
+    /// Further growth above C6 (key 64): Q0 ×= e^{slope·(n − 64)}. With the
+    /// flexible shank the top's fundamentals gain more than its partials
+    /// 2–4; the top hammers are voiced harder (docs/top_level.md).
+    pub hardness_slope_top: f64,
     /// Inner felt: Q_core·(u − depth)^core_p added to the top felt's
     /// Q0·u^p, Q_core relative to Stulov's Q0 of the key (0: single layer),
     /// with the depth (mm) of the top felt in the bass (A0), the middle
@@ -705,6 +709,16 @@ pub struct PianoModel {
     /// Multiplies Stulov's hammer masses (light leather-covered fortepiano
     /// hammers, small upright hammers).
     pub hammer_mass_scale: f64,
+    /// The shank bends: of the hammer's effective mass, `shank_share` is
+    /// the shank's, linked to the head by a spring whose mode (head against
+    /// shank) is at `shank_freq` (Hz), with loss factor `shank_loss`. A
+    /// contact much shorter than that mode's half period (the treble) meets
+    /// the head alone; a long one (the bass) the whole hammer. 0: rigid.
+    /// 0.3 and 300 Hz: the top's attack comes within 1 dB of eight real
+    /// grands' against the middle (−10.6 dB before, docs/top_level.md).
+    pub shank_share: f64,
+    pub shank_freq: f64,
+    pub shank_loss: f64,
     /// Strike point (fraction of the speaking length from the agraffe) up
     /// to C6, 0.05 closer to the agraffe at C8.
     pub strike_ratio: f64,
@@ -745,6 +759,7 @@ impl Default for PianoModel {
             hardness: 0.3,
             hardness_slope: 0.02,
             hardness_slope_bass: 0.02,
+            hardness_slope_top: 0.2,
             p_bass: 0.0,
             // Graded felt (docs/felt.md): Q0·u^p + 2·Q0_Stulov·u^7, no
             // threshold. The former two-layer hammer (a core 30 × Stulov,
@@ -762,6 +777,9 @@ impl Default for PianoModel {
             hysteresis: 0.3,
             contact_width_scale: 1.0,
             hammer_mass_scale: 1.0,
+            shank_share: 0.3,
+            shank_freq: 300.0,
+            shank_loss: 0.1,
             strike_ratio: 0.12,
         }
     }
@@ -779,12 +797,22 @@ impl PianoModel {
         let contact_width = (0.008 - 0.004 * (m - 21.0) / 87.0) * self.contact_width_scale;
         let mut hammer = hammer_stulov(note);
         hammer.mass_kg *= self.hammer_mass_scale;
+        if self.shank_share > 0.0 && self.shank_freq > 0.0 {
+            let total = hammer.mass_kg;
+            let share = self.shank_share.clamp(0.0, 0.9);
+            hammer.mass_kg = total * (1.0 - share);
+            hammer.shank_mass = total * share;
+            let reduced = hammer.mass_kg * hammer.shank_mass / total;
+            let w = std::f64::consts::TAU * self.shank_freq;
+            hammer.shank_k = reduced * w * w;
+            hammer.shank_c = self.shank_loss * reduced * w;
+        }
         let key = note as f64 - 20.0;
         let slope = if key < 40.0 { self.hardness_slope_bass } else { self.hardness_slope };
         // The core keeps Stulov's stiffness of the key, whatever the voicing
         // of the top felt.
         let base_q0 = hammer.q0;
-        hammer.q0 *= self.hardness * (slope * (key - 40.0)).exp();
+        hammer.q0 *= self.hardness * (slope * (key - 40.0) + self.hardness_slope_top * (key - 64.0).max(0.0)).exp();
         hammer.p += self.p_offset + self.p_bass * ((40.0 - key) / 39.0).max(0.0);
         hammer.core_q = self.core_hardness * base_q0;
         hammer.core_p = self.core_p;
@@ -828,11 +856,20 @@ pub struct HammerParams {
     pub core_q: f64,
     pub core_p: f64,
     pub core_depth: f64,
+    /// Flexible shank: its effective mass (kg, 0: rigid hammer of
+    /// `mass_kg`), and the stiffness (N/m) and damping (N·s/m) linking it to
+    /// the head (`mass_kg`).
+    pub shank_mass: f64,
+    pub shank_k: f64,
+    pub shank_c: f64,
 }
 
 pub fn hammer_stulov(note: u8) -> HammerParams {
     let n = (note as f64 - 20.0).clamp(1.0, 88.0);
     HammerParams {
+        shank_mass: 0.0,
+        shank_k: 0.0,
+        shank_c: 0.0,
         core_q: 0.0,
         core_p: 2.5,
         core_depth: 1e-3,

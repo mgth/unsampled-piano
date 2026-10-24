@@ -150,6 +150,7 @@ For playing and setting up the instrument, see the [website](https://unsampled.m
 - What rings on after the release (undamped top strings, damper range): [docs/release_ring.md](docs/release_ring.md)
 - Releases and soft blows against a Disklavier grand (damper felt, sideways motion, uneven soft blows): [docs/release.md](docs/release.md)
 - The action's knock, heard directly (keyframe, shanks; level of the real grands below the top keys): [docs/action_noise.md](docs/action_noise.md)
+- The level of the top, the register balance and the flexible hammer shank: [docs/top_level.md](docs/top_level.md)
 - A range of instruments from one engine (hammer mass, strike point, preset fitting): [docs/instrument_range.md](docs/instrument_range.md)
 - Room level (piano directivity, microphone patterns): [docs/room_level.md](docs/room_level.md)
 - Uprights (half blow, practice mute, repetition, wall, case, placement in the room, directivity): [docs/upright.md](docs/upright.md)
