@@ -267,10 +267,11 @@ const HELP: &[(&str, &str, &str)] = &[
     ("losses.wound_until", "Highest key with wound strings.", "MIDI note where the b1_floor term starts fading (gone an octave higher)."),
     (
         "losses.top_slope",
-        "Extra losses of the top strings, which have no dampers: without them the top notes \
-         would ring on after the keys are released.",
-        "σ's log-linear term gains top_slope·(n − top_from) above top_from (×1.8 at C7 by \
-         default, docs/release_ring.md).",
+        "Extra losses of the top strings, which have no dampers: higher values shorten what \
+         rings on after the keys are released, and the notes' own slow tail.",
+        "σ's log-linear term gains top_slope·(n − top_from) above top_from. 0 by default: real \
+         top strings keep a slow aftersound (docs/top_treble.md); 0.05 (×1.8 at C7) was set \
+         against a commercial modelled piano's release ring (docs/release_ring.md).",
     ),
     ("losses.top_from", "Key from which the top strings lose energy faster.", "MIDI note where top_slope starts."),
     (
@@ -409,7 +410,8 @@ const HELP: &[(&str, &str, &str)] = &[
         "The board is thicker and more ribbed under the treble, so it moves less there. Higher \
          values: a quieter treble that sustains longer.",
         "The impedance under the bridge grows as e^(slope·(key − 60)) above C4, applied to the \
-         mode shapes the strings drive. Calibrated on the decay envelopes of Salamander.",
+         mode shapes the strings drive. 0.02 (×2.4 at C8) from eight real grands' top-treble \
+         decays (docs/top_treble.md); 0.035 was set on Salamander's alone.",
     ),
     (
         "soundboard.impedance_slope_bass",

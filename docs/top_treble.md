@@ -53,9 +53,41 @@ The bands and partial rows are measures of the top treble.
 
 Four measures of the top move the other way by 0.5–1.3 z: partials 2–3 of the attack, the 4–8 kHz share at mf and the brightening. The velocity curve of the top gets closer to the Disklavier's: −33.4 dB at velocity 12 re 100, against −30.2 (−35.3 before). The CPU cost is unchanged within the audit's noise.
 
+## The decay
+
+The bench's T60 suggested that the top partials last twice as long as on the real pianos. Their envelopes, filtered ±1.5 % around partial 1, tell another story. At C7:
+
+| | 0 to 0.4 s | 0.4 to 2 s |
+|---|---|---|
+| real grands (Plath, Helgesson, Liang, Iowa) | −60 to −100 dB/s | −11 to −21 dB/s |
+| model | −48 dB/s | −30 dB/s |
+
+A real top note has two decays: a fast prompt sound, then a slow aftersound. The model had one decay, in between. Two settings made the aftersound short:
+- **The top strings' extra losses** (`losses.top_slope` 0.05 from C6, ×1.8 at C7) had been set against a commercial modelled piano's release ring.
+- **The bridge impedance** grew by ×4.6 towards C8 (`soundboard.impedance_slope` 0.035, from Salamander's envelopes alone). This held back the prompt sound, which the top strings lose into the bridge.
+
+Envelopes of partials 1–2 at F#5, C6, C7, F#7 and C8, ff, against the median of eight real grands, 0.1–2 s (RMS gap, levels below −70 dB left out):
+
+| top_slope / impedance_slope | 0.05 / 0.035 | 0.025 / 0.035 | 0 / 0.035 | 0.025 / 0.02 | 0 / 0.02 | 0 / 0 |
+|---|---|---|---|---|---|---|
+| RMS gap (dB) | 17.7 | 14.0 | 13.0 | 15.0 | 13.8 | 15.7 |
+| bench score | 1.53 | — | 1.55 | — | 1.51 | — |
+
+The default is now top_slope 0 and impedance_slope 0.02 (×2.4 at C8). On the bench: 77 % of the measures within the real pianos (70 %), 16 off (21). Fifteen measures improve by 0.5 z or more, three get worse.
+- **Better**:
+  - the top's 2–4 kHz bands in the sustain (z −2.7 → −0.9, −2.2 → −0.1);
+  - its level at 1 s (−2.1 → −0.9) and its partial 2;
+  - the treble's level at 0.3 s and its early T60 (+2.0 → +1.0).
+- **Worse**:
+  - the top's partial 4 of the sustain (−5.4 → −6.5);
+  - its level at 0.3 s (+0.1 → +0.7);
+  - the late T60 of the bench's survey (+4.1 → +4.8).
+
+The survey fits its early decay on the first 15 dB. In the real top notes that drop includes the knock, which is as strong as partial 1 and dies in a few tens of milliseconds, so the measure says little about the strings there.
+
+Presets that set neither key keep the new values. The local presets made before were frozen with the old ones.
+
 ## Still open
 
 - **The 1 kHz band of the sustain** (0.6–1 s): the real pianos keep 34–54 dB below the attack's strongest band, the model nothing (−101 dB). Something rings there in a real piano that the model lacks. Candidates: the frame, which is driven but radiates little (η 1 %), the duplex segments, or the action.
-- **The decay of partials 1–4** is twice as long as on the real pianos: T60 0.6 s against 0.2–0.4 s, late decay 3.1 s against 0.6–1.4 s.
-  - Raising the top strings' losses (`losses.top_slope` 0.05 to 0.14, from C6 or F#6) shortens the early decay (z +3.0 → +0.8). But it lowers the level at 0.3–1 s, already short (env 1 s z −2.1 → −2.7), and leaves the score at 1.51–1.55.
-  - The late decay does not move: it is the slow coupled components of the unison, not the losses.
+- **The prompt sound.** The model's first 0.2 s still lose 5–10 dB less than the real ones at C7–C8.

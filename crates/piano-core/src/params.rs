@@ -98,11 +98,13 @@ impl LossLaw {
     /// frequency term b2 = 1e-7 was set with the bridge spreading
     /// (docs/sustain.md): the upper partials decay at the measured rate and
     /// most of the excess above 6 kHz goes; 2e-7 would shorten the treble
-    /// fundamentals. Above C6, b1 grows faster (top_slope 0.05: ×1.5 at
-    /// G6, ×1.8 at C7): the undamped top strings rang on too long after the
-    /// keys were released (docs/release_ring.md).
+    /// fundamentals. No faster growth above C6 (top_slope 0): the extra
+    /// losses set against a commercial modelled piano's release ring
+    /// (docs/release_ring.md) cut short the slow aftersound that real top
+    /// strings keep, −11 to −21 dB/s at C7 after the first 0.4 s on four
+    /// real grands (docs/top_treble.md).
     pub const SALAMANDER_STRING: Self =
-        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 1.0e-7, b1_floor: 0.2, wound_until: 48, top_slope: 0.05, top_from: 84 };
+        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 1.0e-7, b1_floor: 0.2, wound_until: 48, top_slope: 0.0, top_from: 84 };
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
         let wound = ((self.wound_until as f64 + 12.0 - note as f64) / 12.0).clamp(0.0, 1.0);

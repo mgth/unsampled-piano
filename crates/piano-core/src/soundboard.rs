@@ -198,9 +198,12 @@ impl SoundboardParams {
         bridge_stiffness: 470.0,
         bridge_line_mass: 0.6,
         bridge_spread: 0.3,
-        // Calibrated on the decay envelopes of Salamander (docs/sustain.md):
-        // ×4.6 at C8, ×0.4 at A0 relative to C4.
-        impedance_slope: 0.035,
+        // ×2.4 at C8, ×0.4 at A0 relative to C4. The treble side was set on
+        // Salamander's decay envelopes alone (0.035, ×4.6 at C8,
+        // docs/sustain.md); against eight real grands 0.02 lets the top
+        // strings lose their prompt sound faster into the bridge (bench
+        // 1.53 → 1.51 with the top losses lowered, docs/top_treble.md).
+        impedance_slope: 0.02,
         impedance_slope_bass: -0.03,
         f_max: 20_000.0,
         // A broad mode near 40 Hz (docs/bass.md). Mass set on the late
