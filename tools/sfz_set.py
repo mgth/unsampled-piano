@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Lays out a multisampled piano (an SFZ instrument) as a bench note set:
 <note>v<layer>.<ext> for the layers 4/8/13, i.e. the regions the instrument
-plays at velocities 40/60/100, at each key it recorded (pitch_keycenter),
+plays at velocities 45/56/100, at each key it recorded (pitch_keycenter),
 pedal up, first round robin. Links to the samples (wav/flac) or converts
 them (others). With --pedal, the regions played with the sustain pedal down
 instead (locc64 ≥ 64), when the instrument has them.
@@ -9,7 +9,7 @@ instead (locc64 ≥ 64), when the instrument has them.
 import argparse, os, re, subprocess, sys
 
 NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-LAYERS = {4: 40, 8: 60, 13: 100}
+LAYERS = {4: 45, 8: 56, 13: 100}
 def name(m): return NAMES[m % 12] + str(m // 12 - 1)
 
 def note_number(v):

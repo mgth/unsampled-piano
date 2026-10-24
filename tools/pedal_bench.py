@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""The sustain pedal, from a Disklavier's isolated notes played once without
+the pedal and again with it (Liang's pedalling dataset): the model renders
+both MIDI files, and the same differences are read in the recordings and
+in the model, so that the room and the microphones cancel.
+
+  tools/pedal_bench.py <no-pedal audio> <no-pedal midi> <pedal audio> <pedal midi> [--name N] [--preset P]
+
+Per register and pedal depth (CC64 at the onset), each pedalled note
+against the same key and velocity without the pedal:
+- halo: energy away from the note's own partials (60 Hz–6 kHz, ±2 %
+  around each partial left out) re the partials' own, 0.2–0.9 s, pedal
+  minus no pedal (dB): what the other strings add;
+- hold: partials 1–4 at 1.3–1.8 s re 0.3–0.8 s, pedal (key up at 1 s, the
+  pedal holding the dampers) minus no pedal (key held to 2 s) (dB): the
+  half pedal damps, the sympathetic strings sustain;
+- after: everything 0.3–0.6 s after the dampers fall (pedal up, or key up
+  without the pedal) re 0.4–0.1 s before, pedal minus no pedal (dB)."""
+import argparse, json, os, subprocess, sys
+import numpy as np
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import midifile
+import piece_bench as pb
+
+def render(midi, wav, preset):
+    if os.path.exists(wav) and os.path.getmtime(wav) > os.path.getmtime(midi) and not os.environ.get("RERENDER"): return
+    cmd = [os.path.join(pb.ROOT, "target", "release", "unsampled-piano-render"), "midi", midi, wav, "--tail", "3"]
+    if preset: cmd += ["--preset", preset]
+    subprocess.run(cmd, check=True, capture_output=True)
+
+def measures(x, T, m, on, damp, tune):
+    fr = pb.partial_freqs(m, 80, tune)
+    def win(t, dur=0.5):
+        S, f = pb.spectrum(x, T(t), dur, 65536)
+        return S, f
+    def own(S, f, K=4):
+        return pb.levels_at(S, f, fr[:K], 0.01).sum()
+    def halo(S, f):
+        band = (f > 60) & (f < 6000)
+        mask = np.zeros_like(band)
+        for fk in fr[fr < 6500]: mask |= (f > fk * 0.98) & (f < fk * 1.02)
+        mask |= f < 0.7 * pb.f0(m)
+        return S[band & ~mask].sum() / S[band & mask].sum()
+    S1, f = win(on + 0.2, 0.7)
+    S2, _ = win(on + 0.3); S3, _ = win(on + 1.3)
+    Sb, _ = win(damp - 0.4, 0.3); Sa, _ = win(damp + 0.3, 0.3)
+    if any(s is None for s in (S1, S2, S3, Sa, Sb)): return None
+    db = lambda r: 10 * np.log10(r + 1e-30)
+    return dict(halo=db(halo(S1, f)), hold=db(own(S3, f) / own(S2, f)), after=db(Sa.sum() / Sb.sum()))
+
+def analyse(x, notes, pedal, tune):
+    # Notes every 4–6 s: a lag beyond 2 s would lock on the wrong one.
+    t0, drift = pb.align(x, notes, 1.9)
+    T = lambda t: t0 + drift * t
+    down, release = pb.pedal_at(pedal)
+    ts = np.array([p[0] for p in pedal] + [1e9]); vs = np.array([p[1] for p in pedal] + [0])
+    out = {}
+    for m, v, on, off in notes:
+        i = np.searchsorted(ts, on, "right") - 1
+        depth = int(vs[i]) if i >= 0 else 0
+        damp = release(off) if m < pb.NO_DAMPER else off
+        r = measures(x, T, m, on, damp, tune)
+        if r: out.setdefault((m, v), {})[depth] = r
+    return out, t0, drift
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("np_audio"); ap.add_argument("np_midi"); ap.add_argument("p_audio"); ap.add_argument("p_midi")
+    ap.add_argument("--name", default="pedal"); ap.add_argument("--preset")
+    ap.add_argument("--out", default=os.path.join(pb.ROOT, "out", "pieces"))
+    a = ap.parse_args()
+    out = os.path.join(a.out, a.name); os.makedirs(out, exist_ok=True)
+    srcs = {}
+    for tag, audio, midi in (("np", a.np_audio, a.np_midi), ("p", a.p_audio, a.p_midi)):
+        notes, pedal = midifile.read(midi)
+        wav = os.path.join(out, f"model_{tag}.wav"); render(midi, wav, a.preset)
+        for src, path in (("recording", audio), ("model", wav)):
+            x = pb.load(path)
+            tune = pb.tuning(x, notes, *pb.align(x, notes, 1.9))
+            res, t0, drift = analyse(x, notes, pedal, tune)
+            srcs[(src, tag)] = res
+            print(f"{src} {tag}: offset {t0:+.3f} s, drift {1e6 * (drift - 1):+.0f} ppm, {sum(len(d) for d in res.values())} notes", file=sys.stderr)
+    table = {}
+    for src in ("recording", "model"):
+        nop, ped = srcs[(src, "np")], srcs[(src, "p")]
+        for (m, v), depths in ped.items():
+            base = nop.get((m, v), {}).get(0)
+            if not base: continue
+            for d, r in depths.items():
+                if d == 0: continue
+                key = (pb.reg_of(m), d)
+                for k in r:
+                    table.setdefault(key, {}).setdefault(src, {}).setdefault(k, []).append(r[k] - base[k])
+    L = [f"# {a.name}: the sustain pedal, recording against the model", "",
+         "Pedal minus no pedal, same key and velocity (median over the notes, dB); model − recording in the last column of each.", "",
+         "| register | CC64 | notes | halo rec / model / Δ | hold rec / model / Δ | after rec / model / Δ |", "|---|---|---|---|---|---|"]
+    summary = {}
+    for (reg, d) in sorted(table, key=lambda k: ([r for _, _, r in pb.REGS].index(k[0]), k[1])):
+        t = table[(reg, d)]
+        if "recording" not in t or "model" not in t: continue
+        row = f"| {reg} | {d} | {len(t['recording']['halo'])} |"
+        for k in ("halo", "hold", "after"):
+            r, mo = float(np.median(t["recording"][k])), float(np.median(t["model"][k]))
+            row += f" {r:+.1f} / {mo:+.1f} / {mo - r:+.1f} |"
+            summary.setdefault(reg, {}).setdefault(str(d), {})[k] = dict(recording=r, model=mo)
+        L.append(row)
+    open(os.path.join(out, "report.md"), "w").write("\n".join(L) + "\n")
+    json.dump(summary, open(os.path.join(out, "result.json"), "w"), indent=1)
+    print(os.path.relpath(os.path.join(out, "report.md"), pb.ROOT))
+
+if __name__ == "__main__":
+    main()

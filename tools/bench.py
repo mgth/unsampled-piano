@@ -18,7 +18,7 @@ model) are measured and shown but never enter the targets.
 
 Note sets are laid out by tools/split_notes.py: <note>v<layer>.{wav,flac},
 every third key from A0, layers 4/8/13 (pp/mf/ff), played by the model at
-velocities 40/60/100. Docs: docs/bench.md."""
+velocities 45/56/100. Docs: docs/bench.md."""
 import argparse, json, os, re, subprocess, sys, time
 from concurrent.futures import ThreadPoolExecutor
 import warnings
@@ -32,7 +32,9 @@ SR = 48000
 NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 REGS = [(21, 47, "bass"), (48, 71, "middle"), (72, 95, "treble"), (96, 108, "top")]
 KEYS = list(range(21, 109, 3))
-LAYERS = {4: 40, 8: 60, 13: 100}  # layer → model velocity
+# Layer → model velocity: those BiVib recorded (the one reference whose
+# layers are measured MIDI velocities).
+LAYERS = {4: 45, 8: 56, 13: 100}
 HOLD = 20.0
 # Levels below this (dB re the peak) are taken as equal: the recordings'
 # noise floor.
@@ -44,6 +46,11 @@ KNOWN = {
     "headroom": "Headroom Piano (Bengt Nilsson): Yamaha C3, close microphones, CC BY 4.0",
     "splendid": "Splendid Grand Piano (AKAI, public domain): Steinway, 4 layers",
     "helgesson": "Maestro Concert Grand (Mats Helgesson): Yamaha CF-3, KM84 X/Y pair, every key",
+    "liang": "Yamaha Disklavier grand (Liang's pedalling dataset): every key at velocity 96, no pedal, spaced pair, CC BY 4.0",
+    "bivib_grand": "BiVib: Yamaha Disklavier grand DC3 M4, lid open, binaural at the player, recorded at MIDI velocities 45/56/100, CC BY-NC-SA 4.0",
+    "bivib_upright": "BiVib: Yamaha Disklavier upright DU1A, open, binaural at the player (an upright: info only)",
+    "maps_close": "MAPS ENSTDkCl: Yamaha Disklavier upright, close microphones, M/F at MAPS's own velocities (an upright: info only)",
+    "plath": "Plath: concert grand in an anechoic chamber, dummy head at the player, one dynamic (f), CC BY 4.0",
     "commercial": "a commercial modelled piano, recorded note by note in a sequence (another model: info only)",
 }
 
