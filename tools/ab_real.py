@@ -30,6 +30,10 @@ def room_traits(path, notes, start, dur):
     """(L/R coherence 0.5–4 kHz, envelope dip depth dB) over the passage."""
     from scipy.signal import coherence, butter, sosfiltfilt
     mono = pb.load(path); t0, dr = pb.align(mono, notes)
+    # From the first note on: before it the model is silent, the recording
+    # holds its noise floor.
+    first = min(n[2] for n in notes)
+    if start < first: dur, start = dur - (first - start), first
     raw = subprocess.run(["sox", path, "-t", "f32", "-r", "48000", "-c", "2", "-"], capture_output=True, check=True).stdout
     s = np.frombuffer(raw, np.float32).reshape(-1, 2).astype(float)
     s = s[max(0, int((t0 + dr * start) * 48000)):max(0, int((t0 + dr * (start + dur)) * 48000))]

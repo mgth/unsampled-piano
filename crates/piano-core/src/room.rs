@@ -134,6 +134,12 @@ pub struct Room {
     g_hi: [f32; LINES],
     lp_a: f32,
     lp_state: [f32; LINES],
+    /// The tail at the two mics: a part common to both below the spaced
+    /// pair's diffuse-field corner, independent parts above (one-pole
+    /// crossover coefficient, and the low-pass states of the common and
+    /// the two independent mixes).
+    xo_a: f32,
+    xo_state: [f32; 3],
     /// Source pre-delay into the FDN (first reflection time).
     pre: usize,
     out_gain: f32,
@@ -282,6 +288,11 @@ impl Room {
         let g_hi = std::array::from_fn(|i| g(t_hi, line_len[i]));
         let lp_a = (-std::f64::consts::TAU * 1000.0 / sr).exp() as f32;
         let pre = ((first.max(0.005)) * sr) as usize;
+        // Two mics d apart in a diffuse field hear the same pressure only
+        // while kd is small: their coherence, sinc²(kd), halves at
+        // kd ≈ 1.4, f ≈ 76/d Hz.
+        let d = dist(mic_room[0], mic_room[1]).max(0.05);
+        let xo_a = (-std::f64::consts::TAU * (76.0 / d) / sr).exp() as f32;
 
         let mut room = Self {
             hist: vec![0.0; hist_len.max(pre + 1).next_power_of_two()],
@@ -297,6 +308,8 @@ impl Room {
             g_hi,
             lp_a,
             lp_state: [0.0; LINES],
+            xo_a,
+            xo_state: [0.0; 3],
             pre,
             out_gain: 1.0,
             source_gain: source_gain(sb, directivity) as f32,
@@ -333,6 +346,7 @@ impl Room {
             l.fill(0.0);
         }
         self.lp_state = [0.0; LINES];
+        self.xo_state = [0.0; 3];
         self.order_state = [[0.0; 8]; MICS];
     }
 
@@ -347,18 +361,27 @@ impl Room {
         }
         // Householder feedback: y − (2/N)·Σy, plus the input with signs.
         let s = y.iter().sum::<f32>() * (2.0 / LINES as f32);
-        let (mut l, mut r) = (0.0f32, 0.0f32);
+        // Three mutually orthogonal output mixes (rows 1, 2 and 3 of the
+        // 16 × 16 Hadamard matrix: signs (−1)^popcount(row & i)).
+        let mut mix = [0.0f32; 3];
         for i in 0..LINES {
             let sign = if i % 2 == 0 { 1.0 } else { -1.0 };
             let fb = y[i] - s + sign * x;
             let p = self.line_pos[i];
             self.lines[i][p] = fb;
             self.line_pos[i] = if p + 1 == self.line_len[i] { 0 } else { p + 1 };
-            // Two decorrelated output mixes.
-            l += if i % 4 < 2 { y[i] } else { -y[i] };
-            r += if i % 3 == 0 { -y[i] } else { y[i] };
+            for (row, m) in mix.iter_mut().enumerate() {
+                *m += if ((row + 1) & i).count_ones() % 2 == 0 { y[i] } else { -y[i] };
+            }
         }
-        (l, r)
+        // Common below the corner, independent above (the one-pole low- and
+        // high-pass pair keeps the power: |LP|² + |HP|² = 1).
+        let a = self.xo_a;
+        for (st, m) in self.xo_state.iter_mut().zip(&mix) {
+            *st = a * *st + (1.0 - a) * m;
+        }
+        let common = self.xo_state[0];
+        (common + (mix[1] - self.xo_state[1]), common + (mix[2] - self.xo_state[2]))
     }
 
     /// Adds the room's response to the microphone signals (in place).

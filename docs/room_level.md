@@ -47,3 +47,11 @@ Room energy relative to the direct sound:
 With the close microphones the room now sits 17–25 dB below the direct sound, as in a treated studio or hall.
 
 The concert omni pair at about 2.6 m stays room-dominated in the small rooms. This is expected, since it lies beyond the critical distance of those rooms, and such a pair is not used there in practice.
+
+## The two microphones' tails
+
+Against the Vienna Bösendorfer recordings (Chopin's Ballade op. 38), the L/R coherence falls with frequency, 0.82 at 125 Hz to 0.19 at 4 kHz: a spaced pair hearing the hall's diffuse field. The model stayed near 0.5 from 1 to 4 kHz. Its tail's two outputs were fixed sign mixes of the same 16 lines, as correlated at every frequency.
+
+The tail is now common to both microphones below the spaced pair's diffuse-field corner and independent above it: three mutually orthogonal mixes (rows 1–3 of the 16 × 16 Hadamard matrix), the first low-passed and shared, the other two high-passed, one per microphone. In a diffuse field two microphones d apart have a coherence of sinc²(kd), which halves near 76/d Hz; the one-pole pair keeps the power. The bench moves by one measure (the treble's partial 6 at ff, near its noise; score 1.04 → 1.06).
+
+Above 1 kHz the direct sound and the first reflections still set the coherence at the engine's distances (1.5–2 m). A pair 7 m away gets closer to the Vienna recordings' figures (0.37 against 0.26, the default 0.39), but by ear the closer set-ups that `tools/ab_real.py --listening auto` picks sounded more like them.
