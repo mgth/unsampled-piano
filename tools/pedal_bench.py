@@ -21,12 +21,27 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import midifile
 import piece_bench as pb
+import bench
 
-def render(midi, wav, preset):
-    if os.path.exists(wav) and os.path.getmtime(wav) > os.path.getmtime(midi) and not os.environ.get("RERENDER"): return
-    cmd = [os.path.join(pb.ROOT, "target", "release", "unsampled-piano-render"), "midi", midi, wav, "--tail", "3"]
-    if preset: cmd += ["--preset", preset]
-    subprocess.run(cmd, check=True, capture_output=True)
+def render_notes(notes, pedal, out, preset, jobs=6, listening=None):
+    """Each note alone, with the pedal changes from 1 s before it to 4 s
+    after, as its own render (in parallel): the model plays the same notes
+    as the recording, without the hour-long file."""
+    os.makedirs(out, exist_ok=True)
+    exe = os.path.join(pb.ROOT, "target", "release", "unsampled-piano-render")
+    tasks = []
+    for i, (m, v, on, off) in enumerate(notes):
+        t0 = on - 1.0
+        ped = [(max(t - t0, 0.0), val) for t, val in pedal if on - 1.0 <= t <= on + 4.0]
+        before = [val for t, val in pedal if t < on - 1.0]
+        if before: ped.insert(0, (0.0, before[-1]))
+        mid, wav = os.path.join(out, f"{i}.mid"), os.path.join(out, f"{i}.wav")
+        midifile.write(mid, [(m, v, 1.0, off - t0)], ped)
+        cmd = [exe, "midi", mid, wav, "--tail", "4"] + (["--preset", preset] if preset else []) + bench.listening_args(listening)
+        tasks.append(cmd)
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(jobs) as ex:
+        list(ex.map(lambda c: subprocess.run(c, check=True, capture_output=True), tasks))
 
 def measures(x, T, m, on, damp, tune):
     fr = pb.partial_freqs(m, 80, tune)
@@ -48,9 +63,9 @@ def measures(x, T, m, on, damp, tune):
     db = lambda r: 10 * np.log10(r + 1e-30)
     return dict(halo=db(halo(S1, f)), hold=db(own(S3, f) / own(S2, f)), after=db(Sa.sum() / Sb.sum()))
 
-def analyse(x, notes, pedal, tune):
+def analyse(x, notes, pedal, tune, aligned=False):
     # Notes every 4–6 s: a lag beyond 2 s would lock on the wrong one.
-    t0, drift = pb.align(x, notes, 1.9)
+    t0, drift = (0.0, 1.0) if aligned else pb.align(x, notes, 1.9)
     T = lambda t: t0 + drift * t
     down, release = pb.pedal_at(pedal)
     ts = np.array([p[0] for p in pedal] + [1e9]); vs = np.array([p[1] for p in pedal] + [0])
@@ -66,20 +81,42 @@ def analyse(x, notes, pedal, tune):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("np_audio"); ap.add_argument("np_midi"); ap.add_argument("p_audio"); ap.add_argument("p_midi")
-    ap.add_argument("--name", default="pedal"); ap.add_argument("--preset")
+    ap.add_argument("--name", default="pedal"); ap.add_argument("--preset"); ap.add_argument("--jobs", type=int, default=6)
+    ap.add_argument("--listening", action="append", help="listening preset(s) (default: close microphones, studio)")
+    ap.add_argument("--velocity", type=int, action="append", help="only the notes at this velocity (49, 80, 96; repeatable): fewer renders")
     ap.add_argument("--out", default=os.path.join(pb.ROOT, "out", "pieces"))
     a = ap.parse_args()
     out = os.path.join(a.out, a.name); os.makedirs(out, exist_ok=True)
     srcs = {}
     for tag, audio, midi in (("np", a.np_audio, a.np_midi), ("p", a.p_audio, a.p_midi)):
         notes, pedal = midifile.read(midi)
-        wav = os.path.join(out, f"model_{tag}.wav"); render(midi, wav, a.preset)
-        for src, path in (("recording", audio), ("model", wav)):
-            x = pb.load(path)
+        # The recordings' measures do not change between runs: cached.
+        cache = os.path.join(a.out, f"recording_{os.path.basename(audio)}.json")
+        if os.path.exists(cache):
+            res = {tuple(json.loads(k)): {int(d): r for d, r in v.items()} for k, v in json.load(open(cache)).items()}
+        else:
+            x = pb.load(audio)
             tune = pb.tuning(x, notes, *pb.align(x, notes, 1.9))
             res, t0, drift = analyse(x, notes, pedal, tune)
-            srcs[(src, tag)] = res
-            print(f"{src} {tag}: offset {t0:+.3f} s, drift {1e6 * (drift - 1):+.0f} ppm, {sum(len(d) for d in res.values())} notes", file=sys.stderr)
+            json.dump({json.dumps(list(k)): v for k, v in res.items()}, open(cache, "w"))
+        srcs[("recording", tag)] = res
+        # The recording is analysed whole (its cache serves every run); the
+        # model plays only the notes asked for.
+        if a.velocity: notes = [n for n in notes if n[1] in a.velocity]
+        d = os.path.join(out, f"model_{tag}"); render_notes(notes, pedal, d, a.preset, a.jobs, a.listening)
+        res = {}
+        for i, (m, v, on, off) in enumerate(notes):
+            x = pb.load(os.path.join(d, f"{i}.wav"))
+            ped = [(t - on + 1.0, val) for t, val in pedal if on - 1.0 <= t <= on + 4.0]
+            before = [val for t, val in pedal if t < on - 1.0]
+            if before: ped.insert(0, (0.0, before[-1]))
+            r, _, _ = analyse(x, [(m, v, 1.0, off - on + 1.0)], ped or [(0.0, 0)], 1.0, aligned=True)
+            for k2, dd in r.items(): res.setdefault(k2, {}).update(dd)
+        srcs[("model", tag)] = res
+        print(f"{tag}: {sum(len(d) for d in srcs[('recording', tag)].values())} recorded notes, {sum(len(d) for d in res.values())} rendered", file=sys.stderr)
+    if a.velocity:
+        for k in [k for k in srcs if k[0] == "recording"]:
+            srcs[k] = {mv: d for mv, d in srcs[k].items() if mv[1] in a.velocity}
     table = {}
     for src in ("recording", "model"):
         nop, ped = srcs[(src, "np")], srcs[(src, "p")]
@@ -106,6 +143,9 @@ def main():
         L.append(row)
     open(os.path.join(out, "report.md"), "w").write("\n".join(L) + "\n")
     json.dump(summary, open(os.path.join(out, "result.json"), "w"), indent=1)
+    # Every note's own measures (not differences), for a closer look.
+    json.dump({f"{src}|{tag}": {json.dumps(list(k)): v for k, v in r.items()} for (src, tag), r in srcs.items()},
+              open(os.path.join(out, "notes.json"), "w"))
     print(os.path.relpath(os.path.join(out, "report.md"), pb.ROOT))
 
 if __name__ == "__main__":

@@ -13,9 +13,11 @@ Until now each change was measured with the script written for it (`tools/band_s
 
 `cargo xtask bench` runs `tools/bench.py run`. It renders every third key from A0 at velocities 45, 56 and 100 (the layers 4, 8 and 13 of the references, pp/mf/ff: the velocities BiVib's Disklavier recorded), each note held 20 s, one note per render so that no other string rings, then measures the notes and `piano-survey`'s partial analysis. About 35 s on a 16-core machine.
 
+The model is heard as the references were recorded: close microphones in a studio (`presets/listening/Microphones/close.toml` and `Room/studio.toml`; `--listening <file>` to choose others, `--listening none` for the engine's own). The engine's default listening, a concert hall heard from 1.5 m, put its reverberation in every decay and between the partials: the first runs, made with it, scored 1.15 where the close microphones give 1.66, and some of their findings were the hall's (see the results below).
+
 It writes `out/bench/<name>/scorecard.md` (the summary, the changes against the baseline, then every measure) and `result.json`, and prints one line:
 
-    score 1.15, 72 % within the real pianos, 20 off — attack 1.09, brightness 1.30, dynamics 1.06, sustain 1.11, decay 1.19, tuning 0.51
+    score 1.60, 74 % within the real pianos, 23 off — attack 1.05, brightness 2.34, dynamics 0.56, sustain 2.38, decay 1.23, tuning 0.51
 
 ## Scoring
 
@@ -85,42 +87,39 @@ The two uprights are measured but do not enter the targets of a grand.
 
 The Osiris Piano (Yamaha C2) is recorded with the una corda only: it is kept for a later una corda measure.
 
-## Results on main (e921cf5)
+## Results
 
-Against the eight real grands: score 1.15, 72 % of the measures within the real pianos, 20 off. With two pianos (Iowa and Salamander) it was 1.58 and 29 off: several gaps were one piano against the other.
+With close microphones, against the eight real grands, after the pedal changes ([pieces.md](pieces.md)): score 1.60, 74 % of the measures within the real pianos, 23 off. By register the RMS z is 0.64 (bass), 0.70 (middle), 1.57 (treble) and 2.79 (top): the bass and the middle are within the real pianos almost everywhere, the dynamics too (velocity 45 to 100, 2–3 dB short of the Disklavier).
 
 What the real pianos agree on, and the model does not:
 
-- **Top treble (C7–C8)**, most of the off measures:
-  - below the fundamental, the real pianos have about 16 dB more energy at 1 kHz and 7–12 dB more at 2 kHz, at the attack and in the sustain (knock of the hammer, soundboard and frame). The commercial model has it (z ≈ 0);
-  - the partials die out about twice as slowly as on the real pianos (T60 0.6 s against 0.2–0.4 s for partials 1–4; the late decay 2.5 s against 0.6–1.4 s);
-  - ff − pp is 25 dB against 18 on BiVib's Disklavier, ff − mf 20 against 14;
-  - at the attack, partial 3 is 14 dB too strong; in the sustain, partials 2–3 are 10–17 dB too strong.
-- **Treble**: at mf, partials 3–6 of the attack are 10–12 dB too strong; partials 1–4 decay about twice as slowly at first (T60 1.3 s against 0.6–1.2 s).
-- **Bass**: the 8 kHz band of the attack is 13 dB above the mean, the 1 kHz band of the sustain 9 dB below.
-- **Dynamics, bass to treble**: ff − pp (velocity 45 to 100) is 7–12 dB on the model against 10–14 dB on the Disklavier, about 3 dB short.
+- **Top treble (C7–C8)**:
+  - below the fundamental, the real pianos' 1 kHz band sits 17–33 dB below the attack's strongest band at the attack and 34–54 dB in the sustain; the model has almost nothing there (−55 and −105 dB), and 7–13 dB too little at 2 kHz. The knock of the hammer, soundboard and frame;
+  - partials 1–4 die out about twice as slowly as on the real pianos (T60 0.6 s against 0.2–0.4 s; the late decay 3.0 s against 0.6–1.4 s), while partials 2–4 of the sustain are 11–35 dB weaker re partial 1.
+- **Treble**: at mf, partials 2–4 of the attack are 7–10 dB too strong; in the sustain, partials 6–12 are 15–29 dB too weak.
+- **Middle**: the 8 kHz band of the sustain 9 dB low.
 
-The middle register and the decays of the bass are within the real pianos. The gap noted earlier against the commercial piano in the sustain partials 8–12 of the middle is within the real pianos' spread: it was a gap to the commercial piano, not to real pianos.
+With the hall, the bass's 8 kHz attack band and 1 kHz sustain band were off, and the top's upper partials looked too strong in the sustain: those were the hall's reverberation. With close microphones they are within the real pianos, or the other way round.
 
 ## Velocity curve
 
     tools/velocity_bench.py "<BiVib>/Grand/binaural samples/grand-open"
 
-The model plays every third key at BiVib's ten velocities (12 to 111) and the peak level is compared, re velocity 100 (dB):
+The model plays every third key at BiVib's ten velocities (12 to 111), heard with close microphones, and the peak level is compared, re velocity 100 (dB):
 
 | Register | Source | 12 | 23 | 34 | 45 | 56 | 67 | 78 | 89 | 100 | 111 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | bass | Disklavier | −18.3 | −13.7 | −11.5 | −9.5 | −7.4 | −5.3 | −3.4 | −1.8 | 0 | +2.0 |
-| bass | model | −11.3 | −9.8 | −8.4 | −6.9 | −5.5 | −4.1 | −2.8 | −1.4 | 0 | +1.4 |
+| bass | model | −11.3 | −9.8 | −8.3 | −6.9 | −5.5 | −4.1 | −2.7 | −1.4 | 0 | +1.4 |
 | middle | Disklavier | −22.4 | −16.4 | −13.5 | −11.2 | −8.4 | −6.0 | −3.9 | −1.9 | 0 | +2.0 |
-| middle | model | −13.1 | −11.4 | −9.8 | −8.1 | −6.5 | −4.8 | −3.2 | −1.6 | 0 | +1.6 |
+| middle | model | −13.8 | −12.0 | −10.2 | −8.5 | −6.7 | −5.0 | −3.3 | −1.6 | 0 | +1.6 |
 | treble | Disklavier | −31.5 | −23.4 | −18.2 | −14.3 | −9.8 | −7.4 | −3.9 | −1.5 | 0 | +2.3 |
-| treble | model | −20.0 | −16.9 | −14.1 | −11.5 | −9.1 | −6.8 | −4.5 | −2.2 | 0 | +2.0 |
+| treble | model | −20.2 | −17.3 | −14.5 | −12.0 | −9.6 | −7.2 | −4.7 | −2.2 | 0 | +2.0 |
 | top | Disklavier | −30.2 | −26.8 | −21.4 | −17.3 | −13.0 | −10.0 | −5.5 | −2.9 | 0 | +2.7 |
-| top | model | −35.8 | −32.5 | −28.9 | −24.8 | −20.3 | −15.6 | −10.0 | −4.2 | 0 | +3.3 |
+| top | model | −28.5 | −25.6 | −22.3 | −18.9 | −15.5 | −12.2 | −8.4 | −3.8 | 0 | +3.1 |
 
-From the bass to the treble, the model's curve is a straight line in dB, about 1.4–2.8 dB per 11 velocity steps. The Disklavier's is steeper at the soft end: from 34 down to 12 it loses another 7–13 dB where the model loses 3–6. Its pp is therefore 7–12 dB quieter than the model's. In the top treble the model is the steeper, 4–8 dB too quiet from velocity 23 to 78.
+From the bass to the treble, the model's curve is a straight line in dB, about 1.4–2.8 dB per 11 velocity steps. The Disklavier's is steeper at the soft end: from 34 down to 12 it loses another 7–13 dB where the model loses 3–6. Its pp is therefore 7–11 dB quieter than the model's. In the top treble the two curves agree within 2–3 dB (heard in the hall, the model's top was 4–8 dB too quiet there).
 
-The attack also brightens more with velocity on the Disklavier: in the bass the centroid at velocity 12 is 52 % below that at 100, against 34 % on the model (treble and top at low velocities: the recordings' noise, not read).
+The attack also brightens more with velocity on the Disklavier: in the middle the centroid at velocity 12 is 42 % below that at 100, against 34 % on the model (treble and top at low velocities: the recordings' noise, not read).
 
 The recorded performances agree ([pieces.md](pieces.md)): within a piece, the level rises 2 to 3 times as fast with velocity on a Bösendorfer SE and on a Disklavier as on the model.

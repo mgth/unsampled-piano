@@ -299,11 +299,13 @@ impl DamperLaw {
         strength: 1.0,
         contact_exponent: 2.5,
         highest_note: 90,
-        // Dampers resting up to CC64 ≈ 38, half pedal near 50, off from
-        // ≈ 70: recorded performances follow the MIDI convention "down from
-        // 64" (MAESTRO's own processing), with the half pedal below it.
+        // Dampers resting up to CC64 ≈ 38, off the strings from ≈ 76: on a
+        // Disklavier grand (Liang's pedalling dataset, tools/pedal_bench.py)
+        // CC64 = 64 is still a half pedal, a released note losing 7–28 dB
+        // more in its first second than with the pedal down (bass to
+        // treble; the model 10–25 dB), and 96 is a full pedal.
         pedal_free: 0.3,
-        pedal_contact: 0.55,
+        pedal_contact: 0.6,
         pedal_curve: 1.5,
         fall_time: 0.012,
         lift_time: 0.005,
@@ -436,19 +438,20 @@ pub struct SympatheticLaw {
     /// Strings that only listen run their partials below this frequency.
     pub max_freq: f64,
     /// Scale on the bridge-to-string gain (1 = the one-way physical
-    /// coupling). The listening strings take no energy from the board, so
-    /// at coinciding partials (octaves) they grow far beyond what a passive
-    /// two-way system allows: with 1, a pedalled chord gained +10 dB and a
-    /// sub-octave string outgrew the played note. 0.25 leaves a halo of
-    /// +1 to +2.5 dB on a pedalled chord (examples/sympathy_level.rs); a
-    /// compensation, not a measurement.
+    /// coupling). Measured against a Disklavier grand played with and
+    /// without the pedal (Liang's pedalling dataset, tools/pedal_bench.py,
+    /// close microphones): with 1, the energy the other strings add between
+    /// the partials of a pedalled chord matches within 0.5–2.5 dB (middle
+    /// −19.3 dB re the partials against −19.7, treble −24.1 against −21.8),
+    /// and the chord's own partials sustain as on the Disklavier (no
+    /// growth at the octaves); 0.25 left the halo 7–13 dB short.
     pub gain: f64,
     /// Cancel each key's own contribution to its bridge input.
     pub self_cancel: bool,
 }
 
 impl SympatheticLaw {
-    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 0.25, self_cancel: true };
+    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 1.0, self_cancel: true };
 }
 
 /// Partial frequency of a stiff string: f_k = k·f0·sqrt(1 + B·k²).

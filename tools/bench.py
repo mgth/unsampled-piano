@@ -36,6 +36,17 @@ KEYS = list(range(21, 109, 3))
 # layers are measured MIDI velocities).
 LAYERS = {4: 45, 8: 56, 13: 100}
 HOLD = 20.0
+# How the model is heard: close microphones in a studio, as the references
+# were recorded (the engine's default is a concert hall heard from 1.5 m,
+# whose reverberation would sit in every decay and between the partials).
+LISTENING = [os.path.join(ROOT, "presets", "listening", "Microphones", "close.toml"),
+             os.path.join(ROOT, "presets", "listening", "Room", "studio.toml")]
+
+def listening_args(files=None):
+    """Renderer options for the listening presets (default: LISTENING;
+    ["none"]: the engine's own)."""
+    files = LISTENING if files is None else [f for f in files if f != "none"]
+    return [a for f in files for a in ("--listening", f)]
 # Levels below this (dB re the peak) are taken as equal: the recordings'
 # noise floor.
 FLOOR_DB = -60.0
@@ -210,7 +221,7 @@ def survey(d, csv):
 def build():
     subprocess.run(["cargo", "build", "--release", "-q", "-p", "piano-render", "-p", "piano-analysis"], cwd=ROOT, check=True)
 
-def render(out, preset):
+def render(out, preset, listening=None):
     exe = os.path.join(ROOT, "target", "release", "unsampled-piano-render")
     os.makedirs(out, exist_ok=True)
     jobs = [(m, l, v) for m in KEYS for l, v in LAYERS.items()]
@@ -218,6 +229,7 @@ def render(out, preset):
         m, l, v = j
         cmd = [exe, "note", "--note", str(m), "--velocity", str(v), "--hold", str(HOLD), "--tail", "0.5"]
         if preset: cmd += ["--preset", preset]
+        cmd += listening_args(listening)
         subprocess.run(cmd + [os.path.join(out, f"{name(m)}v{l}.wav")], check=True, capture_output=True)
     with ThreadPoolExecutor(6) as ex: list(ex.map(one, jobs))
 
@@ -302,6 +314,7 @@ def main():
     a = sub.add_parser("refs"); a.add_argument("sources", nargs="+")
     b = sub.add_parser("run")
     b.add_argument("--preset"); b.add_argument("--name", default="model")
+    b.add_argument("--listening", action="append", help="listening preset(s) over the instrument (default: close microphones, studio; none: the engine's own)")
     b.add_argument("--out", default=os.path.join(ROOT, "out", "bench"))
     b.add_argument("--reuse", action="store_true", help="measure the notes already rendered")
     b.add_argument("--no-build", action="store_true")
@@ -340,7 +353,7 @@ def main():
     t = time.time()
     if not args.reuse:
         if not args.no_build: build()
-        render(notes, args.preset)
+        render(notes, args.preset, args.listening)
     csv = os.path.join(out, "survey.csv"); survey(notes, csv)
     metrics = measure_set(notes, csv)
     z = score(metrics, refs)
@@ -350,7 +363,7 @@ def main():
     if base: base["z"] = score(base["metrics"], refs)
     path = os.path.join(out, "scorecard.md")
     s = report(args.name, z, info, base, path)
-    json.dump(dict(commit=git_commit(), preset=args.preset, metrics=metrics, z=z), open(os.path.join(out, "result.json"), "w"), indent=1)
+    json.dump(dict(commit=git_commit(), preset=args.preset, listening=args.listening, metrics=metrics, z=z), open(os.path.join(out, "result.json"), "w"), indent=1)
     print(f"score {s['score']:.2f}, {100 * s['within']:.0f} % within the real pianos, {s['off']} off — "
           + ", ".join(f"{f} {v:.2f}" for f, v in s["families"].items()))
     if base:

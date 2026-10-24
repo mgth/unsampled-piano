@@ -19,6 +19,10 @@ struct Cli {
     /// Instrument preset (TOML).
     #[arg(long, global = true)]
     preset: Option<PathBuf>,
+    /// Listening presets (microphones, room) applied over the instrument,
+    /// in order (presets/listening/…).
+    #[arg(long, global = true)]
+    listening: Vec<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -89,10 +93,13 @@ fn render(tl: &Timeline, sr: u32, block: usize, tail: f64, model: piano_core::pa
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
-    let model = match &cli.preset {
+    let mut model = match &cli.preset {
         Some(p) => piano_host::load_preset(p)?,
         None => Default::default(),
     };
+    for l in &cli.listening {
+        model = piano_host::load_listening(l, &model)?;
+    }
     let (tl, output): (Timeline, PathBuf) = match cli.cmd {
         Cmd::DumpPreset { output } => {
             piano_host::save_preset(&model, &output)?;

@@ -60,3 +60,23 @@ def read(path):
     for a, (on, vel) in held.items(): notes.append((a, vel, on, end))
     notes.sort(key=lambda n: n[2])
     return notes, pedal
+
+def write(path, notes, pedal=()):
+    """A format-0 MIDI file at 1 ms per tick: notes [(key, velocity, on_s,
+    off_s)] and sustain-pedal changes [(time_s, value)]."""
+    ev = []
+    for k, v, on, off in notes:
+        ev += [(on, 1, bytes([0x90, k, v])), (off, 0, bytes([0x80, k, 64]))]
+    ev += [(t, 0, bytes([0xB0, 64, v])) for t, v in pedal]
+    ev.sort(key=lambda e: (e[0], e[1]))
+    def vlq(n):
+        b = [n & 0x7F]
+        while n > 127:
+            n >>= 7; b.insert(0, (n & 0x7F) | 0x80)
+        return bytes(b)
+    trk, last = bytearray(b"\x00\xff\x51\x03" + (1000000).to_bytes(3, "big")), 0
+    for t, _, data in ev:
+        tick = max(round(t * 1000), last)
+        trk += vlq(tick - last) + data; last = tick
+    trk += vlq(1000) + b"\xff\x2f\x00"
+    open(path, "wb").write(b"MThd" + struct.pack(">IHHH", 6, 0, 1, 1000) + b"MTrk" + struct.pack(">I", len(trk)) + trk)

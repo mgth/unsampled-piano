@@ -27,6 +27,7 @@ import argparse, json, os, subprocess, sys, warnings
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import midifile
+import bench
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -305,13 +306,14 @@ def paired(rec, mod):
         out[0][cat], out[1][cat] = ra, rb
     return out
 
-def run_one(audio, midi, out, piece, preset, reuse):
+def run_one(audio, midi, out, piece, preset, reuse, listening=None):
     os.makedirs(out, exist_ok=True)
     notes, pedal = midifile.read(midi)
     model_wav = os.path.join(out, "model.wav")
     if not (reuse and os.path.exists(model_wav)):
         cmd = [os.path.join(ROOT, "target", "release", "unsampled-piano-render"), "midi", midi, model_wav, "--tail", "3"]
         if preset: cmd += ["--preset", preset]
+        cmd += bench.listening_args(listening)
         subprocess.run(cmd, check=True, capture_output=True)
     info, recs = {}, {}
     for src, path in (("recording", audio), ("model", model_wav)):
@@ -342,6 +344,7 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "out", "pieces"))
     ap.add_argument("--reuse", action="store_true", help="keep existing model renders")
     ap.add_argument("--jobs", type=int, default=8)
+    ap.add_argument("--listening", action="append", help="listening preset(s) (default: close microphones, studio; none: the engine's own)")
     ap.add_argument("--summarise", metavar="RESULT_JSON", help="summarise a previous run's notes again")
     a = ap.parse_args()
     if a.summarise:
@@ -370,10 +373,10 @@ def main():
     for audio, midi in pairs:
         piece = os.path.splitext(os.path.basename(audio))[0]
         d = out if len(pairs) == 1 else os.path.join(out, piece)
-        jobs.append((audio, midi, d, piece, a.preset, a.reuse))
+        jobs.append((audio, midi, d, piece, a.preset, a.reuse, a.listening))
     with ProcessPoolExecutor(a.jobs) as ex:
         done = list(ex.map(run_one, *zip(*jobs)))
-    for (_, _, _, piece, _, _), (info, recs) in zip(jobs, done):
+    for (_, _, _, piece, _, _, _), (info, recs) in zip(jobs, done):
         infos[piece] = info
         for src in pool:
             for cat in pool[src]: pool[src][cat] += recs[src][cat]
