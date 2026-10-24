@@ -139,3 +139,13 @@ fn midi_learn_routes_a_controller() {
     std::thread::sleep(DEBOUNCE_AND_MORE);
     assert_eq!(ctl.shared().builds.load(std::sync::atomic::Ordering::Relaxed), 0);
 }
+
+/// Channels of different lengths are refused before any engine runs, on
+/// every path (the parallel one rebuilds the slices from `left`'s length).
+#[test]
+#[should_panic(expected = "channels of different lengths")]
+fn mismatched_channels_are_refused() {
+    let (_ctl, mut slot) = piano_control::new(PianoModel::default(), EngineConfig { threads: 2, ..cfg() });
+    let (mut l, mut r) = ([0.0f32; BS], [0.0f32; BS]);
+    slot.process_stereo(&[], &mut l, &mut r[..1]);
+}

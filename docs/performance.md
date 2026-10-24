@@ -178,7 +178,7 @@ What Overkill turns off ([`engine.rs`](../crates/piano-core/src/engine.rs), `Sho
 | A voice is freed below −100 dB of a loud note | 200 dB down, 56 dB under 24-bit resolution |
 | Soundboard, frame and rim sleep below a threshold | same, 200 dB down |
 | A sympathetic bank at rest is skipped; phantom partials are skipped below a tension threshold | same, 200 dB down |
-| A string damped beyond 99 % no longer hears the bridge | every string hears it |
+| Strings under their damper get no listening voice, and those damped beyond 99 % ignore the bridge | every string, damped or not, listens to the bridge and is kept |
 | Partials of a struck string dropped once silent (new, below) | never |
 | Sympathetic resonance on partials below 5 kHz | every partial |
 | Phantom partials up to E4, below 5 kHz, 48 partials, 16 longitudinal modes | every key, every partial and longitudinal mode below 0.45·fs |
@@ -186,29 +186,36 @@ What Overkill turns off ([`engine.rs`](../crates/piano-core/src/engine.rs), `Sho
 | Hammer contact stepped as finely as convergence requires | twice the steps |
 | Player behind outputs above 48 kHz: engine at 44.1/48 kHz | engine at the output's rate |
 
-It costs 2 to 3 times Full: Chopin 44.9 % of a core on one thread, 14.3 % on four. The whole keyboard ff does not hold on one thread (110 %) but does on four (31 %).
+It costs about 3 times Full: Chopin 47 % of a core on one thread, 15 % on four. The whole keyboard ff does not hold on one thread (126 %) but does on four (33 %). These figures were measured on a lightly loaded machine.
 
 **What each shortcut changes.** Measured on the first 60 s of the Bach and of the Chopin (examples `overkill_parts.rs`, `shortcut_diff.rs`). Each Overkill choice is applied to Full alone; the figures are the difference, overall / worst 100 ms window, in dB below the signal:
 
 | Applied alone to Full | Bach | Chopin |
 |---|---|---|
 | silences 200 dB down | −75 / −66 | −63 / −42 |
-| damped strings hear the bridge | −41 / −27 | −300 (no difference) |
+| every string listens, damped ones included | **−17 / −7** | −54 / −30 |
 | no partial dropping | −90 / −78 | −70 / −62 |
 | modes up to 0.45·fs | no difference | −118 / −102 |
 | sympathy on every partial | −90 / −82 | −87 / −75 |
 | phantom partials on every key | −46 / −34 | −47 / −33 |
 | phantom partials on every partial | −38 / −31 | −45 / −34 |
 | twice the contact steps | −43 / −33 | −45 / −34 |
-| **Full against Overkill** | **−32 / −25** | **−38 / −26** |
+| **Full against Overkill** | **−17 / −7** | **−38 / −26** |
 
-The engine's shortcuts are below audibility: −62 dB at worst. The 5 kHz sympathy limit and the 768-mode cap change nothing measurable. What separates Full from Overkill, about −25 dB in the worst window, is three resolution choices:
+The thresholds are below audibility: −62 dB at worst. The 5 kHz sympathy limit and the 768-mode cap change nothing measurable.
+
+The largest difference is the damped strings. Full gives a listening voice only to the strings whose damper is lifted. Overkill lets all 88 strings hear the bridge, damper down or not.
+
+- In the Bach, played without pedal, this alone changes the render by −17 dB overall and −7 dB in the worst 100 ms window.
+- Under a single C4 mf, the halo of the 87 damped strings stays 25 to 33 dB below the note while it is held (example `shortcut_diff.rs`).
+
+That level depends on how strongly the model's dampers stop the strings. The sympathetic gain is now at its physical value of 1, but the damped case has not been checked against recordings. Whether it is realistic is a modelling question, to settle by ear or against a recording of a real piano.
+
+In pedalled music (the Chopin), what separates Full from Overkill is about −26 dB in the worst window. It comes from three resolution choices:
 
 - the phantom partials kept to the bass and middle;
 - the contact's step;
-- the damped strings left deaf to the bridge (in the Bach, which plays without pedal).
-
-They were judged inaudible when they were made; Overkill now lets them be compared by ear.
+- the damped strings, as above.
 
 **A defect found on the way.** A key re-struck while its released string still rang under the damper was struck damped: the damper only started lifting at the next sub-block, 5 to 20 ms later. A voice already freed was struck free. The attack of a repeated note therefore depended on whether its voice had been freed, which is what made the silence threshold look like a −15 dB change. The key lifts its damper on its way down, before the hammer arrives: the strike now always finds it lifted (test `a_restruck_key_is_struck_with_its_damper_lifted`). This changes the sound of repeated notes without pedal: louder, fuller attacks, as on a piano.
 
@@ -290,12 +297,12 @@ Each level is a `Quality` ([`engine.rs`](../crates/piano-core/src/engine.rs)), c
 
 | Level | What it leaves out | Chopin, 1 / 4 threads (AVX-512) | Whole keyboard ff, 1 / 4 |
 |---|---|---|---|
-| **Overkill** | nothing (see above) | 44.9 / 14.3 % | 110 / 30.8 % |
+| **Overkill** | nothing (see above) | 47 / 15 % | 126 / 33 % |
 | **Full** (default) | the shortcuts judged inaudible | 16.4 / 6.9 % | 29.5 / 10.3 % |
 | **Balanced** | sympathy above 2 kHz, phantom partials above C3, beyond 96 voices | 13.4 / 6.1 % | 25.9 / 9.4 % |
 | **Light** | sympathy, phantom partials, frame and rim, the horizontal polarisation | 5.6 / 3.8 % | 8.1 / 4.8 % |
 
-Against Overkill, over the whole pieces, Full differs by −30 dB on the Bach and −33 dB on the Rachmaninoff (−18 and −20 dB in the worst window). Balanced and Light differ more, as they leave parts of the model out. None of the levels has been compared by ear.
+Against Overkill, on the first 60 s, Full differs by −17 dB on the Bach and −38 dB on the Chopin (−7 and −26 dB in the worst window): see above. Balanced and Light differ more, as they leave parts of the model out. None of the levels has been compared by ear.
 
 Individual settings, for presets ([`params.rs`](../crates/piano-core/src/params.rs)), measured in the first round on the whole keyboard / the Chopin (mean, from 38 / 23 %):
 

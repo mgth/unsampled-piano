@@ -46,7 +46,7 @@ fn main() {
         ("board silence", Shortcuts { board_silence: Shortcuts::NONE.board_silence, ..d }),
         ("sym silence", Shortcuts { sym_silence: Shortcuts::NONE.sym_silence, ..d }),
         ("nl silence", Shortcuts { nl_silence: Shortcuts::NONE.nl_silence, ..d }),
-        ("deaf strings", Shortcuts { deaf_above: f64::INFINITY, ..d }),
+        ("deaf strings", Shortcuts { deaf_above: f64::INFINITY, listen_all: true, ..d }),
         ("drop partials", Shortcuts { drop_partials: 0.0, ..d }),
         ("all (Overkill's)", Shortcuts::NONE),
     ];

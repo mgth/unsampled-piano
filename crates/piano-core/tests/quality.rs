@@ -34,3 +34,21 @@ fn a_light_engine_plays() {
     }
     assert!(peak > 1e-4 && peak.is_finite(), "{peak}");
 }
+
+/// Overkill keeps a listening string on every key, damped or not, with the
+/// pedal up: every string hears the bridge. Full only on the strings whose
+/// damper is lifted (the undamped treble and the keys played).
+#[test]
+fn overkill_listens_on_every_string() {
+    let count = |quality| {
+        let mut e = Engine::new(EngineConfig { quality, ..Default::default() });
+        let (mut l, mut r) = (vec![0.0f32; 128], vec![0.0f32; 128]);
+        let on = [piano_core::TimedEvent { frame: 0, event: piano_core::Event::NoteOn { note: 60, velocity: 90 } }];
+        for i in 0..2 {
+            e.process_stereo(if i == 0 { &on } else { &[] }, &mut l, &mut r);
+        }
+        e.active_voices()
+    };
+    assert_eq!(count(Quality::Overkill), 88);
+    assert!(count(Quality::Full) < 88);
+}

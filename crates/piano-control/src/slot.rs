@@ -124,6 +124,9 @@ impl EngineSlot {
     /// mapped to a live parameter become [`Event::Param`].
     pub fn process_stereo(&mut self, events: &[TimedEvent], left: &mut [f32], right: &mut [f32]) {
         let len = left.len();
+        // Checked here, on the caller's thread: the parallel path rebuilds the
+        // output slices from raw pointers and `len`.
+        assert!(right.len() == len && len <= self.out[0][0].len(), "channels of different lengths or longer than the max block");
         while let Ok(t) = self.route_updates.pop() {
             self.routes = t;
         }

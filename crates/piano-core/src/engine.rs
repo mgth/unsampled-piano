@@ -205,6 +205,10 @@ pub struct Shortcuts {
     pub nl_silence: f32,
     /// Strings damped beyond this engagement no longer hear the bridge.
     pub deaf_above: f64,
+    /// Every string listens to the bridge, damped or not, pedal up or down,
+    /// and is never freed; otherwise only strings with their damper lifted
+    /// get a listening voice.
+    pub listen_all: bool,
     /// A struck string drops its partials once they fall this far below a
     /// loud note's bridge force (energy ratio); 0: never.
     pub drop_partials: f32,
@@ -217,6 +221,7 @@ impl Shortcuts {
         sym_silence: 1e-12,
         nl_silence: 1e-4,
         deaf_above: 0.99,
+        listen_all: false,
         drop_partials: 1e-2,
     };
     pub const NONE: Self = Self {
@@ -225,6 +230,7 @@ impl Shortcuts {
         sym_silence: 1e-22,
         nl_silence: 1e-14,
         deaf_above: f64::INFINITY,
+        listen_all: true,
         drop_partials: 0.0,
     };
 }
@@ -661,7 +667,7 @@ impl Engine {
                 continue;
             }
             v.drop_silent_partials(drop);
-            let listening = sympathy && v.engagement < 0.5;
+            let listening = sympathy && (v.engagement < 0.5 || self.shortcuts.listen_all);
             if !listening && v.energy() < self.shortcuts.voice_silence {
                 v.active = false;
             }
@@ -763,11 +769,12 @@ impl Engine {
         }
     }
 
-    /// While the dampers are lifted, give every damped key a listening
-    /// string (all at once: setting one up is a copy, ≈ 1 µs).
+    /// While the dampers are lifted (always, with [`Shortcuts::listen_all`]),
+    /// give every damped key a listening string (all at once: setting one up
+    /// is a copy, ≈ 1 µs).
     fn add_listeners(&mut self) {
         let law = self.live.damper;
-        if !self.sympathy() || law.pedal_engagement(self.sustain) >= 0.5 {
+        if !self.sympathy() || (law.pedal_engagement(self.sustain) >= 0.5 && !self.shortcuts.listen_all) {
             return;
         }
         let mut sounding = [false; 128];

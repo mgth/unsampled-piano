@@ -59,7 +59,7 @@ fn main() {
         ("+ board silence 200 dB", full(), Quality::Full, Shortcuts { board_silence: Shortcuts::NONE.board_silence, ..Shortcuts::DEFAULT }),
         ("+ sym silence 200 dB", full(), Quality::Full, Shortcuts { sym_silence: Shortcuts::NONE.sym_silence, ..Shortcuts::DEFAULT }),
         ("+ nl silence 200 dB", full(), Quality::Full, Shortcuts { nl_silence: Shortcuts::NONE.nl_silence, ..Shortcuts::DEFAULT }),
-        ("+ damped strings hear the bridge", full(), Quality::Full, Shortcuts { deaf_above: f64::INFINITY, ..Shortcuts::DEFAULT }),
+        ("+ damped strings hear the bridge", full(), Quality::Full, Shortcuts { deaf_above: f64::INFINITY, listen_all: true, ..Shortcuts::DEFAULT }),
         ("+ no partial dropping", full(), Quality::Full, Shortcuts { drop_partials: 0.0, ..Shortcuts::DEFAULT }),
         ("+ modes up to 0.45 fs", Instrument::with_resolution(m, sr, Resolution { max_modes: 4096, ..Resolution::DEFAULT }), Quality::Full, Shortcuts::DEFAULT),
         ("+ twice the contact steps", full(), Quality::Overkill, Shortcuts::DEFAULT),
