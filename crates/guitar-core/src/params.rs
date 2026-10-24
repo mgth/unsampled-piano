@@ -301,6 +301,116 @@ impl Default for MuteParams {
     }
 }
 
+/// The fingerboard under the strings: what they can hit.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct FretboardParams {
+    /// Height of the fret crowns above the board (m).
+    pub fret_height: f64,
+    /// Neck relief: the board's sag midway between the nut and the fret
+    /// where the neck meets the body (m); flat beyond that fret.
+    pub relief: f64,
+    pub body_fret: u8,
+    /// String height above the 12th fret's crown, open string, on the
+    /// lowest and the highest string (m); in between, interpolated.
+    pub action_bass: f64,
+    pub action_treble: f64,
+    /// String height above the first fret's crown at the nut (m).
+    pub nut_clearance: f64,
+    /// String–fret contact: K·u^α (N, m) and a dashpot (N·s/m) while
+    /// touching. Stiff, as the modal string resolves (Issanchou et al. use
+    /// the same law).
+    pub stiffness: f64,
+    pub exponent: f64,
+    pub damping: f64,
+}
+
+impl Default for FretboardParams {
+    /// A steel-string acoustic set-up (orders of magnitude).
+    fn default() -> Self {
+        Self {
+            fret_height: 1.0e-3,
+            relief: 0.25e-3,
+            body_fret: 14,
+            action_bass: 2.4e-3,
+            action_treble: 1.8e-3,
+            nut_clearance: 0.5e-3,
+            stiffness: 1e9,
+            exponent: 1.5,
+            damping: 0.0,
+        }
+    }
+}
+
+/// How a note is played.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Technique {
+    /// The right hand plucks ([`PluckParams::model`]).
+    #[default]
+    Pluck,
+    /// The thumb strikes the string toward the frets, near the end of the
+    /// neck.
+    Slap,
+    /// A finger pulls the string away from the board and lets it snap back
+    /// onto the frets.
+    Pop,
+    /// A finger drives the string onto the fret: a hammer-on on a string
+    /// that is held, tapping otherwise. No right-hand pluck.
+    Tap,
+    /// The fretting finger leaves for a lower fret on the same string,
+    /// plucking it sideways as it goes.
+    PullOff,
+}
+
+/// The techniques' contacts (orders of magnitude, to be measured).
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct TechniqueParams {
+    /// Where the thumb strikes, from the bridge (m).
+    pub slap_position: f64,
+    /// Thumb flesh: stiffness (N/m), damping (N·s/m).
+    pub thumb_stiffness: f64,
+    pub thumb_damping: f64,
+    /// Thumb speed at velocity 127 (m/s, proportional below), how far past
+    /// the string's rest it goes (m), and how long it takes to come back (s).
+    pub slap_speed: f64,
+    pub slap_depth: f64,
+    pub slap_return: f64,
+    /// Force a pop lets go at, at velocity 127 (N).
+    pub pop_force: f64,
+    /// Tapping or hammering finger: speed at velocity 127 (m/s), distance
+    /// behind the fret (m), how far past the fret's crown it presses (m),
+    /// stiffness (N/m) and damping (N·s/m).
+    pub tap_speed: f64,
+    pub tap_offset: f64,
+    pub tap_press: f64,
+    pub tap_stiffness: f64,
+    pub tap_damping: f64,
+    /// Force a pull-off lets go at, at velocity 127 (N).
+    pub pulloff_force: f64,
+}
+
+impl Default for TechniqueParams {
+    fn default() -> Self {
+        Self {
+            slap_position: 0.2,
+            thumb_stiffness: 3e4,
+            thumb_damping: 3.0,
+            slap_speed: 2.0,
+            slap_depth: 3e-3,
+            slap_return: 5e-3,
+            pop_force: 6.0,
+            tap_speed: 1.5,
+            tap_offset: 6e-3,
+            tap_press: 1e-3,
+            tap_stiffness: 2e4,
+            tap_damping: 2.0,
+            pulloff_force: 1.5,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct GuitarModel {
@@ -312,6 +422,8 @@ pub struct GuitarModel {
     pub support: SupportParams,
     pub pluck: PluckParams,
     pub mute: MuteParams,
+    pub fretboard: FretboardParams,
+    pub techniques: TechniqueParams,
     pub output: Output,
     /// Highest mode frequency (Hz), also capped below Nyquist.
     pub max_freq: f64,
@@ -339,6 +451,8 @@ impl GuitarModel {
             support: SupportParams::default(),
             pluck: PluckParams::default(),
             mute: MuteParams::default(),
+            fretboard: FretboardParams::default(),
+            techniques: TechniqueParams::default(),
             output: Output::default(),
             max_freq: 16_000.0,
             output_gain: 1.0,
@@ -368,6 +482,8 @@ impl GuitarModel {
             },
             pluck: PluckParams { model: PluckModel::Plectrum, position: 0.09, max_force: 2.0, ..PluckParams::default() },
             mute: MuteParams::default(),
+            fretboard: FretboardParams { fret_height: 1.1e-3, relief: 0.2e-3, body_fret: 16, action_bass: 1.8e-3, action_treble: 1.5e-3, ..FretboardParams::default() },
+            techniques: TechniqueParams { slap_position: 0.15, pop_force: 4.0, pulloff_force: 1.0, ..TechniqueParams::default() },
             output: Output::Magnetic(MagneticOutput {
                 pickups: vec![Pickup::single_coil(0.041), Pickup::single_coil(0.098), Pickup::single_coil(0.160)],
                 selected: vec![2],
@@ -399,6 +515,8 @@ impl GuitarModel {
             },
             pluck: PluckParams { model: PluckModel::Finger, position: 0.12, max_force: 6.0, drag_time: 0.03, ..PluckParams::default() },
             mute: MuteParams::default(),
+            fretboard: FretboardParams { fret_height: 1.2e-3, relief: 0.3e-3, body_fret: 16, action_bass: 2.4e-3, action_treble: 2.0e-3, ..FretboardParams::default() },
+            techniques: TechniqueParams { slap_position: 0.27, pop_force: 12.0, slap_depth: 4e-3, pulloff_force: 3.0, ..TechniqueParams::default() },
             output: Output::Magnetic(MagneticOutput {
                 pickups: vec![
                     Pickup { inductance: 3.5, resistance: 7.0e3, ..Pickup::single_coil(0.092) },

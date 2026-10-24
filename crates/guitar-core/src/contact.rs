@@ -40,7 +40,9 @@ use piano_core::complex::C64;
 use crate::string::{StringTable, PERP};
 
 /// Contacts on one string at the same time.
-pub const MAX_CONTACTS: usize = 8;
+pub const MAX_CONTACTS: usize = 24;
+/// Contact groups (ids below this).
+pub const GROUPS: usize = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Law {
@@ -57,6 +59,10 @@ pub enum Motion {
     /// From where the string is when the contact starts to `to` (m), a
     /// raised cosine over `samples`, then held.
     Ramp { to: f64, samples: usize },
+    /// A strike: from `start` to `to` in a raised cosine over `samples`
+    /// (it arrives at speed), back to `start` over `back` samples (held at
+    /// `to` when `back` is 0).
+    Stroke { start: f64, to: f64, samples: usize, back: usize },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -65,14 +71,16 @@ pub struct Contact {
     pub x: f64,
     /// Polarisation it acts in ([`PERP`] or [`crate::string::PAR`]).
     pub pol: usize,
-    /// u = sign·(y − target) is the compression: +1 when the contact is
-    /// below the string (it pushes up), −1 above.
+    /// u = sign·(y − target) is the compression: +1 when the contact lies
+    /// on the positive side of the string (a fret, y counted toward the
+    /// board), −1 on the negative side (a thumb or a finger coming down).
     pub sign: f64,
     pub law: Law,
     pub motion: Motion,
     pub release: Release,
     /// Contacts released together (the two directions of one fingertip):
     /// a force limit applies to the magnitude of their summed forces.
+    /// Below [`GROUPS`].
     pub group: u8,
 }
 
@@ -100,6 +108,8 @@ struct Slot {
     psi: f64,
     /// Sample the slip began at.
     fade: Option<usize>,
+    /// Force magnitude λ at the last step (N).
+    lam: f64,
 }
 
 impl Slot {
@@ -146,6 +156,9 @@ pub struct ContactSolver {
     shapes: Vec<f64>,
     slots: [Option<Slot>; MAX_CONTACTS],
     g: [[f64; MAX_CONTACTS]; MAX_CONTACTS],
+    /// Scratch of the per-sample system.
+    mat: [[f64; MAX_CONTACTS]; MAX_CONTACTS],
+    rhs: [f64; MAX_CONTACTS],
     samples: usize,
     active: bool,
     max_force: f64,
@@ -201,6 +214,8 @@ impl ContactSolver {
             shapes: vec![0.0; MAX_CONTACTS * max_partials],
             slots: [None; MAX_CONTACTS],
             g: [[0.0; MAX_CONTACTS]; MAX_CONTACTS],
+            mat: [[0.0; MAX_CONTACTS]; MAX_CONTACTS],
+            rhs: [0.0; MAX_CONTACTS],
             samples: 0,
             active: false,
             max_force: 0.0,
@@ -250,49 +265,105 @@ impl ContactSolver {
     }
 
     fn target(s: &Slot, t: usize) -> f64 {
+        let rise = |from: f64, to: f64, f: f64| from + (to - from) * (1.0 - (std::f64::consts::PI * f.clamp(0.0, 1.0)).cos()) / 2.0;
+        let dt = t.saturating_sub(s.start);
         match s.c.motion {
             Motion::Fixed(y) => y,
-            Motion::Ramp { to, samples } => {
-                let f = ((t - s.start.min(t)) as f64 / samples.max(1) as f64).min(1.0);
-                s.from + (to - s.from) * (1.0 - (std::f64::consts::PI * f).cos()) / 2.0
+            Motion::Ramp { to, samples } => rise(s.from, to, dt as f64 / samples.max(1) as f64),
+            Motion::Stroke { start, to, samples, back } => {
+                if dt <= samples || back == 0 {
+                    rise(start, to, dt as f64 / samples.max(1) as f64)
+                } else {
+                    rise(to, start, (dt - samples) as f64 / back as f64)
+                }
             }
         }
     }
 
-    /// Adds a contact now. False when all slots are taken. Real-time safe.
-    pub fn add(&mut self, c: Contact) -> bool {
-        let Some(slot) = self.slots.iter().position(|s| s.is_none()) else { return false };
+    /// Adds a contact now: its slot, None when all are taken. Real-time safe.
+    pub fn add(&mut self, c: Contact) -> Option<usize> {
+        assert!((c.group as usize) < GROUPS, "contact group {} ≥ {GROUPS}", c.group);
+        let slot = self.slots.iter().position(|s| s.is_none())?;
+        // sin(k_n·x) with k_n = n·k_1: by its recurrence.
+        let th = self.k[0] * c.x;
+        let c2 = 2.0 * th.cos();
+        let (mut s0, mut s1) = (0.0, th.sin());
         for n in 0..self.np {
-            self.shapes[slot * self.max_p + n] = (self.k[n] * c.x).sin();
+            self.shapes[slot * self.max_p + n] = s1;
+            (s0, s1) = (s1, c2 * s1 - s0);
         }
         let (y0, y1) = (self.y(&self.q0, slot, c.pol), self.y(&self.q1, slot, c.pol));
         let from = match c.motion {
-            Motion::Fixed(y) => y,
+            Motion::Fixed(y) | Motion::Stroke { start: y, .. } => y,
             Motion::Ramp { .. } => y0,
         };
         let u0 = c.sign * (y0 - from);
-        let psi = match c.law {
-            Law::Unilateral { stiffness, exponent, .. } if u0 > 0.0 => (2.0 * stiffness / (exponent + 1.0) * u0.powf(exponent + 1.0)).sqrt(),
-            _ => 0.0,
-        };
-        self.slots[slot] = Some(Slot { c, start: self.samples, from, u0, u1: c.sign * (y1 - from), psi, fade: None });
-        self.rebuild_g();
+        // Starting in contact, a unilateral law starts with ψ = 0: setting
+        // ψ = √(2V(u)) would add the energy of a penetration that nothing
+        // did. Passive either way; the force builds up from the motion.
+        let psi = 0.0;
+        self.slots[slot] = Some(Slot { c, start: self.samples, from, u0, u1: c.sign * (y1 - from), psi, fade: None, lam: 0.0 });
+        self.rebuild_g_for(slot);
         self.active = true;
-        true
+        Some(slot)
+    }
+
+    /// Takes a contact away now. Real-time safe.
+    pub fn remove(&mut self, slot: usize) {
+        if self.slots[slot].take().is_some() {
+            self.rebuild_g_for(slot);
+            self.active = self.slots.iter().any(|s| s.is_some());
+        }
+    }
+
+    /// Force magnitude of a contact at the last step (N), 0 when gone.
+    pub fn force(&self, slot: usize) -> f64 {
+        self.slots[slot].map_or(0.0, |s| s.lam)
+    }
+
+    /// Fastest a contact's target moves (m/s): how fast a hand can drive
+    /// the string.
+    pub fn target_speed(&self) -> f64 {
+        let per = |d: f64, n: usize| std::f64::consts::PI * d.abs() / (2.0 * n.max(1) as f64 * self.dt);
+        self.slots
+            .iter()
+            .flatten()
+            .map(|s| match s.c.motion {
+                Motion::Fixed(_) => 0.0,
+                Motion::Ramp { to, samples } => per(to - s.from, samples),
+                Motion::Stroke { start, to, samples, back } => per(to - start, samples).max(if back > 0 { per(to - start, back) } else { 0.0 }),
+            })
+            .fold(0.0, f64::max)
+    }
+
+    /// Whether any contact of `group` is present.
+    pub fn has_group(&self, group: u8) -> bool {
+        self.slots.iter().flatten().any(|s| s.c.group == group)
     }
 
     fn rebuild_g(&mut self) {
         for i in 0..MAX_CONTACTS {
-            for j in 0..MAX_CONTACTS {
-                self.g[i][j] = match (self.slots[i], self.slots[j]) {
-                    (Some(a), Some(b)) if a.c.pol == b.c.pol => {
-                        let (si, sj) = (&self.shapes[i * self.max_p..][..self.np], &self.shapes[j * self.max_p..][..self.np]);
-                        let gm = &self.gamma[a.c.pol * self.max_p..][..self.np];
-                        a.c.sign * b.c.sign * si.iter().zip(sj).zip(gm).map(|((x, y), g)| x * y * g).sum::<f64>()
-                    }
-                    _ => 0.0,
-                };
+            self.rebuild_g_for(i);
+        }
+    }
+
+    /// Row and column `i` of Ĝ.
+    fn rebuild_g_for(&mut self, i: usize) {
+        for j in 0..MAX_CONTACTS {
+            let g = self.g_entry(i, j);
+            self.g[i][j] = g;
+            self.g[j][i] = g;
+        }
+    }
+
+    fn g_entry(&self, i: usize, j: usize) -> f64 {
+        match (self.slots[i], self.slots[j]) {
+            (Some(a), Some(b)) if a.c.pol == b.c.pol => {
+                let (si, sj) = (&self.shapes[i * self.max_p..][..self.np], &self.shapes[j * self.max_p..][..self.np]);
+                let gm = &self.gamma[a.c.pol * self.max_p..][..self.np];
+                a.c.sign * b.c.sign * si.iter().zip(sj).zip(gm).map(|((x, y), g)| x * y * g).sum::<f64>()
             }
+            _ => 0.0,
         }
     }
 
@@ -370,23 +441,27 @@ impl ContactSolver {
         let mut out_set = [false; MAX_CONTACTS];
         loop {
             let mut free = [0usize; MAX_CONTACTS];
-            let nf = (0..m).filter(|&i| !out_set[i]).fold(0, |n, i| {
+            // Contacts that exert nothing whatever happens (a = d = 0: a
+            // fret not touched) stay out of the system.
+            let nf = (0..m).filter(|&i| !out_set[i] && (a[i] != 0.0 || d[i] != 0.0)).fold(0, |n, i| {
                 free[n] = i;
                 n + 1
             });
-            let mut mat = [[0.0; MAX_CONTACTS]; MAX_CONTACTS];
-            let mut rhs = [0.0; MAX_CONTACTS];
-            for (r, &i) in free[..nf].iter().enumerate() {
-                let u1 = self.slots[idx[i]].unwrap().u1;
-                for (c, &j) in free[..nf].iter().enumerate() {
-                    mat[r][c] = (r == c) as u8 as f64 + d[i] * self.g[idx[i]][idx[j]];
-                }
-                rhs[r] = a[i] + d[i] * (u_star[i] - u1);
-            }
-            solve(&mut mat, &mut rhs, nf);
             lam.fill(0.0);
-            for (r, &i) in free[..nf].iter().enumerate() {
-                lam[i] = rhs[r];
+            if nf > 0 {
+                // Only the nf × nf block is written and read: no clearing.
+                let (mat, rhs) = (&mut self.mat, &mut self.rhs);
+                for (r, &i) in free[..nf].iter().enumerate() {
+                    let u1 = self.slots[idx[i]].unwrap().u1;
+                    for (c, &j) in free[..nf].iter().enumerate() {
+                        mat[r][c] = (r == c) as u8 as f64 + d[i] * self.g[idx[i]][idx[j]];
+                    }
+                    rhs[r] = a[i] + d[i] * (u_star[i] - u1);
+                }
+                solve(mat, rhs, nf);
+                for (r, &i) in free[..nf].iter().enumerate() {
+                    lam[i] = rhs[r];
+                }
             }
             let mut changed = false;
             for i in 0..m {
@@ -420,6 +495,7 @@ impl ContactSolver {
             }
             s.u1 = s.u0;
             s.u0 = u_next;
+            s.lam = lam[i];
             self.slots[slot] = Some(s);
             self.max_force = self.max_force.max(lam[i].abs());
             // Force on the string: −s·λ at x, in its polarisation.
@@ -432,12 +508,12 @@ impl ContactSolver {
         }
         self.samples += 1;
         // Slips: a group's force reaching its limit (or its timeout).
-        let mut group_f2 = [0.0f64; 256];
+        let mut group_f2 = [0.0f64; GROUPS];
         for i in 0..m {
             group_f2[self.slots[idx[i]].unwrap().c.group as usize] += lam[i] * lam[i];
         }
         let t = self.samples;
-        let mut slip = [false; 256];
+        let mut slip = [false; GROUPS];
         for s in self.slots.iter().flatten() {
             if let Release::Force { limit, timeout, .. } = s.c.release
                 && s.fade.is_none()
@@ -482,7 +558,15 @@ impl ContactSolver {
 
     /// Displacement of the string at `x` in polarisation `pol` now (m).
     pub fn displacement(&self, x: f64, pol: usize) -> f64 {
-        (0..self.np).map(|n| (self.k[n] * x).sin() * self.q0[pol * self.max_p + n]).sum()
+        let th = self.k[0] * x;
+        let c2 = 2.0 * th.cos();
+        let (mut s0, mut s1) = (0.0, th.sin());
+        let mut y = 0.0;
+        for q in &self.q0[pol * self.max_p..][..self.np] {
+            y += s1 * q;
+            (s0, s1) = (s1, c2 * s1 - s0);
+        }
+        y
     }
 
     /// Discrete energy H[n+½] of the strings and contacts (twice the
