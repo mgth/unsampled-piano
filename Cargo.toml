@@ -18,6 +18,7 @@ piano-params = { path = "crates/piano-params" }
 piano-control = { path = "crates/piano-control" }
 piano-ui = { path = "crates/piano-ui" }
 piano-mcp = { path = "crates/piano-mcp" }
+guitar-core = { path = "crates/guitar-core" }
 hound = "3.5"
 midly = "0.5"
 realfft = "3.5"
