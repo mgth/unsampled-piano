@@ -174,8 +174,11 @@ impl PianoUi {
         }
 
         let learning = control.midi().and_then(|l| l.learning().map(String::from));
-        if learning.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            control.midi().map(|l| l.cancel());
+        if learning.is_some()
+            && ui.input(|i| i.key_pressed(egui::Key::Escape))
+            && let Some(l) = control.midi()
+        {
+            l.cancel();
         }
 
         egui::Panel::top("piano-top").show(ui, |ui| {
@@ -189,8 +192,10 @@ impl PianoUi {
                 let label = self.registry.get(path).map_or(path.as_str(), |p| p.meta.label.as_str());
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(format!("Move a controller over part of its travel for \u{201c}{label}\u{201d}…")).color(widgets::LIVE));
-                    if ui.small_button("Cancel").clicked() {
-                        control.midi().map(|l| l.cancel());
+                    if ui.small_button("Cancel").clicked()
+                        && let Some(l) = control.midi()
+                    {
+                        l.cancel();
                     }
                     ui.label(RichText::new("(Esc)").weak());
                 });
