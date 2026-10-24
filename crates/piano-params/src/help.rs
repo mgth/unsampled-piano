@@ -388,6 +388,12 @@ const HELP: &[(&str, &str, &str)] = &[
         "Corner of η(f) = η·(1 + f/loss_corner). 700 Hz muffled the 2–8 kHz bands \
          (docs/brightness.md).",
     ),
+    (
+        "soundboard.loss_low_corner",
+        "Below this frequency the board's low modes lose more energy, through its edge into the \
+         rim and the case. Higher values: bass fundamentals that fade faster.",
+        "η(f) is multiplied by 1 + (loss_low_corner/f)²; 0: no extra loss.",
+    ),
     ("soundboard.bridge_mass", "Mass of the bridge where a string crosses it: heavier filters the highs reaching the board.", "Local mass m: the strings see Y/(1 + iω·m·Y), the board receives F/(1 + iω·m·Y). 0: none."),
     (
         "soundboard.series_stiffness",

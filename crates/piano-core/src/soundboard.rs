@@ -51,6 +51,10 @@ pub struct SoundboardParams {
     pub loss_factor: f64,
     /// Loss factor growth with frequency: η(f) = η·(1 + f/loss_corner).
     pub loss_corner: f64,
+    /// Extra loss of the low modes, which work the board's edge, the rim
+    /// and the case: η(f) is multiplied by 1 + (loss_low_corner/f)² (Hz;
+    /// 0: none).
+    pub loss_low_corner: f64,
     /// Effective bridge mass at the string's attachment point (kg): the
     /// strings see Y/(1 + iω·m·Y) and the board receives F/(1 + iω·m·Y).
     pub bridge_mass: f64,
@@ -191,6 +195,12 @@ impl SoundboardParams {
         // 1/η; the earlier corner at 700 Hz (13 % at 4 kHz) muffled the
         // 2–8 kHz bands (docs/brightness.md).
         loss_corner: 2500.0,
+        // The low modes lose more: they work the board's edge, and the rim
+        // and case they drive take energy back, which the one-way rim does
+        // not. Partials 2–4 of A1–A2 then decay at −10 to −11 dB/s over the
+        // first 1.5 s, as on eight real grands (−9 to −12; −7 to −9 without),
+        // docs/bass_decay.md.
+        loss_low_corner: 250.0,
         bridge_mass: 0.0,
         series_stiffness: 2e7,
         // Maple, ≈ 3 × 2.5 cm; spread over 0.3 bending wavelength (set with
@@ -469,7 +479,9 @@ impl Soundboard {
     }
 
     pub fn eta(&self, omega: f64) -> f64 {
-        self.params.loss_factor * (1.0 + omega / (TAU * self.params.loss_corner))
+        let f = omega / TAU;
+        let low = if self.params.loss_low_corner > 0.0 { 1.0 + (self.params.loss_low_corner / f.max(1.0)).powi(2) } else { 1.0 };
+        self.params.loss_factor * (1.0 + f / self.params.loss_corner) * low
     }
 
     pub fn sigma(&self, mode: &PlateMode) -> f64 {

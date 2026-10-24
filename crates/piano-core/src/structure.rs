@@ -98,6 +98,7 @@ impl FrameParams {
             dy: self.stiffness,
             loss_factor: self.loss_factor,
             loss_corner: f64::INFINITY,
+            loss_low_corner: 0.0,
             bridge_mass: 0.0,
             series_stiffness: f64::INFINITY,
             f_max: self.f_max,

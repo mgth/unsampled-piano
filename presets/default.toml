@@ -86,6 +86,7 @@ dx = 3825.0
 dy = 1700.0
 loss_factor = 0.02
 loss_corner = 2500.0
+loss_low_corner = 250.0
 bridge_mass = 0.0
 series_stiffness = 20000000.0
 bridge_stiffness = 470.0
