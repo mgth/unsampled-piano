@@ -44,6 +44,10 @@ pub struct PhysMode {
     /// Time (s) after the start of the strike at which the hammer reaches
     /// this string (a unison's strings do not lie at one height).
     pub delay: f64,
+    /// Share of its bridge force that reaches the output, as in the modal
+    /// bank: 1 for a vertical oscillator, `polarization.radiation` for a
+    /// horizontal one.
+    pub radiation: f64,
 }
 
 /// Separation time after which the hammer is considered gone (re-contacts
@@ -299,8 +303,11 @@ impl ContactSolver {
             ln.phi[l] = phi;
             ln.gphi[l] = gamma * phi;
             self.inv_gamma[i] = 1.0 / gamma;
-            // Bridge force T·∂y/∂x(0) = T·Σ (kπ/L)·q_k.
-            ln.out_w[l] = note.tension * k * std::f64::consts::PI / note.length;
+            // Bridge force T·∂y/∂x(0) = T·Σ (kπ/L)·q_k, weighted as the bank
+            // weights it (a horizontal oscillator radiated at full weight
+            // here: a ringing string's sideways motion jumped at each
+            // re-strike, a click).
+            ln.out_w[l] = m.radiation * note.tension * k * std::f64::consts::PI / note.length;
             ln.out_a[l] = if m.k % 2 == 0 { -ln.out_w[l] } else { ln.out_w[l] };
             lambda += phi * phi * gamma;
             // Displacements now and one sub-step earlier from the complex amplitude.
@@ -617,6 +624,7 @@ mod tests {
                     state: C64::ZERO,
                     hit: 1.0,
                     delay: 0.0,
+                    radiation: 1.0,
                 })
             })
             .collect();

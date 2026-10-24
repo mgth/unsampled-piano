@@ -40,6 +40,8 @@ pub struct NoteModel {
     pub region: usize,
     pub has_damper: bool,
     pub unison: crate::params::UnisonLaw,
+    /// Output weight of the horizontal oscillators (polarization.radiation).
+    pub h_radiation: f64,
     /// Modes run by a string that only listens (partials < max_freq).
     pub n_listen: usize,
     /// Geometric nonlinearity (phantom partials), when enabled for the key.
@@ -260,6 +262,7 @@ impl NoteModel {
             region,
             has_damper,
             unison: model.unison,
+            h_radiation: pol.radiation,
             n_listen,
             longitudinal,
             table,
