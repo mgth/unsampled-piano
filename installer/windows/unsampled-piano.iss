@@ -7,7 +7,7 @@
 ; Expects the built files (see the Standalone workflow):
 ;   target\dist\unsampled-piano.exe
 ;   target\bundled\Unsampled Piano.clap, Unsampled Piano.vst3\
-; iscc /DAppVersion=0.1.0 installer\windows\unsampled-piano.iss
+; iscc /DAppVersion=0.2.0 installer\windows\unsampled-piano.iss
 ;   -> target\installer\unsampled-piano-setup-windows-x86_64.exe
 
 #ifndef AppVersion
