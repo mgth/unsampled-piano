@@ -591,7 +591,7 @@ const HELP: &[(&str, &str, &str)] = &[
         "The dashpot grows as contact^exponent (felt compression). With 1, half contact already \
          gave 89 % of the full rate.",
     ),
-    ("damper.highest_note", "Highest key with a damper. The short top strings have none and ring until they die.", "MIDI note (F#6 by default, measured on a commercial modelled piano)."),
+    ("damper.highest_note", "Highest key with a damper. The short top strings have none and ring until they die.", "MIDI note: D6 by default, from the top notes' sustain on eight real grands (docs/top_treble.md); F#6 was taken from a commercial modelled piano."),
     (
         "damper.pedal_free",
         "Travel of the sustain pedal before it starts lifting the dampers. Pianists rest their \

@@ -275,8 +275,12 @@ pub struct DamperLaw {
     /// touching already absorbed 89 % of the full rate at half contact:
     /// no real half pedal, and an abrupt stop as the damper lands.
     pub contact_exponent: f64,
-    /// Highest key with a damper: F#6 (90), as measured on a commercial
-    /// modelled piano (docs/release_ring.md); the top 18 keys ring freely.
+    /// Highest key with a damper: D6 (86), the top 22 keys ring freely. In
+    /// the sustain of the top notes, real grands have lines at 0.7–1.4 kHz,
+    /// the undamped strings answering sympathetically; with F#6 (90), set
+    /// on a commercial modelled piano (docs/release_ring.md), the model had
+    /// nothing there (bench: top 1 kHz sustain band z −8.3 → −0.2, score
+    /// 1.31 → 1.09, docs/top_treble.md).
     pub highest_note: u8,
     /// Sustain-pedal travel (0–1): lost motion before the dampers start to
     /// lift (`pedal_free`), and travel at which they have left the strings
@@ -301,7 +305,7 @@ impl DamperLaw {
         node_floor: 0.15,
         strength: 1.0,
         contact_exponent: 2.5,
-        highest_note: 90,
+        highest_note: 86,
         // Dampers resting up to CC64 ≈ 38, off the strings from ≈ 76: on a
         // Disklavier grand (Liang's pedalling dataset, tools/pedal_bench.py)
         // CC64 = 64 is still a half pedal, a released note losing 7–28 dB

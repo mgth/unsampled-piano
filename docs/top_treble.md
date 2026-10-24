@@ -113,7 +113,22 @@ The top's 1 kHz sustain band (z −8 to −10, the model has nothing there) swin
   - the treble's and top's early T60 of partials 5–12 (z up to +2.0 and +3.1), which now last too long;
   - the top's prompt sound, partial 1, which decays at −39 dB/s against −45 (−42 before).
 
+## The 1 kHz band of the sustain: the undamped strings
+
+In the sustain (0.6–1 s) of C7, F#7 and C8, every real grand has discrete lines between 0.7 and 1.4 kHz, below the struck note's fundamental, 15–48 dB under the attack's strongest band. Many sit near 1.1–1.4 kHz, the fundamentals of C#6–F6 (Plath, anechoic: 1107, 1250, 1365, 1389, 1408 Hz at C7). The model had none (F#7: −94 dB). They are strings without dampers answering sympathetically to the bridge.
+
+The model's dampers stopped at F#6 (90), a figure taken from a commercial modelled piano. On real grands the top 18–23 keys have none.
+
+| highest damper | F#6 (90) | E6 (88) | D6 (86) | C6 (84) |
+|---|---|---|---|---|
+| bench score | 1.31 | 1.15 | 1.09 | 1.10 |
+| top | 2.26 | 1.86 | 1.70 | 1.71 |
+| treble | 1.27 | 1.19 | 1.19 | 1.20 |
+| top 1 kHz sustain band, z | −8.3 | −2.7 | −0.2 | −0.3 |
+| top 1 kHz attack band, z | −5.1 | −4.6 | −2.4 | −2.3 |
+
+The default is D6 (86): 22 keys ring freely, as on many concert grands. The local presets keep F#6.
+
 ## Still open
 
-- **The 1 kHz band of the sustain** (0.6–1 s): the real pianos keep 34–54 dB below the attack's strongest band, the model nothing (−101 dB). Something rings there in a real piano that the model lacks. Candidates: the frame, which is driven but radiates little (η 1 %), the duplex segments, or the action.
 - **The prompt sound.** The model's first 0.2 s still lose 5–10 dB less than the real ones at C7–C8.
