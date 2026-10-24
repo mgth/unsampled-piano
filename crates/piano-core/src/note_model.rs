@@ -117,7 +117,7 @@ impl NoteModel {
                 break;
             }
             let eps = match (board, &bridge_shapes) {
-                (Some(b), Some(sh)) => b.bridge_admittance(sh, tau * fv[0]).scale(np.tension / np.length),
+                (Some(b), Some(sh)) => (b.bridge_admittance(sh, tau * fv[0]) + C64::new(b.edge_conductance(note, tau * fv[0]), 0.0)).scale(np.tension / np.length),
                 _ => np.coupling(&model.bridge, fv[0]),
             };
             let dv: Vec<C64> = fv.iter().map(|&f| C64::new(-model.losses.sigma(note, f), tau * f)).collect();

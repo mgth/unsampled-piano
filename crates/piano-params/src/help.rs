@@ -394,6 +394,16 @@ const HELP: &[(&str, &str, &str)] = &[
          rim and the case. Higher values: bass fundamentals that fade faster.",
         "η(f) is multiplied by 1 + (loss_low_corner/f)²; 0: no extra loss.",
     ),
+    (
+        "soundboard.edge_loss",
+        "Energy the strings lose into the rim and the case where their bridge runs near the \
+         board's edge (the bass). Higher: bass notes that fade faster, the middle untouched.",
+        "Conductance (s/kg) added to the bridge mobility, × e^(−d/edge_depth) with d the bridge \
+         point's distance to the nearest edge, × 1/(1 + (f/edge_corner)²); it radiates nothing. \
+         0: none.",
+    ),
+    ("soundboard.edge_depth", "How far from the board's edge the rim loss still reaches.", "Decay length (m) of the edge loss's weight e^(−d/edge_depth)."),
+    ("soundboard.edge_corner", "Above this frequency the rim loss fades.", "Corner (Hz) of 1/(1 + (f/edge_corner)²)."),
     ("soundboard.bridge_mass", "Mass of the bridge where a string crosses it: heavier filters the highs reaching the board.", "Local mass m: the strings see Y/(1 + iω·m·Y), the board receives F/(1 + iω·m·Y). 0: none."),
     (
         "soundboard.series_stiffness",
@@ -433,7 +443,7 @@ const HELP: &[(&str, &str, &str)] = &[
          (docs/bass.md).",
     ),
     ("soundboard.piston_loss", "Damping of that whole-case motion.", "Loss factor of the piston mode."),
-    ("soundboard.piston_mass", "Mass moving in that whole-case motion. Lighter: it takes more energy from the bass notes.", "Effective mass (kg); 3 kg at 60 Hz set on the decay of the bass fundamentals (docs/bass_decay.md)."),
+    ("soundboard.piston_mass", "Mass moving in that whole-case motion. Lighter: it takes more energy from the bass notes.", "Effective mass (kg); set on the late sustain of the bass (docs/long_sustain.md)."),
     (
         "soundboard.piston_radiation",
         "How much of the whole-case motion is heard (little: air pushed above is returned below).",

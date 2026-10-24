@@ -12,6 +12,12 @@ fn main() {
     for (f, m, n, eta) in modes.iter().take(14) {
         println!("  {f:7.1} ({m},{n}) η {eta:.3}");
     }
+    let p = model.soundboard.unwrap();
+    println!("bridge point's distance to the nearest edge (m):");
+    for note in (21u8..=108).step_by(6) {
+        let (x, y) = p.bridge_point_at(note as f64, note >= p.main_bridge_from);
+        println!("  {note:3}: ({x:.2}, {y:.2}) m, {:.2} m", x.min(p.a - x).min(y).min(p.b - y));
+    }
     println!("bridge mobility Y (s/kg) at the partials; σ added to one string = Re ε = (T/L)·Re Y");
     for note in [21u8, 24, 28, 33, 36, 40, 45, 48, 55, 60] {
         let np = model.note(note);

@@ -55,6 +55,16 @@ pub struct SoundboardParams {
     /// and the case: η(f) is multiplied by 1 + (loss_low_corner/f)² (Hz;
     /// 0: none).
     pub loss_low_corner: f64,
+    /// Loss through the rim and the case, seen by the strings whose bridge
+    /// runs near the board's edge (the bass bridge; the middle of the main
+    /// bridge crosses the board's centre): a conductance edge_loss (s/kg)
+    /// added to the bridge mobility, weighted by e^(−d/edge_depth) with d
+    /// the bridge point's distance to the nearest edge (m), falling above
+    /// edge_corner (Hz) as 1/(1 + (f/edge_corner)²). It damps the strings
+    /// and radiates nothing. 0: none.
+    pub edge_loss: f64,
+    pub edge_depth: f64,
+    pub edge_corner: f64,
     /// Effective bridge mass at the string's attachment point (kg): the
     /// strings see Y/(1 + iω·m·Y) and the board receives F/(1 + iω·m·Y).
     pub bridge_mass: f64,
@@ -195,12 +205,17 @@ impl SoundboardParams {
         // 1/η; the earlier corner at 700 Hz (13 % at 4 kHz) muffled the
         // 2–8 kHz bands (docs/brightness.md).
         loss_corner: 2500.0,
-        // The low modes lose more: they work the board's edge, and the rim
-        // and case they drive take energy back, which the one-way rim does
-        // not. Partials 2–4 of A1–A2 then decay at −10 to −11 dB/s over the
-        // first 1.5 s, as on eight real grands (−9 to −12; −7 to −9 without),
-        // docs/bass_decay.md.
-        loss_low_corner: 250.0,
+        // No extra loss on the modes themselves (it sped the middle's
+        // fundamentals too, −21 dB/s against −12, docs/bass_decay.md): the
+        // rim and the case take their energy where the bridge runs near the
+        // edge. 1e-3 s/kg within ≈ 15 cm of it, fading above 400 Hz: on
+        // every key of A0–D#4, partials 1–3 decay over the first 1.5 s
+        // within 1–4 dB/s of eight real grands (the middle's partial 1 at
+        // −12.3 dB/s against −12.2).
+        loss_low_corner: 0.0,
+        edge_loss: 1e-3,
+        edge_depth: 0.15,
+        edge_corner: 400.0,
         bridge_mass: 0.0,
         series_stiffness: 2e7,
         // Maple, ≈ 3 × 2.5 cm; spread over 0.3 bending wavelength (set with
@@ -216,17 +231,14 @@ impl SoundboardParams {
         impedance_slope: 0.02,
         impedance_slope_bass: -0.03,
         f_max: 20_000.0,
-        // A broad mode near 60 Hz (docs/bass.md, docs/bass_decay.md): the
-        // bass fundamentals lose into it what a real board's low modes take
-        // without radiating it. Fitted on the decay of partial 1 at A0–A2
-        // over the first 1.5 s, −5.5 dB/s against −4.8 on eight real grands
-        // (−4.1 with 6 kg at 40 Hz), and on Liang's pieces (bass partials
-        // 1–2: −6.9 dB/s, recording −7.2, −5.1 before). The 63–100 Hz bands
-        // still lose 11–12 dB between 0.3 and 3 s (references 3–16); 1.5 kg
-        // at 40 Hz took 37 dB (docs/long_sustain.md).
-        piston_freq: 60.0,
-        piston_loss: 1.0,
-        piston_mass: 3.0,
+        // A broad mode near 40 Hz (docs/bass.md). Mass set on the late
+        // sustain of the bass (docs/long_sustain.md): with 1.5 kg it took
+        // 37 dB from the 63 Hz band between 0.3 and 3 s (references 6–21).
+        // With the edge loss, 60 Hz and 3 kg made the bass fundamentals
+        // decay too fast (docs/bass_decay.md).
+        piston_freq: 40.0,
+        piston_loss: 0.7,
+        piston_mass: 6.0,
         // The case moving as a block barely radiates (the board's two faces
         // and the open bottom short-circuit it): 0.3 put the bass
         // fundamentals 25–30 dB over the references below 40 Hz.
@@ -554,6 +566,19 @@ impl Soundboard {
         let yp = self.mobility(shapes, omega);
         let with_mass = yp / (C64::ONE + C64::new(0.0, omega * self.params.bridge_mass) * yp);
         with_mass + C64::new(0.0, omega / self.params.series_stiffness)
+    }
+
+    /// Conductance (s/kg) of the edge loss seen by `note`'s strings at ω
+    /// (see [`SoundboardParams::edge_loss`]).
+    pub fn edge_conductance(&self, note: u8, omega: f64) -> f64 {
+        let p = &self.params;
+        if p.edge_loss <= 0.0 {
+            return 0.0;
+        }
+        let (x, y) = p.bridge_point_at(note as f64, note >= p.main_bridge_from);
+        let d = x.min(p.a - x).min(y).min(p.b - y).max(0.0);
+        let f = omega / TAU;
+        p.edge_loss * (-d / p.edge_depth.max(1e-6)).exp() / (1.0 + (f / p.edge_corner.max(1.0)).powi(2))
     }
 
     /// Corner (rad/s) of the smooth low-pass F/(1 + iω·m·Y∞) through which
