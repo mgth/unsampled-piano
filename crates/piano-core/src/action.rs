@@ -106,10 +106,11 @@ impl ActionNoise {
     }
 
     fn excite(&mut self, note: u8, amp: f32) {
-        // Where the key lies: the left microphone over the bass, the right
-        // over the treble; both hear the whole action.
+        // Where the key lies: the strings put the treble on the left
+        // microphone and the bass on the right (soundboard `mics`); both
+        // hear the whole action.
         let x = ((note as f32 - 21.0) / 87.0).clamp(0.0, 1.0);
-        let gains = [1.0 - 0.5 * x, 0.5 + 0.5 * x];
+        let gains = [0.5 + 0.5 * x, 1.0 - 0.5 * x];
         // Unit peak for K resonances of random sign and weight ~1.
         let norm = amp / (K as f32).sqrt();
         for i in 0..K {
