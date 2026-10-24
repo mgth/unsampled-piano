@@ -97,6 +97,8 @@ pub enum Part {
     Piston,
     /// The board's underside radiating in antiphase.
     BackFace,
+    /// The losses of the bridge points near the board's edges.
+    BoardEdge,
     /// The wall behind an upright's board.
     Wall,
     Frame,
@@ -160,6 +162,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("soundboard.bridge_", &[Bridges, BridgeSpread]),
         ("soundboard.piston_", &[Piston]),
         ("soundboard.back_", &[BackFace]),
+        ("soundboard.edge_", &[BoardEdge, Bridges]),
         ("soundboard.wall_", &[Wall]),
         ("soundboard.", &[Board]),
         ("frame.agraffe_x", &[Agraffes]),
@@ -800,6 +803,13 @@ pub fn plan(ui: &mut Ui, model: &PianoModel, lit: &[Part], key: &mut u8, width: 
     }
     let board = rect_m((0.0, 0.0), (sb.a, sb.b));
     p.rect_filled(board, 0.0, if lit(Part::Board) { HIGHLIGHT.gamma_multiply(0.45) } else { WOOD.gamma_multiply(0.3) });
+    if lit(Part::BoardEdge) {
+        // A band as deep as the losses reach (e^(-d/edge_depth)).
+        let d = (sb.edge_depth as f32 * s * k).clamp(2.0, board.width().min(board.height()) / 2.0);
+        p.rect_stroke(board.shrink(d / 2.0), 0.0, Stroke::new(d, HIGHLIGHT.gamma_multiply(0.35)), egui::StrokeKind::Middle);
+        let text = format!("losses within {:.0} cm of the edges", sb.edge_depth * 100.0);
+        label(board.center_bottom() + Vec2::new(0.0, -d - 4.0 * k), Align2::CENTER_BOTTOM, &text, Some(Part::BoardEdge));
+    }
     if lit(Part::Piston) {
         p.rect_stroke(rect_m((-t, -t), (sb.a + t, sb.b + t)), 3.0 * k, line(2.5, HIGHLIGHT), egui::StrokeKind::Outside);
         arrow(&p, pl(sb.a * 0.5, sb.b * 0.5) + Vec2::new(0.0, 10.0 * k), pl(sb.a * 0.5, sb.b * 0.5) - Vec2::new(0.0, 10.0 * k), line(1.5, HIGHLIGHT));
@@ -1313,6 +1323,7 @@ mod tests {
             Part::BridgeSpread,
             Part::Piston,
             Part::BackFace,
+            Part::BoardEdge,
             Part::Wall,
             Part::Frame,
             Part::Agraffes,
