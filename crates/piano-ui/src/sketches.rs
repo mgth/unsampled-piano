@@ -59,6 +59,8 @@ pub enum Part {
     DamperLanding,
     /// The action's own knock, heard directly.
     ActionKnock,
+    /// The hammer's shank, flexible under the head.
+    Shank,
     /// The damper tray knocking when the pedal moves.
     PedalKnock,
     // The string.
@@ -205,6 +207,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("damper.", &[Damper]),
         ("noise.keybed", &[KeybedKnock]),
         ("noise.action", &[ActionKnock]),
+        ("shank_", &[Shank]),
         ("noise.damper_", &[DamperLanding]),
         ("noise.pedal", &[PedalKnock]),
         ("noise.knock_time", &[KeybedKnock, PedalKnock]),
@@ -316,7 +319,10 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
         // Hammer: butt, shank, molding, core and top felt facing the string.
         let (cx, rx, ry) = (sx - 14.0, 12.0, 14.0);
         p.circle_filled(at(sx - 44.0, 112.0), 7.0 * k, weak.gamma_multiply(0.6));
-        p.line_segment([at(sx - 42.0, 106.0), at(cx - 16.0, sy + 12.0)], line(3.0, WOOD));
+        p.line_segment([at(sx - 42.0, 106.0), at(cx - 16.0, sy + 12.0)], line(3.0, if lit(Part::Shank) { HIGHLIGHT } else { WOOD }));
+        if lit(Part::Shank) {
+            label(cx - 24.0, sy + 14.0, Align2::RIGHT_CENTER, &shank_text(model), Some(Part::Shank));
+        }
         p.rect_filled(r(cx - 20.0, sy - 12.0, cx - 12.0, sy + 12.0), 1.0, WOOD);
         let (depth, key) = felt_depth(model, path);
         let t = (depth as f32 * 8.0).clamp(1.5, 10.0);
@@ -435,7 +441,10 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
 
         // Hammer: shank from its flange, wooden molding, core, top felt (its
         // depth exaggerated, from the model).
-        p.line_segment([at(STRIKE_X, 80.0), at(255.0, 88.0)], line(3.0, WOOD));
+        p.line_segment([at(STRIKE_X, 80.0), at(255.0, 88.0)], line(3.0, if lit(Part::Shank) { HIGHLIGHT } else { WOOD }));
+        if lit(Part::Shank) {
+            label(STRIKE_X + 20.0, 60.0, Align2::LEFT_CENTER, &shank_text(model), Some(Part::Shank));
+        }
         p.circle_stroke(at(255.0, 88.0), 3.5 * k, line(1.0, weak));
         p.line_segment([at(212.0, 85.0), at(212.0, KEY_Y)], line(2.0, weak));
         // The repetition lever (double escapement) holds the hammer halfway
@@ -1187,6 +1196,15 @@ fn soft_pedal(p: &egui::Painter, at: &dyn Fn(f32, f32) -> Pos2, model: &PianoMod
     }
 }
 
+/// The shank under the head: rigid, or its spring's frequency.
+fn shank_text(model: &PianoModel) -> String {
+    if model.shank_share > 0.0 {
+        format!("Flexible shank, {:.0} Hz", model.shank_freq)
+    } else {
+        "Rigid shank".to_string()
+    }
+}
+
 /// How a key struck again soon after its release sounds.
 fn repetition_text(model: &PianoModel) -> String {
     if model.repetition_time > 0.0 {
@@ -1316,6 +1334,7 @@ mod tests {
             Part::DamperLanding,
             Part::PedalKnock,
             Part::ActionKnock,
+            Part::Shank,
             Part::MuteFelt,
             Part::Repetition,
             Part::Strike,
