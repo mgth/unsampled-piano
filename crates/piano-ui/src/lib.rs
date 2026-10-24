@@ -62,6 +62,11 @@ pub struct PianoUi {
     /// Last listening preset loaded in each listening group (Microphones,
     /// Room…): the groups combine, each shows its own choice.
     listening_names: std::collections::BTreeMap<String, String>,
+    /// The touch chosen (`touch/*.toml`: a velocity law laid over the
+    /// instrument, kept when another instrument loads), and the
+    /// instrument's own law it replaced.
+    touch: Option<(String, PathBuf)>,
+    touch_base: Option<piano_core::params::VelocityLaw>,
     /// Result of the last preset action.
     message: Option<Result<String, String>>,
     /// CPU load shown: the peak over the last second (the status gives the
@@ -105,6 +110,8 @@ impl PianoUi {
             factory: Vec::new(),
             preset_name: String::new(),
             listening_names: Default::default(),
+            touch: None,
+            touch_base: None,
             message: None,
             load: LoadMeter::default(),
             host_page: None,
@@ -136,6 +143,10 @@ impl PianoUi {
     /// menu of the listening group holding a file of that name, else as the
     /// instrument.
     pub fn set_preset_name(&mut self, name: &str) {
+        if let Some(path) = merged(self.preset_roots().iter().map(|r| tomls(&r.join("touch")))).into_iter().find(|f| stem(f) == name) {
+            self.touch = Some((name.into(), path));
+            return;
+        }
         for (group, files) in groups(&self.preset_roots(), "listening", "Listening") {
             if files.iter().any(|f| stem(f) == name) {
                 self.listening_names.insert(group, name.into());
@@ -143,6 +154,38 @@ impl PianoUi {
             }
         }
         self.preset_name = name.into();
+    }
+
+    /// Lays the chosen touch over a model about to load (an instrument, the
+    /// defaults), remembering its own velocity law.
+    fn with_touch(&mut self, m: PianoModel) -> PianoModel {
+        let Some((_, path)) = &self.touch else { return m };
+        self.touch_base = Some(m.velocity);
+        piano_host::load_listening(path, &m).unwrap_or(m)
+    }
+
+    /// Chooses a touch over `model` (None: back to the instrument's own
+    /// velocity law).
+    fn set_touch(&mut self, control: &mut dyn PianoControl, model: &PianoModel, touch: Option<(String, PathBuf)>) -> Result<String, String> {
+        // The instrument's own law, under any touch already laid over it.
+        let mut base = *model;
+        if let (Some(_), Some(v)) = (&self.touch, self.touch_base) {
+            base.velocity = v;
+        }
+        let msg = match &touch {
+            Some((name, path)) => {
+                let m = piano_host::load_listening(path, &base)?;
+                control.load(m);
+                format!("Touch: {name}")
+            }
+            None => {
+                control.load(base);
+                "The instrument's own touch".to_string()
+            }
+        };
+        self.touch_base = touch.as_ref().map(|_| base.velocity);
+        self.touch = touch;
+        Ok(msg)
     }
 
     /// Shows the help of the parameter at `path`, if it exists.
@@ -477,11 +520,14 @@ impl PianoUi {
                             for path in files {
                                 let n = stem(path);
                                 if ui.selectable_label(n == self.preset_name, format!("   {n}")).clicked() {
-                                    self.message = Some(piano_host::load_instrument(path, model).map(|m| {
-                                        control.load(m);
-                                        self.preset_name = n.clone();
-                                        format!("Loaded {}", path.display())
-                                    }));
+                                    self.message = Some(match piano_host::load_instrument(path, model) {
+                                        Ok(m) => {
+                                            control.load(self.with_touch(m));
+                                            self.preset_name = n.clone();
+                                            Ok(format!("Loaded {}", path.display()))
+                                        }
+                                        Err(e) => Err(e),
+                                    });
                                 }
                             }
                         }
@@ -505,6 +551,31 @@ impl PianoUi {
                                 }
                             }
                         });
+                }
+                // Touch: how the velocities become hammer speeds, over any
+                // instrument (e.g. MIDI recorded from pianists).
+                let touches = merged(roots.iter().map(|r| tomls(&r.join("touch"))));
+                if !touches.is_empty() {
+                    let current = self.touch.as_ref().map(|t| t.0.clone());
+                    let mut chosen = None;
+                    egui::ComboBox::from_id_salt("touch")
+                        .selected_text(current.clone().unwrap_or_else(|| "Touch…".into()))
+                        .show_ui(ui, |ui| {
+                            if ui.selectable_label(current.is_none(), "Instrument's own").clicked() {
+                                chosen = Some(None);
+                            }
+                            for path in &touches {
+                                let n = stem(path);
+                                if ui.selectable_label(current.as_deref() == Some(n.as_str()), &n).clicked() {
+                                    chosen = Some(Some((n, path.clone())));
+                                }
+                            }
+                        })
+                        .response
+                        .on_hover_text("How MIDI velocities become hammer speeds, laid over the instrument (kept when another instrument loads)");
+                    if let Some(t) = chosen {
+                        self.message = Some(self.set_touch(control, model, t));
+                    }
                 }
             } else {
                 egui::ComboBox::from_id_salt("preset")
@@ -542,8 +613,9 @@ impl PianoUi {
                 self.message = Some(piano_host::save_preset(model, &path).map(|()| format!("Saved {}", path.display())));
             }
         }
-        if ui.button("Defaults").on_hover_text("Back to the default instrument (the listening set-up stays)").clicked() {
-            control.load(piano_host::with_listening(&PianoModel::default(), model));
+        if ui.button("Defaults").on_hover_text("Back to the default instrument (the listening set-up and the touch stay)").clicked() {
+            let m = self.with_touch(piano_host::with_listening(&PianoModel::default(), model));
+            control.load(m);
             self.preset_name.clear();
             self.message = None;
         }
@@ -654,5 +726,35 @@ mod tests {
         ui.set_preset_name("hall");
         assert_eq!(ui.listening_names.get("Room").map(String::as_str), Some("hall"));
         std::fs::remove_dir_all(&base).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod touch_tests {
+    use super::*;
+    use crate::mock::MockControl;
+
+    #[test]
+    fn a_touch_lies_over_any_instrument() {
+        let dir = std::env::temp_dir().join(format!("piano-ui-touch-{}", std::process::id()));
+        let touch = dir.join("touch").join("fast.toml");
+        std::fs::create_dir_all(touch.parent().unwrap()).unwrap();
+        std::fs::write(&touch, "[velocity]\nvmax = 9.0\n").unwrap();
+        let mut ui = PianoUi::new(Some(dir.clone()));
+        let own = PianoModel::default().velocity;
+        let mut control = MockControl::new(PianoModel::default());
+
+        let m = control.model();
+        ui.set_touch(&mut control, &m, Some(("fast".into(), touch.clone()))).unwrap();
+        assert_eq!(control.model().velocity.vmax, 9.0);
+        // The defaults (or another instrument) load with the touch over them.
+        let again = ui.with_touch(PianoModel::default());
+        assert_eq!((again.velocity.vmax, again.velocity.vmin), (9.0, own.vmin));
+        // Back to the instrument's own law.
+        let m = control.model();
+        ui.set_touch(&mut control, &m, None).unwrap();
+        assert_eq!(control.model().velocity, own);
+        assert_eq!(ui.with_touch(PianoModel::default()).velocity, own);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
