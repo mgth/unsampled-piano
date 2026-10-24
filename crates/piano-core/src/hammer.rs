@@ -72,6 +72,10 @@ struct Lanes {
     pred: [f64; CL],
 }
 
+/// Terms of the residual sums above the kept modes (the felt width's sinc
+/// makes them converge as 1/k²).
+const RESIDUAL_TERMS: u32 = 400;
+
 pub struct ContactSolver {
     lanes: Vec<Lanes>,
     // Per mode, outside the update loop.
@@ -98,6 +102,19 @@ pub struct ContactSolver {
     p: f64,
     alpha: f64,
     lambda: f64,
+    /// Residual (static) correction of the truncated modal string: the
+    /// compliance under the hammer of the modes left out (m/N), and the
+    /// share of the hammer force that reaches the bridge and the agraffe
+    /// quasi-statically through them.
+    c_res: f64,
+    r_bridge: f64,
+    r_agraffe: f64,
+    /// What the residual was computed for (a voice keeps its key: the sums
+    /// are redone only when the instrument changes).
+    residual_key: [f64; 8],
+    /// Contact force at the last two steps (N).
+    f0: f64,
+    f1: f64,
     x0: f64,
     x1: f64,
     w0: f64,
@@ -132,6 +149,12 @@ impl ContactSolver {
             p: 0.0,
             alpha: 0.0,
             lambda: 0.0,
+            c_res: 0.0,
+            r_bridge: 0.0,
+            r_agraffe: 0.0,
+            residual_key: [f64::NAN; 8],
+            f0: 0.0,
+            f1: 0.0,
             x0: 0.0,
             x1: 0.0,
             w0: 0.0,
@@ -210,9 +233,12 @@ impl ContactSolver {
         // allocation: the iterator is walked twice.)
         let modes = modes.into_iter();
         let share: f64 = modes.clone().take_while(|m| m.k == 1).map(|m| m.hit).sum::<f64>().max(1e-9);
+        let shares2: f64 = modes.clone().take_while(|m| m.k == 1).map(|m| (m.hit / share).powi(2)).sum();
+        let mut k_max = 0;
         for m in modes.take(self.ps.len()) {
             let i = n;
             n += 1;
+            k_max = k_max.max(m.k);
             let ln = &mut self.lanes[i / CL];
             let l = i % CL;
             let k = m.k as f64;
@@ -255,6 +281,23 @@ impl ContactSolver {
             }
         }
         self.w_star = update::<false>(&mut self.lanes[..n.div_ceil(CL)], 0.0).3;
+        // The modes kept stop at k_max (a few in the top treble: four at C8
+        // below 20 kHz). For an ideal string pushed at x_h = (1 − β)·L from
+        // the bridge, the static deflection gives the bridge β of the force,
+        // the agraffe 1 − β, and the hammer a compliance β(1 − β)·L/T; the
+        // modal sums converge slowly (as 1/k for the end forces), so a few
+        // modes give the bridge a fraction of its quasi-static push: 15 % at
+        // C8, the knock of the top treble lost. The modes above k_max are
+        // added here as their static response, felt width included.
+        // Each left-out mode k answers statically with q = φ·F/(m·ω_k²).
+        let key = [note.f0, note.b, note.length, note.tension, note.mu, note.strike_pos, note.contact_width, k_max as f64 + shares2 * 1e3];
+        if key != self.residual_key {
+            self.residual_key = key;
+            self.residual(note, k_max, shares2, half_w, modal_mass);
+        }
+        self.f0 = 0.0;
+        self.f1 = 0.0;
+
         let h = note.hammer;
         self.mass = h.mass_kg;
         self.q_si = h.q_si();
@@ -265,7 +308,7 @@ impl ContactSolver {
         self.max_u = 0.0;
         // Passivity must not depend on parameters: hysteresis only dissipates.
         self.alpha = h.alpha.max(0.0);
-        self.lambda = lambda + dt * dt / self.mass;
+        self.lambda = lambda + dt * dt / self.mass + self.c_res;
         // Hammer arrives at the string now, at speed v.
         self.x0 = w0;
         self.x1 = w0 - v * dt;
@@ -277,6 +320,26 @@ impl ContactSolver {
         self.separated = 0;
         self.max_force = 0.0;
         self.contact_samples = 0;
+    }
+
+    /// The residual sums of `strike` (see there), for modes above `k_max`.
+    fn residual(&mut self, note: &NoteParams, k_max: u32, shares2: f64, half_w: f64, modal_mass: f64) {
+        let (mut c_tail, mut b_tail, mut a_tail) = (0.0, 0.0, 0.0);
+        for k in k_max + 1..=k_max + RESIDUAL_TERMS {
+            let kf = k as f64;
+            let x = kf * half_w;
+            let sinc = if x > 1e-9 { x.sin() / x } else { 1.0 };
+            let phi = (kf * std::f64::consts::PI * (1.0 - note.strike_pos)).sin() * sinc;
+            let w = std::f64::consts::TAU * crate::params::partial_freq(note.f0, note.b, k);
+            let q = phi / (modal_mass * w * w);
+            let out_w = note.tension * kf * std::f64::consts::PI / note.length;
+            c_tail += phi * q;
+            b_tail += out_w * q;
+            a_tail += if k % 2 == 0 { -out_w * q } else { out_w * q };
+        }
+        self.c_res = shares2 * c_tail;
+        self.r_bridge = b_tail;
+        self.r_agraffe = a_tail;
     }
 
     /// Number of modes handled by the current episode.
@@ -324,8 +387,9 @@ impl ContactSolver {
         let w_star = self.w_star;
         let x_star = 2.0 * self.x0 - self.x1;
         let u_star = x_star - w_star;
-        let u_now = self.x0 - self.w0;
-        let u_prev = self.x1 - self.w1;
+        // The residual modes deflect with the force at once (no inertia).
+        let u_now = self.x0 - self.w0 - self.c_res * self.f0;
+        let u_prev = self.x1 - self.w1 - self.c_res * self.f1;
 
         // Quadratised felt law and linearised hysteresis at u[n].
         // g = F/√(2V) (= √(Q(p+1)/2)·u^((p−1)/2) for a single power law),
@@ -368,6 +432,8 @@ impl ContactSolver {
         self.x0 = x_next;
         self.w1 = self.w0;
         self.w0 = w_next;
+        self.f1 = self.f0;
+        self.f0 = f;
 
         // Episode end: separated long enough, or too long.
         self.samples += 1;
@@ -381,7 +447,7 @@ impl ContactSolver {
         if self.separated as f64 * dt > RELEASE_AFTER_S || self.samples as f64 * dt > MAX_CONTACT_S {
             self.active = false;
         }
-        (out, out_a)
+        (out + self.r_bridge * f, out_a + self.r_agraffe * f)
     }
 
     /// Discrete energy H[n+½] (twice the physical energy), for checks.
@@ -393,7 +459,11 @@ impl ContactSolver {
             h += (s * (ln.q0[l] * ln.q0[l] + ln.q1[l] * ln.q1[l]) - 2.0 * ln.c[l] * ln.q0[l] * ln.q1[l]) * self.inv_gamma[i];
         }
         let v = self.x0 - self.x1;
-        h + self.mass / (self.dt * self.dt) * v * v + self.psi * self.psi
+        // The residual modes deflect by ρ[n] = c·F[n−1] (the solve lags them
+        // one step): the work F[n]·(ρ[n+1] − ρ[n−1])/2 is the change of
+        // c·(F[n]² + F[n−1]²)/4 plus c·(F[n] − F[n−2])²/4 ≥ 0, dissipated.
+        // Twice that stored energy:
+        h + self.mass / (self.dt * self.dt) * v * v + self.psi * self.psi + self.c_res * (self.f0 * self.f0 + self.f1 * self.f1) / 2.0
     }
 }
 
@@ -480,20 +550,21 @@ mod tests {
         let mut out = [0.0f32; 1];
         s.run(&mut out, None);
         let h0 = s.energy();
-        // Exact while in contact (only the separation guard may then remove
-        // energy, and it never adds any).
+        // Exact while in contact but for the residual modes' one-step lag,
+        // which only dissipates (a few 10⁻⁵ over this contact); the separation guard may then
+        // remove energy, and never adds any.
         let mut prev = h0;
         while s.is_active() {
             s.run(&mut out, None);
             let h = s.energy();
             if s.psi > 0.0 {
-                assert!((h - h0).abs() / h0 < 1e-10, "drift in contact {:e}", (h - h0) / h0);
+                assert!((h - h0).abs() / h0 < 1e-3, "drift in contact {:e}", (h - h0) / h0);
             }
             assert!(h <= prev * (1.0 + 1e-12));
             prev = h;
         }
         assert!(s.contact_time() > 1e-4, "no contact");
-        assert!((prev - h0).abs() / h0 < 1e-4, "guards removed too much: {:e}", (prev - h0) / h0);
+        assert!((prev - h0).abs() / h0 < 1e-3, "guards removed too much: {:e}", (prev - h0) / h0);
     }
 
     #[test]
