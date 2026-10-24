@@ -71,7 +71,16 @@ Results:
 ## Still open
 
 - **Partial 2 of the middle** decays at −11.5 dB/s against −15.6. The mode loss helped it, the edge loss cannot.
-- **The low bass's fundamental in the sustain.** Relative to the strongest partial, the fundamentals of C1–F#1 sit 6–7 dB over the real grands' at 0.3–0.7 s: the plate modes still radiate them below their resonances.
+- **The low bass's fundamental in the sustain.** Relative to the strongest partial, the fundamentals of C1–A#1 sit 4–7 dB over the real grands' at 0.3–0.7 s (+1.5 dB at the attack, six references; noisier ones excluded). Two causes add up:
+  - the plate modes still radiate these fundamentals below their resonances;
+  - the strongest partials (4–6, 130–280 Hz) decay faster than on the real grands (−8 to −9 dB/s against −5.5 to −6.4), so partial 1 gains on them.
+
+  What was tried:
+  - a stronger crown (120 Hz) brings the fundamental in line (−1.1 / +0.8 dB), but it dulls the middle (bench 1.52 → 1.60, 24 measures worse);
+  - the back face (`back_gain`, `back_depth`) moves it 1–2 dB;
+  - lowering the edge loss's corner (150–250 Hz) slows partials 4–6 by under 1 dB/s.
+
+  The real fundamentals stand only 4–20 dB above the recordings' noise at C1: the measure is a bound, not a target.
 
 ## The low bass's fundamental at the attack
 
