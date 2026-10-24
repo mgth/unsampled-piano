@@ -6,9 +6,11 @@
 //! note at a time). Pressing a new fret on a string that rings carries its
 //! motion over to the new length ([`crate::project`]); then the right hand
 //! plucks: ideally (the motion replaced by a triangle), or with a fingertip
-//! in the contact solver (it lands on the string, drags it, lets go). At
-//! note-off the fretting finger lifts: the string goes back to its open
-//! length, damped by the fingertip still touching it behind the fret.
+//! or a plectrum in the contact solver (it lands on the string, drags it,
+//! slips off at the pluck's force). At note-off the fretting finger lifts:
+//! the string goes back to its open length, damped by the fingertip still
+//! touching it behind the fret. The strings' summed output goes through the
+//! output stage ([`crate::output`]): pickups' circuit, piezo, or as it is.
 
 use std::sync::Arc;
 
@@ -16,8 +18,9 @@ use piano_core::complex::C64;
 use piano_core::denormal::DenormalGuard;
 use piano_core::modal::ModalBank;
 
-use crate::contact::{Contact, ContactSolver, Law, Motion};
+use crate::contact::{Contact, ContactSolver, Law, Motion, Release};
 use crate::instrument::Instrument;
+use crate::output::OutputStage;
 use crate::params::PluckModel;
 use crate::project::project;
 use crate::string::{StringTable, PAR, PERP};
@@ -61,6 +64,10 @@ pub struct Engine {
     inst: Arc<Instrument>,
     strings: Vec<StringVoice>,
     max_block: usize,
+    stage: OutputStage,
+    /// Perpendicular bridge force of the block (kept for piezo/acoustic
+    /// mixes to come).
+    force: Vec<f32>,
 }
 
 fn table(inst: &Instrument, s: usize, stop: Stop) -> &StringTable {
@@ -156,7 +163,8 @@ impl Engine {
                 scratch: vec![[C64::ZERO; 2]; np],
             })
             .collect();
-        Self { inst, strings, max_block }
+        let stage = OutputStage::new(&inst.model.output, inst.sample_rate);
+        Self { inst, strings, max_block, stage, force: vec![0.0; max_block] }
     }
 
     pub fn instrument(&self) -> &Arc<Instrument> {
@@ -213,32 +221,44 @@ impl Engine {
         let Some((s, fret)) = self.position_of(note).or_else(|| self.place(note)) else { return };
         let inst = &*self.inst;
         let pl = inst.model.pluck;
-        let h = pl.max_displacement * velocity as f64 / 127.0;
-        let (hp, hq) = (h * pl.angle.cos(), h * pl.angle.sin());
+        let force = pl.max_force * velocity as f64 / 127.0;
+        let (cp, cq) = (pl.angle.cos(), pl.angle.sin());
         let v = &mut self.strings[s];
         v.muted = false;
         v.release_pending = false;
         v.restop(inst, s, Stop::Fret(fret));
         let t = inst.table(s, fret);
-        match pl.model {
+        let x = pl.position.min(0.9 * t.length);
+        // The string's stiffness at the pluck point, T·L/(x(L − x)).
+        let k_string = t.tension * t.length / (x * (t.length - x));
+        let (stiffness, damping, slip_time) = match pl.model {
             PluckModel::Ideal => {
+                let h = force / k_string;
                 for (z, a) in v.zeta.iter_mut().zip(&t.shape) {
-                    *z = [C64::new(a * hp, 0.0), C64::new(a * hq, 0.0)];
+                    *z = [C64::new(a * h * cp, 0.0), C64::new(a * h * cq, 0.0)];
                 }
                 v.write(t);
+                v.held = Some(note);
+                v.sounding = true;
+                return;
             }
-            PluckModel::Finger => {
-                v.read(t);
-                v.solver.begin(t, &v.zeta, 0.0);
-                let drag = ((pl.drag_time * inst.sample_rate) as usize).max(1);
-                let law = Law::Spring { stiffness: pl.finger_stiffness, damping: pl.finger_damping };
-                let x = pl.position.min(0.9 * t.length);
-                for (pol, to) in [(PERP, hp), (PAR, hq)] {
-                    v.solver.add(Contact { x, pol, sign: 1.0, law, motion: Motion::Ramp { to, samples: drag }, duration: Some(drag) });
-                }
-                v.in_contact = true;
-            }
+            PluckModel::Finger => (pl.finger_stiffness, pl.finger_damping, pl.finger_release),
+            PluckModel::Plectrum => (pl.plectrum_stiffness, pl.plectrum_damping, pl.plectrum_release),
+        };
+        v.read(t);
+        v.solver.begin(t, &v.zeta, 0.0);
+        let sr = inst.sample_rate;
+        let drag = ((pl.drag_time * sr) as usize).max(1);
+        let slip = ((slip_time * sr).round() as usize).max(1);
+        // Aim twice as far as the slip needs (string and contact in
+        // series): the force limit is reached about halfway through.
+        let travel = 2.0 * force * (1.0 / k_string + 1.0 / stiffness);
+        let law = Law::Spring { stiffness, damping };
+        let release = Release::Force { limit: force, slip, timeout: drag };
+        for (pol, dir) in [(PERP, cp), (PAR, cq)] {
+            v.solver.add(Contact { x, pol, sign: 1.0, law, motion: Motion::Ramp { to: travel * dir, samples: drag }, release, group: 0 });
         }
+        v.in_contact = true;
         v.held = Some(note);
         v.sounding = true;
     }
@@ -252,12 +272,14 @@ impl Engine {
         }
     }
 
-    /// Writes `out.len()` samples (mono, perpendicular bridge force) into
+    /// Writes `out.len()` samples (mono, the instrument's output) into
     /// `out`. Real-time safe.
     pub fn process(&mut self, out: &mut [f32]) {
         let _ftz = DenormalGuard::new();
         out.fill(0.0);
         for block in out.chunks_mut(self.max_block) {
+            let force = &mut self.force[..block.len()];
+            force.fill(0.0);
             for s in 0..self.strings.len() {
                 let v = &mut self.strings[s];
                 if !v.sounding {
@@ -265,13 +287,13 @@ impl Engine {
                 }
                 let mut done = 0;
                 if v.in_contact {
-                    done = v.solver.run(block);
+                    done = v.solver.run(block, force);
                     if !v.solver.is_active() {
                         v.end_contact(&self.inst, s);
                     }
                 }
                 if done < block.len() {
-                    v.bank.process(None, &mut block[done..]);
+                    v.bank.process2(None, &mut block[done..], &mut force[done..]);
                     v.bank.drop_tail(SILENCE);
                     if !v.in_contact && v.bank.energy() < SILENCE {
                         v.bank.reset();
@@ -279,6 +301,7 @@ impl Engine {
                     }
                 }
             }
+            self.stage.process(block);
         }
     }
 
@@ -437,5 +460,79 @@ mod tests {
         let buf = render(&mut e, 0.3);
         assert!(buf.iter().all(|v| v.is_finite()));
         assert!(rms(&buf[4800..]) > 1e-3);
+    }
+
+    /// Share of the signal's power in its first difference, a brightness
+    /// proxy (≈ (2πf/fs)² for a sine).
+    fn brightness(x: &[f32]) -> f64 {
+        let d: f64 = x.windows(2).map(|w| ((w[1] - w[0]) as f64).powi(2)).sum();
+        d / x.iter().map(|&v| (v as f64).powi(2)).sum::<f64>()
+    }
+
+    fn presets() -> [(&'static str, GuitarModel); 3] {
+        [("acoustic", GuitarModel::steel_acoustic()), ("electric", GuitarModel::electric_solid()), ("bass", GuitarModel::electric_bass())]
+    }
+
+    #[test]
+    fn presets_are_in_tune_and_stiff_as_measured() {
+        use crate::string::midi_hz;
+        for (name, m) in presets() {
+            let inst = Instrument::new(m, SR);
+            for (i, s) in inst.model.strings.iter().enumerate() {
+                let t = inst.table(i, 0);
+                assert!((t.f0 / midi_hz(s.open_note as f64) - 1.0).abs() < 1e-9, "{name} string {i}");
+                // Guitars 1e-5 … 2e-4, basses up to ≈ 1e-3.
+                assert!((5e-6..1.5e-3).contains(&t.b), "{name} string {i}: B = {:e}", t.b);
+            }
+        }
+    }
+
+    #[test]
+    fn electric_outputs_sound_at_instrument_level_and_sustain() {
+        for (name, m) in presets() {
+            let low = m.strings[0].open_note;
+            let mut e = engine_with(m);
+            e.handle(Event::NoteOn { note: low, velocity: 100 });
+            let first = render(&mut e, 0.2);
+            render(&mut e, 1.8);
+            let later = render(&mut e, 0.2);
+            assert!(first.iter().chain(&later).all(|v| v.is_finite()), "{name}");
+            let peak = first.iter().fold(0.0f32, |a, v| a.max(v.abs()));
+            assert!((0.01..2.0).contains(&peak), "{name}: peak {peak}");
+            let drop = 20.0 * (rms(&first[4800..]) / rms(&later)).log10();
+            // A solid body sustains: well under the acoustic's loss.
+            if name != "acoustic" {
+                assert!(drop < 20.0, "{name}: {drop} dB lost in 2 s");
+            }
+        }
+    }
+
+    #[test]
+    fn plectrum_is_brighter_than_finger() {
+        let b = |model| {
+            let mut m = GuitarModel::default();
+            m.pluck.model = model;
+            let mut e = engine_with(m);
+            e.handle(Event::NoteOn { note: 52, velocity: 100 });
+            brightness(&render(&mut e, 0.15)[2400..])
+        };
+        let (finger, plectrum) = (b(PluckModel::Finger), b(PluckModel::Plectrum));
+        assert!(plectrum > 1.3 * finger, "plectrum {plectrum} vs finger {finger}");
+    }
+
+    #[test]
+    fn bridge_pickup_is_brighter_than_neck_pickup() {
+        use crate::params::Output;
+        let b = |pickup| {
+            let mut m = GuitarModel::electric_solid();
+            if let Output::Magnetic(o) = &mut m.output {
+                o.selected = vec![pickup];
+            }
+            let mut e = engine_with(m);
+            e.handle(Event::NoteOn { note: 45, velocity: 100 });
+            brightness(&render(&mut e, 0.3)[2400..])
+        };
+        let (bridge, neck) = (b(0), b(2));
+        assert!(bridge > 1.5 * neck, "bridge {bridge} vs neck {neck}");
     }
 }

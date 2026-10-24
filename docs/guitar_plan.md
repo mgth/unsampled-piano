@@ -109,6 +109,18 @@ Everything that follows needs this foundation.
 
 ## G2 — Right-hand excitations
 
+**Basics done** (`PluckModel::Finger`, `PluckModel::Plectrum`):
+- The finger or plectrum is a spring–dashpot dragging the string in the
+  pluck's direction. It slips off once the force on the string reaches the
+  pluck force (∝ velocity, placeholder law); its grip then fades out over
+  the slip time.
+- The slip time is what separates them: flesh ≈ 0.5 ms, plectrum
+  ≈ 0.05 ms, so the plectrum comes out brighter (tested). The released
+  displacement is F/k with k = T·L/(x₀(L − x₀)) (tested).
+- Stiffnesses and slip times are orders of magnitude, to be measured.
+  Friction and the tip's geometry (nail, plectrum edge) remain to do.
+
+
 All of them use the G1 contact solver with different contact laws.
 
 - **Finger, nail, plectrum**: a mass–spring–dashpot that drags the string
@@ -160,6 +172,37 @@ All of them use the G1 contact solver with different contact laws.
   the model to share.
 
 ## G5 — Electric outputs
+
+**First part done** (`Output`, `output.rs`, presets `electric_solid` and
+`electric_bass`):
+- Magnetic pickups give an EMF proportional to the string's velocity toward
+  the poles, over each coil's window (aperture sinc).
+  - A humbucker is its two coils in series.
+  - Pickups switched in parallel average (taken as identical).
+  - The bank outputs this EMF directly: velocity weights (−σ + iω) per
+    mode, and the same from the contact solver's state.
+- The passive circuit is solved exactly as a 1st-over-4th-order rational
+  transfer, discretised by the bilinear transform prewarped at the coil
+  resonance. It covers the coil (L, R, C), volume and tone pots (audio
+  taper), tone capacitor, cable and input. Tests check the resonance (LC),
+  humbucker lower than single coil, the tone and volume knobs, and the
+  peak kept after discretisation.
+- Piezo: the perpendicular bridge force (V/N) through a first-order
+  high-pass.
+- Presets: solid-body electric (3 single coils, plectrum) and 4-string bass
+  (2 single coils, fingers), with small solid-body admittances (long
+  sustain, tested).
+- `output_gain` maps volts to digital full scale.
+
+Remaining in G5:
+- the flux nonlinearity;
+- different pickups in parallel (exact Thévenin) and per-pickup volumes
+  (Jazz bass);
+- parallel-polarisation pickup sensitivity;
+- live knobs (they are fixed at build time today);
+- active bass preamps;
+- the neck modes (dead spots).
+
 
 The magnetic pickup reads the string almost directly, so this is also the
 best test bench for G1–G4.

@@ -70,8 +70,22 @@ pub struct Contact {
     pub sign: f64,
     pub law: Law,
     pub motion: Motion,
-    /// Removed after this many samples from its start (an instant release).
-    pub duration: Option<usize>,
+    pub release: Release,
+    /// Contacts released together (the two directions of one fingertip):
+    /// a force limit applies to the magnitude of their summed forces.
+    pub group: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Release {
+    /// Stays until the episode is ended from outside.
+    Never,
+    /// Removed at once after this many samples from its start.
+    After(usize),
+    /// Slips off once the group's force reaches `limit` (N), or `timeout`
+    /// samples after its start: its stiffness and damping fade out over
+    /// `slip` samples (raised cosine), then it is removed.
+    Force { limit: f64, slip: usize, timeout: usize },
 }
 
 #[derive(Clone, Copy)]
@@ -84,6 +98,29 @@ struct Slot {
     u0: f64,
     u1: f64,
     psi: f64,
+    /// Sample the slip began at.
+    fade: Option<usize>,
+}
+
+impl Slot {
+    /// Remaining share of the contact's stiffness at sample `t`.
+    fn grip(&self, t: usize) -> f64 {
+        match (self.fade, self.c.release) {
+            (Some(f), Release::Force { slip, .. }) => {
+                let x = (t.saturating_sub(f) as f64 / slip.max(1) as f64).min(1.0);
+                (1.0 + (std::f64::consts::PI * x).cos()) / 2.0
+            }
+            _ => 1.0,
+        }
+    }
+
+    fn done(&self, t: usize) -> bool {
+        match self.c.release {
+            Release::Never => false,
+            Release::After(n) => t >= self.start + n,
+            Release::Force { slip, .. } => self.fade.is_some_and(|f| t >= f + slip.max(1)),
+        }
+    }
 }
 
 pub struct ContactSolver {
@@ -99,9 +136,13 @@ pub struct ContactSolver {
     q0: Vec<f64>,
     q1: Vec<f64>,
     pred: Vec<f64>,
+    // Output weights: primary on q[n] and q[n−1] (a velocity needs both),
+    // perpendicular bridge force on q[n].
+    wa: Vec<f64>,
+    wb: Vec<f64>,
     // Per partial.
     k: Vec<f64>,
-    out_w: Vec<f64>,
+    force: Vec<f64>,
     shapes: Vec<f64>,
     slots: [Option<Slot>; MAX_CONTACTS],
     g: [[f64; MAX_CONTACTS]; MAX_CONTACTS],
@@ -153,8 +194,10 @@ impl ContactSolver {
             q0: vec![0.0; m],
             q1: vec![0.0; m],
             pred: vec![0.0; m],
+            wa: vec![0.0; m],
+            wb: vec![0.0; m],
             k: vec![0.0; max_partials],
-            out_w: vec![0.0; max_partials],
+            force: vec![0.0; max_partials],
             shapes: vec![0.0; MAX_CONTACTS * max_partials],
             slots: [None; MAX_CONTACTS],
             g: [[0.0; MAX_CONTACTS]; MAX_CONTACTS],
@@ -172,7 +215,7 @@ impl ContactSolver {
         self.np = table.len().min(self.max_p);
         for (n, p) in table.partials.iter().enumerate().take(self.np) {
             self.k[n] = p.k;
-            self.out_w[n] = table.out_w[n];
+            self.force[n] = table.force[n];
             for pol in 0..2 {
                 let i = pol * self.max_p + n;
                 let (omega, sigma) = p.polar[pol];
@@ -182,6 +225,14 @@ impl ContactSolver {
                 self.ps[i] = r * sn;
                 self.e[i] = r * r;
                 self.gamma[i] = dt * r * sn / (table.modal_mass * omega);
+                // ẏ = Re((−σ + iω)·ζ), ζ = q[n] + i·(e·q[n−1] − c·q[n])/ps.
+                let w = table.win[n][pol];
+                (self.wa[i], self.wb[i]) = if table.velocity_out {
+                    let sg = sigma + damping * p.damp_w;
+                    (w * (-sg + omega * self.c[i] / self.ps[i]), -w * omega * self.e[i] / self.ps[i])
+                } else {
+                    (w, 0.0)
+                };
                 let z = zeta[n][pol];
                 self.q0[i] = z.re;
                 self.q1[i] = (z / C64::new(r * cs, r * sn)).re;
@@ -224,7 +275,7 @@ impl ContactSolver {
             Law::Unilateral { stiffness, exponent, .. } if u0 > 0.0 => (2.0 * stiffness / (exponent + 1.0) * u0.powf(exponent + 1.0)).sqrt(),
             _ => 0.0,
         };
-        self.slots[slot] = Some(Slot { c, start: self.samples, from, u0, u1: c.sign * (y1 - from), psi });
+        self.slots[slot] = Some(Slot { c, start: self.samples, from, u0, u1: c.sign * (y1 - from), psi, fade: None });
         self.rebuild_g();
         self.active = true;
         true
@@ -262,20 +313,23 @@ impl ContactSolver {
         C64::new(a, (self.e[i] * self.q1[i] - a * self.c[i]) / self.ps[i])
     }
 
-    /// Advances up to `out.len()` samples, *adding* the perpendicular bridge
-    /// force to `out`. Returns the samples rendered: fewer than requested
-    /// when the last contact goes, after which the state is handed back.
-    pub fn run(&mut self, out: &mut [f32]) -> usize {
-        for (i, o) in out.iter_mut().enumerate() {
+    /// Advances up to `out.len()` samples, *adding* the instrument's output
+    /// to `out` and the perpendicular bridge force to `force`. Returns the
+    /// samples rendered: fewer than requested when the last contact goes,
+    /// after which the state is handed back.
+    pub fn run(&mut self, out: &mut [f32], force: &mut [f32]) -> usize {
+        for (i, (o, f)) in out.iter_mut().zip(force.iter_mut()).enumerate() {
             if !self.active {
                 return i;
             }
-            *o += self.step() as f32;
+            let (a, b) = self.step();
+            *o += a as f32;
+            *f += b as f32;
         }
         out.len()
     }
 
-    fn step(&mut self) -> f64 {
+    fn step(&mut self) -> (f64, f64) {
         let (mp, np) = (self.max_p, self.np);
         for pol in 0..2 {
             for i in pol * mp..pol * mp + np {
@@ -291,10 +345,15 @@ impl ContactSolver {
             let Some(s) = self.slots[slot] else { continue };
             idx[m] = slot;
             u_star[m] = s.c.sign * (self.y(&self.pred, slot, s.c.pol) - Self::target(&s, t1));
+            let grip = s.grip(t1);
             (a[m], d[m], gq[m]) = match s.c.law {
-                Law::Spring { stiffness, damping } => (stiffness * s.u1, stiffness / 2.0 + damping / (2.0 * self.dt), 0.0),
+                Law::Spring { stiffness, damping } => {
+                    let (k, r) = (grip * stiffness, grip * damping);
+                    (k * s.u1, k / 2.0 + r / (2.0 * self.dt), 0.0)
+                }
                 Law::Unilateral { stiffness, exponent, damping } => {
-                    if s.u0 > 0.0 {
+                    let (stiffness, damping) = (grip * stiffness, grip * damping);
+                    if s.u0 > 0.0 && stiffness > 0.0 {
                         let v = stiffness / (exponent + 1.0) * s.u0.powf(exponent + 1.0);
                         let g = stiffness * s.u0.powf(exponent) / (2.0 * v).sqrt();
                         (g * s.psi, g * g / 4.0 + damping / (2.0 * self.dt), g)
@@ -369,19 +428,54 @@ impl ContactSolver {
             }
         }
         self.samples += 1;
+        // Slips: a group's force reaching its limit (or its timeout).
+        let mut group_f2 = [0.0f64; 256];
+        for i in 0..m {
+            group_f2[self.slots[idx[i]].unwrap().c.group as usize] += lam[i] * lam[i];
+        }
+        let t = self.samples;
+        let mut slip = [false; 256];
+        for s in self.slots.iter().flatten() {
+            if let Release::Force { limit, timeout, .. } = s.c.release
+                && s.fade.is_none()
+                && (group_f2[s.c.group as usize] >= limit * limit || t >= s.start + timeout)
+            {
+                slip[s.c.group as usize] = true;
+            }
+        }
         let mut gone = false;
         for s in &mut self.slots {
-            if s.is_some_and(|s| s.c.duration.is_some_and(|d| self.samples >= s.start + d)) {
-                *s = None;
-                gone = true;
+            if let Some(sl) = s {
+                if sl.fade.is_none() && slip[sl.c.group as usize] && matches!(sl.c.release, Release::Force { .. }) {
+                    sl.fade = Some(t);
+                }
+                if sl.done(t) {
+                    *s = None;
+                    gone = true;
+                }
             }
         }
         if gone {
             self.rebuild_g();
             self.active = self.slots.iter().any(|s| s.is_some());
         }
+        let mut out = 0.0;
+        for i in 0..mp + np {
+            out += self.wa[i] * self.q0[i] + self.wb[i] * self.q1[i];
+        }
         let base = PERP * mp;
-        self.out_w[..np].iter().zip(&self.q0[base..base + np]).map(|(w, q)| w * q).sum()
+        let force = self.force[..np].iter().zip(&self.q0[base..base + np]).map(|(w, q)| w * q).sum();
+        (out, force)
+    }
+
+    /// Whether the contacts of `group` have begun to slip off.
+    pub fn slipping(&self, group: u8) -> bool {
+        self.slots.iter().flatten().any(|s| s.c.group == group && s.fade.is_some())
+    }
+
+    /// Displacement of the string at `x` in polarisation `pol` now (m).
+    pub fn displacement(&self, x: f64, pol: usize) -> f64 {
+        (0..self.np).map(|n| (self.k[n] * x).sin() * self.q0[pol * self.max_p + n]).sum()
     }
 
     /// Discrete energy H[n+½] of the strings and contacts (twice the
@@ -428,9 +522,9 @@ mod tests {
         let drag = (0.3 * SR) as usize;
         let x0 = m.pluck.position;
         let law = Law::Spring { stiffness: 1e5, damping: 2.0 };
-        sol.add(Contact { x: x0, pol: PERP, sign: 1.0, law, motion: Motion::Ramp { to: 2e-3, samples: drag }, duration: Some(drag) });
+        sol.add(Contact { x: x0, pol: PERP, sign: 1.0, law, motion: Motion::Ramp { to: 2e-3, samples: drag }, release: Release::After(drag), group: 0 });
         let mut out = vec![0.0f32; drag + 10];
-        let done = sol.run(&mut out);
+        let done = sol.run(&mut out, &mut vec![0.0f32; drag + 10]);
         assert_eq!(done, drag);
         // The string where the finger let go: a triangle, its height read
         // on the fundamental (the truncated series under-reads the corner
@@ -456,7 +550,7 @@ mod tests {
         sol.begin(&t, &zeta, 0.0);
         let law = Law::Unilateral { stiffness: 1e9, exponent: 1.5, damping: 0.0 };
         let below = -0.3e-3;
-        sol.add(Contact { x: 0.325, pol: PERP, sign: -1.0, law, motion: Motion::Fixed(below), duration: None });
+        sol.add(Contact { x: 0.325, pol: PERP, sign: -1.0, law, motion: Motion::Fixed(below), release: Release::Never, group: 0 });
         let mut h_prev = sol.energy();
         let mut deepest: f64 = 0.0;
         for _ in 0..(0.2 * SR) as usize {
@@ -479,15 +573,42 @@ mod tests {
         sol.begin(&t, &vec![[C64::ZERO; 2]; t.len()], 0.0);
         let law = Law::Spring { stiffness: 5e3, damping: 5.0 };
         for (pol, to) in [(PERP, 1e-3), (PAR, -2e-3)] {
-            sol.add(Contact { x: 0.12, pol, sign: 1.0, law, motion: Motion::Ramp { to, samples: 960 }, duration: Some(960) });
+            sol.add(Contact { x: 0.12, pol, sign: 1.0, law, motion: Motion::Ramp { to, samples: 960 }, release: Release::After(960), group: 0 });
         }
         // A third one, held: a fingertip resting lightly near the 12th fret.
-        sol.add(Contact { x: 0.33, pol: PERP, sign: 1.0, law: Law::Spring { stiffness: 50.0, damping: 1.0 }, motion: Motion::Fixed(0.0), duration: None });
+        sol.add(Contact { x: 0.33, pol: PERP, sign: 1.0, law: Law::Spring { stiffness: 50.0, damping: 1.0 }, motion: Motion::Fixed(0.0), release: Release::Never, group: 1 });
         let mut out = vec![0.0f32; 960];
-        assert_eq!(sol.run(&mut out), 960);
+        assert_eq!(sol.run(&mut out, &mut vec![0.0f32; 960]), 960);
         assert!(out.iter().all(|v| v.is_finite()));
         let y = |pol| -> f64 { t.partials.iter().enumerate().map(|(n, p)| (p.k * 0.12).sin() * sol.complex_state(pol, n).re).sum() };
         assert!(y(PERP) > 0.3e-3 && y(PAR) < -0.6e-3, "{} {}", y(PERP), y(PAR));
         assert!(sol.is_active());
+    }
+
+    #[test]
+    fn finger_slips_off_at_its_force_and_fades_out() {
+        let m = GuitarModel::default();
+        let t = open(&m, 5);
+        let mut sol = ContactSolver::new(t.len(), SR);
+        sol.begin(&t, &vec![[C64::ZERO; 2]; t.len()], 0.0);
+        let (x0, limit) = (m.pluck.position, 2.0);
+        let k_string = t.tension * t.length / (x0 * (t.length - x0));
+        let law = Law::Spring { stiffness: 5e3, damping: 5.0 };
+        let release = Release::Force { limit, slip: 24, timeout: 4800 };
+        sol.add(Contact { x: x0, pol: PERP, sign: 1.0, law, motion: Motion::Ramp { to: 0.01, samples: 2400 }, release, group: 3 });
+        let mut at_slip = None;
+        let mut n = 0;
+        while sol.is_active() && n < 4800 {
+            sol.step();
+            n += 1;
+            if at_slip.is_none() && sol.slipping(3) {
+                at_slip = Some((n, sol.displacement(x0, PERP)));
+            }
+        }
+        let (slip_at, y) = at_slip.expect("never slipped");
+        assert!(!sol.is_active() && n == slip_at + 24, "removed {} samples after the slip began", n - slip_at);
+        // Released where the string pushes back with the limit force.
+        let expect = limit / k_string;
+        assert!((y / expect - 1.0).abs() < 0.05, "released at {y} m, expected {expect}");
     }
 }
