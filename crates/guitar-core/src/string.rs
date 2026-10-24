@@ -1,25 +1,42 @@
-//! Modes of one string stopped at a given length, on a rigid bridge.
+//! Modes of one string stopped at a given length, in its two polarisations,
+//! on the bridge's admittance.
 //!
-//! - Frequencies: stiff string, f_n = n·f₀·√(1 + B·n²) with
+//! - Frequencies: stiff string, ω_n = 2π·n·f₀·√(1 + B·n²) with
 //!   B = π³·E·d⁴/(64·T·L²) (Fletcher 1964), d the core diameter.
-//! - Losses (Valette & Cuesta 1993): loss factor η_n = air + viscoelastic +
-//!   internal + bridge, σ_n = η_n·ω_n/2. Air: R/(μω) with
+//! - The string's own losses (Valette & Cuesta 1993): loss factor
+//!   η_n = air + viscoelastic + internal, σ_n = η_n·ω_n/2. Air: R/(μω) with
 //!   R = 2πη_a + 2πd·√(πη_a·ρ_a·f) per unit length (viscous drag on a
 //!   cylinder). Viscoelastic: δ_ve times the bending share of the mode's
-//!   energy, B·n²/(1 + B·n²). The bridge term is a constant until the body
-//!   gives the real admittance.
+//!   energy, B·n²/(1 + B·n²).
+//! - Bridge: an end of admittance Y (2×2 over the polarisations, Y = v/F)
+//!   reflects with 1 − 2Z₀Y, which shifts each partial's complex frequency
+//!   by i·Z₀·Y·ω_n/(nπ) (Z₀ = √(Tμ); weak coupling, Gough 1981). The 2×2
+//!   eigenproblem per partial gives two modes, each a mix of both
+//!   polarisations: the decay rate is Z₀·Re Y·ω_n/(nπ), and a cross term
+//!   trades energy between the directions (two-stage decay, beats).
+//!   Passive whenever Re Y is positive semi-definite: then every eigenvalue
+//!   of Y has Re ≥ 0, so no mode grows.
 //! - Pluck: the string held in a triangle of height h at x₀ from the bridge
 //!   and released from rest, y(x, t) = Σ a_n·sin(nπx/L)·e^{−σt}·cos(ω_n t),
 //!   a_n = 2hL²·sin(nπx₀/L)/(n²π²·x₀(L − x₀)), the corner rounded over the
 //!   contact width w by sinc(nπw/2L).
-//! - Output: the transverse force on the bridge, F = T·∂y/∂x at x = 0,
-//!   weight T·nπ/L per mode.
-//! - Mute: a dashpot R at distance d from the far end adds
-//!   R·sin²(nπd/L)/(μL) to σ_n (modal mass μL/2), the bank's damper weight.
+//! - Outputs: the force on the bridge in each direction, F = T·∂y/∂x at
+//!   x = 0, weight T·nπ/L per partial.
+//! - Mute: a dashpot R spread over a fingertip of width w centred at x_m
+//!   adds R·⟨sin²(nπx/L)⟩/(μL) to σ_n (modal mass μL/2), the bank's damper
+//!   weight.
+//!
+//! State conventions: ζ (one per partial and polarisation) is the complex
+//! amplitude of the uncoupled mode, displacement q = Re ζ, ζ ∝ e^{iωt}; the
+//! bank runs the coupled amplitudes z = E⁻¹·ζ (index 2n + k).
 
+use piano_core::complex::C64;
 use piano_core::modal::{ModeSpec, ModeTable};
 
-use crate::params::{GuitarModel, StringParams};
+use crate::params::{Admittance, GuitarModel, StringParams};
+
+pub const PERP: usize = 0;
+pub const PAR: usize = 1;
 
 const AIR_VISCOSITY: f64 = 1.8e-5;
 const AIR_DENSITY: f64 = 1.2;
@@ -39,73 +56,194 @@ pub fn inharmonicity(s: &StringParams, length: f64) -> f64 {
     std::f64::consts::PI.powi(3) * s.young * s.core_diameter.powi(4) / (64.0 * s.tension * length * length)
 }
 
-/// Loss factor of a mode at frequency `f` with bending share `bend`.
-fn loss_factor(s: &StringParams, mu: f64, f: f64, bend: f64, eta_bridge: f64) -> f64 {
-    use std::f64::consts::PI;
-    let r = 2.0 * PI * AIR_VISCOSITY + 2.0 * PI * s.diameter * (PI * AIR_VISCOSITY * AIR_DENSITY * f).sqrt();
-    r / (mu * 2.0 * PI * f) + s.delta_ve * bend + s.eta_int + eta_bridge
+/// Vibrating length at a fret (equal temperament, no compensation).
+pub fn fret_length(scale_length: f64, fret: u8) -> f64 {
+    scale_length * 2f64.powf(-(fret as f64) / 12.0)
 }
 
-/// One string at one fret, ready for [`piano_core::modal::ModalBank::load`].
+/// Loss factor of the string itself at frequency `f` with bending share `bend`.
+fn loss_factor(s: &StringParams, mu: f64, f: f64, bend: f64) -> f64 {
+    use std::f64::consts::PI;
+    let r = 2.0 * PI * AIR_VISCOSITY + 2.0 * PI * s.diameter * (PI * AIR_VISCOSITY * AIR_DENSITY * f).sqrt();
+    r / (mu * 2.0 * PI * f) + s.delta_ve * bend + s.eta_int
+}
+
+fn admittance(a: &Admittance, f: f64) -> C64 {
+    C64::new(a.conductance + a.conductance_per_khz * f / 1000.0, a.susceptance)
+}
+
+/// One partial in both polarisations.
+#[derive(Clone, Copy, Debug)]
+pub struct Partial {
+    /// Wavenumber nπ/L (mode shape sin(kx), x from the bridge).
+    pub k: f64,
+    /// On rigid supports (rad/s), and the string's own decay rate (1/s).
+    pub omega: f64,
+    pub sigma: f64,
+    /// Extra decay rate when muted (bank damper scale 1).
+    pub damp_w: f64,
+    /// Each polarisation on its own admittance, the cross term left out:
+    /// (ω, σ). What the contact solver runs.
+    pub polar: [(f64, f64); 2],
+    /// Coupled modes: complex frequency shifts, E[p][k] (polarisation p of
+    /// mode k) and E⁻¹.
+    pub shift: [C64; 2],
+    pub e: [[C64; 2]; 2],
+    pub e_inv: [[C64; 2]; 2],
+}
+
+impl Partial {
+    /// ζ (per polarisation) of coupled amplitudes `z`.
+    pub fn polar_of(&self, z: [C64; 2]) -> [C64; 2] {
+        let e = &self.e;
+        [e[0][0] * z[0] + e[0][1] * z[1], e[1][0] * z[0] + e[1][1] * z[1]]
+    }
+
+    /// Coupled amplitudes of ζ.
+    pub fn coupled_of(&self, zeta: [C64; 2]) -> [C64; 2] {
+        let e = &self.e_inv;
+        [e[0][0] * zeta[0] + e[0][1] * zeta[1], e[1][0] * zeta[0] + e[1][1] * zeta[1]]
+    }
+}
+
+/// Eigenvalues and eigenvectors (columns of E) of a 2×2 complex matrix, and
+/// E⁻¹. Diagonal, or too close to a defective matrix: the identity.
+fn eig2(m: [[C64; 2]; 2]) -> ([C64; 2], [[C64; 2]; 2], [[C64; 2]; 2]) {
+    let id = [[C64::ONE, C64::ZERO], [C64::ZERO, C64::ONE]];
+    let diag = ([m[0][0], m[1][1]], id, id);
+    let size = m[0][0].norm() + m[1][1].norm() + m[0][1].norm() + m[1][0].norm();
+    if m[0][1].norm() <= 1e-12 * size && m[1][0].norm() <= 1e-12 * size {
+        return diag;
+    }
+    let half = (m[0][0] - m[1][1]).scale(0.5);
+    let s = (half * half + m[0][1] * m[1][0]).sqrt();
+    let mean = (m[0][0] + m[1][1]).scale(0.5);
+    let lam = [mean + s, mean - s];
+    let vec = |l: C64| {
+        let v = if m[0][1].norm() >= m[1][0].norm() { (m[0][1], l - m[0][0]) } else { (l - m[1][1], m[1][0]) };
+        let n = (v.0.norm_sqr() + v.1.norm_sqr()).sqrt();
+        (v.0.scale(1.0 / n), v.1.scale(1.0 / n))
+    };
+    let (v0, v1) = (vec(lam[0]), vec(lam[1]));
+    let e = [[v0.0, v1.0], [v0.1, v1.1]];
+    let det = e[0][0] * e[1][1] - e[0][1] * e[1][0];
+    if det.norm() < 1e-9 {
+        return diag;
+    }
+    let inv = [[e[1][1] / det, -e[0][1] / det], [-e[1][0] / det, e[0][0] / det]];
+    (lam, e, inv)
+}
+
+/// One string at one length, ready for [`piano_core::modal::ModalBank::load`].
 pub struct StringTable {
+    /// Two coupled modes per partial, index 2n + k.
     pub modes: ModeTable,
-    /// Initial state of each mode per metre of pluck displacement.
+    pub partials: Vec<Partial>,
+    /// Ideal pluck: ζ of each partial per metre of displacement.
     pub shape: Vec<f64>,
     pub f0: f64,
     pub b: f64,
     pub length: f64,
+    pub tension: f64,
+    /// Modal mass μL/2 (kg).
+    pub modal_mass: f64,
+    /// Output weight per metre of perpendicular displacement of each
+    /// partial (bridge force times the output gain).
+    pub out_w: Vec<f64>,
 }
 
 impl StringTable {
-    pub fn new(model: &GuitarModel, string: usize, fret: u8, sample_rate: f64) -> Self {
+    /// `string` stopped at `length`, muted (damper scale 1) by a fingertip
+    /// centred `mute_at` from the bridge.
+    pub fn new(model: &GuitarModel, string: usize, length: f64, mute_at: f64, sample_rate: f64) -> Self {
         use std::f64::consts::PI;
         let s = &model.strings[string];
         let mu = linear_density(s, model.scale_length);
-        let length = model.scale_length * 2f64.powf(-(fret as f64) / 12.0);
+        let z0 = (s.tension * mu).sqrt();
         let f0 = (s.tension / mu).sqrt() / (2.0 * length);
         let b = inharmonicity(s, length);
         let f_max = model.max_freq.min(0.45 * sample_rate);
         // Plucking beyond the fret is impossible; keep the corner on the string.
         let x0 = model.pluck.position.min(0.9 * length);
-        let (d, r) = (model.mute.distance, model.mute.resistance);
+        let (mw, r) = (model.mute.width.max(1e-6), model.mute.resistance);
+        let sup = &model.support;
+        let gain = s.tension * model.output_gain;
         let mut specs = Vec::new();
+        let mut partials = Vec::new();
         let mut shape = Vec::new();
+        let mut out_w = Vec::new();
         for n in 1.. {
             let nf = n as f64;
             let f = nf * f0 * (1.0 + b * nf * nf).sqrt();
             if f > f_max {
                 break;
             }
+            let omega = 2.0 * PI * f;
             let bend = b * nf * nf / (1.0 + b * nf * nf);
-            let sigma = loss_factor(s, mu, f, bend, model.eta_bridge) * PI * f;
+            let sigma = loss_factor(s, mu, f, bend) * PI * f;
             let k = nf * PI / length;
             let rounding = sinc(k * model.pluck.width / 2.0);
             shape.push(2.0 * length * length * (k * x0).sin() / (nf * nf * PI * PI * x0 * (length - x0)) * rounding);
-            specs.push(ModeSpec {
-                freq_hz: f,
-                sigma,
-                out_re: s.tension * k * model.output_gain,
-                damp_w: r * (k * d).sin().powi(2) / (mu * length),
-                ..Default::default()
-            });
+            // ⟨sin²(kx)⟩ over the fingertip.
+            let mean_sin2 = 0.5 - (2.0 * k * mute_at).cos() * sinc(k * mw) / 2.0;
+            let damp_w = r * mean_sin2 / (mu * length);
+            let scale = C64::new(0.0, omega / (nf * PI) * z0);
+            let y = [
+                [admittance(&sup.perpendicular, f), admittance(&sup.cross, f)],
+                [admittance(&sup.cross, f), admittance(&sup.parallel, f)],
+            ];
+            let m = [[scale * y[0][0], scale * y[0][1]], [scale * y[1][0], scale * y[1][1]]];
+            let (shift, e, e_inv) = eig2(m);
+            let polar = [(omega + m[0][0].re, sigma + m[0][0].im), (omega + m[1][1].re, sigma + m[1][1].im)];
+            partials.push(Partial { k, omega, sigma, damp_w, polar, shift, e, e_inv });
+            out_w.push(gain * k);
+            for kk in 0..2 {
+                let (w, w2) = (e[PERP][kk].scale(gain * k), e[PAR][kk].scale(gain * k));
+                specs.push(ModeSpec {
+                    freq_hz: (omega + shift[kk].re) / (2.0 * PI),
+                    sigma: sigma + shift[kk].im,
+                    out_re: w.re,
+                    out_im: w.im,
+                    out2_re: w2.re,
+                    out2_im: w2.im,
+                    damp_w,
+                    ..Default::default()
+                });
+            }
         }
-        Self { modes: ModeTable::new(sample_rate, &specs), shape, f0, b, length }
+        Self { modes: ModeTable::new(sample_rate, &specs), partials, shape, f0, b, length, tension: s.tension, modal_mass: mu * length / 2.0, out_w }
+    }
+
+    pub fn len(&self) -> usize {
+        self.partials.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.partials.is_empty()
     }
 }
 
-fn sinc(x: f64) -> f64 {
+pub fn sinc(x: f64) -> f64 {
     if x.abs() < 1e-9 { 1.0 } else { x.sin() / x }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::params::SupportParams;
+
+    const SR: f64 = 48_000.0;
+
+    fn table(m: &GuitarModel, s: usize, fret: u8) -> StringTable {
+        let l = fret_length(m.scale_length, fret);
+        StringTable::new(m, s, l, l - m.mute.distance, SR)
+    }
 
     #[test]
     fn open_strings_in_tune() {
         let m = GuitarModel::default();
         for (i, s) in m.strings.iter().enumerate() {
-            let t = StringTable::new(&m, i, 0, 48_000.0);
+            let t = table(&m, i, 0);
             let cents = 1200.0 * (t.f0 / midi_hz(s.open_note as f64)).log2();
             assert!(cents.abs() < 1e-6, "string {i}: {cents} cents");
         }
@@ -114,8 +252,8 @@ mod tests {
     #[test]
     fn twelfth_fret_is_the_octave() {
         let m = GuitarModel::default();
-        let open = StringTable::new(&m, 0, 0, 48_000.0);
-        let oct = StringTable::new(&m, 0, 12, 48_000.0);
+        let open = table(&m, 0, 0);
+        let oct = table(&m, 0, 12);
         assert!((oct.f0 / open.f0 - 2.0).abs() < 1e-12);
         // Shorter string, stiffer relative to its tension: B grows 4×.
         assert!((oct.b / open.b - 4.0).abs() < 1e-9);
@@ -127,7 +265,7 @@ mod tests {
         // & Karjalainen; Fletcher & Rossing ch. 9).
         let m = GuitarModel::default();
         for i in 0..m.strings.len() {
-            let b = StringTable::new(&m, i, 0, 48_000.0).b;
+            let b = table(&m, i, 0).b;
             assert!((5e-6..3e-4).contains(&b), "string {i}: B = {b:e}");
         }
     }
@@ -137,7 +275,7 @@ mod tests {
         let mut m = GuitarModel::default();
         m.pluck.position = m.scale_length / 2.0;
         m.pluck.width = 0.0;
-        let t = StringTable::new(&m, 0, 0, 48_000.0);
+        let t = table(&m, 0, 0);
         for (n, a) in t.shape.iter().enumerate().take(20) {
             if n % 2 == 1 {
                 assert!(a.abs() < 1e-12 * t.shape[0].abs(), "partial {}: {a}", n + 1);
@@ -145,5 +283,53 @@ mod tests {
         }
         // Released from h = 1: the fundamental carries 8/π² of it.
         assert!((t.shape[0] - 8.0 / std::f64::consts::PI.powi(2)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn resistive_bridge_decay_matches_gough() {
+        // One polarisation, pure conductance G: σ = σ_string + Z₀·G·ω/(nπ),
+        // i.e. 2f₀·Z₀·G on a harmonic string, whatever the partial.
+        let mut m = GuitarModel::default();
+        let g = 0.01;
+        m.support = SupportParams::default();
+        m.support.perpendicular = Admittance { conductance: g, ..Admittance::ZERO };
+        m.support.parallel = Admittance::ZERO;
+        m.support.cross = Admittance::ZERO;
+        let t = table(&m, 5, 0);
+        let mu = linear_density(&m.strings[5], m.scale_length);
+        let z0 = (m.strings[5].tension * mu).sqrt();
+        for (n, p) in t.partials.iter().enumerate().take(5) {
+            let expect = z0 * g * p.omega / ((n + 1) as f64 * std::f64::consts::PI);
+            assert!((p.polar[PERP].1 - p.sigma - expect).abs() < 1e-12, "partial {}", n + 1);
+            assert_eq!(p.polar[PAR].1, p.sigma);
+            // No cross term: the modes are the polarisations.
+            assert!((p.e[0][1].norm() + p.e[1][0].norm()) < 1e-12);
+        }
+    }
+
+    #[test]
+    fn spring_like_bridge_lowers_the_partials() {
+        let mut m = GuitarModel::default();
+        m.support.perpendicular.susceptance = 0.05;
+        let t = table(&m, 0, 0);
+        assert!(t.partials.iter().all(|p| p.polar[PERP].0 < p.omega));
+    }
+
+    #[test]
+    fn coupled_modes_are_passive_and_invertible() {
+        let m = GuitarModel::default();
+        for s in 0..m.strings.len() {
+            for fret in [0, 5, 12, 20] {
+                let t = table(&m, s, fret);
+                for p in &t.partials {
+                    for l in p.shift {
+                        assert!(l.im >= 0.0, "string {s} fret {fret}: growing mode {l:?}");
+                    }
+                    let z = [C64::new(0.3, -0.2), C64::new(-0.1, 0.7)];
+                    let back = p.coupled_of(p.polar_of(z));
+                    assert!((back[0] - z[0]).norm() + (back[1] - z[1]).norm() < 1e-9);
+                }
+            }
+        }
     }
 }

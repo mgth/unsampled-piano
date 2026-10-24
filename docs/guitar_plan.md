@@ -57,32 +57,55 @@ bought freely.
 Reused from piano-core: `modal::ModalBank`/`ModeTable`/`ModeSpec` (complex
 one-pole modes, SIMD, damper weights), `denormal`.
 
-## G1 — The string, complete
+## G1 — The string, complete (done)
 
 Everything that follows needs this foundation.
 
-- **Two polarisations**: perpendicular to the top and parallel to it. Each
-  has its own support admittance, and the saddle couples them slightly. The
-  pluck angle shares the energy between them, which gives the two-stage
-  decay and the beats.
-- **Per-sample contact solver in modal space.** The bank runs block-wise
-  and freely, but contacts (finger, plectrum, thumb, frets) need forces
-  computed every sample, at a few points of the string.
-  - While a contact is active, the string is advanced sample by sample.
-    Its displacement at the contact points comes from the mode shapes, and
-    the contact forces are projected back onto the modes.
-  - This is the architecture of the piano's `ContactSolver` (a few physical
-    oscillators handed back to the bank), generalised to several points and
-    to unilateral contacts. It is the main candidate for a shared module.
-  - Order of cost: 250 modes × 20 points × 12 strings × 48 kHz ≈ 3 GMAC/s
-    in the worst case (every fret in contact on every string). That is
-    affordable, and the solver only runs while something touches the
-    string.
-- **Change of length while vibrating** (new fret, finger lifting): project
-  the modal state (displacement and velocity) of length L₁ onto the modes
-  of L₂. This is exact for a linear string and cheap.
-- **Tension changes live**: f₀, B and the losses re-evaluated while
-  playing (needed for bends, G4).
+- **Two polarisations** (`string.rs`): perpendicular to the top and
+  parallel to it.
+  - The bridge is a 2×2 admittance Y (`support`: perpendicular, parallel,
+    cross). An end of admittance Y shifts each partial's complex frequency
+    by i·Z₀·Y·ω_n/(nπ) (Gough's weak coupling). The 2×2 eigenproblem per
+    partial gives two modes, each mixing both directions. The modal bank
+    runs them, with the perpendicular and the parallel bridge force as its
+    two outputs.
+  - Passive by construction: if Re Y is positive semi-definite, no mode
+    grows.
+  - The cross term trades energy between the directions, which gives the
+    two-stage decay and the beats. The pluck angle shares the energy.
+  - A resistive bridge gives a decay rate independent of the partial
+    (2f₀·Z₀·G). The rising conductance (`conductance_per_khz`) stands in
+    for the density of body modes until G5/G6 give Y(ω). It replaces G0's
+    constant loss factor.
+- **Per-sample contact solver** (`contact.rs`): the piano hammer's scheme
+  (exact two-step recursion per mode, quadratised contact laws, Ducceschi
+  et al.), generalised to up to 8 points in either polarisation.
+  - Bilateral spring–dashpot (fingertip) and unilateral power law (fret,
+    fingerboard, nail), with fixed or ramped targets and timed removal.
+  - Each sample solves one small linear system (I + D·Ĝ)·λ, with an active
+    set for unilateral contacts. It is passive with fixed targets (tested
+    against a stiff obstacle).
+  - The bank's coupled state goes in and comes back through E and E⁻¹.
+    During contacts the cross term is left out (milliseconds against
+    tenths of a second), as the piano does with its unison coupling.
+  - The static residual of the truncated modes is not added yet. A finger
+    sees the string ≈ 2 % too stiff, which the piano corrects for its
+    hammer and G3's stiff frets may need.
+- **Finger pluck** (`PluckModel::Finger`, the default): a fingertip lands on
+  the string (stopping what it does), drags it over `drag_time` and lets go
+  at once. A slow drag and release gives the ideal triangle (tested). The
+  instant release stays until G2 brings slip and friction.
+- **Change of length while vibrating** (`project.rs`): displacement and
+  velocity projected from the sine basis of L₁ onto that of L₂. Closed
+  form: N + M sines and N·M divisions per projection.
+  - Used when a held string gets a new fret, and at note-off, where the
+    fretting finger lifts. The string returns to its open length, damped by
+    the fingertip spread over its width just behind the old fret. Lifting
+    near a node lets the harmonics there ring a little, as on a real
+    guitar.
+- Cost: all of this runs about 800× faster than real time on one core
+  (13 s example, instrument build included, in 16 ms).
+- Moved to G4: tension re-evaluated live (bends).
 
 ## G2 — Right-hand excitations
 
@@ -123,7 +146,8 @@ All of them use the G1 contact solver with different contact laws.
 ## G4 — Bends, vibrato, tremolo arm, nonlinearity
 
 - **Bend**: the finger pushes the string sideways along the fret, which
-  raises the tension. Tension, then f₀, B and the losses follow live (G1).
+  raises the tension. f₀, B and the losses are then re-evaluated live
+  (left over from G1).
   The bend amount comes from MIDI (see G9).
 - **Vibrato**: a periodic bend, or a lengthwise rocking of the finger
   (classical style, a smaller pitch change).
