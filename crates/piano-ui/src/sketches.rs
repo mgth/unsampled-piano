@@ -326,7 +326,7 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
         label(cx - 24.0, sy, Align2::RIGHT_CENTER, "Hammer", Some(Part::Felt));
         if lit(Part::Key) {
             let v = &model.velocity;
-            let text = format!("{:.1}–{:.1} m/s", v.vmin, v.vmax);
+            let text = format!("{:.2}–{:.1} m/s, curve {:.2}", v.vmin, v.vmax, v.curve);
             label(cx - 30.0, sy - 22.0, Align2::RIGHT_CENTER, &text, Some(Part::Key));
         }
         if lit(Part::Felt) || lit(Part::Core) {
@@ -408,8 +408,9 @@ pub fn action(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, width: 
         arrow(&p, at(STRIKE_X - 24.0, 84.0), at(STRIKE_X - 24.0, 46.0), outline(Part::Key));
         if lit(Part::Key) {
             let v = &model.velocity;
-            let text = format!("{:.1}–{:.1} m/s", v.vmin, v.vmax);
-            label(STRIKE_X - 28.0, 66.0, Align2::RIGHT_CENTER, &text, Some(Part::Key));
+            let text = format!("{:.2}–{:.1} m/s", v.vmin, v.vmax);
+            label(STRIKE_X - 28.0, 60.0, Align2::RIGHT_CENTER, &text, Some(Part::Key));
+            label(STRIKE_X - 28.0, 72.0, Align2::RIGHT_CENTER, &format!("curve {:.2}", v.curve), Some(Part::Key));
         }
 
         // Hammer: shank from its flange, wooden molding, core, top felt (its
