@@ -95,16 +95,17 @@ impl LossLaw {
     /// was lowered again (×0.65 at C4, ×0.5 at F#6) on the sustain after
     /// 1 s of a commercial modelled piano, Iowa and Salamander (docs/long_sustain.md): the
     /// slow components of the treble fundamentals last 7–9 s there. The
-    /// frequency term b2 = 1e-7 was set with the bridge spreading
-    /// (docs/sustain.md): the upper partials decay at the measured rate and
-    /// most of the excess above 6 kHz goes; 2e-7 would shorten the treble
-    /// fundamentals. No faster growth above C6 (top_slope 0): the extra
+    /// frequency term b2 = 6e-8: 1e-7, set with the bridge spreading
+    /// against Salamander (docs/sustain.md), left the upper partials of the
+    /// treble and top 15–40 dB short in the sustain against eight real
+    /// grands (tools/bench.py: 1.32 → 1.16 without the top's 1 kHz band,
+    /// docs/top_treble.md). No faster growth above C6 (top_slope 0): the extra
     /// losses set against a commercial modelled piano's release ring
     /// (docs/release_ring.md) cut short the slow aftersound that real top
     /// strings keep, −11 to −21 dB/s at C7 after the first 0.4 s on four
     /// real grands (docs/top_treble.md).
     pub const SALAMANDER_STRING: Self =
-        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 1.0e-7, b1_floor: 0.2, wound_until: 48, top_slope: 0.0, top_from: 84 };
+        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.2, wound_until: 48, top_slope: 0.0, top_from: 84 };
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
         let wound = ((self.wound_until as f64 + 12.0 - note as f64) / 12.0).clamp(0.0, 1.0);

@@ -254,8 +254,8 @@ const HELP: &[(&str, &str, &str)] = &[
         "losses.b2",
         "How much faster the high overtones die than the fundamental: higher values make the \
          sound darken sooner as it decays.",
-        "Frequency term b2·f² of σ. 1e-7 was set with the bridge spreading (docs/sustain.md); \
-         2e-7 shortened the treble fundamentals.",
+        "Frequency term b2·f² of σ. 6e-8 from eight real grands' sustain (docs/top_treble.md); \
+         1e-7, set against Salamander (docs/sustain.md), cut the treble's upper partials short.",
     ),
     (
         "losses.b1_floor",

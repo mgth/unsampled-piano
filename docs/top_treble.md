@@ -87,6 +87,32 @@ The survey fits its early decay on the first 15 dB. In the real top notes that d
 
 Presets that set neither key keep the new values. The local presets made before were frozen with the old ones.
 
+## The upper partials of the sustain
+
+In the top's sustain, partials 3–4 sat 20–40 dB below the real grands' (z −3.3 and −6.2), and the treble's partials 6–12 15–30 dB (z down to −6.2). The strings' frequency term b2·f² of σ (1e-7, set against Salamander) takes 6.4 s⁻¹ at 8 kHz, −56 dB/s.
+
+| b2 | 1e-7 | 7e-8 | 6e-8 | 5e-8 | 4e-8 | 2.5e-8 |
+|---|---|---|---|---|---|---|
+| bench score | 1.52 | 1.42 | 1.31 | 1.40 | 1.42 | 1.47 |
+| without the top's 1 kHz sustain band | 1.32 | 1.22 | 1.16 | 1.18 | 1.21 | — |
+| within the real pianos | 71 % | 76 % | 76 % | 73 % | 73 % | — |
+
+The top's 1 kHz sustain band (z −8 to −10, the model has nothing there) swings the score by itself, so the second row is the one to read. The default is 6e-8, which improves every register:
+
+| register | bass | middle | treble |
+|---|---|---|---|
+| 1e-7 | 0.70 | 0.77 | 1.44 |
+| 6e-8 | 0.64 | 0.62 | 1.27 |
+
+- **Better**:
+  - the top's sustain partials 3–4;
+  - the treble's sustain partials 6–8;
+  - the middle's and bass's 4–8 kHz sustain bands;
+  - the middle's T60 of partials 5–12.
+- **Worse**:
+  - the treble's and top's early T60 of partials 5–12 (z up to +2.0 and +3.1), which now last too long;
+  - the top's prompt sound, partial 1, which decays at −39 dB/s against −45 (−42 before).
+
 ## Still open
 
 - **The 1 kHz band of the sustain** (0.6–1 s): the real pianos keep 34–54 dB below the attack's strongest band, the model nothing (−101 dB). Something rings there in a real piano that the model lacks. Candidates: the frame, which is driven but radiates little (η 1 %), the duplex segments, or the action.

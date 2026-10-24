@@ -45,7 +45,7 @@ c = -3.708095
 [losses]
 b1_slope = 0.055
 b1_offset = -5.1
-b2 = 0.0000001
+b2 = 0.00000006
 b1_floor = 0.2
 wound_until = 48
 top_slope = 0.0
