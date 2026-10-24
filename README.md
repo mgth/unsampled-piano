@@ -136,6 +136,7 @@ For playing and setting up the instrument, see the [website](https://unsampled.m
 - Comparison with Salamander, Iowa and a commercial modelled piano: [docs/comparison.md](docs/comparison.md)
 - Test bench: the model scored against real pianos (`cargo xtask bench`): [docs/bench.md](docs/bench.md)
 - Recorded performances (Disklavier, Bösendorfer SE) against the model, note by note: [docs/pieces.md](docs/pieces.md)
+- A graded hammer felt instead of the two-layer hammer: [docs/felt.md](docs/felt.md)
 - Bass string losses (unison detuning, cabinet piston mode): [docs/bass.md](docs/bass.md)
 - Timbre change with dynamics (felt): [docs/timbre_dynamics.md](docs/timbre_dynamics.md)
 - String nonlinearity (phantom partials): [docs/nonlinearity.md](docs/nonlinearity.md)

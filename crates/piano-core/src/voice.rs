@@ -149,6 +149,9 @@ impl Voice {
         let mut np = nm.params;
         let u = softening * una_corda.clamp(0.0, 1.0);
         np.hammer.q0 *= 1.0 - u;
+        // The fresh felt beside the grooves is softer throughout: the inner
+        // felt too (the graded felt has no depth to push back).
+        np.hammer.core_q *= 1.0 - u;
         np.hammer.core_depth *= 1.0 + 0.5 * u;
         if mute > 0.0 {
             np.hammer.q0 *= (MUTE_STIFFNESS_MM / mute).min(1.0);

@@ -61,13 +61,15 @@ def read(path):
     notes.sort(key=lambda n: n[2])
     return notes, pedal
 
-def write(path, notes, pedal=()):
+def write(path, notes, pedal=(), controls=()):
     """A format-0 MIDI file at 1 ms per tick: notes [(key, velocity, on_s,
-    off_s)] and sustain-pedal changes [(time_s, value)]."""
+    off_s)], sustain-pedal changes [(time_s, value)] and other controller
+    changes [(time_s, controller, value)]."""
     ev = []
     for k, v, on, off in notes:
         ev += [(on, 1, bytes([0x90, k, v])), (off, 0, bytes([0x80, k, 64]))]
     ev += [(t, 0, bytes([0xB0, 64, v])) for t, v in pedal]
+    ev += [(t, 0, bytes([0xB0, c, v])) for t, c, v in controls]
     ev.sort(key=lambda e: (e[0], e[1]))
     def vlq(n):
         b = [n & 0x7F]

@@ -610,11 +610,12 @@ pub struct PianoModel {
     pub hardness_slope: f64,
     /// The same slope below key 40 (C4): bass hammers are large and soft.
     pub hardness_slope_bass: f64,
-    /// Hard hammer core (two-layer felt): stiffness relative to Stulov's Q0
-    /// of the key (0: single layer), exponent, and depth of the top felt
-    /// (mm) in the bass (A0), the middle (C4) and the treble (C8), linear
-    /// in between: the felt thins fast from the large bass hammers to the
-    /// middle, then little.
+    /// Inner felt: Q_core·(u − depth)^core_p added to the top felt's
+    /// Q0·u^p, Q_core relative to Stulov's Q0 of the key (0: single layer),
+    /// with the depth (mm) of the top felt in the bass (A0), the middle
+    /// (C4) and the treble (C8), linear in between. With depth 0 and
+    /// core_p above p, the felt is graded: it stiffens continuously as it
+    /// is compressed, as a felt whose density grows towards the core.
     pub core_hardness: f64,
     pub core_p: f64,
     pub core_depth_bass: f64,
@@ -675,15 +676,18 @@ impl Default for PianoModel {
             hardness_slope: 0.02,
             hardness_slope_bass: 0.02,
             p_bass: 0.0,
-            // Two-layer hammer (docs/presence.md): top felt over a core
-            // 30 × Stulov reached between mf and ff, 0.8 mm deep in the bass,
-            // 0.45 mm at C4, 0.4 mm in the treble (docs/brightness.md,
-            // docs/middle_highs.md).
-            core_hardness: 30.0,
-            core_p: 2.5,
-            core_depth_bass: 0.8,
-            core_depth_mid: 0.45,
-            core_depth_treble: 0.4,
+            // Graded felt (docs/felt.md): Q0·u^p + 2·Q0_Stulov·u^7, no
+            // threshold. The former two-layer hammer (a core 30 × Stulov,
+            // 0.8/0.45/0.4 mm under the top felt, docs/presence.md) switched
+            // the mf attack between too dark and too bright within 0.03 mm
+            // of depth; scored against eight real grands (tools/bench.py)
+            // the graded felt gives 1.58 against 1.66, the mf attack of the
+            // bass within the real pianos (4–8 kHz share: z −4.5 → −0.5).
+            core_hardness: 2.0,
+            core_p: 7.0,
+            core_depth_bass: 0.0,
+            core_depth_mid: 0.0,
+            core_depth_treble: 0.0,
             p_offset: 0.0,
             hysteresis: 0.3,
             contact_width_scale: 1.0,

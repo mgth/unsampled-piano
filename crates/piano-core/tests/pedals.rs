@@ -146,7 +146,10 @@ fn upright_soft_pedal_and_practice_mute() {
     eprintln!("C4: soft pedal {:+.1} dB, brightness {:+.1} dB; mute {:+.1} dB, brightness {:+.1} dB", l1 - l0, b1 - b0, l2 - l0, b2 - b0);
     assert!((-3.0..-0.3).contains(&(l1 - l0)), "half blow: {:.1} dB", l1 - l0);
     assert!(b1 - b0 > -1.5, "half blow should barely darken: {:.1} dB", b1 - b0);
-    assert!(b2 < b0 - 3.0 && l2 < l0 - 1.0, "the mute should be duller and quieter");
+    // The graded felt (docs/felt.md) brightens less with the hammer's speed
+    // than the two-layer hammer did (brighter at mf, as bright at ff), so
+    // the muted C4 loses 2.6 dB of the proxy where it lost 3.3.
+    assert!(b2 < b0 - 2.0 && l2 < l0 - 1.0, "the mute should be duller and quieter");
     // With a mute, the middle pedal no longer holds the keys down.
     let middle = |script: &[(f64, Event)]| {
         let mut s = script.to_vec();

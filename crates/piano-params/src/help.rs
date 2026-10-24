@@ -145,27 +145,28 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     (
         "core_hardness",
-        "Hammers are layered: soft felt outside, much denser felt inside. Played softly, only the \
-         outer layer is squeezed and the tone is round; played hard, the hammer reaches its core \
-         and the tone brightens sharply. This is how hard the core is (0: one uniform felt).",
-        "Once the felt is compressed past the top-felt depth d, the force gains \
-         Q_core·(u − d)^p_core, with Q_core = core_hardness × Stulov's Q0 of the key (whatever \
-         the voicing of the top felt). Introduced in docs/presence.md.",
+        "Hammer felt is denser inside than outside. Played softly, only the soft outer felt is \
+         squeezed and the tone is round; played harder, the hammer works into denser felt and \
+         the tone brightens. This is how dense the inside is (0: one uniform felt).",
+        "Adds Q_core·(u − d)^p_core to the felt force, with Q_core = core_hardness × Stulov's Q0 \
+         of the key (whatever the voicing of the top felt). With d = 0 and p_core above the top \
+         felt's exponent, the felt is graded: it stiffens continuously (default 2, p_core 7, \
+         docs/felt.md). With d > 0 it is a two-layer hammer whose core is reached past d \
+         (docs/presence.md).",
     ),
-    ("core_p", "How abruptly the core resists once the hammer reaches it.", "Exponent p_core of the core term Q_core·(u − d)^p_core."),
+    ("core_p", "How fast the felt stiffens as it is compressed (graded felt), or how abruptly the core resists (two layers).", "Exponent p_core of the inner term Q_core·(u − d)^p_core."),
     (
         "core_depth_bass",
-        "Thickness of soft felt over the hard core on the lowest hammer (A0). Thicker: it takes a \
-         harder stroke to get the bright bite.",
+        "Two-layer hammer only: thickness of soft felt over a hard core on the lowest hammer (A0). \
+         Thicker: it takes a harder stroke to get the bright bite. 0: a graded felt.",
         "Top-felt depth d (mm) at A0, linear to the middle value at C4. The una corda deepens it.",
     ),
     (
         "core_depth_mid",
-        "Thickness of soft felt over the core at middle C. The felt thins quickly from the large \
-         bass hammers to the middle, then little.",
+        "Two-layer hammer only: thickness of soft felt over the core at middle C.",
         "Depth d (mm) at C4, the joint of the two linear segments (A0–C4, C4–C8).",
     ),
-    ("core_depth_treble", "Thickness of soft felt over the core on the highest hammer (C8).", "Depth d (mm) at C8, linear from C4."),
+    ("core_depth_treble", "Two-layer hammer only: thickness of soft felt over the core on the highest hammer (C8).", "Depth d (mm) at C8, linear from C4."),
     (
         "p_bass",
         "Makes the bass hammers more nonlinear: rounder when played softly, biting when played \
