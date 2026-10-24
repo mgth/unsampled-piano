@@ -98,9 +98,11 @@ pub enum PluckModel {
     /// replaced.
     Ideal,
     /// A fingertip lands on the string (stopping what it does), drags it
-    /// through a spring–dashpot contact and lets go at once. The slip of a
-    /// real release comes with G2.
+    /// through a spring–dashpot contact, and slips off once its force
+    /// reaches the pluck's.
     Finger,
+    /// The same with a plectrum: stiffer, and it slips off faster.
+    Plectrum,
 }
 
 /// Where and how the right hand plucks.
@@ -117,28 +119,163 @@ pub struct PluckParams {
     /// Width of the contact (m) of the ideal pluck: a fingertip rounds the
     /// corner of the plucked shape, a plectrum hardly.
     pub width: f64,
-    /// Displacement at velocity 127 (m); proportional below. For the finger,
-    /// how far the fingertip travels.
-    pub max_displacement: f64,
-    /// Stiffness (N/m) and damping (N·s/m) of the fingertip's flesh.
+    /// Force on the string when it slips off, at velocity 127 (N);
+    /// proportional below (placeholder law). The released displacement is
+    /// F/k with k = T·L/(x₀(L − x₀)) the string's stiffness at the pluck point.
+    pub max_force: f64,
+    /// Stiffness (N/m), damping (N·s/m) and slip time (s) of the fingertip.
     pub finger_stiffness: f64,
     pub finger_damping: f64,
-    /// Time the finger takes to drag the string out (s).
+    pub finger_release: f64,
+    /// The same for the plectrum: its bending stiffness, and a quicker slip
+    /// off its edge.
+    pub plectrum_stiffness: f64,
+    pub plectrum_damping: f64,
+    pub plectrum_release: f64,
+    /// Time the hand takes to drag the string out (s).
     pub drag_time: f64,
 }
 
 impl Default for PluckParams {
+    /// Slip times and contact stiffnesses are orders of magnitude (flesh
+    /// slipping in ≈ 0.5 ms, a plectrum in ≈ 0.05 ms), to be measured.
     fn default() -> Self {
         Self {
             model: PluckModel::Finger,
             position: 0.12,
             angle: std::f64::consts::FRAC_PI_4,
             width: 8.0e-3,
-            max_displacement: 3.0e-3,
+            max_force: 3.0,
             finger_stiffness: 5.0e3,
             finger_damping: 5.0,
+            finger_release: 4.0e-4,
+            plectrum_stiffness: 2.0e4,
+            plectrum_damping: 0.5,
+            plectrum_release: 5.0e-5,
             drag_time: 0.02,
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum PickupKind {
+    SingleCoil,
+    /// Two coils side by side along the string, in series, wound and
+    /// magnetised in opposite senses: hum cancels, the string's signals add.
+    Humbucker,
+}
+
+/// A magnetic pickup: the string's velocity toward its poles, seen over the
+/// window of its magnets, makes the EMF of a coil (L, R, C).
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct Pickup {
+    pub kind: PickupKind,
+    /// Centre of the pickup from the bridge (m).
+    pub position: f64,
+    /// Width of each coil's window along the string (m).
+    pub aperture: f64,
+    /// Centre-to-centre distance of a humbucker's coils (m).
+    pub coil_spacing: f64,
+    /// EMF per string velocity toward the poles (V per m/s).
+    pub sensitivity: f64,
+    /// Inductance (H), resistance (Ω) and self-capacitance (F) of the coil(s).
+    pub inductance: f64,
+    pub resistance: f64,
+    pub capacitance: f64,
+}
+
+impl Pickup {
+    /// Vintage-style single coil (≈ 2.5 H, 6 kΩ).
+    pub const fn single_coil(position: f64) -> Self {
+        Self {
+            kind: PickupKind::SingleCoil,
+            position,
+            aperture: 0.012,
+            coil_spacing: 0.0,
+            sensitivity: 0.3,
+            inductance: 2.5,
+            resistance: 6.0e3,
+            capacitance: 100e-12,
+        }
+    }
+
+    /// Classic humbucker (≈ 4.5 H, 8.5 kΩ).
+    pub const fn humbucker(position: f64) -> Self {
+        Self {
+            kind: PickupKind::Humbucker,
+            position,
+            aperture: 0.012,
+            coil_spacing: 0.018,
+            sensitivity: 0.6,
+            inductance: 4.5,
+            resistance: 8.5e3,
+            capacitance: 150e-12,
+        }
+    }
+}
+
+impl Default for Pickup {
+    fn default() -> Self {
+        Self::single_coil(0.1)
+    }
+}
+
+/// The guitar's passive circuit and what the jack feeds.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct Circuit {
+    /// Volume and tone pots (Ω), audio taper; tone capacitor (F).
+    pub volume_pot: f64,
+    pub tone_pot: f64,
+    pub tone_cap: f64,
+    /// Cable capacitance (F) and the input resistance it feeds (Ω).
+    pub cable_capacitance: f64,
+    pub load_resistance: f64,
+}
+
+impl Default for Circuit {
+    fn default() -> Self {
+        Self { volume_pot: 250e3, tone_pot: 250e3, tone_cap: 47e-9, cable_capacitance: 500e-12, load_resistance: 1e6 }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct MagneticOutput {
+    pub pickups: Vec<Pickup>,
+    /// Pickups switched in by the selector (in parallel).
+    pub selected: Vec<usize>,
+    pub circuit: Circuit,
+    /// Volume and tone knobs, 0 … 1 (1: full volume, tone wide open).
+    pub volume: f64,
+    pub tone: f64,
+}
+
+impl Default for MagneticOutput {
+    fn default() -> Self {
+        Self { pickups: vec![Pickup::default()], selected: vec![0], circuit: Circuit::default(), volume: 1.0, tone: 1.0 }
+    }
+}
+
+/// What the instrument's output is.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Output {
+    /// The perpendicular force on the bridge, times `gain` (per N). Stand-in
+    /// for an acoustic instrument until its body radiates (G6).
+    BridgeForce { gain: f64 },
+    /// A piezo under the saddle: the perpendicular force (V/N), high-passed
+    /// by the element's capacitance into its preamp.
+    Piezo { sensitivity: f64, highpass_hz: f64 },
+    /// Magnetic pickups through the guitar's circuit (V).
+    Magnetic(MagneticOutput),
+}
+
+impl Default for Output {
+    fn default() -> Self {
+        Output::BridgeForce { gain: 0.1 }
     }
 }
 
@@ -175,9 +312,11 @@ pub struct GuitarModel {
     pub support: SupportParams,
     pub pluck: PluckParams,
     pub mute: MuteParams,
+    pub output: Output,
     /// Highest mode frequency (Hz), also capped below Nyquist.
     pub max_freq: f64,
-    /// Output per newton of bridge force (perpendicular).
+    /// Digital level per unit of the output (V, or what `Output` says):
+    /// full scale is 1/output_gain volts at the jack.
     pub output_gain: f64,
 }
 
@@ -200,8 +339,77 @@ impl GuitarModel {
             support: SupportParams::default(),
             pluck: PluckParams::default(),
             mute: MuteParams::default(),
+            output: Output::default(),
             max_freq: 16_000.0,
-            output_gain: 0.1,
+            output_gain: 1.0,
+        }
+    }
+
+    /// Solid-body electric, 648 mm (25.5") scale, nickel-wound .010–.046,
+    /// three single coils (bridge, middle, neck; the neck one selected),
+    /// played with a plectrum. A heavy, stiff body: small admittances, long
+    /// sustain. Approximate catalogue values.
+    pub fn electric_solid() -> Self {
+        Self {
+            scale_length: 0.648,
+            frets: 22,
+            strings: vec![
+                StringParams::wound(40, 77.8, 1.17e-3, 0.46e-3),
+                StringParams::wound(45, 86.7, 0.91e-3, 0.41e-3),
+                StringParams::wound(50, 81.8, 0.66e-3, 0.36e-3),
+                StringParams::plain(55, 73.8, 0.43e-3),
+                StringParams::plain(59, 68.5, 0.33e-3),
+                StringParams::plain(64, 72.1, 0.254e-3),
+            ],
+            support: SupportParams {
+                perpendicular: Admittance { conductance: 5.0e-4, conductance_per_khz: 2.0e-3, susceptance: 0.0 },
+                parallel: Admittance { conductance: 1.0e-4, conductance_per_khz: 5.0e-4, susceptance: 0.0 },
+                cross: Admittance { conductance: 1.0e-4, conductance_per_khz: 0.0, susceptance: 0.0 },
+            },
+            pluck: PluckParams { model: PluckModel::Plectrum, position: 0.09, max_force: 2.0, ..PluckParams::default() },
+            mute: MuteParams::default(),
+            output: Output::Magnetic(MagneticOutput {
+                pickups: vec![Pickup::single_coil(0.041), Pickup::single_coil(0.098), Pickup::single_coil(0.160)],
+                selected: vec![2],
+                ..MagneticOutput::default()
+            }),
+            max_freq: 16_000.0,
+            output_gain: 0.3,
+        }
+    }
+
+    /// Four-string electric bass, 864 mm (34") scale, .045–.100 nickel
+    /// round-wound, two single coils (both on), plucked with the fingers
+    /// between them. Approximate catalogue values.
+    pub fn electric_bass() -> Self {
+        let bass = |note, t, d, core| StringParams { delta_ve: 3.0e-3, ..StringParams::wound(note, t, d, core) };
+        Self {
+            scale_length: 0.864,
+            frets: 20,
+            strings: vec![
+                bass(28, 177.0, 2.54e-3, 0.80e-3),
+                bass(33, 200.0, 2.03e-3, 0.70e-3),
+                bass(38, 198.0, 1.65e-3, 0.60e-3),
+                bass(43, 177.0, 1.14e-3, 0.50e-3),
+            ],
+            support: SupportParams {
+                perpendicular: Admittance { conductance: 4.0e-4, conductance_per_khz: 2.0e-3, susceptance: 0.0 },
+                parallel: Admittance { conductance: 1.0e-4, conductance_per_khz: 5.0e-4, susceptance: 0.0 },
+                cross: Admittance { conductance: 1.0e-4, conductance_per_khz: 0.0, susceptance: 0.0 },
+            },
+            pluck: PluckParams { model: PluckModel::Finger, position: 0.12, max_force: 6.0, drag_time: 0.03, ..PluckParams::default() },
+            mute: MuteParams::default(),
+            output: Output::Magnetic(MagneticOutput {
+                pickups: vec![
+                    Pickup { inductance: 3.5, resistance: 7.0e3, ..Pickup::single_coil(0.092) },
+                    Pickup { inductance: 3.5, resistance: 7.0e3, ..Pickup::single_coil(0.165) },
+                ],
+                selected: vec![0, 1],
+                circuit: Circuit { tone_cap: 47e-9, ..Circuit::default() },
+                ..MagneticOutput::default()
+            }),
+            max_freq: 12_000.0,
+            output_gain: 0.5,
         }
     }
 }

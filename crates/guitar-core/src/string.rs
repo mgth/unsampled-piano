@@ -20,8 +20,12 @@
 //!   and released from rest, y(x, t) = Σ a_n·sin(nπx/L)·e^{−σt}·cos(ω_n t),
 //!   a_n = 2hL²·sin(nπx₀/L)/(n²π²·x₀(L − x₀)), the corner rounded over the
 //!   contact width w by sinc(nπw/2L).
-//! - Outputs: the force on the bridge in each direction, F = T·∂y/∂x at
-//!   x = 0, weight T·nπ/L per partial.
+//! - Outputs: the perpendicular force on the bridge, F = T·∂y/∂x at
+//!   x = 0, weight T·nπ/L per partial; and the instrument's output
+//!   ([`crate::params::Output`]): that force scaled (bridge, piezo), or the
+//!   EMF of the selected pickups, S·∫W(x)·ẏ(x) dx over each coil's window
+//!   (aperture a: weight sin(kx_p)·sinc(ka/2); a humbucker's two coils
+//!   added). Pickups in parallel make the mean of their EMFs.
 //! - Mute: a dashpot R spread over a fingertip of width w centred at x_m
 //!   adds R·⟨sin²(nπx/L)⟩/(μL) to σ_n (modal mass μL/2), the bank's damper
 //!   weight.
@@ -33,7 +37,7 @@
 use piano_core::complex::C64;
 use piano_core::modal::{ModeSpec, ModeTable};
 
-use crate::params::{Admittance, GuitarModel, StringParams};
+use crate::params::{Admittance, GuitarModel, Output, PickupKind, StringParams};
 
 pub const PERP: usize = 0;
 pub const PAR: usize = 1;
@@ -147,15 +151,63 @@ pub struct StringTable {
     pub tension: f64,
     /// Modal mass μL/2 (kg).
     pub modal_mass: f64,
-    /// Output weight per metre of perpendicular displacement of each
-    /// partial (bridge force times the output gain).
-    pub out_w: Vec<f64>,
+    /// Per partial: weight of each polarisation in the instrument's
+    /// output, on displacement, or on velocity when `velocity_out` (the
+    /// pickups' EMF); output gain included.
+    pub win: Vec<[f64; 2]>,
+    pub velocity_out: bool,
+    /// Built to run muted ([`Self::muted`]).
+    pub muted: bool,
+    /// Per partial: perpendicular bridge force per metre (N/m), T·nπ/L.
+    pub force: Vec<f64>,
+}
+
+/// Output weight of a partial of wavenumber `k` per polarisation, and
+/// whether it applies to the velocity.
+fn output_weight(model: &GuitarModel, tension: f64, k: f64) -> ([f64; 2], bool) {
+    let g = model.output_gain;
+    match &model.output {
+        Output::BridgeForce { gain } => ([tension * k * gain * g, 0.0], false),
+        Output::Piezo { sensitivity, .. } => ([tension * k * sensitivity * g, 0.0], false),
+        Output::Magnetic(m) => {
+            let window = |x: f64, a: f64| (k * x).sin() * sinc(k * a / 2.0);
+            let picked: Vec<_> = m.selected.iter().filter_map(|&i| m.pickups.get(i)).collect();
+            let emf: f64 = picked
+                .iter()
+                .map(|p| {
+                    p.sensitivity
+                        * match p.kind {
+                            PickupKind::SingleCoil => window(p.position, p.aperture),
+                            PickupKind::Humbucker => {
+                                let h = p.coil_spacing / 2.0;
+                                (window(p.position - h, p.aperture) + window(p.position + h, p.aperture)) / 2.0
+                            }
+                        }
+                })
+                .sum::<f64>()
+                / picked.len().max(1) as f64;
+            // The poles see motion toward them: the perpendicular direction.
+            ([emf * g, 0.0], true)
+        }
+    }
 }
 
 impl StringTable {
-    /// `string` stopped at `length`, muted (damper scale 1) by a fingertip
-    /// centred `mute_at` from the bridge.
+    /// `string` stopped at `length`, ringing freely; a fingertip centred
+    /// `mute_at` from the bridge would mute it (damper scale 1).
     pub fn new(model: &GuitarModel, string: usize, length: f64, mute_at: f64, sample_rate: f64) -> Self {
+        Self::build(model, string, length, mute_at, sample_rate, false)
+    }
+
+    /// The same, to be run muted (the bank at damper scale 1): a velocity
+    /// output (the pickups' EMF) then follows the extra decay. The bank's
+    /// output weights cannot change while it plays, so a muted string has
+    /// its own table.
+    pub fn muted(model: &GuitarModel, string: usize, length: f64, mute_at: f64, sample_rate: f64) -> Self {
+        Self::build(model, string, length, mute_at, sample_rate, true)
+    }
+
+    fn build(model: &GuitarModel, string: usize, length: f64, mute_at: f64, sample_rate: f64, muted: bool) -> Self {
         use std::f64::consts::PI;
         let s = &model.strings[string];
         let mu = linear_density(s, model.scale_length);
@@ -167,11 +219,11 @@ impl StringTable {
         let x0 = model.pluck.position.min(0.9 * length);
         let (mw, r) = (model.mute.width.max(1e-6), model.mute.resistance);
         let sup = &model.support;
-        let gain = s.tension * model.output_gain;
         let mut specs = Vec::new();
         let mut partials = Vec::new();
         let mut shape = Vec::new();
-        let mut out_w = Vec::new();
+        let (mut win, mut force) = (Vec::new(), Vec::new());
+        let mut velocity_out = false;
         for n in 1.. {
             let nf = n as f64;
             let f = nf * f0 * (1.0 + b * nf * nf).sqrt();
@@ -196,12 +248,20 @@ impl StringTable {
             let (shift, e, e_inv) = eig2(m);
             let polar = [(omega + m[0][0].re, sigma + m[0][0].im), (omega + m[1][1].re, sigma + m[1][1].im)];
             partials.push(Partial { k, omega, sigma, damp_w, polar, shift, e, e_inv });
-            out_w.push(gain * k);
+            let (wp, vel) = output_weight(model, s.tension, k);
+            velocity_out = vel;
+            win.push(wp);
+            force.push(s.tension * k);
             for kk in 0..2 {
-                let (w, w2) = (e[PERP][kk].scale(gain * k), e[PAR][kk].scale(gain * k));
+                let (om, sg) = (omega + shift[kk].re, sigma + shift[kk].im);
+                // Velocity of a mode z·e^{(−σ+iω)t}: (−σ + iω)·z, σ with the
+                // mute when the table runs muted.
+                let d = if vel { C64::new(-(sg + if muted { damp_w } else { 0.0 }), om) } else { C64::ONE };
+                let w = (e[PERP][kk].scale(wp[PERP]) + e[PAR][kk].scale(wp[PAR])) * d;
+                let w2 = e[PERP][kk].scale(s.tension * k);
                 specs.push(ModeSpec {
-                    freq_hz: (omega + shift[kk].re) / (2.0 * PI),
-                    sigma: sigma + shift[kk].im,
+                    freq_hz: om / (2.0 * PI),
+                    sigma: sg,
                     out_re: w.re,
                     out_im: w.im,
                     out2_re: w2.re,
@@ -211,7 +271,20 @@ impl StringTable {
                 });
             }
         }
-        Self { modes: ModeTable::new(sample_rate, &specs), partials, shape, f0, b, length, tension: s.tension, modal_mass: mu * length / 2.0, out_w }
+        Self {
+            modes: ModeTable::new(sample_rate, &specs),
+            partials,
+            shape,
+            f0,
+            b,
+            length,
+            tension: s.tension,
+            modal_mass: mu * length / 2.0,
+            win,
+            velocity_out,
+            muted,
+            force,
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -330,6 +403,22 @@ mod tests {
                     assert!((back[0] - z[0]).norm() + (back[1] - z[1]).norm() < 1e-9);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn pickup_at_the_middle_hears_no_even_partials() {
+        use crate::params::{MagneticOutput, Output, Pickup};
+        let mut m = GuitarModel::electric_solid();
+        let half = m.scale_length / 2.0;
+        m.output = Output::Magnetic(MagneticOutput { pickups: vec![Pickup { aperture: 0.0, ..Pickup::single_coil(half) }], selected: vec![0], ..MagneticOutput::default() });
+        let t = table(&m, 0, 0);
+        assert!(t.velocity_out);
+        for (n, w) in t.win.iter().enumerate().take(20) {
+            if n % 2 == 1 {
+                assert!(w[PERP].abs() < 1e-9 * t.win[0][PERP].abs(), "partial {}: {w:?}", n + 1);
+            }
+            assert_eq!(w[PAR], 0.0);
         }
     }
 }
