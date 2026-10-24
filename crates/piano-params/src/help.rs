@@ -101,17 +101,24 @@ const HELP: &[(&str, &str, &str)] = &[
         "velocity.vmin",
         "Speed of the hammer for the softest key press (MIDI velocity 1). Lower: a quieter, \
          duller pianissimo.",
-        "Hammer speed = vmin·(vmax/vmin)^((velocity − 1)/126), exponential like the logarithmic \
-         map of recording pianos (Goebl & Bresin 2003), so recorded MIDI keeps its dynamics. \
-         Read at each note-on.",
+        "Hammer speed = vmin·(vmax/vmin)^(t^curve), t = (velocity − 1)/126. Read at each note-on.",
     ),
     (
         "velocity.vmax",
         "Speed of the hammer for the hardest key press (velocity 127). Higher: a louder and much \
          brighter fortissimo, since a fast hammer squeezes its felt harder.",
-        "Upper end of the exponential velocity map (see the curve). The defaults, 0.6–4.2 m/s, \
-         put velocity 77 at 1.9 m/s, as on a Disklavier; set with the felt on the brightness of \
-         attack and sustain (docs/brightness.md).",
+        "Upper end of the velocity map (see the curve). The defaults, 0.26–4.4 m/s with curve \
+         0.75, follow two Disklavier grands within 1–2.5 dB (tools/velocity_fit.py), and keep \
+         velocity 100 at 2.8 m/s, where the felt was set on the brightness of attack and \
+         sustain (docs/brightness.md).",
+    ),
+    (
+        "velocity.curve",
+        "Shape of the velocity response: lower spreads the soft end (pianissimo quieter, \
+         more room between pp and p), 1 spreads it evenly.",
+        "Exponent on t in the velocity map: 1 is the exponential, logarithmic map of recording \
+         pianos (Goebl & Bresin 2003); 0.75 fits two Disklavier grands (BiVib, Liang), whose \
+         level falls faster at the soft end.",
     ),
     // Hammer
     (

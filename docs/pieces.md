@@ -46,13 +46,13 @@ MAESTRO (Disklavier, 200 h): 30 performances, three from each of ten years (`out
 
 ### Dynamics: the model's level follows the velocity half as steeply
 
-| Register | Vienna | Liang | MAESTRO | Model |
-|---|---|---|---|---|
-| bass | — | +2.3 | +2.0 | +0.7 to +0.9 |
-| middle | +2.5 | +3.0 | +2.9 | +0.5 to +1.6 |
-| treble | +4.7 | +4.0 | +3.2 | +1.3 to +2.2 |
+| Register | Vienna | Liang | MAESTRO | Model | Model, velocity law fitted |
+|---|---|---|---|---|---|
+| bass | — | +2.3 | +2.0 | +0.7 to +0.9 | +1.1 |
+| middle | +2.5 | +3.0 | +2.9 | +0.5 to +1.6 | +1.9 to +2.0 |
+| treble | +4.7 | +4.0 | +3.2 | +1.3 to +2.2 | +2.4 to +2.7 |
 
-Partial-1 level at the onset, dB per 10 velocity steps, model heard with close microphones.
+Partial-1 level at the onset, dB per 10 velocity steps, model heard with close microphones. Last column: the velocity law fitted on two Disklaviers' isolated notes ([bench.md](bench.md#velocity-curve)), against Liang and MAESTRO.
 
 MAESTRO: 30 performances drawn from ten years of the competition (2004–2018), so several Disklaviers, halls and microphone set-ups. A Bösendorfer SE and Disklaviers, with different recording systems, agree. On these instruments a MIDI velocity step is worth 2 to 3 times as much level as on the model. The sample libraries of the note-set bench agree with the model, because their layers are mapped to velocities by their authors. A Disklavier's isolated notes, recorded at 10 velocities per key with calibrated levels (BiVib), give the whole curve: [bench.md](bench.md#velocity-curve).
 

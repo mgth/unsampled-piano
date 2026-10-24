@@ -110,16 +110,22 @@ The model plays every third key at BiVib's ten velocities (12 to 111), heard wit
 | Register | Source | 12 | 23 | 34 | 45 | 56 | 67 | 78 | 89 | 100 | 111 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | bass | Disklavier | −18.3 | −13.7 | −11.5 | −9.5 | −7.4 | −5.3 | −3.4 | −1.8 | 0 | +2.0 |
-| bass | model | −11.3 | −9.8 | −8.3 | −6.9 | −5.5 | −4.1 | −2.7 | −1.4 | 0 | +1.4 |
+| bass | model | −16.2 | −13.4 | −11.0 | −8.8 | −6.8 | −5.0 | −3.2 | −1.6 | 0 | +1.6 |
 | middle | Disklavier | −22.4 | −16.4 | −13.5 | −11.2 | −8.4 | −6.0 | −3.9 | −1.9 | 0 | +2.0 |
-| middle | model | −13.8 | −12.0 | −10.2 | −8.5 | −6.7 | −5.0 | −3.3 | −1.6 | 0 | +1.6 |
+| middle | model | −20.0 | −16.4 | −13.4 | −10.8 | −8.4 | −6.1 | −4.0 | −1.9 | 0 | +1.8 |
 | treble | Disklavier | −31.5 | −23.4 | −18.2 | −14.3 | −9.8 | −7.4 | −3.9 | −1.5 | 0 | +2.3 |
-| treble | model | −20.2 | −17.3 | −14.5 | −12.0 | −9.6 | −7.2 | −4.7 | −2.2 | 0 | +2.0 |
+| treble | model | −30.6 | −24.5 | −19.6 | −15.4 | −11.9 | −8.7 | −5.6 | −2.7 | 0 | +2.3 |
 | top | Disklavier | −30.2 | −26.8 | −21.4 | −17.3 | −13.0 | −10.0 | −5.5 | −2.9 | 0 | +2.7 |
-| top | model | −28.5 | −25.6 | −22.3 | −18.9 | −15.5 | −12.2 | −8.4 | −3.8 | 0 | +3.1 |
+| top | model | −37.4 | −32.4 | −28.0 | −23.4 | −18.8 | −14.3 | −10.1 | −4.6 | 0 | +3.5 |
 
-From the bass to the treble, the model's curve is a straight line in dB, about 1.4–2.8 dB per 11 velocity steps. The Disklavier's is steeper at the soft end: from 34 down to 12 it loses another 7–13 dB where the model loses 3–6. Its pp is therefore 7–11 dB quieter than the model's. In the top treble the two curves agree within 2–3 dB (heard in the hall, the model's top was 4–8 dB too quiet there).
+The model is shown with the velocity law fitted on these measurements (below). With the earlier law, an exponential from 0.6 to 4.2 m/s, its curve was a straight line in dB, 1.4–2.8 dB per 11 velocity steps, and its pp at velocity 12 was 7–11 dB louder than the Disklavier's: the Disklavier's curve falls faster at the soft end.
 
-The attack also brightens more with velocity on the Disklavier: in the middle the centroid at velocity 12 is 42 % below that at 100, against 34 % on the model (treble and top at low velocities: the recordings' noise, not read).
+**The fit.** `tools/velocity_fit.py` renders every third key at hammer speeds from 0.1 to 10 m/s, which gives the model's level against the speed, then searches the law v = vmin·(vmax/vmin)^(t^curve), t = (velocity − 1)/126, whose level re velocity 100 follows two Disklavier grands: BiVib's (ten velocities) and Liang's (isolated notes at 49, 80 and 96). The speed at velocity 100 is kept (2.8 m/s), where the felt and the brightness were set. The result is 0.26–4.4 m/s with curve 0.75 (`velocity.curve`, new): 2.4 dB rms over both pianos against 3.5 for the earlier law, and 2.4 for the best exponential. From the bass to the treble the curve above is within 1–2.5 dB of BiVib's. The two Disklaviers differ by 20–25 % in their mid-range slope (velocity 49 to 96, Liang: 9.0/11.5/15.8 dB, bass/middle/treble; BiVib 45 to 100: 9.4/10.7/14.6 dB), and the fit sits between them. Within performances the level now rises 1.1/2.0/2.7 dB per 10 velocity steps on the model against 1.8/3.0/3.2 on MAESTRO's Disklaviers (it was 0.9/1.6/2.2).
+
+The attack's brightening with velocity follows without being fitted: at velocity 12 the bass centroid is 51 % below that at 100 (Disklavier 52 %, earlier law 45 %), the middle 43 % (42 %).
+
+**What it costs.** At mf the hammer is slower than before (velocity 56: 1.19 m/s instead of 1.40), and the attack darker. In the bass the share of 4–8 kHz at the attack was already 15 dB below BiVib's at the same velocity, it is now 30 dB below: the felt is too soft at low speeds, the next item.
+
+The top treble is steeper than the Disklavier at low velocities (−37 dB at velocity 12 against −30): its hammer, not the map.
 
 The recorded performances agree ([pieces.md](pieces.md)): within a piece, the level rises 2 to 3 times as fast with velocity on a Bösendorfer SE and on a Disklavier as on the model.

@@ -25,8 +25,9 @@ hammer_mass_scale = 1.0
 strike_ratio = 0.12
 
 [velocity]
-vmin = 0.6
-vmax = 4.2
+vmin = 0.26
+vmax = 4.4
+curve = 0.75
 
 [inharmonicity]
 a_bass = -0.111714

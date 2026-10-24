@@ -518,29 +518,35 @@ impl NoteParams {
     }
 }
 
-/// MIDI velocity → hammer speed: exponential from `vmin` (velocity 1) to
-/// `vmax` (velocity 127), m/s. The default is the logarithmic map of the
-/// recording pianos (Goebl & Bresin 2003: velocity = 52 + 25·log2(v m/s),
-/// 2 m/s ↔ 77 on the Disklavier), so that recorded performances (MAESTRO)
-/// keep their dynamics; the earlier fit on Salamander's sampler layers
-/// (0.4–4 m/s) compressed both ends. 0.6–4.2 m/s (velocity 77 ↔ 1.94 m/s)
-/// was set with the felt on the brightness of attack and sustain
-/// (docs/brightness.md); 0.5–3.5 left the middle register dull.
+/// MIDI velocity → hammer speed (m/s): vmin·(vmax/vmin)^(t^curve), t =
+/// (velocity − 1)/126. With curve 1 the map is exponential, the
+/// logarithmic map of the recording pianos (Goebl & Bresin 2003); below 1
+/// it opens the soft end. Fitted on two Disklavier grands (tools/
+/// velocity_fit.py): BiVib's, recorded at ten velocities per key, and
+/// Liang's, at 49, 80 and 96. At velocity 12, BiVib's level re velocity
+/// 100 falls 18 (bass) to 31 dB (treble), where the earlier exponential
+/// 0.6–4.2 m/s fell 11–20 dB; 0.26–4.4 m/s with curve 0.75 follows both
+/// within 1–2.5 dB from the bass to the treble (2.4 dB rms over every
+/// third key, against 3.5). The two pianos differ by 20–25 % in their
+/// mid-range slope, the fit sits between them. The speed at velocity 100
+/// (2.8 m/s), where the felt and the brightness were set (docs/
+/// brightness.md), is kept.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct VelocityLaw {
     pub vmin: f64,
     pub vmax: f64,
+    pub curve: f64,
 }
 
 impl VelocityLaw {
-    pub const DEFAULT: Self = Self { vmin: 0.6, vmax: 4.2 };
+    pub const DEFAULT: Self = Self { vmin: 0.26, vmax: 4.4, curve: 0.75 };
     /// Fit of the Salamander layers (sampler velocity ranges), 1.4 dB rms.
-    pub const SALAMANDER_LAYERS: Self = Self { vmin: 0.4, vmax: 4.0 };
+    pub const SALAMANDER_LAYERS: Self = Self { vmin: 0.4, vmax: 4.0, curve: 1.0 };
 
     pub fn hammer_speed(&self, velocity: u8) -> f64 {
         let t = (velocity.clamp(1, 127) as f64 - 1.0) / 126.0;
-        self.vmin * (self.vmax / self.vmin).powf(t)
+        self.vmin * (self.vmax / self.vmin).powf(t.powf(self.curve))
     }
 }
 
