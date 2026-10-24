@@ -13,6 +13,8 @@ The note-set bench ([bench.md](bench.md)) compares isolated notes. Pianos that r
 
 They write `out/pieces/<name>/report.md` and `result.json` (every note's measures).
 
+To listen rather than measure, `tools/ab_real.py <audio> <midi> <prefix> [--start S] [--dur S] [--listening default|close]` renders the recording's MIDI with the model, cuts the same passage from both, aligned on the MIDI, and brings both to −20 LUFS (EBU R128): `<prefix>_real.mp3` and `<prefix>_model.mp3`. The recordings are not redistributed: the files stay in `out/`.
+
 **Listening.** The model is heard as the references were recorded: close microphones in a studio (`presets/listening/Microphones/close.toml` and `Room/studio.toml`, passed to the renderer with `--listening`; `--listening none` keeps the engine's own). The engine's default listening is a concert hall heard from 1.5 m above the board. Its reverberation sits between the partials and in every decay, and the first comparisons, made with it, read the hall as part of the instrument (below). `tools/midifile.py` reads the MIDI files: notes, sustain pedal and the tempo map.
 
 **Alignment.** The recording's spectral flux is cross-correlated with the MIDI onsets, over the first and the last third separately: a recording's clock may drift from the MIDI's (Vienna: up to 185 ppm, 22 ms over two minutes). The flux places onsets a few milliseconds off: the offset is refined on the envelope of lone notes, where it crosses 30 % of its peak. On the model, which plays the MIDI exactly, the onsets land within 2 ms.
