@@ -28,7 +28,9 @@ impl Instrument {
     }
 
     pub fn with_resolution(model: PianoModel, sample_rate: f64, res: Resolution) -> Self {
-        // Microphones in metres from here on (the engine's room uses them too).
+        // The musician's controls applied, microphones in metres from here on
+        // (the engine's room uses them too).
+        let model = model.with_macros();
         let model = PianoModel { soundboard: model.soundboard.map(|s| s.resolved()), ..model };
         let sb = model.soundboard.map(Soundboard::new);
         let modes = sb.as_ref().filter(|s| s.params.radiate).map(|s| board::board_modes(s, sample_rate));

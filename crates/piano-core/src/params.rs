@@ -660,6 +660,9 @@ pub struct PianoModel {
     /// the board's edges); both need the soundboard.
     pub frame: crate::structure::FrameParams,
     pub rim: crate::structure::RimParams,
+    /// Musician's controls, offsets on top of every value here
+    /// ([`crate::macros`]).
+    pub macros: crate::macros::Macros,
     /// Felt softening when the una corda pedal shifts the action fully.
     pub una_corda_softening: f64,
     /// Share of the sideways shift at full soft pedal: 1 on a grand (una
@@ -756,6 +759,7 @@ impl Default for PianoModel {
             room: crate::room::RoomParams::CONCERT_HALL,
             frame: crate::structure::FrameParams::GRAND_2M,
             rim: crate::structure::RimParams::GRAND_2M,
+            macros: crate::macros::Macros::NONE,
             una_corda_softening: 0.6,
             una_corda_shift: 1.0,
             half_blow: 0.0,

@@ -593,6 +593,18 @@ const HELP: &[(&str, &str, &str)] = &[
     ("soundboard.lid_hinge_height", "Height of the lid's hinge above the soundboard.", "z of the hinge line (m)."),
     ("soundboard.lid_reflection", "How much sound the lid reflects.", "Pressure reflection coefficient of the lid image."),
     ("soundboard.lid_transmission", "How much sound passes through the lid to a microphone behind it.", "Gain of the direct path when the lid shadows it."),
+    // Musician's controls
+    ("macros.tone", "Soft to bright: how hard the hammers' felt is.", "Top felt and inner felt hardness × 4^v and × 12^v (v from −1 to +1, 0: the preset). C3's attack centroid moves ±18 %, C5's ±7 % (docs/macros.md)."),
+    ("macros.touch", "Even to contrasted: how far soft and loud playing lie apart, mezzo forte unchanged.", "The hammer speeds' log-distance from velocity 60's × 1.5^v: C4 velocity 100 − 30 changes by −6 to +9 dB."),
+    ("macros.sustain", "Short to long notes.", "String losses (b1, its floor, b2) and the board's edge loss × 3^−v: C5 at 2 s −14 to +5 dB (beyond, the board sets the sustain)."),
+    ("macros.resonance", "Dry to rich: how much the strings ring along with what is played, pedal down, and how many top strings have no damper.", "Sympathetic gain × 2^v, highest damper 4·v keys lower: the halo of a pedalled C4 ±5.5 dB."),
+    ("macros.release", "Clean to soft note endings.", "Damper strength × 3^−v, fall time × 3^(v/2): C4's drop 0.25 s after the key-up +4 to −7 dB."),
+    ("macros.unisons", "Pure to lively: how far apart the strings of each note are tuned, and how unevenly the hammer meets them.", "Unison spread × 3^v (× 1.6^v towards pure: tighter unisons lose the slow modes that carry the sustain), hit spread × 1.5^v. C5 over 1–2 s −3.7 to +5.7 dB."),
+    ("macros.mechanism", "Discreet to present action noises: the keys' knock, the dampers, the pedal.", "noise.action, keybed, damper_mass and pedal × 4^v (−9 to +12 dB)."),
+    ("macros.size", "Baby grand to concert grand.", "Bass string length × 1.25^v (bass inharmonicity ∝ 1/L²), board and frame × 1.12^v, hammer mass × 1.1^v."),
+    ("macros.lid", "Closed to open lid.", "Lid angle from the preset's towards 0 (v = −1) or 45° (v = +1). At 0 the lid is taken away rather than shut."),
+    ("macros.space", "Close to roomy: how much of the room's reverberation is heard.", "Room tail × 3^v (about ±8 dB)."),
+    ("macros.stretch", "Strict to stretched tuning: how wide the octaves are tuned.", "The stretch law × (1 + v): equal temperament at −1, twice the preset's stretch at +1."),
     // Dampers
     (
         "damper.position",

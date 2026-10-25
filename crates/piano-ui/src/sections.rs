@@ -37,6 +37,9 @@ pub enum View {
 const KEYS: (u8, u8) = (21, 108);
 
 pub const SECTIONS: &[Section] = &[
+    // The musician's controls (crate piano_core::macros): one gesture, one
+    // effect, on top of the preset's values below.
+    Section { title: "Simple", prefixes: &["macros."], curves: &[], view: View::None },
     Section {
         title: "Player",
         prefixes: &["output_gain_db", "velocity.", "una_corda_", "half_blow", "mute_felt", "repetition_", "damper.pedal_"],
@@ -136,6 +139,7 @@ mod tests {
         assert_eq!(SECTIONS[section_of("soundboard.back_gain")].title, "Soundboard");
         assert_eq!(SECTIONS[section_of("some_new_field")].title, "Other");
         assert_eq!(SECTIONS[section_of("strike_ratio")].title, "Hammer");
+        assert_eq!(SECTIONS[section_of("macros.tone")].title, "Simple");
         // Every parameter of the model has its page.
         let reg = piano_params::Registry::new();
         let other: Vec<&str> = reg.params().iter().map(|p| p.path.as_str()).filter(|p| SECTIONS[section_of(p)].title == "Other").collect();

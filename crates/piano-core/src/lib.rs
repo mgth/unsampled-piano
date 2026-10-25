@@ -9,6 +9,7 @@ pub mod engine;
 pub mod hammer;
 pub mod instrument;
 pub mod live;
+pub mod macros;
 pub mod modal;
 pub mod note_model;
 pub mod par;

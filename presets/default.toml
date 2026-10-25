@@ -273,3 +273,16 @@ f_max = 3000.0
 couple_f_max = 2000.0
 inner_gain = 0.5
 gain = 1.0
+
+[macros]
+tone = 0.0
+touch = 0.0
+sustain = 0.0
+resonance = 0.0
+release = 0.0
+unisons = 0.0
+mechanism = 0.0
+size = 0.0
+lid = 0.0
+space = 0.0
+stretch = 0.0

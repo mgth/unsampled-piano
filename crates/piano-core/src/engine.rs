@@ -454,6 +454,7 @@ impl Engine {
     /// been sent as an [`Event::Param`] (an engine built from an older
     /// model catches up with the edits made meanwhile).
     pub fn set_live(&mut self, model: &PianoModel) {
+        let model = &model.with_macros();
         for &p in LiveParam::ALL {
             p.set(&mut self.live, p.get(model));
         }

@@ -154,6 +154,7 @@ For playing and setting up the instrument, see the [website](https://unsampled.m
 - The action's knock, heard directly (keyframe, shanks; level of the real grands below the top keys): [docs/action_noise.md](docs/action_noise.md)
 - The level of the top, the register balance and the flexible hammer shank: [docs/top_level.md](docs/top_level.md)
 - Evenness from key to key (the board's colouring): [docs/evenness.md](docs/evenness.md)
+- Musician's controls (tone, touch, sustain, resonance, endings, unisons, noises, size, lid, space, stretch): [docs/macros.md](docs/macros.md)
 - A range of instruments from one engine (hammer mass, strike point, preset fitting): [docs/instrument_range.md](docs/instrument_range.md)
 - Room level (piano directivity, microphone patterns): [docs/room_level.md](docs/room_level.md)
 - Uprights (half blow, practice mute, repetition, wall, case, placement in the room, directivity): [docs/upright.md](docs/upright.md)
