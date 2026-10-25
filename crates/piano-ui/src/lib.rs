@@ -7,6 +7,7 @@ mod mics;
 pub mod mock;
 pub mod sections;
 pub mod shot;
+mod simple;
 mod sketches;
 mod widgets;
 
@@ -358,6 +359,17 @@ impl PianoUi {
         if !searching {
             let s = &SECTIONS[self.page.min(SECTIONS.len() - 1)];
             ui.heading(s.title);
+            if s.view == View::Simple {
+                let shown = simple::show(ui, &self.registry, &values, control);
+                if let Some(i) = shown.clicked {
+                    self.about = if self.about == Some(i) { None } else { Some(i) };
+                }
+                if shown.touched.is_some() {
+                    self.about = shown.touched;
+                }
+                self.hovered = shown.hovered;
+                return;
+            }
             if s.view == View::Mics {
                 self.mics.show(ui, control, model);
                 ui.add_space(8.0);
@@ -775,7 +787,9 @@ mod slider_tests {
     use egui::{Event, PointerButton, Pos2, RawInput, Rect, Vec2};
 
     fn frame(ui: &mut PianoUi, control: &mut MockControl, ctx: &egui::Context, events: Vec<Event>) {
-        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1100.0, 800.0))), events, ..Default::default() };
+        // A frame every 1/60 s (double clicks are told apart by time).
+        let time = Some(ctx.input(|i| i.time) + 1.0 / 60.0);
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1100.0, 800.0))), events, time, ..Default::default() };
         ctx.run_ui(input, |root| ui.show(root, control)).drop_without_applying_deltas();
     }
 
@@ -808,5 +822,45 @@ mod slider_tests {
         assert_eq!((ui.about, ui.hovered), (Some(i), Some(i)));
         frame(&mut ui, &mut control, &ctx, vec![button(at + Vec2::new(36.0, 0.0), false)]);
         assert_ne!(piano_params::get(&control.model(), &ui.registry.params()[i].path), Some(ui.registry.params()[i].default));
+    }
+
+    #[test]
+    fn a_musicians_control_moves_and_returns_to_the_preset() {
+        let ctx = egui::Context::default();
+        let mut ui = PianoUi::new(None);
+        ui.open_page("Simple");
+        let mut control = MockControl::new(PianoModel::default());
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        // Across the page until the pointer is on a control's slider.
+        let at = (100..800)
+            .step_by(4)
+            .flat_map(|y| (200..700).step_by(20).map(move |x| Pos2::new(x as f32, y as f32)))
+            .find(|&p| {
+                frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(p)]);
+                frame(&mut ui, &mut control, &ctx, vec![]);
+                ui.hovered.is_some_and(|i| ui.registry.params()[i].path.starts_with("macros."))
+            })
+            .expect("a control under the pointer");
+        let path = ui.registry.params()[ui.hovered.unwrap()].path.clone();
+        let value = |c: &MockControl| piano_params::get(&c.model(), &path).unwrap().as_f64();
+        assert_eq!(value(&control), 0.0);
+        let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Default::default() };
+        frame(&mut ui, &mut control, &ctx, vec![button(at, true)]);
+        for k in 1..=6 {
+            frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(at + Vec2::new(10.0 * k as f32, 0.0))]);
+        }
+        let end = at + Vec2::new(60.0, 0.0);
+        frame(&mut ui, &mut control, &ctx, vec![button(end, false)]);
+        let moved = value(&control);
+        assert_ne!(moved, 0.0);
+        assert_eq!(ui.about.map(|i| ui.registry.params()[i].path.clone()), Some(path.clone()));
+        // A double click puts it back to the preset.
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        for pressed in [true, false, true, false] {
+            frame(&mut ui, &mut control, &ctx, vec![button(end, pressed)]);
+        }
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        assert_eq!(value(&control), 0.0, "moved to {moved}, double-clicked");
     }
 }

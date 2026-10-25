@@ -50,26 +50,10 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
         ),
         Value::Bool(x) => ui.checkbox(x, ""),
     };
-    if r.drag_started() {
-        control.begin_edit(&p.path);
-    }
-    if r.changed() {
-        if r.dragged() || r.drag_started() || r.drag_stopped() {
-            control.set(&p.path, v);
-        } else {
-            control.begin_edit(&p.path);
-            control.set(&p.path, v);
-            control.end_edit(&p.path);
-        }
-    }
-    if r.drag_stopped() {
-        control.end_edit(&p.path);
-    }
+    edit(&r, &p.path, v, control);
     let reset = reset_button(ui, v != p.default).on_hover_text("Back to the default");
     if reset.clicked() {
-        control.begin_edit(&p.path);
-        control.set(&p.path, p.default);
-        control.end_edit(&p.path);
+        set_once(&p.path, p.default, control);
     }
     kind_mark(ui, matches!(p.kind, Kind::Live(_)));
     midi_button(ui, p, control);
@@ -78,6 +62,31 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
         pointing: r.hovered() || r.dragged() || r.has_focus(),
         touched: r.drag_started() || r.changed() || r.clicked() || reset.clicked(),
     }
+}
+
+/// Sends what a slider did to `control` as a gesture: a drag is one
+/// begin/end pair, a typed or clicked value a whole one.
+pub(crate) fn edit(r: &egui::Response, path: &str, v: Value, control: &mut dyn PianoControl) {
+    if r.drag_started() {
+        control.begin_edit(path);
+    }
+    if r.changed() {
+        if r.dragged() || r.drag_started() || r.drag_stopped() {
+            control.set(path, v);
+        } else {
+            set_once(path, v, control);
+        }
+    }
+    if r.drag_stopped() {
+        control.end_edit(path);
+    }
+}
+
+/// One value set as a whole gesture (a reset, a typed value).
+pub(crate) fn set_once(path: &str, v: Value, control: &mut dyn PianoControl) {
+    control.begin_edit(path);
+    control.set(path, v);
+    control.end_edit(path);
 }
 
 /// What a parameter row's widgets did this frame.
@@ -116,7 +125,7 @@ pub fn about(ui: &mut Ui, p: &Param, value: Option<Value>, model: &PianoModel, k
 
 /// The controller mapped to `p` ("CC 21"); click to learn one (again to
 /// cancel), right-click to remove it.
-fn midi_button(ui: &mut Ui, p: &Param, control: &mut dyn PianoControl) {
+pub(crate) fn midi_button(ui: &mut Ui, p: &Param, control: &mut dyn PianoControl) {
     let learnable = control.midi_learnable(&p.path);
     let Some(learn) = control.midi().filter(|_| learnable) else {
         ui.label("");
@@ -148,7 +157,7 @@ fn midi_button(ui: &mut Ui, p: &Param, control: &mut dyn PianoControl) {
 
 /// A circular arrow, drawn rather than a glyph (the plugin's fonts lack
 /// one); empty space of the same size when hidden, to keep the column.
-fn reset_button(ui: &mut Ui, visible: bool) -> egui::Response {
+pub(crate) fn reset_button(ui: &mut Ui, visible: bool) -> egui::Response {
     let size = Vec2::splat(ui.spacing().interact_size.y);
     let sense = if visible { Sense::click() } else { Sense::hover() };
     let (rect, resp) = ui.allocate_exact_size(size, sense);

@@ -28,6 +28,8 @@ pub struct Section {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum View {
     None,
+    /// The musician's controls, bipolar sliders ([`crate::simple`]).
+    Simple,
     /// The microphones placed around the piano ([`crate::mics`]).
     Mics,
     /// Sketches lighting the hovered parameter's part ([`crate::sketches`]).
@@ -39,7 +41,7 @@ const KEYS: (u8, u8) = (21, 108);
 pub const SECTIONS: &[Section] = &[
     // The musician's controls (crate piano_core::macros): one gesture, one
     // effect, on top of the preset's values below.
-    Section { title: "Simple", prefixes: &["macros."], curves: &[], view: View::None },
+    Section { title: "Simple", prefixes: &["macros."], curves: &[], view: View::Simple },
     Section {
         title: "Player",
         prefixes: &["output_gain_db", "velocity.", "una_corda_", "half_blow", "mute_felt", "repetition_", "damper.pedal_"],
