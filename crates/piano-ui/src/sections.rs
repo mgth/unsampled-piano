@@ -90,7 +90,7 @@ pub const SECTIONS: &[Section] = &[
             Curve { title: "Stretch", unit: "cents", x: KEYS, log: false, f: |m, n| m.stretch.cents(n) },
             Curve { title: "Inharmonicity B", unit: "", x: KEYS, log: true, f: |m, n| m.inharmonicity.b(n) },
         ],
-        view: View::Sketches(&[Sketch::String]),
+        view: View::Sketches(&[Sketch::String, Sketch::Temperament]),
     },
     Section {
         title: "Strings",
