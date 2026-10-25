@@ -33,6 +33,19 @@
 //! [`IDLE`]. Buzz, the slap's rattle and the click of a hammer-on come out
 //! of these contacts.
 //!
+//! Tension changes while playing ([`crate::params::TensionParams`]):
+//!
+//! - a bend (per note, or the wheel for the held strings) sets the tension
+//!   that brings the fundamental to its pitch;
+//! - vibrato is a periodic bend;
+//! - the tremolo arm moves the bridge, changing every string's tension by
+//!   its own EA·δ/L, so each detunes differently;
+//! - the string's own motion stretches it (Kirchhoff–Carrier mean tension):
+//!   hard plucks start sharp and glide down.
+//!
+//! Every [`CONTROL`] samples the strings whose tension moved are retuned in
+//! place, in the bank or the solver, their motion kept.
+//!
 //! At note-off the fretting finger lifts: the string goes back to its open
 //! length, damped by the fingertip still touching it behind the fret. The
 //! strings' summed output goes through the output stage
@@ -51,7 +64,7 @@ use crate::output::OutputStage;
 pub use crate::params::Technique;
 use crate::params::PluckModel;
 use crate::project::{add_rest_change, project};
-use crate::string::{fret_length, StringTable, PAR, PERP};
+use crate::string::{fret_length, Bent, StringTable, PAR, PERP};
 
 /// Output-weighted energy below which a string stops being computed
 /// (amplitude ≈ −120 dB re full scale).
@@ -84,14 +97,30 @@ const TAP_TIMEOUT: f64 = 0.03;
 const TAP_PRESSED: f64 = 1e-3;
 /// Where the thumb starts above the string (m).
 const SLAP_CLEARANCE: f64 = 2e-3;
+/// Samples between tension updates (bends, vibrato, the arm, the string's
+/// own stretch).
+pub const CONTROL: usize = 64;
+/// Relative tension change that triggers a retune (≈ 0.02 cent).
+const RETUNE: f64 = 2e-5;
+/// Samples between refreshes of a free string's watched frets: the reach
+/// bound holds for its whole free decay, so this only trims the list. A
+/// retune or a new stop refreshes it at once.
+const REWATCH: usize = 256;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
     NoteOn { note: u8, velocity: u8 },
     /// A note played with a given technique (NoteOn plucks).
     Note { note: u8, velocity: u8, technique: Technique },
     NoteOff { note: u8 },
     AllNotesOff,
+    /// Bend in semitones: of the string playing `note`, or (None) of every
+    /// held string, as a pitch wheel.
+    Bend { note: Option<u8>, semitones: f64 },
+    /// Vibrato depth (semitones) on the held strings.
+    Vibrato { depth: f64 },
+    /// Tremolo arm, −1 … 1 (positive: pushed down, strings loosened).
+    Tremolo { position: f64 },
 }
 
 /// Which table the string's bank runs.
@@ -135,6 +164,16 @@ struct StringVoice {
     watch: Vec<(usize, f64)>,
     /// Solver samples without any contact force.
     idle: usize,
+    /// Bend of this note (semitones), and the bend followed so far.
+    bend_note: f64,
+    bend: f64,
+    /// Tension ratio T/T₀ the modes run at, and the partials there.
+    rho: f64,
+    bent: Vec<Bent>,
+    /// EA/(L_total·T₀): tension ratio per metre of stretch.
+    axial: f64,
+    /// Samples until the watched frets are refreshed.
+    rewatch: usize,
     /// Per-polarisation amplitudes, scratch for projections, perpendicular
     /// amplitudes for the reach bound.
     zeta: Vec<[C64; 2]>,
@@ -145,6 +184,13 @@ struct StringVoice {
 pub struct Engine {
     inst: Arc<Instrument>,
     strings: Vec<StringVoice>,
+    /// Wheel bend and vibrato depth (semitones), vibrato phase (rad), arm
+    /// position asked for and followed.
+    wheel: f64,
+    vibrato: f64,
+    phase: f64,
+    arm_target: f64,
+    arm: f64,
     max_block: usize,
     stage: OutputStage,
     /// Perpendicular bridge force of the block (kept for piezo/acoustic
@@ -177,7 +223,7 @@ impl StringVoice {
         }
     }
 
-    /// Loads `t` in the bank with ζ as its state.
+    /// Loads `t` in the bank with ζ as its state, at the string's tension.
     fn write(&mut self, t: &StringTable) {
         self.bank.load(&t.modes);
         for (n, p) in t.partials.iter().enumerate() {
@@ -185,7 +231,57 @@ impl StringVoice {
             self.bank.set_state(2 * n, z[0].re, z[0].im);
             self.bank.set_state(2 * n + 1, z[1].re, z[1].im);
         }
+        if self.rho != 1.0 {
+            for n in 0..t.len() {
+                self.bent[n] = t.bent(n, self.rho);
+            }
+            self.bank.set_modes(t.bent_specs(&self.bent[..t.len()], self.rho));
+        }
         self.bank.set_damping(if self.muted { 1.0 } else { 0.0 });
+    }
+
+    /// Follows the tension controls for `n` samples and retunes when the
+    /// tension moved: `target` bend (semitones), arm position.
+    fn control(&mut self, inst: &Instrument, s: usize, target: f64, arm: f64, n: usize) {
+        let tp = &inst.model.tension;
+        let a = 1.0 - (-(n as f64) / (tp.follow_time * inst.sample_rate).max(1e-9)).exp();
+        self.bend += (target - self.bend) * a;
+        if !self.sounding {
+            return;
+        }
+        let t = table(inst, s, self.stop);
+        let mut rho = t.ratio_for_pitch(2f64.powf(self.bend / 12.0)) - self.axial * tp.tremolo_travel * arm;
+        if tp.modulation {
+            // ΔT/T₀ = EA·L·Σ k²·|ζ|²/(8·L_total·T₀), both directions.
+            let mut sum = 0.0;
+            for (k, p) in t.partials.iter().enumerate() {
+                let z = if self.in_contact {
+                    [self.solver.complex_state(PERP, k), self.solver.complex_state(PAR, k)]
+                } else {
+                    let (x, y) = (self.bank.state(2 * k), self.bank.state(2 * k + 1));
+                    p.polar_of([C64::new(x.0, x.1), C64::new(y.0, y.1)])
+                };
+                sum += p.k * p.k * (z[0].norm_sqr() + z[1].norm_sqr());
+            }
+            rho += self.axial * t.length * sum / 8.0;
+        }
+        let rho = rho.max(0.05);
+        if (rho - self.rho).abs() <= RETUNE * self.rho {
+            return;
+        }
+        self.rho = rho;
+        for k in 0..t.len() {
+            self.bent[k] = t.bent(k, rho);
+        }
+        let damping = if self.muted { 1.0 } else { 0.0 };
+        if self.in_contact {
+            self.solver.retune(t, &self.bent[..t.len()], rho, damping);
+        } else {
+            self.bank.set_modes(t.bent_specs(&self.bent[..t.len()], rho));
+            self.bank.set_damping(damping as f32);
+        }
+        // Faster partials: a new velocity bound for the watch.
+        self.rewatch = 0;
     }
 
     /// Starts the solver on the bank's state, if not running.
@@ -194,7 +290,8 @@ impl StringVoice {
             return;
         }
         self.read(t);
-        self.solver.begin(t, &self.zeta, if self.muted { 1.0 } else { 0.0 });
+        let bent = (self.rho != 1.0).then_some(&self.bent[..t.len()]);
+        self.solver.begin_bent(t, &self.zeta, if self.muted { 1.0 } else { 0.0 }, bent, self.rho);
         self.fret_slots = [None; MAX_FRETS];
         self.in_contact = true;
         self.idle = 0;
@@ -248,6 +345,7 @@ impl StringVoice {
         }
         self.stop = stop;
         self.write(to);
+        self.rewatch = 0;
     }
 
     /// The fretting finger lifts off (or the hand mutes an open string).
@@ -308,7 +406,7 @@ impl StringVoice {
             let r = reach(t.length, g.x, amps.iter().copied());
             if !self.in_contact {
                 if r >= g.gap {
-                    let v = reach(t.length, g.x, amps.iter().zip(&t.partials).map(|(a, p)| a * p.omega));
+                    let v = reach(t.length, g.x, amps.iter().zip(&t.partials).map(|(a, p)| a * p.omega)) * self.rho.sqrt().max(1.0);
                     self.watch.push((i, v));
                 }
                 continue;
@@ -319,7 +417,7 @@ impl StringVoice {
                 (false, false) => 1.0,
             };
             let near = r >= share * g.gap && {
-                let v = reach(t.length, g.x, amps.iter().zip(&t.partials).map(|(a, p)| a * p.omega));
+                let v = reach(t.length, g.x, amps.iter().zip(&t.partials).map(|(a, p)| a * p.omega)) * self.rho.sqrt().max(1.0);
                 self.solver.displacement(g.x, PERP) + tau * (v + hand) >= share * g.gap
             };
             match slot {
@@ -444,7 +542,7 @@ impl Engine {
     /// Allocates everything up front; nothing allocates afterwards.
     pub fn new(inst: Arc<Instrument>, max_block: usize) -> Self {
         let np = inst.max_partials;
-        let strings = (0..inst.model.strings.len())
+        let strings: Vec<StringVoice> = (0..inst.model.strings.len())
             .map(|_| StringVoice {
                 bank: ModalBank::new(inst.sample_rate, 2 * np, max_block),
                 solver: ContactSolver::new(np, inst.sample_rate),
@@ -459,13 +557,26 @@ impl Engine {
                 fret_force: 0.0,
                 watch: Vec::with_capacity(MAX_FRETS),
                 idle: 0,
+                bend_note: 0.0,
+                bend: 0.0,
+                rho: 1.0,
+                bent: vec![Bent::default(); np],
+                axial: 0.0,
+                rewatch: 0,
                 zeta: vec![[C64::ZERO; 2]; np],
                 scratch: vec![[C64::ZERO; 2]; np],
                 amps: vec![0.0; np],
             })
             .collect();
+        let mut strings: Vec<StringVoice> = strings;
+        let tp = &inst.model.tension;
+        let l_total = inst.model.scale_length + tp.head_length + tp.tail_length;
+        for (v, p) in strings.iter_mut().zip(&inst.model.strings) {
+            let ea = p.young * std::f64::consts::PI * p.core_diameter * p.core_diameter / 4.0;
+            v.axial = ea / (l_total * p.tension);
+        }
         let stage = OutputStage::new(&inst.model.output, inst.sample_rate);
-        Self { inst, strings, max_block, stage, force: vec![0.0; max_block] }
+        Self { inst, strings, wheel: 0.0, vibrato: 0.0, phase: 0.0, arm_target: 0.0, arm: 0.0, max_block, stage, force: vec![0.0; max_block] }
     }
 
     pub fn instrument(&self) -> &Arc<Instrument> {
@@ -498,7 +609,37 @@ impl Engine {
                     self.strings[s].lift(&self.inst, s);
                 }
             }
+            Event::Bend { note: None, semitones } => self.wheel = semitones,
+            Event::Bend { note: Some(note), semitones } => {
+                for v in self.strings.iter_mut().filter(|v| v.held == Some(note)) {
+                    v.bend_note = semitones;
+                }
+            }
+            Event::Vibrato { depth } => self.vibrato = depth,
+            Event::Tremolo { position } => self.arm_target = position.clamp(-1.0, 1.0),
         }
+    }
+
+    /// Bend a string is asked for now (semitones).
+    fn bend_target(&self, v: &StringVoice) -> f64 {
+        v.bend_note + if v.held.is_some() { self.wheel + self.vibrato * self.phase.sin() } else { 0.0 }
+    }
+
+    /// The tension controls for the next `n` samples.
+    fn control(&mut self, n: usize) {
+        let (tp, sr) = (self.inst.model.tension, self.inst.sample_rate);
+        self.phase = (self.phase + std::f64::consts::TAU * tp.vibrato_rate * n as f64 / sr) % std::f64::consts::TAU;
+        self.arm += (self.arm_target - self.arm) * (1.0 - (-(n as f64) / (tp.follow_time * sr).max(1e-9)).exp());
+        for s in 0..self.strings.len() {
+            let target = self.bend_target(&self.strings[s]);
+            let arm = self.arm;
+            self.strings[s].control(&self.inst, s, target, arm, n);
+        }
+    }
+
+    /// Tension ratio T/T₀ string `s` runs at.
+    pub fn tension_ratio(&self, s: usize) -> f64 {
+        self.strings[s].rho
     }
 
     /// Lowest fret reaching `note` on a free string, else on any.
@@ -566,10 +707,14 @@ impl Engine {
         let inst = &*self.inst;
         let (pl, tq) = (inst.model.pluck, inst.model.techniques);
         let (vel, sr) = (velocity as f64 / 127.0, inst.sample_rate);
+        let wheel = self.wheel;
         let v = &mut self.strings[s];
         v.muted = false;
         v.release_pending = false;
         v.fret_force = 0.0;
+        // A new note: the finger has let go of any bend of the last one.
+        v.bend_note = 0.0;
+        v.bend = wheel;
         v.restop(inst, s, Stop::Fret(fret), false);
         v.held = Some(note);
         v.sounding = true;
@@ -684,8 +829,10 @@ impl Engine {
     pub fn process(&mut self, out: &mut [f32]) {
         let _ftz = DenormalGuard::new();
         out.fill(0.0);
-        let inst = &*self.inst;
-        for block in out.chunks_mut(self.max_block) {
+        let step = CONTROL.min(self.max_block);
+        for block in out.chunks_mut(step) {
+            self.control(block.len());
+            let inst = &*self.inst;
             let len = block.len();
             let force = &mut self.force[..len];
             force.fill(0.0);
@@ -694,7 +841,11 @@ impl Engine {
                     continue;
                 }
                 if !v.in_contact {
-                    v.engage(inst, s);
+                    if v.rewatch == 0 {
+                        v.engage(inst, s);
+                        v.rewatch = REWATCH;
+                    }
+                    v.rewatch = v.rewatch.saturating_sub(len);
                 }
                 let mut pos = 0;
                 while pos < len {
@@ -1192,5 +1343,110 @@ mod tests {
             let (gone, muted) = (gone.expect("hand never left"), muted.expect("never muted"));
             assert!(muted <= gone + 1, "{name}: hand gone at chunk {gone}, muted at chunk {muted}");
         }
+    }
+
+    /// Fundamental of string `s` now (Hz).
+    fn fundamental(e: &Engine, s: usize) -> f64 {
+        let v = &e.strings[s];
+        let w = if v.rho == 1.0 { table(&e.inst, s, v.stop).partials[0].omega } else { v.bent[0].omega };
+        w / std::f64::consts::TAU
+    }
+
+    fn cents(a: f64, b: f64) -> f64 {
+        1200.0 * (a / b).log2()
+    }
+
+    #[test]
+    fn the_wheel_bends_held_strings_to_pitch() {
+        let mut m = GuitarModel::electric_solid();
+        m.tension.modulation = false;
+        let mut e = engine_with(m);
+        e.handle(Event::NoteOn { note: 57, velocity: 90 });
+        let (s, _) = e.position_of(57).unwrap();
+        let before = render(&mut e, 0.2);
+        e.handle(Event::Bend { note: None, semitones: 2.0 });
+        render(&mut e, 0.1);
+        let target = crate::string::midi_hz(59.0);
+        assert!(cents(fundamental(&e, s), target).abs() < 0.5, "{} cents off", cents(fundamental(&e, s), target));
+        // The string goes on ringing: no jump in level.
+        let after = render(&mut e, 0.1);
+        let db = 20.0 * (rms(&after) / rms(&before[before.len() - 4800..])).log10();
+        assert!(db.abs() < 3.0 && after.iter().all(|v| v.is_finite()), "{db} dB");
+        // Back down.
+        e.handle(Event::Bend { note: None, semitones: 0.0 });
+        render(&mut e, 0.1);
+        assert!(cents(fundamental(&e, s), crate::string::midi_hz(57.0)).abs() < 0.5);
+    }
+
+    #[test]
+    fn a_note_bend_moves_its_string_only() {
+        let mut m = GuitarModel::electric_solid();
+        m.tension.modulation = false;
+        let mut e = engine_with(m);
+        e.handle(Event::NoteOn { note: 57, velocity: 90 });
+        e.handle(Event::NoteOn { note: 64, velocity: 90 });
+        let (a, b) = (e.position_of(57).unwrap().0, e.position_of(64).unwrap().0);
+        e.handle(Event::Bend { note: Some(64), semitones: 1.0 });
+        render(&mut e, 0.1);
+        assert!(cents(fundamental(&e, b), crate::string::midi_hz(65.0)).abs() < 0.5);
+        // The other string is not touched at all.
+        assert_eq!(e.tension_ratio(a), 1.0);
+    }
+
+    #[test]
+    fn vibrato_swings_the_pitch_both_ways() {
+        let mut m = GuitarModel::electric_solid();
+        m.tension.modulation = false;
+        let mut e = engine_with(m);
+        e.handle(Event::NoteOn { note: 57, velocity: 90 });
+        let (s, _) = e.position_of(57).unwrap();
+        e.handle(Event::Vibrato { depth: 0.3 });
+        let f0 = crate::string::midi_hz(57.0);
+        let (mut lo, mut hi) = (0.0f64, 0.0f64);
+        for _ in 0..60 {
+            render(&mut e, 0.01);
+            let c = cents(fundamental(&e, s), f0);
+            (lo, hi) = (lo.min(c), hi.max(c));
+        }
+        assert!(hi > 15.0 && lo < -15.0 && hi < 31.0 && lo > -31.0, "vibrato {lo} … {hi} cents");
+    }
+
+    #[test]
+    fn the_tremolo_arm_detunes_every_string_its_own_way() {
+        let mut m = GuitarModel::electric_solid();
+        m.tension.modulation = false;
+        let mut e = engine_with(m);
+        for n in [40, 45, 50, 55, 59, 64] {
+            e.handle(Event::NoteOn { note: n, velocity: 80 });
+        }
+        e.handle(Event::Tremolo { position: 0.5 });
+        render(&mut e, 0.1);
+        let drops: Vec<f64> = (0..6).map(|s| -cents(e.tension_ratio(s).sqrt(), 1.0) / 100.0).collect();
+        // Every string flattens, by a fraction to a few semitones, unevenly.
+        assert!(drops.iter().all(|&d| (0.05..12.0).contains(&d)), "{drops:?}");
+        let spread = drops.iter().cloned().fold(0.0, f64::max) / drops.iter().cloned().fold(f64::INFINITY, f64::min);
+        assert!(spread > 1.2, "{drops:?}");
+        e.handle(Event::Tremolo { position: 0.0 });
+        render(&mut e, 0.1);
+        assert!((0..6).all(|s| (e.tension_ratio(s) - 1.0).abs() < 1e-3));
+    }
+
+    #[test]
+    fn hard_plucks_start_sharp_and_glide_down() {
+        let mut e = engine_with(GuitarModel::electric_bass());
+        e.handle(Event::NoteOn { note: 28, velocity: 127 });
+        render(&mut e, 0.06);
+        let early = e.tension_ratio(0);
+        render(&mut e, 3.0);
+        let late = e.tension_ratio(0);
+        let (c_early, c_late) = (cents(early.sqrt(), 1.0), cents(late.sqrt(), 1.0));
+        assert!(c_early > c_late && c_late >= 0.0, "{c_early} → {c_late} cents");
+        assert!((0.3..30.0).contains(&c_early), "glide starts {c_early} cents sharp");
+        let mut m = GuitarModel::electric_bass();
+        m.tension.modulation = false;
+        let mut e = engine_with(m);
+        e.handle(Event::NoteOn { note: 28, velocity: 127 });
+        render(&mut e, 0.06);
+        assert_eq!(e.tension_ratio(0), 1.0);
     }
 }
