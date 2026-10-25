@@ -238,7 +238,7 @@ impl ContactSolver {
             self.force[n] = rho * table.force[n];
             for pol in 0..2 {
                 let (omega, sigma) = bent.map_or(table.partials[n].polar[pol], |b| b[n].polar[pol]);
-                let pole = self.set_mode(table, n, pol, omega, sigma, damping);
+                let pole = self.set_mode(table, n, pol, omega, sigma, damping, rho);
                 let (i, z) = (pol * self.max_p + n, zeta[n][pol]);
                 self.q0[i] = z.re;
                 self.q1[i] = (z / pole).re;
@@ -250,8 +250,10 @@ impl ContactSolver {
         self.max_force = 0.0;
     }
 
-    /// Coefficients and output weights of mode (`pol`, `n`); its pole.
-    fn set_mode(&mut self, table: &StringTable, n: usize, pol: usize, omega: f64, sigma: f64, damping: f64) -> C64 {
+    /// Coefficients and output weights of mode (`pol`, `n`) at tension ratio
+    /// `rho`; its pole.
+    #[allow(clippy::too_many_arguments)]
+    fn set_mode(&mut self, table: &StringTable, n: usize, pol: usize, omega: f64, sigma: f64, damping: f64, rho: f64) -> C64 {
         let dt = self.dt;
         let p = &table.partials[n];
         // Pushed past the cap by a bend: kept below Nyquist, and silent.
@@ -270,7 +272,8 @@ impl ContactSolver {
         (self.wa[i], self.wb[i]) = if table.velocity_out {
             (w * (-sg + omega * self.c[i] / self.ps[i]), -w * omega * self.e[i] / self.ps[i])
         } else {
-            (w, 0.0)
+            // A force output is T·∂y/∂x: it follows the tension.
+            (rho * w, 0.0)
         };
         if !audible && pol == PERP {
             self.force[n] = 0.0;
@@ -280,18 +283,26 @@ impl ContactSolver {
 
     /// Retunes the running episode to the partials `bent` (tension ratio
     /// `rho`), the string's motion kept: each mode's complex amplitude
-    /// carries over, and its previous sample is recomputed for the new pole.
-    /// Real-time safe.
+    /// carries over, and its previous sample is recomputed for the new pole;
+    /// so is each contact's previous compression, which the next step
+    /// differences against. Real-time safe.
     pub fn retune(&mut self, table: &StringTable, bent: &[Bent], rho: f64, damping: f64) {
         for n in 0..self.np {
             self.force[n] = rho * table.force[n];
             for pol in 0..2 {
                 let z = self.complex_state(pol, n);
                 let (omega, sigma) = bent[n].polar[pol];
-                let pole = self.set_mode(table, n, pol, omega, sigma, damping);
+                let pole = self.set_mode(table, n, pol, omega, sigma, damping, rho);
                 let i = pol * self.max_p + n;
                 self.q0[i] = z.re;
                 self.q1[i] = (z / pole).re;
+            }
+        }
+        let t_prev = self.samples.saturating_sub(1);
+        for slot in 0..MAX_CONTACTS {
+            if let Some(mut s) = self.slots[slot] {
+                s.u1 = s.c.sign * (self.y(&self.q1, slot, s.c.pol) - Self::target(&s, t_prev));
+                self.slots[slot] = Some(s);
             }
         }
         self.rebuild_g();
@@ -787,5 +798,60 @@ mod tests {
         let turned = (sol.complex_state(PERP, 0) / before[0]).arg();
         let expect = bent[0].polar[PERP].0 / SR;
         assert!((turned - expect).abs() < 1e-6 * expect, "turned {turned}, expected {expect}");
+    }
+
+    #[test]
+    fn a_force_output_follows_the_tension() {
+        // Bridge-force output (gain 0.1): after a retune to ρ = 2, and when
+        // started bent, the output is 0.1 × the force the solver computes.
+        let m = GuitarModel::default();
+        let t = open(&m, 3);
+        let mut zeta = vec![[C64::ZERO; 2]; t.len()];
+        zeta[0][PERP] = C64::new(1e-3, 0.0);
+        let rho = 2.0;
+        let bent: Vec<Bent> = (0..t.len()).map(|n| t.bent(n, rho)).collect();
+        let still = Contact { x: 0.1, pol: PERP, sign: 1.0, law: Law::Spring { stiffness: 0.0, damping: 0.0 }, motion: Motion::Fixed(0.0), release: Release::Never, group: 0 };
+        for started_bent in [false, true] {
+            let mut sol = ContactSolver::new(t.len(), SR);
+            if started_bent {
+                sol.begin_bent(&t, &zeta, 0.0, Some(&bent), rho);
+            } else {
+                sol.begin(&t, &zeta, 0.0);
+                sol.retune(&t, &bent, rho, 0.0);
+            }
+            sol.add(still);
+            let (mut o, mut f) = (vec![0.0f32; 4], vec![0.0f32; 4]);
+            sol.run(&mut o, &mut f);
+            for (a, b) in o.iter().zip(&f) {
+                assert!((a - 0.1 * b).abs() < 1e-6 * b.abs(), "started bent {started_bent}: output {a} vs force {b}");
+            }
+        }
+    }
+
+    #[test]
+    fn retuning_under_a_contact_is_starting_there() {
+        // A spring holds a ringing string; a retune mid-contact must give the
+        // same next force as a solver started at the new tension from the
+        // same state and the same spring.
+        let m = GuitarModel::electric_solid();
+        let t = open(&m, 3);
+        let zeta: Vec<[C64; 2]> = t.shape.iter().map(|a| [C64::new(a * 1e-3, 0.0), C64::ZERO]).collect();
+        let spring = Contact { x: 0.1, pol: PERP, sign: 1.0, law: Law::Spring { stiffness: 5e3, damping: 5.0 }, motion: Motion::Fixed(0.0), release: Release::Never, group: 0 };
+        let mut a = ContactSolver::new(t.len(), SR);
+        a.begin(&t, &zeta, 0.0);
+        let sa = a.add(spring).unwrap();
+        let (mut o, mut f) = (vec![0.0f32; 100], vec![0.0f32; 100]);
+        a.run(&mut o, &mut f);
+        let rho = t.ratio_for_pitch(2f64.powf(2.0 / 12.0));
+        let bent: Vec<Bent> = (0..t.len()).map(|n| t.bent(n, rho)).collect();
+        a.retune(&t, &bent, rho, 0.0);
+        let now: Vec<[C64; 2]> = (0..t.len()).map(|n| [a.complex_state(PERP, n), a.complex_state(PAR, n)]).collect();
+        let mut b = ContactSolver::new(t.len(), SR);
+        b.begin_bent(&t, &now, 0.0, Some(&bent), rho);
+        let sb = b.add(spring).unwrap();
+        a.step();
+        b.step();
+        let (fa, fb) = (a.force(sa), b.force(sb));
+        assert!((fa - fb).abs() < 1e-9 * fb.abs(), "retuned {fa} N vs started there {fb} N");
     }
 }
