@@ -61,6 +61,107 @@ impl StretchLaw {
     }
 }
 
+/// Temperaments: how far each note class lies from equal temperament,
+/// from how the circle's twelve fifths are tempered. A4 keeps its pitch.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct TemperamentLaw {
+    /// One of [`TemperamentLaw::NAMES`]: 0 equal, 1 Werckmeister III,
+    /// 2 Kirnberger III, 3 Vallotti, 4 Young II, 5 quarter-comma meantone,
+    /// 6 sixth-comma meantone, 7 Pythagorean, 8 custom (`cents`).
+    pub kind: i32,
+    /// Note class the temperament is laid on (0 = C … 11 = B): its purest
+    /// keys move with it.
+    pub key: i32,
+    /// The custom temperament (kind 8), laid on C: cents from equal
+    /// temperament of C, C♯, D … B.
+    pub cents: [f64; 12],
+}
+
+/// A pure fifth (3:2), the Pythagorean comma (3¹²:2¹⁹) and the syntonic
+/// comma (81:80), in cents.
+fn cents_of(ratio: f64) -> f64 {
+    1200.0 * ratio.log2()
+}
+
+impl TemperamentLaw {
+    pub const EQUAL: Self = Self { kind: 0, key: 0, cents: [0.0; 12] };
+    pub const NAMES: [&'static str; 9] = [
+        "Equal",
+        "Werckmeister III",
+        "Kirnberger III",
+        "Vallotti",
+        "Young II",
+        "Quarter-comma meantone",
+        "Sixth-comma meantone",
+        "Pythagorean",
+        "Custom",
+    ];
+
+    /// The circle's fifths from C (C–G, G–D … F–C), in cents above 700,
+    /// as each temperament sets them; one of them (`None`) closes the
+    /// circle (the meantones' and the Pythagorean's wolf).
+    fn fifths(kind: i32) -> Option<[Option<f64>; 12]> {
+        let fifth = cents_of(1.5) - 700.0;
+        let (pythagorean, syntonic) = (cents_of(3f64.powi(12) / 2f64.powi(19)), cents_of(81.0 / 80.0));
+        let pure = Some(fifth);
+        let pc = |x: f64| Some(fifth - x * pythagorean);
+        let sc = |x: f64| Some(fifth - x * syntonic);
+        Some(match kind {
+            // C–G, G–D, D–A and B–F♯ narrowed by a quarter of the Pythagorean comma.
+            1 => [pc(0.25), pc(0.25), pc(0.25), pure, pure, pc(0.25), pure, pure, pure, pure, pure, pure],
+            // C–G … A–E narrowed by a quarter of the syntonic comma, F♯–C♯
+            // by the schisma (closing), the others pure.
+            2 => [sc(0.25), sc(0.25), sc(0.25), sc(0.25), pure, pure, None, pure, pure, pure, pure, pure],
+            // F–C … E–B narrowed by a sixth of the Pythagorean comma.
+            3 => [pc(1.0 / 6.0), pc(1.0 / 6.0), pc(1.0 / 6.0), pc(1.0 / 6.0), pc(1.0 / 6.0), pure, pure, pure, pure, pure, pure, pc(1.0 / 6.0)],
+            // C–G … B–F♯ narrowed by a sixth of the Pythagorean comma.
+            4 => [pc(1.0 / 6.0), pc(1.0 / 6.0), pc(1.0 / 6.0), pc(1.0 / 6.0), pc(1.0 / 6.0), pc(1.0 / 6.0), pure, pure, pure, pure, pure, pure],
+            // E♭ … G♯ narrowed alike, the wolf G♯–E♭.
+            5 => {
+                let m = sc(0.25);
+                [m, m, m, m, m, m, m, m, None, m, m, m]
+            }
+            6 => {
+                let m = sc(1.0 / 6.0);
+                [m, m, m, m, m, m, m, m, None, m, m, m]
+            }
+            7 => [pure, pure, pure, pure, pure, pure, pure, pure, None, pure, pure, pure],
+            _ => return None,
+        })
+    }
+
+    /// Cents from equal temperament of each note class (C = 0 … B = 11),
+    /// A unchanged.
+    pub fn class_cents(&self) -> [f64; 12] {
+        // Laid on C.
+        let on_c = match (self.kind, Self::fifths(self.kind)) {
+            (8, _) => self.cents,
+            (_, None) => return [0.0; 12],
+            (_, Some(f)) => {
+                let known: f64 = f.iter().flatten().sum();
+                let mut c = [0.0; 12];
+                let mut acc = 0.0;
+                for (i, d) in f.iter().enumerate().take(11) {
+                    // The fifths add up to seven octaves: the closing one
+                    // takes what is left.
+                    acc += d.unwrap_or(-known);
+                    c[(7 * (i + 1)) % 12] = acc;
+                }
+                c
+            }
+        };
+        let key = self.key.rem_euclid(12) as usize;
+        let at = |pc: usize| on_c[(pc + 12 - key) % 12];
+        let a = at(9);
+        std::array::from_fn(|pc| at(pc) - a)
+    }
+
+    pub fn cents(&self, note: u8) -> f64 {
+        self.class_cents()[note as usize % 12]
+    }
+}
+
 /// Decay rate σ_k = b1(note) + b2·f_k² (1/s) with log b1 linear in the note,
 /// plus a constant floor `b1_floor` (internal friction of the wound bass
 /// strings, which the log-linear law misses).
@@ -640,6 +741,7 @@ pub struct PianoModel {
     pub velocity: VelocityLaw,
     pub inharmonicity: InharmonicityLaw,
     pub stretch: StretchLaw,
+    pub temperament: TemperamentLaw,
     /// Intrinsic string losses (the bridge adds its own through coupling).
     pub losses: LossLaw,
     pub scale: StringScale,
@@ -746,6 +848,7 @@ impl Default for PianoModel {
             velocity: VelocityLaw::DEFAULT,
             inharmonicity: InharmonicityLaw::SALAMANDER_C5,
             stretch: StretchLaw::SALAMANDER_C5,
+            temperament: TemperamentLaw::EQUAL,
             losses: LossLaw::SALAMANDER_STRING,
             scale: StringScale::GRAND_2M,
             unison: UnisonLaw::GRAND,
@@ -803,7 +906,7 @@ impl Default for PianoModel {
 
 impl PianoModel {
     pub fn note(&self, note: u8) -> NoteParams {
-        let f0 = note_freq(note, self.a4) * 2f64.powf(self.stretch.cents(note) / 1200.0);
+        let f0 = note_freq(note, self.a4) * 2f64.powf((self.stretch.cents(note) + self.temperament.cents(note)) / 1200.0);
         let length = self.scale.length(note);
         let tension = self.scale.tension;
         let mu = tension / (2.0 * length * f0).powi(2);
@@ -959,6 +1062,12 @@ impl Default for StretchLaw {
     }
 }
 
+impl Default for TemperamentLaw {
+    fn default() -> Self {
+        Self::EQUAL
+    }
+}
+
 impl Default for LossLaw {
     fn default() -> Self {
         Self::SALAMANDER_STRING
@@ -1016,6 +1125,48 @@ impl Default for VelocityLaw {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn temperament(kind: i32, key: i32) -> [f64; 12] {
+        TemperamentLaw { kind, key, ..TemperamentLaw::EQUAL }.class_cents()
+    }
+
+    /// The published tables (cents from equal temperament, C = 0, C … B).
+    #[test]
+    fn temperaments_match_their_tables() {
+        let tables: [(i32, [f64; 12]); 4] = [
+            (1, [0.0, -9.8, -7.8, -5.9, -9.8, -2.0, -11.7, -3.9, -7.8, -11.7, -3.9, -7.8]),
+            (2, [0.0, -9.8, -6.8, -5.9, -13.7, -2.0, -9.8, -3.4, -7.8, -10.3, -3.9, -11.7]),
+            (3, [0.0, -5.9, -3.9, -2.0, -7.8, 2.0, -7.8, -2.0, -3.9, -5.9, 0.0, -9.8]),
+            (5, [0.0, -24.0, -6.8, 10.3, -13.7, 3.4, -20.5, -3.4, -27.4, -10.3, 6.8, -17.1]),
+        ];
+        for (kind, want) in tables {
+            let c = temperament(kind, 0);
+            for (pc, w) in want.iter().enumerate() {
+                assert!((c[pc] - c[0] - w).abs() < 0.06, "{}: class {pc}: {:.2} vs {w}", TemperamentLaw::NAMES[kind as usize], c[pc] - c[0]);
+            }
+        }
+    }
+
+    /// A keeps its pitch; equal temperament and unknown kinds change nothing;
+    /// a temperament laid on G is the one on C moved up a fifth.
+    #[test]
+    fn temperaments_keep_a_and_move_with_their_key() {
+        for kind in -1..TemperamentLaw::NAMES.len() as i32 + 1 {
+            for key in -3..15 {
+                assert!(temperament(kind, key)[9].abs() < 1e-9);
+            }
+        }
+        assert_eq!(temperament(0, 3), [0.0; 12]);
+        assert_eq!(temperament(42, 0), [0.0; 12]);
+        let (c, g) = (temperament(1, 0), temperament(1, 7));
+        for pc in 0..12 {
+            assert!(((g[(pc + 7) % 12] - g[7]) - (c[pc] - c[0])).abs() < 1e-9);
+        }
+        // The meantone's wolf G♯–E♭: 35.7 cents wider than a pure fifth.
+        let m = temperament(5, 0);
+        let wolf = 700.0 + m[3] - m[8];
+        assert!((wolf - 1200.0 * 1.5f64.log2() - 35.7).abs() < 0.1, "{wolf}");
+    }
 
     #[test]
     fn rigaud_b_values() {

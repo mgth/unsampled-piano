@@ -256,6 +256,31 @@ const HELP: &[(&str, &str, &str)] = &[
     ("stretch.a_b", "Amount of stretch (flattening) in the bass.", "Amplitude a_b of the bass exponential (cents)."),
     ("stretch.k_b", "How quickly the bass stretch builds up towards the bottom.", "Rate k_b of the bass exponential (per key)."),
     ("stretch.c", "Offset of the whole tuning around A4 (cents).", "Constant term c of the stretch law."),
+    (
+        "temperament.kind",
+        "How the twelve notes of the octave are tuned against each other. Equal temperament (0) makes \
+         every key alike; the older ones keep some keys purer and others rougher, as music was \
+         played before the 19th century: 1 Werckmeister III, 2 Kirnberger III, 3 Vallotti, \
+         4 Young II, 5 quarter-comma meantone, 6 sixth-comma meantone, 7 Pythagorean, 8 custom.",
+        "Set by how each fifth of the circle is narrowed from pure (3:2): Werckmeister III, C–G, \
+         G–D, D–A and B–F♯ by ¼ Pythagorean comma; Kirnberger III, C–G … A–E by ¼ syntonic \
+         comma and F♯–C♯ by the schisma; Vallotti, F–C … E–B by ⅙ Pythagorean comma; Young II, \
+         C–G … B–F♯ likewise; the meantones, eleven fifths by ¼ or ⅙ syntonic comma and the \
+         wolf G♯–E♭; Pythagorean, eleven pure fifths and the wolf. A4 keeps its pitch; the \
+         stretch adds on top (docs/temperaments.md).",
+    ),
+    (
+        "temperament.key",
+        "The note the temperament is built on (0 = C … 11 = B): the keys around it in the circle \
+         of fifths sound purest. C for the usual tables.",
+        "Shifts the note classes' offsets by this many semitones.",
+    ),
+    (
+        "temperament.cents",
+        "A temperament of your own (temperament 8): how far each note, C to B, lies from equal \
+         temperament, in cents (a hundredth of a semitone).",
+        "Offsets of C, C♯ … B, laid on `temperament.key`; A is brought back to A4's pitch.",
+    ),
     // Strings
     (
         "losses.b1_slope",

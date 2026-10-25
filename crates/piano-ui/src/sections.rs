@@ -84,7 +84,7 @@ pub const SECTIONS: &[Section] = &[
     },
     Section {
         title: "Tuning",
-        prefixes: &["a4", "stretch.", "inharmonicity."],
+        prefixes: &["a4", "temperament.", "stretch.", "inharmonicity."],
         curves: &[
             Curve { title: "Stretch", unit: "cents", x: KEYS, log: false, f: |m, n| m.stretch.cents(n) },
             Curve { title: "Inharmonicity B", unit: "", x: KEYS, log: true, f: |m, n| m.inharmonicity.b(n) },
