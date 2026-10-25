@@ -348,11 +348,11 @@ impl PianoUi {
         let shown: Vec<usize> = (0..self.registry.params().len())
             .filter(|&i| {
                 let p = &self.registry.params()[i];
-                if searching {
+                (if searching {
                     p.path.to_lowercase().contains(&needle) || p.meta.label.to_lowercase().contains(&needle)
                 } else {
                     self.section[i] == self.page
-                }
+                }) && widgets::applies(&p.path, model)
             })
             .collect();
 

@@ -111,7 +111,7 @@ fn row(ui: &mut Ui, i: usize, p: &Param, mut v: f64, control: &mut dyn PianoCont
     let tick = ui.visuals().weak_text_color();
     ui.painter().line_segment([egui::pos2(x(0.0), y - 0.45 * rect.height()), egui::pos2(x(0.0), y - 0.25 * rect.height())], Stroke::new(1.0, tick));
     widgets::edit(&r, &p.path, Value::Float(v), control);
-    let r = r.on_hover_text(format!("{low} ← preset → {high}; double-click: back to the preset"));
+    let r = r.on_hover_text(format!("{low} – preset – {high}; double-click: back to the preset"));
     // The slider senses drags only: a double click is read from the pointer.
     let double = ui.input(|i| i.pointer.button_double_clicked(egui::PointerButton::Primary));
     let reset_by_click = double && r.hovered() && v != 0.0;

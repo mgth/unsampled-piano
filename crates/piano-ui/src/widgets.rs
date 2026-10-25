@@ -35,20 +35,41 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
         }
         return Row { label, pointing: false, touched: false };
     };
-    let r = match &mut v {
-        Value::Float(x) => ui.add(
+    let mut picked = false;
+    let r = match (&mut v, choices(&p.path)) {
+        // A choice among names: a list, one gesture per pick.
+        (Value::Int(x), Some(names)) => {
+            let shown = choice_index(&p.path, *x, names.len());
+            let mut chosen = shown;
+            let r = egui::ComboBox::from_id_salt(&p.path)
+                .width(200.0)
+                .selected_text(names[shown])
+                .show_ui(ui, |ui| {
+                    for (k, name) in names.iter().enumerate() {
+                        ui.selectable_value(&mut chosen, k, *name);
+                    }
+                })
+                .response;
+            if chosen != shown {
+                *x = chosen as i64;
+                set_once(&p.path, Value::Int(*x), control);
+                picked = true;
+            }
+            r
+        }
+        (Value::Float(x), _) => ui.add(
             egui::Slider::new(x, m.min..=m.max)
                 .logarithmic(m.log)
                 .clamping(egui::SliderClamping::Never)
                 .suffix(if m.unit.is_empty() { String::new() } else { format!(" {}", m.unit) })
                 .custom_formatter(|v, _| show(v)),
         ),
-        Value::Int(x) => ui.add(
+        (Value::Int(x), None) => ui.add(
             egui::Slider::new(x, m.min as i64..=m.max as i64)
                 .clamping(egui::SliderClamping::Never)
                 .suffix(if m.unit.is_empty() { String::new() } else { format!(" {}", m.unit) }),
         ),
-        Value::Bool(x) => ui.checkbox(x, ""),
+        (Value::Bool(x), _) => ui.checkbox(x, ""),
     };
     edit(&r, &p.path, v, control);
     let reset = reset_button(ui, v != p.default).on_hover_text("Back to the default");
@@ -60,7 +81,36 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
     Row {
         label,
         pointing: r.hovered() || r.dragged() || r.has_focus(),
-        touched: r.drag_started() || r.changed() || r.clicked() || reset.clicked(),
+        touched: r.drag_started() || r.changed() || r.clicked() || reset.clicked() || picked,
+    }
+}
+
+/// Note classes from C, as the temperaments name them.
+const NOTE_CLASSES: [&str; 12] = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
+
+/// The names of an integer parameter's values, when it is a choice.
+fn choices(path: &str) -> Option<&'static [&'static str]> {
+    match path {
+        "temperament.kind" => Some(&piano_core::params::TemperamentLaw::NAMES),
+        "temperament.key" => Some(&NOTE_CLASSES),
+        _ => None,
+    }
+}
+
+/// The name shown for a value: the key wraps around the octave, an unknown
+/// temperament is equal.
+fn choice_index(path: &str, v: i64, n: usize) -> usize {
+    if path == "temperament.key" { v.rem_euclid(12) as usize } else { usize::try_from(v).ok().filter(|&i| i < n).unwrap_or(0) }
+}
+
+/// Parameters shown only where they act: the key a temperament is laid
+/// on with an unequal one, the custom temperament's cents with it.
+pub(crate) fn applies(path: &str, model: &PianoModel) -> bool {
+    let kind = model.temperament.kind;
+    match path {
+        "temperament.key" => (1..=8).contains(&kind),
+        p if p.starts_with("temperament.cents") => kind == 8,
+        _ => true,
     }
 }
 
@@ -287,5 +337,42 @@ mod tests {
         assert_eq!(show(-3.708095), "-3.708");
         assert_eq!(note_name(60), "C4");
         assert_eq!(note_name(21), "A0");
+    }
+
+    /// Every name, label and help text shown has its glyphs in the
+    /// interface's fonts (♯, ♭ or ∝ would be empty boxes).
+    #[test]
+    fn shown_texts_have_their_glyphs() {
+        let ctx = egui::Context::default();
+        let _ = ctx.run_ui(Default::default(), |_| {});
+        let reg = piano_params::Registry::new();
+        let mut texts: Vec<String> = reg.params().iter().map(|p| p.meta.label.clone()).collect();
+        for p in reg.params() {
+            if let Some(h) = piano_params::help(&p.path) {
+                texts.extend([h.what.to_string(), h.how.to_string()]);
+            }
+        }
+        texts.extend(NOTE_CLASSES.iter().chain(piano_core::params::TemperamentLaw::NAMES.iter()).map(|s| s.to_string()));
+        let font = egui::FontId::proportional(14.0);
+        let missing: std::collections::BTreeSet<char> =
+            ctx.fonts_mut(|f| texts.iter().flat_map(|t| t.chars()).filter(|&c| !f.has_glyph(&font, c)).collect());
+        assert!(missing.is_empty(), "no glyph for {missing:?}");
+    }
+
+    #[test]
+    fn temperaments_are_chosen_by_name() {
+        let kinds = choices("temperament.kind").unwrap();
+        assert_eq!(kinds[choice_index("temperament.kind", 3, kinds.len())], "Vallotti");
+        // Any other value plays equal temperament, and is shown so.
+        assert_eq!(kinds[choice_index("temperament.kind", 42, kinds.len())], "Equal");
+        let keys = choices("temperament.key").unwrap();
+        assert_eq!(keys[choice_index("temperament.key", -3, 12)], "A");
+        assert!(choices("temperament.cents[0]").is_none());
+        let mut m = PianoModel::default();
+        assert!(!applies("temperament.cents[4]", &m) && !applies("temperament.key", &m));
+        m.temperament.kind = 3;
+        assert!(!applies("temperament.cents[4]", &m) && applies("temperament.key", &m));
+        m.temperament.kind = 8;
+        assert!(applies("temperament.cents[4]", &m));
     }
 }

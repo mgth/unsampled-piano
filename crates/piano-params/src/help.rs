@@ -263,10 +263,10 @@ const HELP: &[(&str, &str, &str)] = &[
          played before the 19th century: 1 Werckmeister III, 2 Kirnberger III, 3 Vallotti, \
          4 Young II, 5 quarter-comma meantone, 6 sixth-comma meantone, 7 Pythagorean, 8 custom.",
         "Set by how each fifth of the circle is narrowed from pure (3:2): Werckmeister III, C–G, \
-         G–D, D–A and B–F♯ by ¼ Pythagorean comma; Kirnberger III, C–G … A–E by ¼ syntonic \
-         comma and F♯–C♯ by the schisma; Vallotti, F–C … E–B by ⅙ Pythagorean comma; Young II, \
-         C–G … B–F♯ likewise; the meantones, eleven fifths by ¼ or ⅙ syntonic comma and the \
-         wolf G♯–E♭; Pythagorean, eleven pure fifths and the wolf. A4 keeps its pitch; the \
+         G–D, D–A and B–F# by ¼ Pythagorean comma; Kirnberger III, C–G … A–E by ¼ syntonic \
+         comma and F#–C# by the schisma; Vallotti, F–C … E–B by ⅙ Pythagorean comma; Young II, \
+         C–G … B–F# likewise; the meantones, eleven fifths by ¼ or ⅙ syntonic comma and the \
+         wolf G#–Eb; Pythagorean, eleven pure fifths and the wolf. A4 keeps its pitch; the \
          stretch adds on top (docs/temperaments.md).",
     ),
     (
@@ -279,7 +279,7 @@ const HELP: &[(&str, &str, &str)] = &[
         "temperament.cents",
         "A temperament of your own (temperament 8): how far each note, C to B, lies from equal \
          temperament, in cents (a hundredth of a semitone).",
-        "Offsets of C, C♯ … B, laid on `temperament.key`; A is brought back to A4's pitch.",
+        "Offsets of C, C# … B, laid on `temperament.key`; A is brought back to A4's pitch.",
     ),
     // Strings
     (
@@ -417,7 +417,7 @@ const HELP: &[(&str, &str, &str)] = &[
         "Length of the soundboard, along the strings. The soundboard is the large thin spruce \
          panel under the strings: it turns their vibration into sound.",
         "The board is an orthotropic plate a × b clamped in the rim (Warburton's approximation, \
-         index m → m + ½), modal: each mode is a damped oscillator driven by the bridge forces \
+         index m to m + ½), modal: each mode is a damped oscillator driven by the bridge forces \
          and radiating to the mics by the Rayleigh integral.",
     ),
     ("soundboard.b", "Width of the soundboard, across the keyboard.", "Plate size b (m). The modes' frequencies scale as 1/a² and 1/b²."),
@@ -510,7 +510,7 @@ const HELP: &[(&str, &str, &str)] = &[
         "soundboard.crown_freq",
         "The soundboard is slightly arched (crowned) and pressed down by the strings, which \
          stiffens it like a shell. More crown: its lowest resonances move up.",
-        "Elastic foundation: ω² → ω² + (2π·crown_freq)² (Hz, 0: flat). Set on the third-octave \
+        "Elastic foundation: ω² becomes ω² + (2π·crown_freq)² (Hz, 0: flat). Set on the third-octave \
          balance of the bass keys (docs/bass_radiation.md).",
     ),
     (
@@ -594,7 +594,7 @@ const HELP: &[(&str, &str, &str)] = &[
         "On for an upright: the soundboard stands vertically, its top at the board's length above \
          the floor, its string side towards the room (and against the room's wall when there is \
          a wall behind it). It places the piano and the microphones in the room.",
-        "Board (x, y, z) → room (piano.x + y, y_wall + z, 0.25 m + a − x), y_wall = wall distance \
+        "Board (x, y, z) to room (piano.x + y, y_wall + z, 0.25 m + a − x), y_wall = wall distance \
          (then the room's first reflection off y = 0 is left to the board's own wall image) or \
          piano.y. The board's radiation is unchanged.",
     ),
@@ -626,7 +626,7 @@ const HELP: &[(&str, &str, &str)] = &[
     ("macros.release", "Clean to soft note endings.", "Damper strength × 3^−v, fall time × 3^(v/2): C4's drop 0.25 s after the key-up +4 to −7 dB."),
     ("macros.unisons", "Pure to lively: how far apart the strings of each note are tuned, and how unevenly the hammer meets them.", "Unison spread × 3^v (× 1.6^v towards pure: tighter unisons lose the slow modes that carry the sustain), hit spread × 1.5^v. C5 over 1–2 s −3.7 to +5.7 dB."),
     ("macros.mechanism", "Discreet to present action noises: the keys' knock, the dampers, the pedal.", "noise.action, keybed, damper_mass and pedal × 4^v (−9 to +12 dB)."),
-    ("macros.size", "Baby grand to concert grand.", "Bass string length × 1.25^v (bass inharmonicity ∝ 1/L²), board and frame × 1.12^v, hammer mass × 1.1^v."),
+    ("macros.size", "Baby grand to concert grand.", "Bass string length × 1.25^v (bass inharmonicity as 1/L²), board and frame × 1.12^v, hammer mass × 1.1^v."),
     ("macros.lid", "Closed to open lid.", "Lid angle from the preset's towards 0 (v = −1) or 45° (v = +1). At 0 the lid is taken away rather than shut."),
     ("macros.space", "Close to roomy: how much of the room's reverberation is heard.", "Room tail × 3^v (about ±8 dB)."),
     ("macros.stretch", "Strict to stretched tuning: how wide the octaves are tuned.", "The stretch law × (1 + v): equal temperament at −1, twice the preset's stretch at +1."),
