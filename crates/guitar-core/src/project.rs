@@ -24,7 +24,7 @@
 
 use piano_core::complex::C64;
 
-use crate::string::StringTable;
+use crate::string::{StringTable, PERP};
 
 /// Writes into `out[..to.len()]` the per-polarisation amplitudes on `to`
 /// of the state `zeta` (one per partial of `from`). ζ = q − i·v/ω (q = Re ζ,
@@ -76,6 +76,41 @@ pub fn project(from: &StringTable, to: &StringTable, zeta: &[[C64; 2]], out: &mu
             // Back from (displacement, velocity) to ζ on the new mode.
             *z = C64::new(z.re * 2.0 / l2, -z.im * 2.0 / (l2 * pm.omega));
         }
+    }
+}
+
+/// Adds to `out` (amplitudes on `to`) the change of rest line from `from`
+/// to `to`, in the perpendicular direction (counted toward the board).
+///
+/// Both lines start at the saddle. On the common part the old line sits
+/// (s₂ − s₁)·x above the new one, s the slopes; going longer, the part
+/// beyond the old stop lay on the straight line from the old stop to the
+/// new one (the finger's side of the fret). So the string, seen from its
+/// new rest, is displaced by a ramp c·x on [0, L₂] going shorter, by a
+/// triangle peaking at the old stop going longer: the small pluck of a
+/// string leaving or landing on a fret. Projected on sin(mπx/L₂):
+///
+/// ```text
+/// ramp:      b_m = 2c·L₂·(−1)^{m+1}/(mπ)
+/// triangle:  b_m = 2D·L₂²·sin(mπp/L₂)/(m²π²·p(L₂ − p)),  D = c·p,  p = L₁
+/// ```
+pub fn add_rest_change(from: &StringTable, to: &StringTable, out: &mut [[C64; 2]]) {
+    use std::f64::consts::PI;
+    let (l1, l2) = (from.length, to.length);
+    let c = to.rest_slope - from.rest_slope;
+    if c == 0.0 {
+        return;
+    }
+    for (m, o) in out[..to.len()].iter_mut().enumerate() {
+        let mf = (m + 1) as f64;
+        let b = if l2 <= l1 {
+            let sign = if m % 2 == 0 { 1.0 } else { -1.0 };
+            2.0 * c * l2 * sign / (mf * PI)
+        } else {
+            let p = l1;
+            2.0 * c * p * l2 * l2 * (mf * PI * p / l2).sin() / (mf * mf * PI * PI * p * (l2 - p))
+        };
+        o[PERP].re += b;
     }
 }
 
@@ -142,5 +177,25 @@ mod tests {
         for x in [l1 + 0.03, l1 + 0.1] {
             assert!(y(&open, &out, x, PERP).abs() < 0.02 * 1e-3, "x = {x}: {}", y(&open, &out, x, PERP));
         }
+    }
+
+    #[test]
+    fn rest_change_is_the_triangle_between_the_two_lines() {
+        // Lifting off the 5th fret of the low E: seen from the open string's
+        // rest line, the string lies on the old line up to the fret, then
+        // straight to the nut — a triangle peaking at the old stop.
+        let inst = crate::instrument::Instrument::new(GuitarModel::electric_solid(), SR);
+        let (f5, open) = (inst.table(0, 5), inst.table(0, 0));
+        let mut out = vec![[C64::ZERO; 2]; open.len()];
+        add_rest_change(f5, open, &mut out);
+        let c = open.rest_slope - f5.rest_slope;
+        let (p, l) = (f5.length, open.length);
+        let tri = |x: f64| if x <= p { c * x } else { c * p * (l - x) / (l - p) };
+        for x in [0.1, 0.3, p, 0.55] {
+            let got = y(open, &out, x, PERP);
+            assert!((got - tri(x)).abs() < 0.03 * (c * p).abs(), "x = {x}: {got} vs {}", tri(x));
+        }
+        // Positive: the old stop lies below the open line (toward the board).
+        assert!(c * p > 0.0);
     }
 }

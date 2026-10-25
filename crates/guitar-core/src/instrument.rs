@@ -3,6 +3,7 @@
 //! muted, by the hand near the nut or by a finger lifting off each fret.
 //! Built off the audio thread and shared read-only by engines.
 
+use crate::frets::{gaps, rest_slope};
 use crate::params::GuitarModel;
 use crate::string::{fret_length, StringTable};
 
@@ -27,7 +28,10 @@ impl Instrument {
                 (0..=model.frets)
                     .map(|f| {
                         let l = fret_length(l0, f);
-                        StringTable::new(&model, s, l, l - d, sample_rate)
+                        let mut t = StringTable::new(&model, s, l, l - d, sample_rate);
+                        t.frets = gaps(&model, s, Some(f));
+                        t.rest_slope = rest_slope(&model, s, Some(f));
+                        t
                     })
                     .collect()
             })
@@ -37,7 +41,10 @@ impl Instrument {
                 (0..=model.frets)
                     .map(|f| {
                         let at = if f == 0 { l0 - d } else { fret_length(l0, f) + d };
-                        StringTable::muted(&model, s, l0, at, sample_rate)
+                        let mut t = StringTable::muted(&model, s, l0, at, sample_rate);
+                        t.frets = gaps(&model, s, None);
+                        t.rest_slope = rest_slope(&model, s, None);
+                        t
                     })
                     .collect()
             })

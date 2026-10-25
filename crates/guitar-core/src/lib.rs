@@ -6,8 +6,9 @@
 //! a per-sample modal contact solver, their motion carried over when the
 //! stopped length changes. G5/G2 basics: magnetic pickups (single coils,
 //! humbuckers) through the guitar's passive circuit, a piezo, and finger
-//! and plectrum plucks that slip off at their force. Acoustic bodies, frets
-//! and the other techniques come next.
+//! and plectrum plucks that slip off at their force. G3: the frets under the
+//! strings (buzz), slap, pop, tapping, hammer-ons and pull-offs. Bends and
+//! acoustic bodies come next.
 //!
 //! The DSP core is piano-core's: [`piano_core::modal::ModalBank`] runs the
 //! string modes, [`piano_core::denormal`] guards the audio callback. Nothing
@@ -15,6 +16,7 @@
 
 pub mod contact;
 pub mod engine;
+pub mod frets;
 pub mod instrument;
 pub mod output;
 pub mod params;

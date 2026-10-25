@@ -158,6 +158,11 @@ pub struct StringTable {
     pub velocity_out: bool,
     /// Built to run muted ([`Self::muted`]).
     pub muted: bool,
+    /// Frets under the vibrating part, with their gaps, and the slope of the
+    /// rest line from the saddle (set by the instrument: the geometry is the
+    /// fingerboard's).
+    pub frets: Vec<crate::frets::FretGap>,
+    pub rest_slope: f64,
     /// Per partial: perpendicular bridge force per metre (N/m), T·nπ/L.
     pub force: Vec<f64>,
 }
@@ -284,6 +289,8 @@ impl StringTable {
             velocity_out,
             muted,
             force,
+            frets: Vec::new(),
+            rest_slope: 0.0,
         }
     }
 

@@ -119,6 +119,8 @@ Everything that follows needs this foundation.
   displacement is F/k with k = T·L/(x₀(L − x₀)) (tested).
 - Stiffnesses and slip times are orders of magnitude, to be measured.
   Friction and the tip's geometry (nail, plectrum edge) remain to do.
+- Slap, pop, tap/hammer-on and pull-off: see G3 (they need the frets).
+  Harmonics and palm mute remain.
 
 
 All of them use the G1 contact solver with different contact laws.
@@ -142,18 +144,51 @@ All of them use the G1 contact solver with different contact laws.
 - **Mutes**: palm mute (a distributed damper near the saddle), left-hand
   mute (the G0 dashpot, refined).
 
-## G3 — Frets and collisions
+## G3 — Frets and collisions (done, except fretless)
 
-- **String–fret contact** as unilateral constraints at each fret crown, in
-  the G1 solver. Ducceschi, Bilbao, Issanchou and Touzé have published
-  energy-conserving modal schemes for strings against obstacles.
-  Issanchou et al. validated theirs on a real bass string.
-- This gives fret buzz, the slap and pop rattle, and the "clank" of hard
-  playing, all from the same physics.
-- Geometry: neck relief, action height, fret heights, saddle height. A
-  low-action electric bass buzzes, a classical guitar hardly.
-- Fretless basses: the finger is the boundary (a soft, lossy stop), and no
-  fret means no buzz. This is the source of the fretless "mwah".
+- **Geometry** (`frets.rs`, `FretboardParams`):
+  - fret heights, neck relief (a parabola between the nut and the body
+    fret), nut clearance;
+  - the action at the 12th fret, interpolated from the bass to the treble
+    string, which sets the saddle height;
+  - each stopped string runs straight from the saddle to its stop, and
+    every fret under it gets its gap (tested: the action is the gap at the
+    12th fret).
+- **Contacts**: each fret within reach is a unilateral contact K·u^1.5 in
+  the G1 solver (energy-quadratised, passive). This gives buzz, the slap
+  and pop rattle, and the hammer-on's landing.
+- **Cost kept low**, while staying rigorous about not missing a contact:
+  - a reach bound Σ|sin(nπx/L)|·|ζ_n| picks the frets to watch;
+  - those are checked every 8 samples in the bank: actual displacement
+    plus the velocity bound times the interval, against the gap;
+  - the solver takes over only when a fret can really be touched (with a
+    margin while a hand drives the string), and hands back after 10 ms
+    without a contact force;
+  - soft plucks never enter the solver (tested). The six demo renders
+    (≈ 57 s of audio) take 0.9 s on one core.
+- **Rest-line change**: when the stop changes suddenly (hammer-on landing,
+  pull-off, finger lifting), the string starts displaced from its new rest
+  line, by a ramp or a triangle projected analytically. This is the small
+  pluck of a string leaving or landing on a fret. Without it, a hammer-on
+  overshot by 2.5× (tested).
+- **Techniques** (`Technique`, `Event::Note`), in the solver:
+  - slap: the thumb as a unilateral contact on a strike path toward the
+    board;
+  - pop: a finger pulling away from the board;
+  - tap and hammer-on: a finger strikes the string just behind the fret,
+    and once string, fret and finger have touched for 1 ms the vibrating
+    length becomes the fret's;
+  - pull-off: the length grows, and the leaving finger plucks sideways.
+
+  Tested: slap and pop hit the frets and are brighter than a pluck, a
+  tapped note sounds at its pitch, legato stays on its string, and a hard
+  pluck on low action buzzes.
+- **Remaining**:
+  - fretless basses (the finger as a soft, lossy stop);
+  - friction along the fret;
+  - the fingerboard between frets (very deep bends or very low action);
+  - the residual of truncated modes, for sharper contacts;
+  - contact parameters and technique speeds measured on recordings.
 
 ## G4 — Bends, vibrato, tremolo arm, nonlinearity
 
