@@ -22,10 +22,15 @@ pub use crate::voice::MAX_MODES;
 pub const SUB_BLOCK: usize = 64;
 /// Output scaling without soundboard: bridge force (N) to full scale.
 /// Lowered by 2.7 dB with the faster hammer law (docs/brightness.md), same
-/// loudness for recorded performances.
-const FORCE_GAIN: f32 = 1.0 / 600.0;
+/// loudness for recorded performances; raised by 6 dB with the pressure
+/// gain below.
+const FORCE_GAIN: f32 = 1.0 / 300.0;
 /// Output scaling with soundboard: pressure at the mics (Pa) to full scale.
-const PRESSURE_GAIN: f32 = 1.0 / 30.0;
+/// At output_gain_db 0, performances sit at −33 to −37 LUFS (they sat at
+/// −39 to −43), a ten-note fortissimo chord peaks at −6 dBFS, and the
+/// loudest case tried, 16-note fff chords four times over with the pedal
+/// down, at −2 dBFS (the engine's microphones; +2 dBFS with the close ones).
+const PRESSURE_GAIN: f32 = 1.0 / 15.0;
 /// Voices whose bridge force falls below ≈ 1e-5·240 N (−100 dB of a loud
 /// note) are freed, unless their strings are free to resonate.
 const SILENCE_ENERGY: f32 = (1e-5 / FORCE_GAIN) * (1e-5 / FORCE_GAIN);
