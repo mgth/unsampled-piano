@@ -28,6 +28,8 @@ cargo run --release -p piano-play -- --list
 cargo run --release -p piano-play -- --buffer 128 [--preset presets/listening/Microphones/close.toml | …/concert.toml]
 # presets: presets/instruments/<family>/*.toml (an instrument) and
 # presets/listening/{Microphones,Room}/*.toml (microphones and lid, room);
+# --preset (or `preset` in play.toml) lays a listening or touch preset over
+# the last sound, and starts with any other instead of it;
 # in the interface (--ui), loading a listening preset keeps the instrument
 # and loading an instrument keeps the listening set-up
 # the preset is watched: when edited during play, the instrument is

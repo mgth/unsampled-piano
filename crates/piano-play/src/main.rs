@@ -37,7 +37,9 @@ use std::time::{Duration, Instant};
 #[derive(Parser)]
 #[command(name = "unsampled-piano", about = "Play the physical piano from a MIDI keyboard or MIDI files")]
 struct Args {
-    /// Instrument preset (TOML); see `unsampled-piano-render dump-preset`.
+    /// Preset (TOML); see `unsampled-piano-render dump-preset`. A listening
+    /// set-up or a touch (under `listening/` or `touch/`) is laid over the
+    /// last sound; any other replaces it.
     #[arg(long)]
     preset: Option<PathBuf>,
     /// MIDI input port to connect: substring of its name (default: the
@@ -150,11 +152,18 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
         return list(&args);
     }
 
-    // The preset asked for, else the last sound (unless switched off).
+    // The last sound (unless switched off), with a listening set-up or a
+    // touch asked for laid over it; another preset replaces it.
     let last = LastSound::new();
     let model = match &args.preset {
-        Some(p) => piano_host::load_preset(p)?,
-        None => last.load(restore_last(&args)).unwrap_or_default(),
+        Some(p) if !piano_host::is_overlay(p) => piano_host::load_preset(p)?,
+        p => {
+            let base = last.load(restore_last(&args)).unwrap_or_default();
+            match p {
+                Some(p) => piano_host::load_listening(p, &base)?,
+                None => base,
+            }
+        }
     };
     let quality = match args.quality.as_deref() {
         Some(q) => piano_core::Quality::from_name(q).ok_or_else(|| format!("unknown quality {q:?}: overkill, full, balanced or light"))?,
@@ -303,7 +312,7 @@ impl Supervisor {
                 let mut control = self.control.lock().unwrap();
                 control.poll();
                 if let Some(w) = self.watch.as_mut()
-                    && let Some(m) = w.changed()
+                    && let Some(m) = w.changed(&control.model())
                 {
                     eprintln!("preset changed: rebuilding the instrument (notes keep playing)");
                     control.load(m);
@@ -395,7 +404,8 @@ impl MidiMapFile {
 
 /// The sound the player had last, `last.toml` in the configuration
 /// directory: saved once it has not changed for 2 s, loaded at start
-/// (`restore` in play.toml, on by default) when no preset is given.
+/// (`restore` in play.toml, on by default) unless the preset given
+/// replaces it.
 struct LastSound {
     path: Option<PathBuf>,
     /// What the file holds, and what changed since (when).
@@ -467,14 +477,15 @@ impl PresetWatch {
         std::fs::metadata(path).and_then(|m| m.modified()).ok()
     }
 
-    /// The new model when the file changed and parses (else reports why).
-    fn changed(&mut self) -> Option<piano_core::params::PianoModel> {
+    /// The new model when the file changed and parses (else reports why):
+    /// a listening set-up or a touch over `current`.
+    fn changed(&mut self, current: &piano_core::params::PianoModel) -> Option<piano_core::params::PianoModel> {
         let stamp = Self::stamp(&self.path);
         if stamp == self.stamp {
             return None;
         }
         self.stamp = stamp;
-        match piano_host::load_preset(&self.path) {
+        match piano_host::load_over(&self.path, current) {
             Ok(m) => Some(m),
             Err(e) => {
                 eprintln!("preset not reloaded: {e}");

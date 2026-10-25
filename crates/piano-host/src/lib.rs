@@ -130,6 +130,21 @@ pub fn load_listening(path: &Path, current: &PianoModel) -> Result<PianoModel, S
     overlay_preset(current, &text).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Whether a preset file is laid over a sound rather than replacing it: a
+/// listening set-up or a touch (its nearest `listening`, `touch` or
+/// `instruments` folder is one of the first two).
+pub fn is_overlay(path: &Path) -> bool {
+    let mut folders = path.parent().into_iter().flat_map(Path::components).map(|c| c.as_os_str());
+    let nearest = folders.rfind(|c| ["listening", "touch", "instruments"].iter().any(|k| c == k));
+    nearest.is_some_and(|c| c != "instruments")
+}
+
+/// A preset file on top of `base` if it is a listening set-up or a touch,
+/// else the whole sound it describes.
+pub fn load_over(path: &Path, base: &PianoModel) -> Result<PianoModel, String> {
+    if is_overlay(path) { load_listening(path, base) } else { load_preset(path) }
+}
+
 /// Decodes a raw MIDI channel message (any channel) into an engine event.
 pub fn decode_midi(msg: &[u8]) -> Option<Event> {
     let (&status, data) = msg.split_first()?;
@@ -228,6 +243,22 @@ mod tests {
         assert_eq!(partial.damper.strength, 0.5);
         assert_eq!(partial.damper.position, PianoModel::default().damper.position);
         assert_eq!(partial.inharmonicity, PianoModel::default().inharmonicity);
+    }
+
+    #[test]
+    fn listening_and_touch_presets_are_laid_over_the_sound() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets");
+        assert!(is_overlay(&root.join("listening/Microphones/close.toml")));
+        assert!(is_overlay(&root.join("touch/recorded_performances.toml")));
+        assert!(!is_overlay(&root.join("instruments/Character/honky_tonk.toml")));
+        assert!(!is_overlay(&root.join("default.toml")));
+        // A user folder named "listening" above an instrument family.
+        assert!(!is_overlay(Path::new("/home/listening/presets/instruments/Grand/a.toml")));
+        let base = PianoModel { hardness: 0.77, ..Default::default() };
+        let m = load_over(&root.join("listening/Microphones/close.toml"), &base).unwrap();
+        assert_eq!((m.hardness, m.soundboard.unwrap().mic_gain_db), (0.77, -9.6));
+        let m = load_over(&root.join("default.toml"), &base).unwrap();
+        assert_eq!(m.hardness, PianoModel::default().hardness);
     }
 
     #[test]
