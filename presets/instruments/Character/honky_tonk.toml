@@ -5,5 +5,8 @@ hardness = 3.5
 width_mid = 12.0
 width_treble = 18.0
 
+# Worn dampers: 0.25 s after the key-up, C2 and C3 are only 11–13 dB down
+# (22–31 with the default felt, 0.1), C5 and C6 19–20 (23–24); velocity 80,
+# no room. At 0.08 they stopped notes almost as the default does.
 [damper]
-strength = 0.08
+strength = 0.03
