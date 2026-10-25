@@ -9,7 +9,7 @@ The parameters describe the physics: felt stiffness in N/mm^p, string losses b1 
 - **Offsets on top of the preset.** Each control runs from −1 to +1. At 0 the preset sounds as it is; the advanced values stay the preset's base, and the controls are applied on top of them (`PianoModel::with_macros`) where the instrument is built and where live parameters reach a playing engine. Applying twice changes nothing, and values beyond ±1 are held at the ends.
 - **Steps.** Most controls scale their parameters by span^v, so equal steps of the control give equal steps in dB or in log brightness.
 - **Real ends.** The spans keep each end a plausible piano: at ±1 the effects stay within what real grands show, or near it.
-- **Live or rebuilt.** Touch, note endings and action noises move live parameters (velocity law, dampers, noises). The others need the instrument rebuilt.
+- **Live or rebuilt.** Touch, note endings and action noises move live parameters only (velocity law, damper strength and fall time, noise levels), and are live parameters themselves (`LiveParam::MacroTouch`, `MacroRelease`, `MacroMechanism`). The engine keeps the live parameters before the controls (`Instrument::source`) and applies the controls to them at each change, so moving one never compounds; a live change sounds exactly as a rebuild with the same value (test `macros_live`). The other eight need the instrument rebuilt.
 
 ## The controls
 

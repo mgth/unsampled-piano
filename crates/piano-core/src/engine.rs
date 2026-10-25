@@ -247,6 +247,9 @@ pub struct Engine {
     /// The instrument's model with the live parameters applied
     /// ([`LiveParam`]); its other fields always equal the instrument's.
     live: PianoModel,
+    /// Live parameters before the musician's controls: a live control is
+    /// applied to these, so that moving it never compounds.
+    base: PianoModel,
     /// Output gain, smoothed towards `live.output_gain_db`.
     gain: f32,
     voices: Vec<Voice>,
@@ -353,11 +356,13 @@ impl Engine {
             _ => None,
         };
         let live = inst.model;
+        let base = inst.source;
         let mut e = Self {
             cfg,
             shortcuts,
             inst,
             live,
+            base,
             gain: db_to_gain(live.output_gain_db),
             voices,
             sustain: 0.0,
@@ -454,9 +459,18 @@ impl Engine {
     /// been sent as an [`Event::Param`] (an engine built from an older
     /// model catches up with the edits made meanwhile).
     pub fn set_live(&mut self, model: &PianoModel) {
-        let model = &model.with_macros();
         for &p in LiveParam::ALL {
-            p.set(&mut self.live, p.get(model));
+            p.set(&mut self.base, p.get(model));
+        }
+        self.refresh_live();
+    }
+
+    /// The live parameters from their base with the musician's controls
+    /// applied.
+    fn refresh_live(&mut self) {
+        let resolved = self.base.with_macros();
+        for &p in LiveParam::ALL {
+            p.set(&mut self.live, p.get(&resolved));
         }
     }
 
@@ -872,7 +886,10 @@ impl Engine {
                 self.key_up_at = [None; 128];
             }
             Event::Control { .. } => {}
-            Event::Param { id, value } => id.set(&mut self.live, value as f64),
+            Event::Param { id, value } => {
+                id.set(&mut self.base, value as f64);
+                self.refresh_live();
+            }
         }
     }
 

@@ -11,7 +11,11 @@ use crate::structure::RimModel;
 pub use crate::board::{region_of, MICS, REGIONS};
 
 pub struct Instrument {
+    /// The model as built: the musician's controls applied.
     pub model: PianoModel,
+    /// The model as given (controls not applied): the base live controls
+    /// are applied to while playing.
+    pub source: PianoModel,
     pub sample_rate: f64,
     pub table: PianoTable,
     /// Soundboard modes when it is rendered (radiation and sympathy).
@@ -30,6 +34,7 @@ impl Instrument {
     pub fn with_resolution(model: PianoModel, sample_rate: f64, res: Resolution) -> Self {
         // The musician's controls applied, microphones in metres from here on
         // (the engine's room uses them too).
+        let source = model;
         let model = model.with_macros();
         let model = PianoModel { soundboard: model.soundboard.map(|s| s.resolved()), ..model };
         let sb = model.soundboard.map(Soundboard::new);
@@ -65,6 +70,6 @@ impl Instrument {
                 });
             }
         }
-        Self { model, sample_rate, table, board: modes, frame, rim }
+        Self { model, source, sample_rate, table, board: modes, frame, rim }
     }
 }

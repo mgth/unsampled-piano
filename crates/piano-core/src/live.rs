@@ -76,6 +76,10 @@ live_params! {
     NoiseAction => "noise.action", noise.action;
     NoiseActionTime => "noise.action_time", noise.action_time;
     NoiseActionDelay => "noise.action_delay", noise.action_delay;
+    // The musician's controls that move live parameters only (crate::macros).
+    MacroTouch => "macros.touch", macros.touch;
+    MacroRelease => "macros.release", macros.release;
+    MacroMechanism => "macros.mechanism", macros.mechanism;
 }
 
 #[cfg(test)]
