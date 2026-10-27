@@ -204,7 +204,51 @@ lid_hinge_height = 0.25
 lid_reflection = 0.85
 lid_transmission = 0.1
 string_load = 1.0
+string_load_free = 1.0
 exact_below = 0.0
+outline = [
+    [
+    0.0,
+    0.0,
+],
+    [
+    0.0,
+    0.0,
+],
+    [
+    0.0,
+    0.0,
+],
+    [
+    0.0,
+    0.0,
+],
+    [
+    0.0,
+    0.0,
+],
+    [
+    0.0,
+    0.0,
+],
+    [
+    0.0,
+    0.0,
+],
+    [
+    0.0,
+    0.0,
+],
+    [
+    0.0,
+    0.0,
+],
+    [
+    0.0,
+    0.0,
+],
+]
+outline_below = 1500.0
 
 [damper]
 position = 0.14

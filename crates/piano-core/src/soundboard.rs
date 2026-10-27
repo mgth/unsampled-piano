@@ -182,6 +182,16 @@ pub struct SoundboardParams {
     /// the board's modes where the bridge works them, most below ≈ 1 kHz,
     /// which smooths its response from key to key (docs/evenness.md).
     pub string_load: f64,
+    /// Share of that load the board keeps while the pedal lifts the
+    /// dampers. A free string still loads the bridge: its input resistance
+    /// Re(Z0·coth γL), averaged over frequency, is √(T·μ) as for a damped
+    /// one, only gathered at its partials. The sympathy is one-way (the
+    /// listening strings take nothing back from the board), so this load
+    /// is the energy they sing back. 0: the pedal leaves the board bare, and
+    /// its first mode droned (+9 dB at 100 Hz on Liang's pedalled Chopin
+    /// op. 10 no. 3, the bass's pedal halo 8.7 dB over the Disklavier's;
+    /// docs/pedal_drone.md).
+    pub string_load_free: f64,
     /// Board modes below this frequency (Hz) are driven at each key's own
     /// bridge point instead of its region's ([`crate::board::LowDrive`]):
     /// a more even board from key to key, for a bank of ≈ 40–70 more modes.
@@ -307,6 +317,7 @@ impl SoundboardParams {
         lid_reflection: 0.85,
         lid_transmission: 0.1,
         string_load: 1.0,
+        string_load_free: 1.0,
         exact_below: 0.0,
         outline: [(0.0, 0.0); OUTLINE_POINTS],
         outline_below: 1500.0,

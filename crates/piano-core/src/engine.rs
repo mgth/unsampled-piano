@@ -846,13 +846,16 @@ impl Engine {
             v.engagement = e;
             v.set_damper_rate(nm.damper_rate(&self.live, v.engagement));
         }
-        // The strings at rest stop soaking up the board's vibration while
-        // the pedal lifts their dampers (Soundboard::load_strings).
-        let k = if pedal > self.board_load { k_fall } else { k_lift };
-        let l = self.board_load + (pedal - self.board_load) * k;
-        self.board_load = if (l - pedal).abs() < 1e-3 { pedal } else { l };
+        // The strings at rest soak up less of the board's vibration while
+        // the pedal lifts their dampers (Soundboard::load_strings,
+        // SoundboardParams::string_load_free).
+        let free = self.inst.model.soundboard.map_or(0.0, |s| s.string_load_free.clamp(0.0, 1.0));
+        let target = free + (1.0 - free) * pedal;
+        let k = if target > self.board_load { k_fall } else { k_lift };
+        let l = self.board_load + (target - self.board_load) * k;
+        self.board_load = if (l - target).abs() < 1e-3 { target } else { l };
         let l = self.board_load;
-        if (l - self.board_load_set).abs() >= 0.01 || (l == pedal && l != self.board_load_set) {
+        if (l - self.board_load_set).abs() >= 0.01 || (l == target && l != self.board_load_set) {
             self.board_load_set = l;
             for b in self.board.iter_mut().chain(&mut self.board_sym).chain(&mut self.board_low) {
                 b.set_load(l);

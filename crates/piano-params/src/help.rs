@@ -481,6 +481,16 @@ const HELP: &[(&str, &str, &str)] = &[
          0.04 at 200–400 Hz, 0.034 at 400–800 Hz (docs/evenness.md).",
     ),
     (
+        "soundboard.string_load_free",
+        "How much the strings still calm the soundboard when the sustain pedal lifts the dampers. \
+         Free strings take the board's vibration too, and sing it back as resonance. 0: with the \
+         pedal down the board rings on its own, a drone on its lowest resonance.",
+        "Share of the damped strings' load kept while the pedal lifts the dampers (1: a free \
+         string's input resistance averaged over frequency, √(T·μ) as for a damped one). The \
+         sympathetic coupling is one-way: this load is the energy the listening strings take from \
+         the board (docs/pedal_drone.md).",
+    ),
+    (
         "soundboard.exact_below",
         "Below this frequency every key drives the soundboard at its own point on the bridge, \
          not at the point standing for its group of keys: neighbouring keys sound more alike. \

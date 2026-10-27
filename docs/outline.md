@@ -119,7 +119,7 @@ The model's lowest board mode, lightly damped once the pedal is down, makes one 
 
 ## Next
 
-- **The lowest modes with the pedal down.** Their damping without the strings' load (η ≈ 0.02 at 100–150 Hz) lets the first mode boom whatever the outline. The rim and case losses of the low modes (`loss_low_corner`, 0 since docs/bass_decay.md) or a physically larger piston/case coupling are the candidates. To be compared against pedalled real recordings (pedalling-liang, `tools/pedal_bench.py`).
+- **The lowest modes with the pedal down**: fixed by keeping the free strings' load on the board (docs/pedal_drone.md). With it, B2's drone with the outline falls from +7 to +2 dB at 125 Hz.
 - **Ribs and two bridges**, with the same Rayleigh–Ritz machinery. Ribs as stiffness strips (Dx along them) added to the stiffness matrix; the bridges as a beam's stiffness and mass along their line. Ribs break the board's symmetry in a way an outline does not. The randomly mixed shapes tried earlier (docs/evenness.md) did not have this structure.
 - **The bench's evenness on every key**, or every key around the middle: every third key gave a misleading 1.6 dB gain here.
 - With the outline on, recalibrate what was set on the rectangle (crown, impedance slopes, edge loss) on the bench, then A/B.
