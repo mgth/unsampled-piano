@@ -75,6 +75,7 @@ impl PianoControl for MockControl {
             last_build: self.pending.filter(|_| !rebuilding).map(|_| BUILD),
             voices: 0,
             load: 0.0,
+            doubled_notes: 0,
             error: self.error.clone(),
         }
     }

@@ -50,6 +50,8 @@ pub struct Shared {
     built: AtomicU64,
     /// Instruments built by the worker (the initial one excluded).
     pub builds: AtomicU64,
+    /// Note-ons the engines ignored as duplicates, since the start.
+    pub doubled: AtomicU32,
 }
 
 /// What the worker reports besides the counters.
@@ -214,6 +216,7 @@ impl PianoControl for Controller {
             last_build: report.last_build,
             voices: self.shared.voices.load(Ordering::Relaxed),
             load: self.shared.load.swap(0, Ordering::Relaxed) as f32 / 1e4,
+            doubled_notes: self.shared.doubled.load(Ordering::Relaxed),
             error: self.error.clone().or_else(|| report.error.clone()),
         }
     }

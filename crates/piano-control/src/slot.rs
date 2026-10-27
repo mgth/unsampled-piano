@@ -62,6 +62,8 @@ pub struct EngineSlot {
     pool: Option<Pool>,
     sample_rate: f64,
     shared: Arc<Shared>,
+    /// The current engine's duplicate count already added to `shared`.
+    doubled_seen: u32,
 }
 
 impl EngineSlot {
@@ -94,6 +96,7 @@ impl EngineSlot {
             pool,
             sample_rate: cfg.sample_rate,
             shared,
+            doubled_seen: 0,
         }
     }
 
@@ -133,6 +136,7 @@ impl EngineSlot {
         let mut swapped = false;
         while let Ok(engine) = self.incoming.pop() {
             let old = std::mem::replace(&mut self.current, engine);
+            self.doubled_seen = 0;
             if swapped {
                 // Replaced within the same block: it never played.
                 self.send_back(old);
@@ -221,6 +225,11 @@ impl EngineSlot {
             }
         }
         self.shared.voices.store(self.active_voices() as u32, Ordering::Relaxed);
+        let d = self.current.doubled_notes();
+        if d != self.doubled_seen {
+            self.shared.doubled.fetch_add(d.wrapping_sub(self.doubled_seen), Ordering::Relaxed);
+            self.doubled_seen = d;
+        }
         self.shared.engines.store(self.engines() as u32, Ordering::Relaxed);
     }
 

@@ -230,7 +230,7 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let sup = Supervisor { control: control.clone(), watch, midi_map, last, stats, pieces, end_s, sr, repaint: Default::default() };
+    let sup = Supervisor { control: control.clone(), watch, midi_map, last, stats, pieces, end_s, sr, repaint: Default::default(), doubled_told: 0 };
     let blackbox = audio.blackbox.clone();
     if args.blackbox {
         dump_on_interrupt(blackbox.clone());
@@ -347,6 +347,8 @@ struct Supervisor {
     end_s: f64,
     sr: f64,
     repaint: window::Repaint,
+    /// Doubled MIDI notes already reported.
+    doubled_told: u32,
 }
 
 impl Supervisor {
@@ -404,6 +406,13 @@ impl Supervisor {
             if !self.pieces.is_empty() && now >= self.end_s {
                 eprintln!("end of the files");
                 return;
+            }
+            {
+                let doubled = self.control.lock().unwrap().status().doubled_notes;
+                if doubled > 0 && self.doubled_told == 0 {
+                    eprintln!("doubled MIDI notes: the keyboard reaches the piano twice (two channels or two connections); the doubles are ignored (--midi-channel to listen to one)");
+                }
+                self.doubled_told = doubled;
             }
             let st = &self.stats;
             let n = st.callbacks.swap(0, Ordering::Relaxed).max(1);

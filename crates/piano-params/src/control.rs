@@ -42,6 +42,9 @@ pub struct Status {
     pub voices: u32,
     /// Audio callback time over buffer duration (max of the last period).
     pub load: f32,
+    /// Note-ons ignored as duplicates since the start: the keyboard reaches
+    /// the piano twice (two channels, two connections).
+    pub doubled_notes: u32,
     /// Last error (preset, build), for display.
     pub error: Option<String>,
 }

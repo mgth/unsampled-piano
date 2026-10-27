@@ -269,6 +269,10 @@ pub struct Engine {
     /// long enough or never played), for the upright's repetition.
     key_down: [bool; 128],
     key_up_at: [Option<u64>; 128],
+    /// Time of each key's last note-on (duplicates, see DUPLICATE_S).
+    key_down_at: [u64; 128],
+    /// Note-ons ignored as duplicates of the one before.
+    doubled: u32,
     /// Bridge force per region for the current block: primary (hammer
     /// response) and sympathetic.
     region: Vec<Vec<f32>>,
@@ -390,6 +394,8 @@ impl Engine {
             now: 0,
             key_down: [false; 128],
             key_up_at: [None; 128],
+            key_down_at: [0; 128],
+            doubled: 0,
             region: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             region_sym: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             region_agraffe: vec![vec![0.0; SUB_BLOCK]; REGIONS],
@@ -463,6 +469,12 @@ impl Engine {
 
     pub fn config(&self) -> &EngineConfig {
         &self.cfg
+    }
+
+    /// Note-ons ignored so far as duplicates of the one before (a keyboard
+    /// reaching the engine twice: two channels or two MIDI connections).
+    pub fn doubled_notes(&self) -> u32 {
+        self.doubled
     }
 
     pub fn active_voices(&self) -> usize {
@@ -871,7 +883,34 @@ impl Engine {
     fn handle(&mut self, ev: Event) {
         match ev {
             Event::NoteOn { velocity: 0, note } => self.note_off(note),
-            Event::NoteOn { note, velocity } => self.note_on(note, velocity),
+            Event::NoteOn { note, velocity } => {
+                let k = note as usize & 127;
+                let window = (DUPLICATE_S * self.cfg.sample_rate) as u64;
+                // The same key again while it is still down, a few ms later:
+                // the same keystroke reaching the engine twice (a keyboard
+                // connected through two MIDI paths). Struck again, the string
+                // the first hammer had just set moving took a fresh blow: a
+                // soft note came out harsh and metallic (2 ms apart: +21 dB
+                // above 3 kHz).
+                if self.key_down[k] && self.now.saturating_sub(self.key_down_at[k]) < window {
+                    self.doubled = self.doubled.wrapping_add(1);
+                    return;
+                }
+                self.key_down_at[k] = self.now;
+                // Released and struck again while its hammer still presses
+                // the string (a few ms): no action throws a hammer that has
+                // not left the string. The key is down again (its damper
+                // stays off), the strike is not played.
+                if self.voices.iter().any(|v| v.active && v.note == note && v.contact.is_active()) {
+                    self.key_down[k] = true;
+                    self.key_up_at[k] = None;
+                    for v in self.voices.iter_mut().filter(|v| v.active && v.note == note) {
+                        v.key_down = true;
+                    }
+                    return;
+                }
+                self.note_on(note, velocity)
+            }
             Event::NoteOff { note, velocity } => {
                 // Release velocity sets how fast the damper falls.
                 let speed = if velocity == 0 { 1.0 } else { velocity as f64 / 64.0 };
@@ -1025,6 +1064,11 @@ impl Engine {
         }
     }
 }
+
+/// A note-on for a key already down within this time (s) is a duplicate of
+/// the one before: no key repeats that fast (the hammer has not even left
+/// the string).
+const DUPLICATE_S: f64 = 0.03;
 
 /// Sub-steps per sample during contact so that the shortest treble contacts
 /// (≈ 0.4 ms) still span ~80 steps: 1 below C6 at 48 kHz, up to 4 at C8.

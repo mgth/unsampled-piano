@@ -259,6 +259,13 @@ impl PianoUi {
                 ui.label(format!("{} voices", status.voices));
                 ui.separator();
                 ui.label(format!("CPU {:.0} %", 100.0 * self.load.update(status.load))).on_hover_text("Audio callback time over buffer duration, peak of the last second");
+                if status.doubled_notes > 0 {
+                    ui.separator();
+                    ui.colored_label(ui.visuals().warn_fg_color, format!("{} doubled MIDI notes", status.doubled_notes)).on_hover_text(
+                        "The same note arrived twice: a keyboard sending on two channels (a second zone), or connected twice. \
+                         The piano ignores the doubles; to avoid them, listen to one MIDI channel or turn off the keyboard's second zone.",
+                    );
+                }
                 if let Some(e) = &status.error {
                     ui.separator();
                     ui.colored_label(ui.visuals().error_fg_color, e);
