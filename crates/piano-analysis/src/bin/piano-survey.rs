@@ -20,6 +20,10 @@ struct Args {
     /// Drop from the peak (dB) separating the early from the late decay.
     #[arg(long, default_value_t = 15.0)]
     knee_db: f64,
+    /// Envelopes are fitted down to this far below their maximum at most
+    /// (the recordings' usable range; a render falls to digital silence).
+    #[arg(long, default_value_t = 70.0)]
+    range_db: f64,
     /// Also resolve each partial into components (subband ESPRIT) into this CSV.
     #[arg(long)]
     esprit: Option<PathBuf>,
@@ -66,7 +70,7 @@ fn analyse(path: &std::path::Path, note: u8, a: &Args) -> Result<(Vec<String>, V
         let spacing = fit.f0 * (1.0 + 2.0 * fit.b * (p.k * p.k) as f64);
         let win = (4.0 / spacing).clamp(0.02, 0.2);
         let env = decay::envelope(tail, sr, p.freq, win, win / 4.0);
-        let pts = decay::usable(&env, 10.0);
+        let pts = decay::usable_within(&env, 10.0, a.range_db);
         let single = decay::line_fit(pts);
         let (early, late) = match pts.first() {
             Some(&(_, top)) => {

@@ -70,13 +70,20 @@ pub fn line_fit(pts: &[(f64, f64)]) -> Option<LineFit> {
 /// Part of the envelope usable for fitting: from its maximum until it first
 /// gets within `margin_db` of the noise floor (5th percentile level).
 pub fn usable(env: &[(f64, f64)], margin_db: f64) -> &[(f64, f64)] {
+    usable_within(env, margin_db, f64::INFINITY)
+}
+
+/// Same, the floor held at least `range_db` below the maximum: a render
+/// has no noise floor, and its partials fall to digital silence, which no
+/// recording shows (their usable range is 58–73 dB, median per set).
+pub fn usable_within(env: &[(f64, f64)], margin_db: f64, range_db: f64) -> &[(f64, f64)] {
     if env.is_empty() {
         return env;
     }
     let mut lv: Vec<f64> = env.iter().map(|p| p.1).collect();
     lv.sort_by(f64::total_cmp);
-    let floor = lv[lv.len() / 20];
     let imax = env.iter().enumerate().max_by(|a, b| a.1.1.total_cmp(&b.1.1)).unwrap().0;
+    let floor = lv[lv.len() / 20].max(env[imax].1 - range_db - margin_db);
     let end = env[imax..].iter().position(|p| p.1 < floor + margin_db).map_or(env.len(), |i| imax + i);
     &env[imax..end]
 }
