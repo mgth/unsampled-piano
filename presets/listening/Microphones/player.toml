@@ -1,0 +1,14 @@
+# The pianist's ears: two omnidirectional microphones 18 cm apart, where the
+# head of a seated player is, 95 cm in front of the board's keyboard end
+# (the action and the keys lie between), 45 cm above the board, over the
+# middle of the keyboard, the bass on the left. Lid open at 35°.
+# Positions relative to the board.
+# Level: the same loudness as the other set-ups.
+[soundboard]
+lid_angle = 35.0
+mics_relative = true
+mics = [[-0.558824, 0.569231, 0.45], [-0.558824, 0.430769, 0.45]]
+# On an upright: 60 cm in front of the board, at the height of its top.
+mics_upright = [[-0.05, 0.585714, 0.6], [-0.05, 0.414286, 0.6]]
+mic_gain_db = -6.1
+mic_pattern = 1.0
