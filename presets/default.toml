@@ -74,6 +74,8 @@ b1_floor = 0.0
 wound_until = 48
 top_slope = 0.0
 top_from = 84
+winding = 0.0002
+winding_until = 40
 
 [scale]
 len_c8 = 0.052

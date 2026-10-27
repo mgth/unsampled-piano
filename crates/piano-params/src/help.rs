@@ -325,6 +325,14 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("losses.top_from", "Key from which the top strings lose energy faster.", "MIDI note where top_slope starts."),
     (
+        "losses.winding",
+        "Losses of the lowest strings' copper winding: higher values make the low bass's bright, \
+         metallic ring after the attack die away sooner.",
+        "Loss factor η: every partial loses ½·η·ω, full at A0 (double-wound strings), fading out \
+         linearly to `winding_until`. 0: none (docs/bass_metal.md).",
+    ),
+    ("losses.winding_until", "Key where the winding losses have faded out.", "MIDI note."),
+    (
         "scale.len_c8",
         "Speaking length of the highest string (C8), between its two bearing points.",
         "Lengths grow by `ratio_per_octave` per octave down to `break_note`. This generic 2 m \

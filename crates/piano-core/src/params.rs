@@ -185,6 +185,14 @@ pub struct LossLaw {
     /// after release (docs/release_ring.md).
     pub top_slope: f64,
     pub top_from: u8,
+    /// Loss factor of the winding: the copper wound on the steel core rubs
+    /// as the string bends, ½·η·ω_k on every partial. The lowest strings
+    /// carry two layers of it: full at A0, fading out linearly to
+    /// `winding_until`. Without it the low bass's partials above 1 kHz rang
+    /// 2–8× too long against a Disklavier grand, a metallic sustain
+    /// (docs/bass_metal.md).
+    pub winding: f64,
+    pub winding_until: u8,
 }
 
 
@@ -192,7 +200,7 @@ impl LossLaw {
     /// Early ("prompt") decay of single partials, Salamander survey. A single
     /// string per note cannot reproduce the two-stage decay (Phase 2).
     pub const SALAMANDER_EARLY: Self =
-        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108 };
+        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108, winding: 0.0, winding_until: 40 };
     /// Intrinsic string losses: law of the ESPRIT aftersound (no bridge
     /// losses), scaled down by the decay calibration of the full instrument
     /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. b1
@@ -207,14 +215,20 @@ impl LossLaw {
     /// losses set against a commercial modelled piano's release ring
     /// (docs/release_ring.md) cut short the slow aftersound that real top
     /// strings keep, −11 to −21 dB/s at C7 after the first 0.4 s on four
-    /// real grands (docs/top_treble.md).
+    /// real grands (docs/top_treble.md). Winding losses 2e-4 (A0 → E2):
+    /// the low bass's partials above 1 kHz no longer ring on, a metallic
+    /// sustain (docs/bass_metal.md).
     pub const SALAMANDER_STRING: Self =
-        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84 };
+        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 2e-4, winding_until: 40 };
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
         let wound = ((self.wound_until as f64 + 12.0 - note as f64) / 12.0).clamp(0.0, 1.0);
         let top = self.top_slope * (note as f64 - self.top_from as f64).max(0.0);
-        self.b1_floor * wound + (self.b1_slope * note as f64 + self.b1_offset + top).exp() + self.b2 * freq * freq
+        let double = ((self.winding_until as f64 - note as f64) / (self.winding_until as f64 - 21.0).max(1.0)).clamp(0.0, 1.0);
+        self.b1_floor * wound
+            + (self.b1_slope * note as f64 + self.b1_offset + top).exp()
+            + self.b2 * freq * freq
+            + 0.5 * self.winding * double * std::f64::consts::TAU * freq
     }
 }
 
