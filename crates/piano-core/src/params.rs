@@ -632,13 +632,21 @@ pub struct SympatheticLaw {
     /// −19.3 dB re the partials against −19.7, treble −24.1 against −21.8),
     /// and the chord's own partials sustain as on the Disklavier (no
     /// growth at the octaves); 0.25 left the halo 7–13 dB short.
+    /// The coupling is one-way: a string ringing at its own frequency does
+    /// not brake the bridge there, as real strings do, the more so where
+    /// several share it (octaves). Once the free strings kept their load on
+    /// the board (docs/pedal_drone.md), 1 left the middle's pedal halo
+    /// 3.9 dB over the Disklavier's and B5 ringing 7 dB louder with the
+    /// pedal in Chopin op. 10 no. 3; 0.6 matches the middle (+16.2 dB
+    /// against +15.5). It costs the undamped top's sound below its
+    /// fundamentals (bench 1.07 → 1.13).
     pub gain: f64,
     /// Cancel each key's own contribution to its bridge input.
     pub self_cancel: bool,
 }
 
 impl SympatheticLaw {
-    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 1.0, self_cancel: true };
+    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 0.6, self_cancel: true };
 }
 
 /// Partial frequency of a stiff string: f_k = k·f0·sqrt(1 + B·k²).

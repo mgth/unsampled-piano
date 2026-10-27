@@ -60,6 +60,28 @@ With the outline, B2's drone in the Chopin falls from +7 to +2 dB at 125 Hz. Bee
 
 **Bench** (`cargo xtask bench`, pedal up): unchanged, bit for bit (the A0–C8 sweep without the pedal renders with the same hash).
 
+## The sympathy's strength
+
+Listening to the fixed sound (2026-10-27): in the Chopin "a resonance too marked around B5". B5's line (988 Hz) lay 8 dB under the recording without the pedal and level with it with the pedal: the pedal raised it 7 dB more than on the Disklavier. All the B strings (B1–B5) share that frequency, and the piece is in E major.
+
+The sympathy is one-way: each free string is driven by the bridge's motion as if the others were not there. A real string ringing at its own frequency brakes the bridge there. Its input impedance at resonance, ≈ √(T·μ)·Q/(nπ), reaches a few hundred kg/s, of the order of the board's at the bridge. With a note's three strings and their octaves, the bridge moves several dB less at those frequencies. The more strings share a frequency, the more the one-way coupling overshoots.
+
+Gain on the bridge-to-string coupling (`sympathetic.gain`), Chopin lines (model minus recording) and the isolated notes' halo (CC64 96, model minus recording):
+
+| gain | A3 | B4 | B5 | halo bass | halo middle | halo treble | bench |
+|---|---|---|---|---|---|---|---|
+| 1 | +12 dB | +6 dB | −1 dB | −2.4 dB | +3.9 dB | +7.6 dB | 1.07 |
+| 0.6 | +9 dB | +4 dB | −5 dB | −2.8 dB | +0.7 dB | +9.6 dB | 1.13 |
+| 0.4 | +7 dB | +3 dB | −7 dB | −3.3 dB | −2.1 dB | +9.7 dB | |
+
+0.6 brings B5 back among its treble neighbours (D#6 −5 dB, F#6 −7 dB) and matches the middle's halo. The user preferred it by ear. The treble's halo does not follow the gain: unexplained so far. The bench, played without the pedal, loses through the top (C7–C8): these keys have no dampers and always listen, and their sound below the fundamental (1–2 kHz bands, already 10–20 dB under the real grands) comes from the sympathy.
+
+A two-way coupling would brake the bridge where strings share a frequency and leave the rest: it would serve both the pedalled middle and the undamped top.
+
+## The note on the board's first mode
+
+With the grand's outline, "B2 sounds a bit like a barrel". The board's first mode (122 Hz with the outline, 109 Hz on the rectangle) sits on B2 (A2 on the rectangle). That note comes out ≈ 8 dB louder at the attack than its neighbours (velocity 80, close microphones) and loses it fast. Moving the mode (lower crown) moves the barrel to A2. More loss on the lowest board modes (`loss_low_corner` 200 Hz: η × 3.7 at 110 Hz, × 1.6 at 260 Hz) evens the attack (B2 −19 → −22 dB, its neighbours −23 and −24). On the outline with gain 0.6 it costs 1.14 → 1.16 on the bench. Kept as an option of the outline (out/ab_pedal2/E2_outline.toml), not in the default.
+
 ## Limits
 
 - The load is the mean value. A real board mode is damped more or less depending on whether a free string's partial falls within its bandwidth; the model damps every mode as if it were average.

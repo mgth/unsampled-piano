@@ -747,8 +747,9 @@ const HELP: &[(&str, &str, &str)] = &[
     (
         "sympathetic.gain",
         "Strength of the sympathetic resonance.",
-        "Scale on the bridge-to-string gain. 1 is the one-way physical value: on pedalled chords \
-         it matches a Disklavier grand's halo within 0.5–2.5 dB (tools/pedal_bench.py).",
+        "Scale on the bridge-to-string gain. 1 is the one-way physical value, which misses the \
+         braking of the bridge by the strings ringing at its frequency: 0.6 matches a Disklavier \
+         grand's pedal halo in the middle (tools/pedal_bench.py, docs/pedal_drone.md).",
     ),
     ("sympathetic.self_cancel", "Keeps a key from resonating with its own vibration through the bridge.", "Cancels each key's own contribution to its bridge input (already in its coupled modes)."),
     // Nonlinearity
