@@ -80,7 +80,7 @@ A two-way coupling would brake the bridge where strings share a frequency and le
 
 ## The note on the board's first mode
 
-With the grand's outline, "B2 sounds a bit like a barrel". The board's first mode (122 Hz with the outline, 109 Hz on the rectangle) sits on B2 (A2 on the rectangle). That note comes out ≈ 8 dB louder at the attack than its neighbours (velocity 80, close microphones) and loses it fast. Moving the mode (lower crown) moves the barrel to A2. More loss on the lowest board modes (`loss_low_corner` 200 Hz: η × 3.7 at 110 Hz, × 1.6 at 260 Hz) evens the attack (B2 −19 → −22 dB, its neighbours −23 and −24). On the outline with gain 0.6 it costs 1.14 → 1.16 on the bench. Kept as an option of the outline (out/ab_pedal2/E2_outline.toml), not in the default.
+With the grand's outline, "B2 sounds a bit like a barrel". The board's first mode (122 Hz with the outline, 109 Hz on the rectangle) sits on B2 (A2 on the rectangle). That note comes out ≈ 8 dB louder at the attack than its neighbours (velocity 80, close microphones) and loses it fast. Moving the mode (lower crown) moves the barrel to A2. More loss on the lowest board modes (`loss_low_corner` 200 Hz: η × 3.7 at 110 Hz, × 1.6 at 260 Hz) evens the attack (B2 −19 → −22 dB, its neighbours −23 and −24). On the outline with gain 0.6 it costs 1.14 → 1.16 on the bench. Kept as an option of the outline (out/ab_pedal2/E2_outline.toml), not in the default; 200 Hz became the default later, for the bass's articulation (docs/bass_metal.md).
 
 ## Limits
 

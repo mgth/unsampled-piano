@@ -73,7 +73,7 @@ The user heard no difference with the 220 Hz hollow: the blur is elsewhere. Lead
 - **No late boom**: each band's peak after the 1–4 kHz onset comes no later in the model (median 32–41 ms) than in the recording (42–59 ms).
 - **The attack's pulse train** (1–6 kHz envelope of the isolated notes A1–A2): the string's returns every period are as deep in both (12–21 dB), but the recording's first pulses are weak and grow over 2–3 periods, while the model's first is already among the strongest.
 
-Bench: `loss_low_corner` 200 scores 1.14, 300 1.15 (baseline 1.14). With 300 the early T60 of partials 1–4 shortens, bass z −0.8 → −1.4 and middle −0.5 → −1.0. A/B in out/ab_flou (Beethoven 22–32 s with the pedal: recording, now, 200, 300), awaiting the user's ear.
+Bench: `loss_low_corner` 200 scores 1.14, 300 1.15 (baseline 1.14). With 300 the early T60 of partials 1–4 shortens, bass z −0.8 → −1.4 and middle −0.5 → −1.0. A/B in out/ab_flou (Beethoven 22–32 s with the pedal: recording, now, 200, 300): the user picked 200, now the default.
 
 ## Still open
 

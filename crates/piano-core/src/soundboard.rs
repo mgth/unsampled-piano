@@ -247,8 +247,11 @@ impl SoundboardParams {
         // edge. 1e-3 s/kg within ≈ 15 cm of it, fading above 400 Hz: on
         // every key of A0–D#4, partials 1–3 decay over the first 1.5 s
         // within 1–4 dB/s of eight real grands (the middle's partial 1 at
-        // −12.3 dB/s against −12.2).
-        loss_low_corner: 0.0,
+        // −12.3 dB/s against −12.2). Only the lowest modes get more: at
+        // 200 Hz, η × 3.7 at 110 Hz and × 1.6 at 260 Hz. A1's second partial
+        // lies on the first mode (108.8 Hz) and kept ringing between the
+        // left hand's notes in Beethoven (docs/bass_metal.md).
+        loss_low_corner: 200.0,
         edge_loss: 1e-3,
         edge_depth: 0.15,
         edge_corner: 400.0,
