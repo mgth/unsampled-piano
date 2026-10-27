@@ -94,6 +94,7 @@ pub struct Player {
     l: Vec<f32>,
     r: Vec<f32>,
     stats: Arc<Stats>,
+    blackbox: Option<Arc<crate::blackbox::BlackBox>>,
 }
 
 impl Player {
@@ -128,7 +129,14 @@ impl Player {
             l: vec![0.0; MAX_BLOCK],
             r: vec![0.0; MAX_BLOCK],
             stats,
+            blackbox: None,
         }
+    }
+
+    /// Records every engine block into the flight recorder.
+    pub fn with_blackbox(mut self, b: Arc<crate::blackbox::BlackBox>) -> Self {
+        self.blackbox = Some(b);
+        self
     }
 
     /// Renders `frames` samples. `input` are events at frames relative to
@@ -190,6 +198,9 @@ impl Player {
                 i += 1;
             }
             self.engine.process_stereo(&self.piece, &mut self.l[..n], &mut self.r[..n]);
+            if let Some(b) = &self.blackbox {
+                b.block(&self.piece, &self.l[..n], &self.r[..n]);
+            }
             let sent = if k == 1 {
                 out(done, &self.l[..n], &self.r[..n]);
                 n
@@ -298,6 +309,53 @@ mod tests {
         let err: f64 = base.iter().zip(up.iter().skip(delay).step_by(2)).map(|(a, b)| ((a - b) as f64).powi(2)).sum::<f64>();
         let rel = (err / base.len() as f64).sqrt() / rms(&base);
         assert!(rel < 1e-3, "{rel}");
+    }
+
+    /// The flight recorder keeps what the engine played, block for block,
+    /// in buffers of irregular sizes, and writes it out
+    /// (`unsampled-piano-render replay` renders it again: see its output in
+    /// the folder printed).
+    #[test]
+    fn flight_recorder_keeps_what_was_played() {
+        use piano_core::{EngineConfig, Quality};
+        let rate = 48_000.0;
+        let model = piano_core::params::PianoModel::default();
+        let cfg = EngineConfig { sample_rate: rate, max_block: MAX_BLOCK, model, quality: Quality::Light, threads: 2, ..Default::default() };
+        let (_control, engine) = piano_control::new(model, cfg);
+        let at = |s: f64| (s * rate) as u64;
+        let timeline = vec![
+            (at(0.01), Event::NoteOn { note: 60, velocity: 90 }),
+            (at(0.0503), Event::NoteOn { note: 67, velocity: 70 }),
+            (at(0.0503), Event::NoteOn { note: 76, velocity: 110 }),
+            (at(0.2), Event::NoteOff { note: 60, velocity: 64 }),
+            (at(0.31), Event::NoteOn { note: 67, velocity: 100 }),
+            (at(0.45), Event::Control { cc: 64, value: 127 }),
+            (at(0.5), Event::NoteOn { note: 48, velocity: 60 }),
+        ];
+        let bb = Arc::new(crate::blackbox::BlackBox::new());
+        bb.start(rate, 2, Quality::Light.name(), model);
+        let mut player = Player::new(engine, rate, 1, timeline, None, Arc::default()).with_blackbox(bb.clone());
+        let total = at(0.8) as usize;
+        let mut out = vec![0.0; total];
+        let mut done = 0;
+        for &n in [256, 128, 333, 1024, 64, 777].iter().cycle() {
+            let n = n.min(total - done);
+            player.render(n, std::iter::empty(), |off, l, _| out[done + off..done + off + l.len()].copy_from_slice(l), |_, _| {});
+            done += n;
+            if done == total {
+                break;
+            }
+        }
+        let root = std::env::temp_dir().join(format!("piano-blackbox-test-{}", std::process::id()));
+        let dir = bb.dump(&root).unwrap().expect("a recording");
+        eprintln!("flight recording: {}", dir.display());
+        let text = std::fs::read_to_string(dir.join("events.txt")).unwrap();
+        assert_eq!(text.lines().filter(|l| l.starts_with("E ")).count(), 7);
+        let wav = std::fs::read(dir.join("audio.wav")).unwrap();
+        let samples: Vec<f32> = wav[44..].chunks(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
+        let left: Vec<f32> = samples.iter().step_by(2).copied().collect();
+        assert_eq!(left, out);
+        assert!(out.iter().any(|x| x.abs() > 1e-3), "no sound");
     }
 
     #[test]

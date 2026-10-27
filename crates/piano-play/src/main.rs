@@ -15,6 +15,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod audio;
+mod blackbox;
 mod console;
 mod node;
 mod player;
@@ -124,6 +125,13 @@ struct Args {
     /// upsampled, for half to an eighth of the load.
     #[arg(long)]
     full_rate: bool,
+    /// Flight recorder: keep every event the piano receives and the last
+    /// minute of its sound, written into the configuration directory's
+    /// `blackbox` folder when the player stops (`unsampled-piano-render
+    /// replay` renders it again, identically). `blackbox = true` in
+    /// play.toml.
+    #[arg(long)]
+    blackbox: bool,
     /// From play.toml only: the interface's theme, "dark", "light" or
     /// "system" (default).
     #[arg(skip)]
@@ -186,6 +194,7 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
         midi_channel: args.midi_channel,
         invert_sustain: args.invert_sustain,
         full_rate: args.full_rate,
+        blackbox: args.blackbox,
     };
     let stats = Arc::new(Stats::default());
     // The keyboard, unless files play alone.
@@ -222,9 +231,14 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let sup = Supervisor { control: control.clone(), watch, midi_map, last, stats, pieces, end_s, sr, repaint: Default::default() };
+    let blackbox = audio.blackbox.clone();
+    if args.blackbox {
+        dump_on_interrupt(blackbox.clone());
+    }
     if !args.ui {
         sup.run(true);
         drop(audio);
+        dump(&blackbox);
         return Ok(());
     }
     let repaint = sup.repaint.clone();
@@ -244,7 +258,45 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
         theme: args.theme.clone().unwrap_or_else(|| "system".into()),
     };
     window::run(control, repaint, presets, shipped, preset, &title, audio, app)?;
+    dump(&blackbox);
     Ok(())
+}
+
+/// Writes the flight recorder (crate::blackbox) into the configuration
+/// directory's `blackbox` folder.
+fn dump(b: &blackbox::BlackBox) {
+    let Some(root) = piano_host::config_dir().map(|d| d.join("blackbox")) else { return };
+    match b.dump(&root) {
+        Ok(Some(dir)) => eprintln!("flight recorder: {}", dir.display()),
+        Ok(None) => {}
+        Err(e) => eprintln!("flight recorder: {e}"),
+    }
+}
+
+/// Ctrl-C (or SIGTERM): the flight recorder is written before quitting.
+fn dump_on_interrupt(b: Arc<blackbox::BlackBox>) {
+    #[cfg(unix)]
+    {
+        use std::sync::atomic::AtomicBool;
+        static STOP: AtomicBool = AtomicBool::new(false);
+        extern "C" fn on_signal(_: libc::c_int) {
+            STOP.store(true, Ordering::SeqCst);
+        }
+        // SAFETY: the handler only stores an atomic.
+        unsafe {
+            libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
+            libc::signal(libc::SIGTERM, on_signal as *const () as libc::sighandler_t);
+        }
+        std::thread::spawn(move || {
+            while !STOP.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            dump(&b);
+            std::process::exit(130);
+        });
+    }
+    #[cfg(not(unix))]
+    let _ = b;
 }
 
 /// `--list`: the audio devices, MIDI ports and graph ports.
@@ -591,6 +643,9 @@ fn apply_user_config(args: &mut Args) {
     }
     if !given("--full-rate") && table.get("full_rate").and_then(|v| v.as_bool()) == Some(true) {
         args.full_rate = true;
+    }
+    if !given("--blackbox") && table.get("blackbox").and_then(|v| v.as_bool()) == Some(true) {
+        args.blackbox = true;
     }
     if !given("--presets") {
         args.presets = args.presets.take().or(string("presets").map(PathBuf::from));

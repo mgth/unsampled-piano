@@ -49,6 +49,8 @@ pub struct Settings {
     /// Compute the piano at the output's rate even above 48 kHz (otherwise
     /// at half, a quarter or an eighth of it, then upsampled).
     pub full_rate: bool,
+    /// Keep the flight recorder (crate::blackbox).
+    pub blackbox: bool,
 }
 
 impl Settings {
@@ -108,6 +110,8 @@ pub struct Audio {
     output_now: Option<String>,
     midi_now: Option<String>,
     keyboard: Arc<KeyboardInput>,
+    /// Records the engine's input and output (crate::blackbox).
+    pub blackbox: Arc<crate::blackbox::BlackBox>,
 }
 
 /// What to play besides the keyboard at the start.
@@ -174,6 +178,7 @@ impl Audio {
             output_now: None,
             midi_now: None,
             keyboard,
+            blackbox: Arc::default(),
         };
         let control = audio.launch(backend, model, map, start)?;
         Ok((audio, control))
@@ -256,7 +261,11 @@ impl Audio {
             control.set_midi_map(map);
         }
         let (tx, rx) = rtrb::RingBuffer::<Event>::new(1024);
-        let player = Player::new(engine, sr, factor, start.timeline, Some(rx), self.stats.clone());
+        let mut player = Player::new(engine, sr, factor, start.timeline, Some(rx), self.stats.clone());
+        if self.settings.blackbox {
+            self.blackbox.start(self.engine_rate, cfg.threads, cfg.quality.name(), model);
+            player = player.with_blackbox(self.blackbox.clone());
+        }
         let mut midi_conn = None;
         match start.demo {
             Some(demo) => {
@@ -725,6 +734,7 @@ mod tests {
             midi_channel: None,
             invert_sustain: false,
             full_rate: false,
+            blackbox: false,
         }
     }
 
