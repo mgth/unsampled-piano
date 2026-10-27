@@ -44,7 +44,7 @@ pub const SECTIONS: &[Section] = &[
     Section { title: "Simple", prefixes: &["macros."], curves: &[], view: View::Simple },
     Section {
         title: "Player",
-        prefixes: &["output_gain_db", "velocity.", "una_corda_", "half_blow", "mute_felt", "repetition_", "damper.pedal_"],
+        prefixes: &["output_gain_db", "limiter", "limiter_", "velocity.", "una_corda_", "half_blow", "mute_felt", "repetition_", "damper.pedal_"],
         curves: &[Curve {
             title: "Hammer speed by velocity",
             unit: "m/s",

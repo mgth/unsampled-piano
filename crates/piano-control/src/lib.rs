@@ -52,6 +52,12 @@ pub struct Shared {
     pub builds: AtomicU64,
     /// Note-ons the engines ignored as duplicates, since the start.
     pub doubled: AtomicU32,
+    /// Since the last [`Controller::status`]: samples sent above full scale,
+    /// the output's peak (×1e4) and the limiter's largest gain reduction
+    /// (dB ×100).
+    pub clipped: AtomicU32,
+    pub peak: AtomicU32,
+    pub limiting: AtomicU32,
 }
 
 /// What the worker reports besides the counters.
@@ -217,6 +223,9 @@ impl PianoControl for Controller {
             voices: self.shared.voices.load(Ordering::Relaxed),
             load: self.shared.load.swap(0, Ordering::Relaxed) as f32 / 1e4,
             doubled_notes: self.shared.doubled.load(Ordering::Relaxed),
+            clipped: self.shared.clipped.swap(0, Ordering::Relaxed),
+            peak: self.shared.peak.swap(0, Ordering::Relaxed) as f32 / 1e4,
+            limiting_db: self.shared.limiting.swap(0, Ordering::Relaxed) as f32 / 100.0,
             error: self.error.clone().or_else(|| report.error.clone()),
         }
     }

@@ -9,6 +9,7 @@ pub mod eigen;
 pub mod engine;
 pub mod hammer;
 pub mod instrument;
+pub mod limiter;
 pub mod live;
 pub mod macros;
 pub mod modal;

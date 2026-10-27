@@ -73,7 +73,33 @@ pub struct PianoUi {
     /// CPU load shown: the peak over the last second (the status gives the
     /// peak since it was last read).
     load: LoadMeter,
+    /// Clipping seen (held a few seconds), the limiter's reduction.
+    clip: Hold,
+    limiting: LoadMeter,
     host_page: Option<Box<dyn HostPage>>,
+}
+
+/// A count held for `HOLD_S` after it was last non-zero.
+#[derive(Default)]
+struct Hold {
+    total: u32,
+    last: Option<std::time::Instant>,
+}
+
+const HOLD_S: f32 = 3.0;
+
+impl Hold {
+    /// Adds this update's count; the count of the episode while it lasts.
+    fn update(&mut self, n: u32) -> Option<u32> {
+        let now = std::time::Instant::now();
+        let held = self.last.is_some_and(|t| now.duration_since(t).as_secs_f32() < HOLD_S);
+        if n > 0 {
+            self.total = if held { self.total.saturating_add(n) } else { n };
+            self.last = Some(now);
+            return Some(self.total);
+        }
+        held.then_some(self.total)
+    }
 }
 
 #[derive(Default)]
@@ -115,6 +141,8 @@ impl PianoUi {
             touch_base: None,
             message: None,
             load: LoadMeter::default(),
+            clip: Hold::default(),
+            limiting: LoadMeter::default(),
             host_page: None,
         }
     }
@@ -259,6 +287,19 @@ impl PianoUi {
                 ui.label(format!("{} voices", status.voices));
                 ui.separator();
                 ui.label(format!("CPU {:.0} %", 100.0 * self.load.update(status.load))).on_hover_text("Audio callback time over buffer duration, peak of the last second");
+                let limiting = self.limiting.update(status.limiting_db);
+                if limiting > 0.05 {
+                    ui.separator();
+                    ui.label(format!("Limiter -{limiting:.1} dB")).on_hover_text("The output limiter lowered the level by this much in the last second, so that nothing clips.");
+                }
+                if let Some(n) = self.clip.update(status.clipped) {
+                    ui.separator();
+                    ui.colored_label(ui.visuals().error_fg_color, "CLIP").on_hover_text(format!(
+                        "{n} samples above full scale in the last seconds (peak {:+.1} dBFS): they clip further down the chain. \
+                         Lower the output gain, or turn the limiter on (Player page).",
+                        20.0 * status.peak.max(1e-6).log10()
+                    ));
+                }
                 if status.doubled_notes > 0 {
                     ui.separator();
                     ui.colored_label(ui.visuals().warn_fg_color, format!("{} doubled MIDI notes", status.doubled_notes)).on_hover_text(

@@ -52,6 +52,8 @@ macro_rules! live_params {
 
 live_params! {
     OutputGainDb => "output_gain_db", output_gain_db;
+    Limiter => "limiter", limiter;
+    LimiterCeilingDb => "limiter_ceiling_db", limiter_ceiling_db;
     UnaCordaSoftening => "una_corda_softening", una_corda_softening;
     UnaCordaShift => "una_corda_shift", una_corda_shift;
     HalfBlow => "half_blow", half_blow;

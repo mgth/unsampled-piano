@@ -43,6 +43,15 @@ const HELP: &[(&str, &str, &str)] = &[
          masses follow from it (μ = T/(2·L·f0)²), so the instrument is rebuilt.",
     ),
     (
+        "limiter",
+        "Keeps the output from clipping: loud attacks, the treble's above all, can pass full scale long \
+         before the music sounds loud, and clip further down the chain (a harsh crack). 0: off, 1: on. \
+         The status bar shows CLIP when samples go over, and how much the limiter takes off.",
+        "Without latency: the gain falls at once to what a sample above the ceiling needs and comes \
+         back with a 100 ms time constant, both channels alike (docs/limiter.md).",
+    ),
+    ("limiter_ceiling_db", "The highest level the limiter lets out.", "Ceiling in dBFS (−1 by default, at most 0)."),
+    (
         "output_gain_db",
         "Overall level, like the gain of the microphone preamp. It does not change the tone.",
         "Applied to both channels after the room, smoothed with a 20 ms time constant so that \

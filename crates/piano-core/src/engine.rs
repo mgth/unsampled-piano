@@ -467,6 +467,11 @@ impl Engine {
         &self.inst
     }
 
+    /// The live parameters as they stand (the musician's controls applied).
+    pub fn live_model(&self) -> &PianoModel {
+        &self.live
+    }
+
     pub fn config(&self) -> &EngineConfig {
         &self.cfg
     }

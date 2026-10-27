@@ -64,6 +64,8 @@ pub struct EngineSlot {
     shared: Arc<Shared>,
     /// The current engine's duplicate count already added to `shared`.
     doubled_seen: u32,
+    /// On the engines' sum, the last stage (live `limiter`).
+    limiter: piano_core::limiter::Limiter,
 }
 
 impl EngineSlot {
@@ -97,6 +99,7 @@ impl EngineSlot {
             sample_rate: cfg.sample_rate,
             shared,
             doubled_seen: 0,
+            limiter: piano_core::limiter::Limiter::new(cfg.sample_rate),
         }
     }
 
@@ -217,6 +220,7 @@ impl EngineSlot {
                 self.send_back(r.engine);
             }
         }
+        self.output_stage(left, right);
         for i in 0..self.unsent.len() {
             if let Some(e) = self.unsent[i].take()
                 && let Err(rtrb::PushError::Full(e)) = self.reclaim.push(e)
@@ -231,6 +235,31 @@ impl EngineSlot {
             self.doubled_seen = d;
         }
         self.shared.engines.store(self.engines() as u32, Ordering::Relaxed);
+    }
+
+    /// The limiter (when on) on the engines' sum, then the meter: samples
+    /// above full scale, the peak and the gain reduction, for the status.
+    fn output_stage(&mut self, left: &mut [f32], right: &mut [f32]) {
+        let live = self.current.live_model();
+        if live.limiter >= 0.5 {
+            let ceiling = 10f32.powf(live.limiter_ceiling_db.min(0.0) as f32 / 20.0);
+            let lowest = self.limiter.process(left, right, ceiling);
+            if lowest < 1.0 {
+                self.shared.limiting.fetch_max((-2000.0 * lowest.log10()) as u32, Ordering::Relaxed);
+            }
+        } else {
+            self.limiter.reset();
+        }
+        let (mut over, mut peak) = (0u32, 0.0f32);
+        for x in left.iter().chain(right.iter()) {
+            let a = x.abs();
+            peak = peak.max(a);
+            over += (a > 1.0) as u32;
+        }
+        if over > 0 {
+            self.shared.clipped.fetch_add(over, Ordering::Relaxed);
+        }
+        self.shared.peak.fetch_max((peak.min(400_000.0) * 1e4) as u32, Ordering::Relaxed);
     }
 
     /// Renders the current engine into `left`/`right` and each replaced one

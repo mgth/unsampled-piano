@@ -407,18 +407,23 @@ impl Supervisor {
                 eprintln!("end of the files");
                 return;
             }
-            {
-                let doubled = self.control.lock().unwrap().status().doubled_notes;
-                if doubled > 0 && self.doubled_told == 0 {
-                    eprintln!("doubled MIDI notes: the keyboard reaches the piano twice (two channels or two connections); the doubles are ignored (--midi-channel to listen to one)");
-                }
-                self.doubled_told = doubled;
+            let status = self.control.lock().unwrap().status();
+            if status.doubled_notes > 0 && self.doubled_told == 0 {
+                eprintln!("doubled MIDI notes: the keyboard reaches the piano twice (two channels or two connections); the doubles are ignored (--midi-channel to listen to one)");
+            }
+            self.doubled_told = status.doubled_notes;
+            let mut out = String::new();
+            if status.limiting_db > 0.05 {
+                out += &format!("  limiter -{:.1} dB", status.limiting_db);
+            }
+            if status.clipped > 0 {
+                out += &format!("  CLIP: {} samples above full scale (peak {:+.1} dBFS; limiter = 1 to avoid it)", status.clipped, 20.0 * status.peak.log10());
             }
             let st = &self.stats;
             let n = st.callbacks.swap(0, Ordering::Relaxed).max(1);
             let avg = st.load_sum.swap(0, Ordering::Relaxed) as f64 / n as f64 / 100.0;
             let max = st.load_max.swap(0, Ordering::Relaxed) as f64 / 100.0;
-            eprintln!("CPU load avg {avg:5.1} %  max {max:5.1} %  voices {:3}", st.voices.load(Ordering::Relaxed));
+            eprintln!("CPU load avg {avg:5.1} %  max {max:5.1} %  voices {:3}{out}", st.voices.load(Ordering::Relaxed));
         }
     }
 }

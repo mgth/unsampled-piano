@@ -76,6 +76,9 @@ impl PianoControl for MockControl {
             voices: 0,
             load: 0.0,
             doubled_notes: 0,
+            clipped: 0,
+            peak: 0.0,
+            limiting_db: 0.0,
             error: self.error.clone(),
         }
     }

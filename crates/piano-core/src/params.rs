@@ -803,6 +803,11 @@ pub struct PianoModel {
     /// Output level (dB): close microphones hear the piano louder than
     /// distant ones; presets set it to keep a comparable loudness.
     pub output_gain_db: f64,
+    /// Output limiter (crate::limiter): 0 off, 1 on. Nothing leaves above
+    /// `limiter_ceiling_db` (dBFS); without it a loud treble attack can
+    /// pass full scale and clip further down the chain.
+    pub limiter: f64,
+    pub limiter_ceiling_db: f64,
     /// Multiplies Stulov's Q0 (felt hardness / voicing).
     pub hardness: f64,
     /// Extra hardness growth per key around C4: Q0 ×= e^{slope·(n − 40)}
@@ -883,6 +888,8 @@ impl Default for PianoModel {
             repetition_time: 0.0,
             repetition_floor: 0.5,
             output_gain_db: 0.0,
+            limiter: 0.0,
+            limiter_ceiling_db: -1.0,
             // Top felt 0.3 × Stulov, slightly harder towards the treble, with
             // the core shallower at C4 and less hysteresis: the middle's ff
             // goes further into the core with a steeper pulse (C4 ff: 44 N,

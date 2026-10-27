@@ -45,6 +45,12 @@ pub struct Status {
     /// Note-ons ignored as duplicates since the start: the keyboard reaches
     /// the piano twice (two channels, two connections).
     pub doubled_notes: u32,
+    /// Since the last status: samples sent above full scale (they clip
+    /// further down the chain), the output's peak (linear) and the
+    /// limiter's largest gain reduction (dB).
+    pub clipped: u32,
+    pub peak: f32,
+    pub limiting_db: f32,
     /// Last error (preset, build), for display.
     pub error: Option<String>,
 }

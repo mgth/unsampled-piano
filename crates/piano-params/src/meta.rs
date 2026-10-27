@@ -34,6 +34,8 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("temperament.cents[10]", "Custom temperament: Bb", "c", -50.0, 50.0, false),
     ("temperament.cents[11]", "Custom temperament: B", "c", -50.0, 50.0, false),
     ("output_gain_db", "Output gain", "dB", -40.0, 20.0, false),
+    ("limiter", "Limiter (0 off, 1 on)", "", 0.0, 1.0, false),
+    ("limiter_ceiling_db", "Limiter ceiling", "dBFS", -12.0, 0.0, false),
     ("una_corda_softening", "Una corda softening", "", 0.0, 1.0, false),
     ("una_corda_shift", "Una corda shift (1 grand, 0 upright)", "", 0.0, 1.0, false),
     ("half_blow", "Soft pedal half blow (upright)", "", 0.0, 0.5, false),
