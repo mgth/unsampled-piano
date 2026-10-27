@@ -64,6 +64,17 @@ For listening, out/ab_200 holds the passage (22–32 s) from the recording, the 
 
 The bass's partials 8, 16 and 24 (A0–A1) also stand 20–38 dB over Liang's: the recording has the strike point's notches there, the model hardly.
 
+## "Not precise"
+
+The user heard no difference with the 220 Hz hollow: the blur is elsewhere. Leads measured on the same passage:
+
+- **Radiation damping.** The loss law gives every mode the same η, its radiation included. The Rayleigh self-impedance of the rectangle's modes, with the model's back face as an antiphase image (β 0.6, 0.6 m), gives η_rad 0.021 for (1,1) and < 0.006 for every other mode below 400 Hz. Only the first mode would gain it; the lingering below needs several times more.
+- **Articulation**: how far each band falls between successive left-hand notes (the lowest level in the 30 ms before a note, re the peak of the one before). On 24.7–28.2 s without the pedal, 90–140 Hz falls 9.6 dB in the model against 14.5 dB in the recording, 40–90 Hz 11.9 against 19.1. `loss_low_corner` 300 brings 90–140 Hz to −17.0; firmer dampers (`damper.strength` 0.3) to −14.1. Neither touches 40–90 Hz. Over 22–32 s with the pedal, though, the medians agree (90–140 Hz: −16.5 model, −15.1 recording): the lingering is local to that figure (A1's second partial lies on the board's first mode, 108.8 Hz).
+- **No late boom**: each band's peak after the 1–4 kHz onset comes no later in the model (median 32–41 ms) than in the recording (42–59 ms).
+- **The attack's pulse train** (1–6 kHz envelope of the isolated notes A1–A2): the string's returns every period are as deep in both (12–21 dB), but the recording's first pulses are weak and grow over 2–3 periods, while the model's first is already among the strongest.
+
+Bench: `loss_low_corner` 200 scores 1.14, 300 1.15 (baseline 1.14). With 300 the early T60 of partials 1–4 shortens, bass z −0.8 → −1.4 and middle −0.5 → −1.0. A/B in out/ab_flou (Beethoven 22–32 s with the pedal: recording, now, 200, 300), awaiting the user's ear.
+
 ## Still open
 
 - **C2–A2 lacks body.** Relative to the strongest partial, partials 4–6 lie 10–13 dB under the recording in the sustain (−1 to −5 at the attack): they decay at −14 dB/s against −9. The edge loss is not it (off: −12). The bench's eight grands agree: the bass's partials 4–12 are 4–8 dB weak in the sustain. The bridge's conductance at 300–800 Hz is next.
