@@ -41,6 +41,29 @@ A term on the share of each partial's energy in bending, B·k²/(1 + B·k²), wa
 
 The eight grands of the bench have a brighter bass than Liang's Disklavier: at 4·10⁻⁴ the bass's sustain at 1–2 and 8 kHz fell 4–18 dB under them, and its envelopes decayed ≈ 2 dB faster. At 2·10⁻⁴ the bass's 4 kHz sustain lands on their mean (z +1.1 → +0.3). The user heard no difference between 2 and 4·10⁻⁴; 2·10⁻⁴ is the default.
 
+## The 220 Hz line
+
+Listening again to the same passage (24.7–28.2 s: A1, D2, E2, F2 in the left hand, D3–D4 above): "still metallic, and above all not precise". By third-octave band the model stood +7 dB over the recording at 200 Hz, all of it one line: 220 Hz (A), fed by D2's third partial (+20–24 dB against Liang's isolated D2), A1's fourth and A3. The recording plays this passage the same with and without the pedal (≤ 1 dB), and the model's line stays without the sympathy: it is in the notes.
+
+D2's third partial (219.7 Hz) lies 5 Hz under the board mode (1,3) at 224.8 Hz and forms a strongly coupled pair with it (T60 4.6 s). More board loss (η 0.035), more back-face short circuit (`back_gain` 0.9) and `loss_low_corner` 300 leave it within 2 dB. The grand's outline (docs/outline.md) brings it to +4–10 dB but moves the bumps elsewhere: on the passage, 200 Hz goes from +6 to −5 dB and 400 Hz from +4 to +7.
+
+Against the bench's six grands it is Liang's Disklavier that stands apart. Partials below 700 Hz of A0–C4 at the top layer, dB re each piano's median, by third octave:
+
+| | 112 Hz | 141 | 178 | 224 | 283 | 356 | 449 | 566 | 713 |
+|---|---|---|---|---|---|---|---|---|---|
+| six grands, attack | +6.9 ± 2.7 | +7.1 ± 2.3 | +4.3 ± 3.0 | **+6.0 ± 2.6** | +1.3 ± 2.4 | −1.3 | −0.3 | −3.2 | −4.6 |
+| Liang, attack | +11.1 | +9.5 | +6.9 | **+1.9** | −1.2 | +0.4 | +1.5 | −1.5 | −1.0 |
+| model, attack | **+16.5** | +7.5 | +6.3 | +7.8 | −4.7 | −0.3 | −2.9 | −3.5 | −7.0 |
+| six grands, sustain | +8.6 ± 2.3 | +5.4 ± 2.9 | +5.7 ± 2.8 | **+5.3 ± 2.5** | −0.2 ± 3.1 | −1.8 | −1.5 | −4.5 | −5.5 ± 3.0 |
+| Liang, sustain | +11.9 | +10.3 | +5.9 | **+0.3** | −6.2 | −2.5 | −0.8 | −4.6 | −3.0 |
+| model, sustain | **+19.4** | +5.7 | +8.5 | +7.3 | −4.9 | +0.1 | −3.0 | −4.5 | **−13.4** |
+
+At 224 Hz the model lies within the grands (+7.8 against +6.0 ± 2.6); Liang's Disklavier is hollow there, 4–5 dB under all the others. Lowering the model's 220 Hz would fit that one piano and leave the rest. What the model does have wrong in this register: 112 Hz, the board's first mode, 10 dB over the grands' mean (`loss_low_corner` 300 takes 3–4 dB of it), and the bass's partials near 700 Hz in the sustain (below).
+
+For listening, out/ab_200 holds the passage (22–32 s) from the recording, the model, and the model with a 7 dB hollow at 222 Hz (an output equaliser, not a model change), to tell whether that line is what is heard.
+
+The bass's partials 8, 16 and 24 (A0–A1) also stand 20–38 dB over Liang's: the recording has the strike point's notches there, the model hardly.
+
 ## Still open
 
 - **C2–A2 lacks body.** Relative to the strongest partial, partials 4–6 lie 10–13 dB under the recording in the sustain (−1 to −5 at the attack): they decay at −14 dB/s against −9. The edge loss is not it (off: −12). The bench's eight grands agree: the bass's partials 4–12 are 4–8 dB weak in the sustain. The bridge's conductance at 300–800 Hz is next.
