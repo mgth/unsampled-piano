@@ -704,21 +704,26 @@ mod tests {
             eprintln!("RLIMIT_RTPRIO is 0 here: nothing to check");
             return;
         }
+        // Other tests run engines alongside: only the workers that appear
+        // with this one count.
+        let voices = || -> Vec<(std::ffi::OsString, u32)> {
+            let mut v = Vec::new();
+            for task in std::fs::read_dir("/proc/self/task").unwrap().flatten() {
+                let comm = std::fs::read_to_string(task.path().join("comm")).unwrap_or_default();
+                // Field 41 of stat: the scheduling policy (1 = SCHED_FIFO, 2 = SCHED_RR).
+                let stat = std::fs::read_to_string(task.path().join("stat")).unwrap_or_default();
+                if let (true, Some(policy)) = (comm.trim().starts_with("piano-voice"), stat.rsplit(')').next().and_then(|s| s.split_whitespace().nth(38)?.parse().ok())) {
+                    v.push((task.file_name(), policy));
+                }
+            }
+            v
+        };
+        let before: Vec<_> = voices().into_iter().map(|(id, _)| id).collect();
         let cfg = EngineConfig { threads: 3, worker_init: Some(promote_worker), quality: Quality::Light, ..Default::default() };
         let _engine = piano_core::Engine::new(cfg);
         std::thread::sleep(std::time::Duration::from_millis(100));
-        let mut workers = 0;
-        for task in std::fs::read_dir("/proc/self/task").unwrap().flatten() {
-            let comm = std::fs::read_to_string(task.path().join("comm")).unwrap_or_default();
-            if comm.trim().starts_with("piano-voice") {
-                // Field 41 of stat: the scheduling policy (1 = SCHED_FIFO, 2 = SCHED_RR).
-                let stat = std::fs::read_to_string(task.path().join("stat")).unwrap();
-                let policy: u32 = stat.rsplit(')').next().unwrap().split_whitespace().nth(38).unwrap().parse().unwrap();
-                assert!(policy == 1 || policy == 2, "{comm}: policy {policy}");
-                workers += 1;
-            }
-        }
-        assert_eq!(workers, 2);
+        let real_time = voices().into_iter().filter(|(id, policy)| !before.contains(id) && (*policy == 1 || *policy == 2)).count();
+        assert_eq!(real_time, 2);
     }
 
     fn settings(host: Option<&str>) -> Settings {

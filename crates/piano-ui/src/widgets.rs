@@ -57,6 +57,18 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
             }
             r
         }
+        // An on/off number (0 or 1): a switch, one gesture per click.
+        (Value::Float(x), _) if is_switch(&p.path) => {
+            let mut on = *x >= 0.5;
+            let text = if on { "On" } else { "Off" };
+            let r = ui.checkbox(&mut on, text);
+            if r.changed() {
+                *x = if on { 1.0 } else { 0.0 };
+                set_once(&p.path, Value::Float(*x), control);
+                picked = true;
+            }
+            r
+        }
         (Value::Float(x), _) => ui.add(
             egui::Slider::new(x, m.min..=m.max)
                 .logarithmic(m.log)
@@ -95,6 +107,11 @@ fn choices(path: &str) -> Option<&'static [&'static str]> {
         "temperament.key" => Some(&NOTE_CLASSES),
         _ => None,
     }
+}
+
+/// Numbers that are a switch: 0 off, 1 on.
+fn is_switch(path: &str) -> bool {
+    matches!(path, "limiter")
 }
 
 /// The name shown for a value: the key wraps around the octave, an unknown

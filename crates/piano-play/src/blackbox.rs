@@ -1,6 +1,7 @@
-//! Flight recorder: every event the engine received, at its exact sample,
-//! and the length of every block it rendered, since the engine started;
-//! and the last minute of its output. Written when the player stops
+//! Flight recorder: every event the engines received, at its exact sample
+//! (the parameters edited included), every instrument rebuilt and when it
+//! came in, and the length of every block rendered, since the player
+//! started; and the last minute of its output. Written when the player stops
 //! (`unsampled-piano-render replay` renders it again, identically), so that
 //! a rare fault heard while playing can be studied offline.
 //!
@@ -20,6 +21,8 @@ const AUDIO_S: f64 = 60.0;
 const EVENTS: usize = 1 << 18;
 /// Runs of equal block lengths.
 const RUNS: usize = 1 << 16;
+/// Instruments rebuilt (edits of parameters that are not live).
+const SWAPS: usize = 256;
 /// Dumps kept in the folder.
 const KEEP: usize = 3;
 
@@ -32,6 +35,8 @@ struct Rec {
     events: Vec<(u64, Event)>,
     /// (block length, how many in a row).
     runs: Vec<(u32, u32)>,
+    /// (absolute engine sample, model): an engine rebuilt from it came in.
+    swaps: Vec<(u64, PianoModel)>,
     clock: u64,
     /// Last `AUDIO_S` of output, a ring of stereo frames.
     audio: Vec<[f32; 2]>,
@@ -56,6 +61,7 @@ impl BlackBox {
                 model: None,
                 events: Vec::with_capacity(EVENTS),
                 runs: Vec::with_capacity(RUNS),
+                swaps: Vec::with_capacity(SWAPS),
                 clock: 0,
                 audio: Vec::new(),
                 head: 0,
@@ -76,6 +82,7 @@ impl BlackBox {
         r.model = Some(model);
         r.events.clear();
         r.runs.clear();
+        r.swaps.clear();
         r.clock = 0;
         r.audio = vec![[0.0; 2]; (AUDIO_S * sample_rate) as usize];
         r.head = 0;
@@ -84,9 +91,10 @@ impl BlackBox {
         self.missed.store(0, Ordering::Relaxed);
     }
 
-    /// One engine block: its events (relative to it) and its output.
-    /// Audio thread: tries the lock only, allocates nothing.
-    pub fn block(&self, events: &[TimedEvent], left: &[f32], right: &[f32]) {
+    /// One block, as the engine slot's journal gives it: the model of an
+    /// engine that came in at its start, its events (relative to it), and
+    /// its output. Audio thread: tries the lock only, allocates nothing.
+    pub fn block(&self, swap: Option<&PianoModel>, events: &[TimedEvent], left: &[f32], right: &[f32]) {
         let Ok(mut r) = self.rec.try_lock() else {
             self.missed.fetch_add(1, Ordering::Relaxed);
             return;
@@ -96,6 +104,14 @@ impl BlackBox {
         if r.overflow || r.audio.is_empty() {
             r.clock += n as u64;
             return;
+        }
+        if let Some(m) = swap {
+            if r.swaps.len() < r.swaps.capacity() {
+                let t = r.clock;
+                r.swaps.push((t, *m));
+            } else {
+                r.overflow = true;
+            }
         }
         if r.events.len() + events.len() > r.events.capacity() {
             r.overflow = true;
@@ -123,7 +139,7 @@ impl BlackBox {
     /// Writes the recording into a new folder of `root` (keeping the last
     /// few), and returns it.
     pub fn dump(&self, root: &Path) -> std::io::Result<Option<PathBuf>> {
-        let (head, meta, events, runs, audio, model) = {
+        let (head, meta, events, runs, swaps, audio, model) = {
             let r = self.rec.lock().unwrap();
             let Some(model) = r.model else { return Ok(None) };
             if r.clock == 0 {
@@ -132,7 +148,7 @@ impl BlackBox {
             let cap = r.audio.len();
             let audio: Vec<[f32; 2]> = (0..r.filled).map(|i| r.audio[(r.head + cap - r.filled + i) % cap]).collect();
             let meta = (r.sample_rate, r.threads, r.quality.clone(), r.clock, r.overflow, self.missed.load(Ordering::Relaxed));
-            (r.clock - r.filled as u64, meta, r.events.clone(), r.runs.clone(), audio, model)
+            (r.clock - r.filled as u64, meta, r.events.clone(), r.runs.clone(), r.swaps.clone(), audio, model)
         };
         let (sample_rate, threads, quality, clock, overflow, gaps) = meta;
         let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
@@ -150,6 +166,12 @@ impl BlackBox {
         writeln!(f, "# blocks: length count")?;
         for (len, count) in &runs {
             writeln!(f, "B {len} {count}")?;
+        }
+        writeln!(f, "# instruments rebuilt: sample at which they came in, preset")?;
+        for (k, (t, m)) in swaps.iter().enumerate() {
+            let name = format!("rebuilt_{k}.toml");
+            piano_host::save_preset(m, &dir.join(&name)).map_err(std::io::Error::other)?;
+            writeln!(f, "S {t} {name}")?;
         }
         writeln!(f, "# events: sample kind values")?;
         for (t, e) in &events {

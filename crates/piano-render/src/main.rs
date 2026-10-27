@@ -74,14 +74,16 @@ fn midi_timeline(path: &std::path::Path) -> Result<Timeline, Box<dyn std::error:
 }
 
 /// Renders a flight recording (crate piano-play's blackbox) with the same
-/// blocks, events, preset, rate, threads and quality, writes it, and
-/// compares the part the player kept with what it played.
+/// blocks, events, rebuilt instruments, preset, rate, threads and quality,
+/// through the same output stage, writes it, and compares the part the
+/// player kept with what it played.
 fn replay(dir: &std::path::Path, output: &std::path::Path, threads_cli: usize) -> Result<(), Box<dyn std::error::Error>> {
     let text = std::fs::read_to_string(dir.join("events.txt"))?;
     let model = piano_host::load_preset(&dir.join("preset.toml"))?;
     let (mut sr, mut threads, mut quality, mut audio_from) = (48_000.0, 1usize, piano_core::Quality::default(), 0u64);
     let mut runs: Vec<(usize, usize)> = Vec::new();
     let mut events: Vec<(u64, Event)> = Vec::new();
+    let mut swaps: Vec<(u64, piano_core::params::PianoModel)> = Vec::new();
     for line in text.lines() {
         let w: Vec<&str> = line.split_whitespace().collect();
         match w.as_slice() {
@@ -91,6 +93,7 @@ fn replay(dir: &std::path::Path, output: &std::path::Path, threads_cli: usize) -
             ["audio_from", v] => audio_from = v.parse()?,
             ["complete", "false"] => eprintln!("warning: the recording overflowed; the replay stops matching where it did"),
             ["B", len, count] => runs.push((len.parse()?, count.parse()?)),
+            ["S", t, file] => swaps.push((t.parse()?, piano_host::load_preset(&dir.join(file))?)),
             ["E", t, kind, rest @ ..] => {
                 let t: u64 = t.parse()?;
                 let n = |i: usize| -> Result<u8, Box<dyn std::error::Error>> { Ok(rest.get(i).ok_or("short event")?.parse()?) };
@@ -111,25 +114,12 @@ fn replay(dir: &std::path::Path, output: &std::path::Path, threads_cli: usize) -
         }
     }
     let threads = if threads_cli > 1 { threads_cli } else { threads };
-    let max_block = runs.iter().map(|r| r.0).max().unwrap_or(128);
-    let cfg = EngineConfig { sample_rate: sr, max_block, model, quality, threads, ..Default::default() };
-    let mut engine = Engine::new(cfg);
-    let total: usize = runs.iter().map(|(l, c)| l * c).sum();
-    let (mut l, mut r) = (vec![0.0f32; total], vec![0.0f32; total]);
-    let (mut start, mut next) = (0usize, 0usize);
-    let mut block_events: Vec<TimedEvent> = Vec::with_capacity(256);
+    let cfg = EngineConfig { sample_rate: sr, model, quality, threads, ..Default::default() };
     let t0 = std::time::Instant::now();
-    for &(len, count) in &runs {
-        for _ in 0..count {
-            block_events.clear();
-            while next < events.len() && (events[next].0 as usize) < start + len {
-                block_events.push(TimedEvent { frame: (events[next].0 as usize - start) as u32, event: events[next].1 });
-                next += 1;
-            }
-            engine.process_stereo(&block_events, &mut l[start..start + len], &mut r[start..start + len]);
-            start += len;
-        }
-    }
+    let rebuilt = swaps.len();
+    let rec = piano_control::replay::Recording { cfg, runs, events, swaps };
+    let [l, r] = piano_control::replay::replay(&rec);
+    let (total, events) = (l.len(), rec.events);
     let spec = hound::WavSpec { channels: 2, sample_rate: sr as u32, bits_per_sample: 32, sample_format: hound::SampleFormat::Float };
     let mut w = hound::WavWriter::create(output, spec)?;
     for (a, b) in l.iter().zip(&r) {
@@ -137,7 +127,14 @@ fn replay(dir: &std::path::Path, output: &std::path::Path, threads_cli: usize) -
         w.write_sample(*b)?;
     }
     w.finalize()?;
-    println!("{}: {:.1} s, {} events, {} threads, rendered in {:.1} s", output.display(), total as f64 / sr, events.len(), threads, t0.elapsed().as_secs_f64());
+    println!(
+        "{}: {:.1} s, {} events, {rebuilt} instruments rebuilt, {} threads, rendered in {:.1} s",
+        output.display(),
+        total as f64 / sr,
+        events.len(),
+        threads,
+        t0.elapsed().as_secs_f64()
+    );
     // The part the player kept.
     let mut kept = hound::WavReader::open(dir.join("audio.wav"))?;
     let rec: Vec<f32> = kept.samples::<f32>().collect::<Result<_, _>>()?;

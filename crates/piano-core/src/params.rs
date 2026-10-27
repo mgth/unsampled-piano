@@ -888,7 +888,7 @@ impl Default for PianoModel {
             repetition_time: 0.0,
             repetition_floor: 0.5,
             output_gain_db: 0.0,
-            limiter: 0.0,
+            limiter: 1.0,
             limiter_ceiling_db: -1.0,
             // Top felt 0.3 × Stulov, slightly harder towards the treble, with
             // the core shallower at C4 and less hysteresis: the middle's ff

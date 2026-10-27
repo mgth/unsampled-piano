@@ -26,8 +26,8 @@ pub const SUB_BLOCK: usize = 64;
 /// gain below.
 const FORCE_GAIN: f32 = 1.0 / 300.0;
 /// Output scaling with soundboard: pressure at the mics (Pa) to full scale.
-/// At output_gain_db 0, performances sit at −33 to −37 LUFS (they sat at
-/// −39 to −43), a ten-note fortissimo chord peaks at −6 dBFS, and the
+/// Before `OUTPUT_LEVEL_DB`, performances sat at −33 to −37 LUFS (they sat
+/// at −39 to −43), a ten-note fortissimo chord peaked at −6 dBFS, and the
 /// loudest case tried, 16-note fff chords four times over with the pedal
 /// down, at −2 dBFS (the engine's microphones; +2 dBFS with the close ones).
 const PRESSURE_GAIN: f32 = 1.0 / 15.0;
@@ -36,6 +36,13 @@ const PRESSURE_GAIN: f32 = 1.0 / 15.0;
 const SILENCE_ENERGY: f32 = (1e-5 / FORCE_GAIN) * (1e-5 / FORCE_GAIN);
 /// Below this mic energy and without input, the soundboard sleeps.
 const BOARD_SILENCE: f32 = (1e-6 / PRESSURE_GAIN) * (1e-6 / PRESSURE_GAIN);
+/// Level at output_gain_db 0 (dB), on top of the gains above: performances
+/// sit near −20 LUFS and peak a few dB under full scale, as unprocessed
+/// recordings of real grands do (SMD: −20 to −23 LUFS, peaks at −2 dBFS);
+/// they sat 9 dB lower, far under the system's other sounds. Loud treble
+/// chords can pass full scale: the output limiter catches them
+/// (docs/limiter.md).
+const OUTPUT_LEVEL_DB: f64 = 9.0;
 /// Time constant (s) of the output gain smoothing.
 const GAIN_SMOOTHING: f64 = 0.02;
 /// Pending frame knocks (keybed, pedal) at a time.
@@ -383,7 +390,7 @@ impl Engine {
             inst,
             live,
             base,
-            gain: db_to_gain(live.output_gain_db),
+            gain: db_to_gain(live.output_gain_db + OUTPUT_LEVEL_DB),
             voices,
             sustain: 0.0,
             board_load: 1.0,
@@ -976,7 +983,7 @@ impl Engine {
     /// Output gain for a sub-block of `len` samples, moving towards the
     /// live target with a 20 ms time constant (no zipper on gain moves).
     fn smooth_gain(&mut self, len: usize) -> f32 {
-        let target = db_to_gain(self.live.output_gain_db);
+        let target = db_to_gain(self.live.output_gain_db + OUTPUT_LEVEL_DB);
         let k = 1.0 - (-(len as f64) / (GAIN_SMOOTHING * self.cfg.sample_rate)).exp() as f32;
         self.gain += (target - self.gain) * k;
         if (self.gain - target).abs() < 1e-6 * target {
@@ -1112,6 +1119,22 @@ pub fn strike_stats_full(cfg: &EngineConfig, note: u8, velocity: u8, oversample:
         v.contact.run(&mut out, None);
     }
     (v.contact.contact_time(), v.contact.max_force(), v.contact.max_compression())
+}
+
+/// Contact force (N) at each output sample of one strike on a string at
+/// rest, until the episode ends. Allocates: analysis use only.
+pub fn strike_force(cfg: &EngineConfig, note: u8, velocity: u8) -> Vec<f64> {
+    let board = cfg.model.board();
+    let nm = crate::note_model::NoteModel::build(&cfg.model, board.as_ref(), None, note, cfg.sample_rate, MAX_MODES);
+    let mut v = Voice::new(cfg.sample_rate, cfg.max_block);
+    v.setup(&nm, false);
+    v.strike(&nm, hammer_velocity(cfg, velocity), contact_oversampling(cfg, note), 0.0, 0.0, 0.0);
+    let mut out = [0.0f32; 1];
+    let mut force = Vec::new();
+    while v.contact.is_active() && v.contact.run(&mut out, None) == 1 {
+        force.push(v.contact.force());
+    }
+    force
 }
 
 fn db_to_gain(db: f64) -> f32 {

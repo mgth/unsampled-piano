@@ -3530,6 +3530,7 @@ version = "0.2.1"
 dependencies = [
  "clap",
  "hound",
+ "piano-control",
  "piano-core",
  "piano-host",
 ]

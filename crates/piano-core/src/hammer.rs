@@ -223,6 +223,11 @@ impl ContactSolver {
         (v, f, k)
     }
 
+    /// Contact force at the last step (N).
+    pub fn force(&self) -> f64 {
+        self.f0
+    }
+
     /// Peak force of the current/last episode (N).
     pub fn max_force(&self) -> f64 {
         self.max_force

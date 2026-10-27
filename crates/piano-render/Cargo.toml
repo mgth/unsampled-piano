@@ -14,5 +14,6 @@ path = "src/main.rs"
 [dependencies]
 piano-core.workspace = true
 piano-host.workspace = true
+piano-control.workspace = true
 hound.workspace = true
 clap.workspace = true

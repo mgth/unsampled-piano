@@ -199,7 +199,8 @@ impl Player {
             }
             self.engine.process_stereo(&self.piece, &mut self.l[..n], &mut self.r[..n]);
             if let Some(b) = &self.blackbox {
-                b.block(&self.piece, &self.l[..n], &self.r[..n]);
+                let (swap, events) = self.engine.journal();
+                b.block(swap, events, &self.l[..n], &self.r[..n]);
             }
             let sent = if k == 1 {
                 out(done, &self.l[..n], &self.r[..n]);
@@ -312,16 +313,18 @@ mod tests {
     }
 
     /// The flight recorder keeps what the engine played, block for block,
-    /// in buffers of irregular sizes, and writes it out
-    /// (`unsampled-piano-render replay` renders it again: see its output in
-    /// the folder printed).
+    /// in buffers of irregular sizes, a live parameter edited and an
+    /// instrument rebuilt on the way, and writes it out; played again, the
+    /// recording gives the same output, sample for sample
+    /// (`unsampled-piano-render replay` does it from the folder printed).
     #[test]
     fn flight_recorder_keeps_what_was_played() {
         use piano_core::{EngineConfig, Quality};
+        use piano_params::{PianoControl, Value};
         let rate = 48_000.0;
         let model = piano_core::params::PianoModel::default();
         let cfg = EngineConfig { sample_rate: rate, max_block: MAX_BLOCK, model, quality: Quality::Light, threads: 2, ..Default::default() };
-        let (_control, engine) = piano_control::new(model, cfg);
+        let (mut control, engine) = piano_control::new(model, cfg);
         let at = |s: f64| (s * rate) as u64;
         let timeline = vec![
             (at(0.01), Event::NoteOn { note: 60, velocity: 90 }),
@@ -338,7 +341,23 @@ mod tests {
         let total = at(0.8) as usize;
         let mut out = vec![0.0; total];
         let mut done = 0;
+        let (mut edited, mut rebuilt) = (false, false);
         for &n in [256, 128, 333, 1024, 64, 777].iter().cycle() {
+            if done >= at(0.3) as usize && !edited {
+                control.set("output_gain_db", Value::Float(-4.0));
+                edited = true;
+            }
+            if done >= at(0.4) as usize && !rebuilt {
+                // Not live: rebuilt in the background; the swap comes in
+                // when it is ready.
+                control.set("hardness", Value::Float(model.hardness * 1.3));
+                let t = std::time::Instant::now();
+                while control.status().rebuilding {
+                    assert!(t.elapsed().as_secs() < 30, "no rebuild");
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                rebuilt = true;
+            }
             let n = n.min(total - done);
             player.render(n, std::iter::empty(), |off, l, _| out[done + off..done + off + l.len()].copy_from_slice(l), |_, _| {});
             done += n;
@@ -350,12 +369,34 @@ mod tests {
         let dir = bb.dump(&root).unwrap().expect("a recording");
         eprintln!("flight recording: {}", dir.display());
         let text = std::fs::read_to_string(dir.join("events.txt")).unwrap();
-        assert_eq!(text.lines().filter(|l| l.starts_with("E ")).count(), 7);
+        assert_eq!(text.lines().filter(|l| l.starts_with("E ")).count(), 8);
+        assert_eq!(text.lines().filter(|l| l.starts_with("S ")).count(), 1);
         let wav = std::fs::read(dir.join("audio.wav")).unwrap();
         let samples: Vec<f32> = wav[44..].chunks(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
         let left: Vec<f32> = samples.iter().step_by(2).copied().collect();
         assert_eq!(left, out);
         assert!(out.iter().any(|x| x.abs() > 1e-3), "no sound");
+        // Played again from what was kept.
+        let mut runs: Vec<(usize, usize)> = Vec::new();
+        let mut events = Vec::new();
+        let mut swaps = Vec::new();
+        for line in text.lines() {
+            let w: Vec<&str> = line.split_whitespace().collect();
+            match w.as_slice() {
+                ["B", len, count] => runs.push((len.parse().unwrap(), count.parse().unwrap())),
+                ["S", t, file] => swaps.push((t.parse().unwrap(), piano_host::load_preset(&dir.join(file)).unwrap())),
+                ["E", t, "on", n, v] => events.push((t.parse().unwrap(), Event::NoteOn { note: n.parse().unwrap(), velocity: v.parse().unwrap() })),
+                ["E", t, "off", n, v] => events.push((t.parse().unwrap(), Event::NoteOff { note: n.parse().unwrap(), velocity: v.parse().unwrap() })),
+                ["E", t, "cc", c, v] => events.push((t.parse().unwrap(), Event::Control { cc: c.parse().unwrap(), value: v.parse().unwrap() })),
+                ["E", t, "param", p, v] => {
+                    events.push((t.parse().unwrap(), Event::Param { id: piano_core::LiveParam::from_path(p).unwrap(), value: v.parse().unwrap() }))
+                }
+                _ => {}
+            }
+        }
+        let rec = piano_control::replay::Recording { cfg, runs, events, swaps };
+        let [again, _] = piano_control::replay::replay(&rec);
+        assert_eq!(again, out);
     }
 
     #[test]

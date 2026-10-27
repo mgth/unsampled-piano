@@ -41,6 +41,8 @@ pub struct EngineSlot {
     current: Box<Engine>,
     retiring: [Option<Retiring>; SLOTS],
     incoming: rtrb::Consumer<Box<Engine>>,
+    /// An engine handed over directly ([`EngineSlot::inject`]).
+    injected: Option<Box<Engine>>,
     reclaim: rtrb::Producer<Box<Engine>>,
     /// Replaced engines waiting for room in `reclaim`.
     unsent: [Option<Box<Engine>>; SLOTS + 1],
@@ -55,6 +57,10 @@ pub struct EngineSlot {
     pedals: [Option<u8>; PEDALS.len()],
     ev_new: Vec<TimedEvent>,
     ev_old: Vec<TimedEvent>,
+    /// What the last block applied ([`EngineSlot::journal`]): its events
+    /// from `ev_new[journal_from..]`, and whether an engine came in.
+    journal_from: usize,
+    swapped: bool,
     /// Output of each replaced engine this block.
     out: [[Vec<f32>; 2]; SLOTS],
     /// Workers shared by the engines: lent to the current one when it plays
@@ -85,6 +91,7 @@ impl EngineSlot {
             current: engine,
             retiring: std::array::from_fn(|_| None),
             incoming,
+            injected: None,
             reclaim,
             unsent: std::array::from_fn(|_| None),
             params,
@@ -94,6 +101,8 @@ impl EngineSlot {
             pedals: [None; PEDALS.len()],
             ev_new: Vec::with_capacity(MAX_EVENTS),
             ev_old: Vec::with_capacity(MAX_EVENTS),
+            journal_from: 0,
+            swapped: false,
             out: std::array::from_fn(|_| [vec![0.0; cfg.max_block], vec![0.0; cfg.max_block]]),
             pool,
             sample_rate: cfg.sample_rate,
@@ -117,6 +126,21 @@ impl EngineSlot {
         self.current.active_voices() + self.retiring.iter().flatten().map(|r| r.engine.active_voices()).sum::<usize>()
     }
 
+    /// What the last block applied, for a flight recorder: the engine that
+    /// came in at its start (its model), and its events as the engines got
+    /// them (the parameters edited, then the input, controllers mapped).
+    /// Given to a fresh slot block for block, with the same engines
+    /// [`EngineSlot::inject`]ed, they play the same output.
+    pub fn journal(&self) -> (Option<&piano_core::params::PianoModel>, &[TimedEvent]) {
+        (self.swapped.then(|| &self.current.config().model), &self.ev_new[self.journal_from..])
+    }
+
+    /// Takes `engine` at the next block as if the controller had rebuilt it
+    /// (replays). Allocation-free, but meant for offline use.
+    pub fn inject(&mut self, engine: Box<Engine>) {
+        self.injected = Some(engine);
+    }
+
     /// Audio callback time over buffer duration, for [`crate::Controller`]'s
     /// status (the maximum since it was last read).
     pub fn report_load(&self, load: f32) {
@@ -137,7 +161,7 @@ impl EngineSlot {
             self.routes = t;
         }
         let mut swapped = false;
-        while let Ok(engine) = self.incoming.pop() {
+        while let Some(engine) = self.injected.take().or_else(|| self.incoming.pop().ok()) {
             let old = std::mem::replace(&mut self.current, engine);
             self.doubled_seen = 0;
             if swapped {
@@ -158,6 +182,8 @@ impl EngineSlot {
                 }
             }
         }
+        self.swapped = swapped;
+        self.journal_from = self.ev_new.len();
         while self.ev_new.len() < MAX_EVENTS / 2 {
             let Ok(event) = self.params.pop() else { break };
             self.ev_new.push(TimedEvent { frame: 0, event });

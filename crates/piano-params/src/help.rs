@@ -45,7 +45,7 @@ const HELP: &[(&str, &str, &str)] = &[
     (
         "limiter",
         "Keeps the output from clipping: loud attacks, the treble's above all, can pass full scale long \
-         before the music sounds loud, and clip further down the chain (a harsh crack). 0: off, 1: on. \
+         before the music sounds loud, and clip further down the chain (a harsh crack). On by default. \
          The status bar shows CLIP when samples go over, and how much the limiter takes off.",
         "Without latency: the gain falls at once to what a sample above the ceiling needs and comes \
          back with a 100 ms time constant, both channels alike (docs/limiter.md).",

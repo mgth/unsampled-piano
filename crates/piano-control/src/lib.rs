@@ -17,6 +17,7 @@
 //!   parameter events and reports every controller; [`Controller::poll`]
 //!   feeds them to [`MidiLearn`] and sends its route table back.
 
+pub mod replay;
 pub mod slot;
 
 use std::panic::AssertUnwindSafe;

@@ -38,7 +38,7 @@ fn the_limiter_keeps_the_output_under_its_ceiling() {
 
 #[test]
 fn the_limiter_switches_live() {
-    let model = PianoModel { output_gain_db: 20.0, ..PianoModel::default() };
+    let model = PianoModel { output_gain_db: 20.0, limiter: 0.0, ..PianoModel::default() };
     let cfg = EngineConfig { max_block: BS, ..Default::default() };
     let (_control, mut slot) = piano_control::new(model, cfg);
     let mut events = vec![TimedEvent { frame: 0, event: Event::Param { id: LiveParam::Limiter, value: 1.0 } }];
