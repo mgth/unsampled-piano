@@ -21,7 +21,7 @@ The model had it 20 dB lower: its only knock was the key bottoming on the keybed
 
 `crate::action`:
 - **The resonances:** a bank of 24 damped resonances from 80 Hz to 2.6 kHz, shared by all keys: the keyframe and the action's wooden parts.
-- **The strikes:** each key strikes the bank with its own fixed amplitudes (±4 dB per resonance, random signs). It does so `noise.action_delay` (8 ms) after the hammer reaches the string, with a peak pressure of `noise.action` (0.05 Pa) per m/s of hammer speed at the microphones.
+- **The strikes:** each key strikes the bank with its own fixed amplitudes (±4 dB per resonance, random signs). It does so `noise.action_delay` (8 ms) after the hammer reaches the string, with a peak pressure of `noise.action` per m/s of hammer speed at the microphones: 0.05 Pa matches the real grands (the default is 7.5 dB below it, below).
 - **The spectrum:** flat to 500 Hz, +6 dB at 1–1.5 kHz, falling at 36 dB per octave above.
 - **The decay:** T60 `noise.action_time` (0.2 s) at 500 Hz, shorter above as (500/f)^0.3.
 - **The microphones:** each key's knock is louder on the side where its strings are heard: the treble on the left, the bass on the right. The signal joins the board's at the microphones, before the room.
@@ -34,3 +34,7 @@ Below the top keys' fundamentals, at ff, the model now has −25/−25/−27/−
 The score goes from 1.06 to 1.10, and the dynamics improve (z rms 0.43 → 0.32). What gets worse is the top's attack: partials 2–3 at mf, its 2–8 kHz shares, its level at 0.3 s against its peak. The top's strings are 10–20 dB too weak against the real ones, so the knock, at the real level, dominates its attack. It gave a percussive edge to the treble in the A/B on the MAESTRO performances.
 
 The first spectrum tried (up to 6 kHz, +7 dB at 1–2.5 kHz) raised the 2–8 kHz shares of every register (bench 1.17). The real knocks stop around 2.5 kHz.
+
+## Default level
+
+Played live, the mechanical noises stood out too much (2026-10-27): the knock's level matched the real grands' recordings, close microphones in a studio, more than what the player hears. The defaults of every noise the musician's control `mechanism` moves (`noise.action`, `keybed`, `damper_mass`, `pedal`) are now 7.5 dB below these levels (× 0.42). The control spans × 8 each way (±18 dB): +0.42 brings back the real grands' level, +1 is 10.5 dB above it, −1 25.5 dB below. A first try at −12 dB left the control's lower half nearly inaudible.

@@ -23,7 +23,7 @@ Measured with `tools/macro_sweep.py` (close microphones, the default instrument)
 | `resonance` (dry ↔ rich) | sympathetic gain × 2^v, highest damper 4·v keys lower | halo of a pedalled C4: −5.8 / −2.9 / +2.7 / +5.3 dB |
 | `release` (clean ↔ soft endings) | damper strength × 3^−v, fall time × 3^(v/2) | C4's drop 0.25 s after the key-up: +3.7 / +1.9 / −2.4 / −7.3 dB |
 | `unisons` (pure ↔ lively) | unison spread × 3^v (× 1.6^v towards pure), hit spread × 1.5^v | C5 over 1–2 s: −3.7 / −2.3 / +4.5 / +5.7 dB; C4: within 1 dB |
-| `mechanism` (discreet ↔ present) | action knock, keybed, damper and pedal noise × 4^v | the knock under C7: −9.2 / −5.4 / +5.9 / +12.0 dB |
+| `mechanism` (discreet ↔ present) | action knock, keybed, damper and pedal noise × 8^v (defaults 7.5 dB below the real grands' level, which +0.42 reaches) | the knock under C7: −4.7 / −4.0 / +8.0 / +17.0 dB (lower down it sinks under the note's own sound) |
 | `size` (baby ↔ concert grand) | bass string length × 1.25^v (bass inharmonicity ∝ 1/L²), board and frame × 1.12^v, hammer mass × 1.1^v | (by construction) |
 | `lid` (closed ↔ open) | lid angle from the preset's towards 0 or 45° | C4's centroid, engine's set-up: 0 / 0 / +11 / +5 % |
 | `space` (close ↔ roomy) | room tail × 3^v | room level after a staccato C4: −6.7 / −3.8 / +4.3 / +8.2 dB |

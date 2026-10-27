@@ -527,16 +527,29 @@ pub struct NoiseLaw {
     /// hammer speed, its decay time T60 (s) at 500 Hz and its delay after
     /// the hammer reaches the string (s). 0: none (crate::action). 0.05 Pa
     /// per m/s puts the knock below the top keys' fundamentals at the level
-    /// of eight real grands' (docs/action_noise.md).
+    /// of eight real grands' (docs/action_noise.md); the default is 7.5 dB
+    /// below it.
     pub action: f64,
     pub action_time: f64,
     pub action_delay: f64,
 }
 
 impl NoiseLaw {
-    /// Levels set 20–30 dB below a mezzo-forte note (examples/noise_levels.rs).
-    pub const DEFAULT: Self =
-        Self { keybed: 0.25, damper_mass: 0.007, damper_speed: 0.1, damper_landing: 0.004, pedal: 0.35, knock_time: 0.003, action: 0.05, action_time: 0.2, action_delay: 0.008 };
+    /// Levels set 20–30 dB below a mezzo-forte note (examples/noise_levels.rs),
+    /// then lowered 7.5 dB: heard while playing, they stood out too much
+    /// (2026-10-27). The musician's control `mechanism` (× 8^v) reaches that
+    /// level, the real grands' for the action's knock, at +0.42.
+    pub const DEFAULT: Self = Self {
+        keybed: 0.1051,
+        damper_mass: 0.002943,
+        damper_speed: 0.1,
+        damper_landing: 0.004,
+        pedal: 0.1472,
+        knock_time: 0.003,
+        action: 0.02102,
+        action_time: 0.2,
+        action_delay: 0.008,
+    };
     pub const OFF: Self =
         Self { keybed: 0.0, damper_mass: 0.0, damper_speed: 0.0, damper_landing: 0.004, pedal: 0.0, knock_time: 0.003, action: 0.0, action_time: 0.2, action_delay: 0.008 };
 

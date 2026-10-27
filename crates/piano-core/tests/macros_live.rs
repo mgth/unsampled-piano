@@ -46,7 +46,10 @@ fn live_controls_match_a_rebuild() {
         (LiveParam::MacroRelease, |m, v| m.macros.release = v),
         (LiveParam::MacroMechanism, |m, v| m.macros.mechanism = v),
     ] {
-        let v = 0.6;
+        // Exact in the f32 an Event::Param carries: the live and rebuilt
+        // models then hold the same levels, bit for bit (0.6 rounds to
+        // 0.6000000238, and that tiny offset moved a voice's end).
+        let v = 0.5;
         let mut rebuilt = PianoModel::default();
         set(&mut rebuilt, v);
         let a = render(rebuilt, &notes(), 1.4);

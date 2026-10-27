@@ -82,8 +82,9 @@ const RELEASE_STRENGTH: f64 = 3.0;
 const UNISON_WIDTH: f64 = 3.0;
 const UNISON_PURE: f64 = 1.6;
 const UNISON_HITS: f64 = 1.5;
-/// Mechanical noise levels.
-const MECHANISM_LEVEL: f64 = 4.0;
+/// Mechanical noise levels: ±18 dB around defaults 7.5 dB below the real
+/// grands' level (×4 was too narrow).
+const MECHANISM_LEVEL: f64 = 8.0;
 /// Bass string length, board and frame size, hammer mass.
 const SIZE_BASS: f64 = 1.25;
 const SIZE_BOARD: f64 = 1.12;
