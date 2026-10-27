@@ -23,7 +23,7 @@
 
 use crate::board::{self, BoardMode, MICS, REGIONS};
 use crate::complex::C64;
-use crate::soundboard::{Soundboard, SoundboardParams};
+use crate::soundboard::{PlateMode, Soundboard, SoundboardParams};
 use std::f64::consts::{PI, TAU};
 
 const RHO0: f64 = 1.2;
@@ -250,6 +250,63 @@ fn perimeter(a: f64, b: f64, s: f64) -> ((f64, f64), (f64, f64)) {
     }
 }
 
+/// Perimeter position (m, [`perimeter`]'s) of the rim seen from the board's
+/// centre through (x, y): where an outlined board's edge force lands on the
+/// ring that stands for the rim.
+fn perimeter_towards(a: f64, b: f64, x: f64, y: f64) -> f64 {
+    let (dx, dy) = (x - 0.5 * a, y - 0.5 * b);
+    let t = (0.5 * a / dx.abs().max(1e-12)).min(0.5 * b / dy.abs().max(1e-12));
+    let (hx, hy) = ((0.5 * a + t * dx).clamp(0.0, a), (0.5 * b + t * dy).clamp(0.0, b));
+    if t * dy.abs() >= 0.5 * b - 1e-12 {
+        if dy < 0.0 { hx } else { a + b + (a - hx) }
+    } else if dx > 0.0 {
+        a + hy
+    } else {
+        2.0 * a + b + (b - hy)
+    }
+}
+
+/// The edge reactions of an outlined board's basis modes ([`Soundboard::basis`],
+/// scaled to their frequencies) at the perimeter samples `s`; none without
+/// an outline.
+fn basis_edge_reactions(sb: &Soundboard, s: &[f64]) -> Vec<(Vec<f64>, [f64; 4])> {
+    let bp = &sb.params;
+    crate::par::map(if sb.ritz.is_empty() { 0 } else { sb.basis.len() }, |k| {
+        let (m, n, w) = sb.basis[k];
+        let (dens, cf) = edge_reaction(bp, m, n, s);
+        let scale = (w / omega_ss(bp, m, n)).powi(2);
+        (dens.into_iter().map(|d| d * scale).collect(), cf.map(|c| c * scale))
+    })
+}
+
+/// Force on the rim per unit modal displacement of a board mode (edge
+/// density at the perimeter samples `s`, evenly spaced, and corner forces)
+/// and the scale to its frequency. An outlined board's own mode pushes on
+/// the rim through the rectangle's edges it shares with the outline (its
+/// basis modes' reactions, `basis_edges`) and where the ground holds it
+/// outside the outline.
+fn board_edge_forces(sb: &Soundboard, basis_edges: &[(Vec<f64>, [f64; 4])], md: &PlateMode, s: &[f64]) -> (Vec<f64>, [f64; 4], f64) {
+    let bp = &sb.params;
+    let Some(forces) = sb.held_forces(md) else {
+        let (dens, cf) = edge_reaction(bp, md.m, md.n, s);
+        return (dens, cf, (md.omega / omega_ss(bp, md.m, md.n)).powi(2));
+    };
+    let (ns, ds) = (s.len(), 2.0 * (bp.a + bp.b) / s.len() as f64);
+    let (mut dens, mut cf) = (vec![0.0; ns], [0.0; 4]);
+    for ((bd, bc), c) in basis_edges.iter().zip(&sb.ritz[md.ritz.unwrap_or(0) as usize]) {
+        for (d, b) in dens.iter_mut().zip(bd) {
+            *d += c * b;
+        }
+        for (d, b) in cf.iter_mut().zip(bc) {
+            *d += c * b;
+        }
+    }
+    for (x, y, f) in forces {
+        dens[((perimeter_towards(bp.a, bp.b, x, y) / ds) as usize).min(ns - 1)] += f / ds;
+    }
+    (dens, cf, 1.0)
+}
+
 /// Force on the rim per unit modal displacement of a board mode: edge
 /// density at each perimeter sample (N/m) and the four corner forces (N),
 /// simply supported Kirchhoff values (not yet scaled to the clamped
@@ -362,6 +419,7 @@ impl RimModel {
         let s: Vec<f64> = (0..ns).map(|i| (i as f64 + 0.5) * ds).collect();
         let corners = [0.0, a, a + b, 2.0 * a + b];
         let tab: Vec<Vec<f64>> = projections.iter().map(|&(k, o)| s.iter().map(|&s| basis(k, o, s)).collect()).collect();
+        let basis_edges = basis_edge_reactions(sb, &s);
         let couple = sb.modes[..n_board]
             .iter()
             .take_while(|md| md.omega / TAU < p.couple_f_max)
@@ -370,8 +428,7 @@ impl RimModel {
                     // The piston mode moves the rim with the board: no edge force.
                     return vec![(0.0, 0.0); projections.len()];
                 }
-                let (dens, cf) = edge_reaction(bp, md.m, md.n, &s);
-                let scale = (md.omega / omega_ss(bp, md.m, md.n)).powi(2);
+                let (dens, cf, scale) = board_edge_forces(sb, &basis_edges, md, &s);
                 let sigma = sb.sigma(md);
                 // Edge force follows the displacement (and the damping force):
                 // q + 2σ/ω_n²·q̇ = Re(V·z·(σ − iω)/(σ² + ω²)) for the bank's
@@ -540,6 +597,37 @@ mod tests {
             let want = omega_ss(&p, m, n).powi(2) * mass;
             let scale = omega_ss(&p, m, n).powi(2) * p.rho_h;
             assert!((net - want).abs() < 2e-3 * scale, "({m},{n}): {net} vs {want}");
+        }
+    }
+
+    /// An outlined board's own modes push on the rim (shared edges and the
+    /// ground outside the outline) as much as their inertia.
+    #[test]
+    fn outlined_edge_forces_balance_the_plate() {
+        let p = SoundboardParams { outline: SoundboardParams::GRAND_OUTLINE, ..SoundboardParams::GRAND_2M };
+        let sb = Soundboard::new(p);
+        let lb = 2.0 * (p.a + p.b);
+        let ns = 20_000;
+        let ds = lb / ns as f64;
+        let s: Vec<f64> = (0..ns).map(|i| (i as f64 + 0.5) * ds).collect();
+        let edges = basis_edge_reactions(&sb, &s);
+        let int = |k: u32, l: f64| l * (1.0 - (k as f64 * PI).cos()) / (k as f64 * PI);
+        for md in sb.modes.iter().filter(|m| m.ritz.is_some()).take(12) {
+            let (dens, cf, scale) = board_edge_forces(&sb, &edges, md, &s);
+            let net = (dens.iter().sum::<f64>() * ds + cf.iter().sum::<f64>()) * scale;
+            // ω²·∫ρh·Φ over the rectangle (Φ ≈ 0 outside the outline).
+            let mass: f64 = sb
+                .basis
+                .iter()
+                .zip(&sb.ritz[md.ritz.unwrap() as usize])
+                .map(|(&(m, n, _), c)| c * p.rho_h * 2.0 / (p.rho_h * p.a * p.b).sqrt() * int(m, p.a) * int(n, p.b))
+                .sum();
+            let want = md.omega.powi(2) * mass;
+            // Within 3 % of its bound ω²·√(ρh·a·b) (|∫ρh·Φ| ≤ √(ρh·A) for a
+            // mass-normalised Φ): the basis's Kirchhoff reactions are
+            // approximate.
+            let size = md.omega.powi(2) * (p.rho_h * p.a * p.b).sqrt();
+            assert!((net - want).abs() < 0.03 * size, "{:.0} Hz: {net} vs {want}", md.omega / TAU);
         }
     }
 

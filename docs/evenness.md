@@ -40,7 +40,7 @@ Taken apart:
 | 1.5× / 2× the modal density at equal mean mobility | 7.5 / 7.4, 9.1 / 5.7 | 1.41, 1.75 |
 | other microphone set-ups | 9.5–12.8 / 7.4–8.2 | 1.24–1.43 |
 
-None was kept. A more realistic board (ribs, an irregular outline, two bridges) would be the next step.
+None was kept. A more realistic board (ribs, an irregular outline, two bridges) would be the next step. The outline is now in the model, off by default: on every key it gains 0.7 dB on partial 1 and nothing on partial 2 (docs/outline.md).
 
 ## Key to key while playing
 
