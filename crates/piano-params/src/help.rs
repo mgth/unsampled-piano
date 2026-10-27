@@ -461,6 +461,26 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("soundboard.edge_depth", "How far from the board's edge the rim loss still reaches.", "Decay length (m) of the edge loss's weight e^(−d/edge_depth)."),
     ("soundboard.edge_corner", "Above this frequency the rim loss fades.", "Corner (Hz) of 1/(1 + (f/edge_corner)²)."),
+    (
+        "soundboard.string_load",
+        "The strings at rest under their dampers soak up some of the board's vibration. They \
+         smooth its resonances below ≈ 1 kHz, so that neighbouring keys sound more alike. 0: \
+         none, 1: the physical estimate.",
+        "Each damped string loads the bridge with its characteristic impedance √(T·μ) (a lossy \
+         string's input resistance averages to it): mode n gains a damping rate \
+         ½·Σ√(T·μ)·Φ_n² over the damped keys, × this scale. At 1: η ≈ 0.07 at 100–200 Hz, \
+         0.04 at 200–400 Hz, 0.034 at 400–800 Hz (docs/evenness.md).",
+    ),
+    (
+        "soundboard.exact_below",
+        "Below this frequency every key drives the soundboard at its own point on the bridge, \
+         not at the point standing for its group of keys: neighbouring keys sound more alike. \
+         About 4 % more CPU at 1000 Hz. 0: off.",
+        "The board modes below it run in a bank of their own, driven through the 16 principal \
+         profiles of the keys' drive shapes (99.98 % of them below 1 kHz); each key feeds them \
+         with its own weights. The others keep the 16 bridge regions; the sympathetic forces \
+         keep them all (docs/evenness.md).",
+    ),
     ("soundboard.bridge_mass", "Mass of the bridge where a string crosses it: heavier filters the highs reaching the board.", "Local mass m: the strings see Y/(1 + iω·m·Y), the board receives F/(1 + iω·m·Y). 0: none."),
     (
         "soundboard.series_stiffness",

@@ -201,6 +201,8 @@ lid_angle = 0.0
 lid_hinge_height = 0.25
 lid_reflection = 0.85
 lid_transmission = 0.1
+string_load = 1.0
+exact_below = 0.0
 
 [damper]
 position = 0.14

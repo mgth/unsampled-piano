@@ -54,6 +54,13 @@ pub struct Voice {
     force: Vec<f32>,
     force_ring: Vec<f32>,
     x2: Vec<f32>,
+    /// Low band of the primary and sympathetic forces (below
+    /// [`crate::board::SHARE_HZ`]), shared between two regions, its
+    /// one-pole coefficient and states.
+    force_lo: Vec<f32>,
+    sym_lo: Vec<f32>,
+    share_a: f32,
+    lp: [f32; 2],
     /// Geometric nonlinearity: complex displacement of each partial (mean
     /// over the strings), its slope this sample, longitudinal mode states.
     nl_re: Vec<f32>,
@@ -101,6 +108,10 @@ impl Voice {
             force: vec![0.0; max_block],
             force_ring: vec![0.0; RING],
             x2: vec![0.0; max_block],
+            force_lo: vec![0.0; max_block],
+            sym_lo: vec![0.0; max_block],
+            share_a: share_coefficient(sample_rate) as f32,
+            lp: [0.0; 2],
             nl_re: vec![0.0; nl_partials],
             nl_im: vec![0.0; nl_partials],
             nl_a: vec![0.0; nl_partials],
@@ -136,6 +147,7 @@ impl Voice {
         self.sym.reset();
         self.force.fill(0.0);
         self.force_ring.fill(0.0);
+        self.lp = [0.0; 2];
         self.nl_long.fill((0.0, 0.0));
         self.nl_hp = (0.0, 0.0);
         self.struck = false;
@@ -217,16 +229,16 @@ impl Voice {
     pub fn render(
         &mut self,
         nm: &NoteModel,
-        out: &mut [f32],
-        out_sym: &mut [f32],
-        out_agraffe: Option<&mut [f32]>,
+        out: &mut [Vec<f32>],
+        out_sym: &mut [Vec<f32>],
+        out_agraffe: Option<&mut [Vec<f32>]>,
         t0: u64,
         from: usize,
         to: usize,
         bridge: Option<(&[f32], usize)>,
     ) {
         self.compute(nm, out_agraffe.is_some(), t0, from, to, bridge);
-        self.mix(out, out_sym, out_agraffe, from, to);
+        self.mix(nm, out, out_sym, out_agraffe, None, from, to);
     }
 
     /// The voice's part of [`Self::render`]: its forces for `from..to`,
@@ -281,21 +293,68 @@ impl Voice {
             None if self.sym.energy() > self.sym_silence => self.sym.process(None, f),
             None => {}
         }
+        let a = self.share_a;
+        let [mut y0, mut y1] = self.lp;
+        for i in 0..n {
+            y0 += a * (self.force[from + i] - y0);
+            y1 += a * (self.sym_force[i] - y1);
+            self.force_lo[i] = y0;
+            self.sym_lo[i] = y1;
+        }
+        self.lp = [y0, y1];
     }
 
-    /// Adds the forces of the last [`Self::compute`] to the region sums.
-    pub fn mix(&self, out: &mut [f32], out_sym: &mut [f32], out_agraffe: Option<&mut [f32]>, from: usize, to: usize) {
+    /// Adds the forces of the last [`Self::compute`] to the region sums
+    /// (per region, `from..to`): the low band shared between the two
+    /// regions around the key, the rest to its own region.
+    /// `basis`: the low modes' profile inputs, fed with the key's weights
+    /// when it has them ([`NoteModel::basis`]); the sympathetic forces
+    /// keep the regions.
+    #[allow(clippy::too_many_arguments)]
+    pub fn mix(
+        &self,
+        nm: &NoteModel,
+        out: &mut [Vec<f32>],
+        out_sym: &mut [Vec<f32>],
+        out_agraffe: Option<&mut [Vec<f32>]>,
+        basis: Option<&mut [Vec<f32>]>,
+        from: usize,
+        to: usize,
+    ) {
         let n = to - from;
+        let r = nm.region;
+        // (A listening string has no primary force.)
+        let primary = &self.force[from..to];
+        if let (Some(b), Some(c)) = (basis, nm.basis.as_ref())
+            && primary.iter().any(|&v| v != 0.0)
+        {
+            for (j, &w) in c.iter().enumerate().filter(|(_, w)| **w != 0.0) {
+                for (o, f) in b[j][from..to].iter_mut().zip(primary) {
+                    *o += w * f;
+                }
+            }
+        }
         if let Some(out_agraffe) = out_agraffe {
-            for (o, a) in out_agraffe.iter_mut().zip(&self.agraffe[..n]) {
+            for (o, a) in out_agraffe[r][from..to].iter_mut().zip(&self.agraffe[..n]) {
                 *o += a;
             }
         }
-        for (o, f) in out.iter_mut().zip(&self.force[from..to]) {
-            *o += f;
+        for (o, (f, lo)) in out[r][from..to].iter_mut().zip(self.force[from..to].iter().zip(&self.force_lo[..n])) {
+            *o += f - lo;
         }
-        for (o, x) in out_sym.iter_mut().zip(&self.sym_force[..n]) {
-            *o += x;
+        for (o, (x, lo)) in out_sym[r][from..to].iter_mut().zip(self.sym_force[..n].iter().zip(&self.sym_lo[..n])) {
+            *o += x - lo;
+        }
+        for &(q, w) in &nm.region_mix {
+            if w == 0.0 {
+                continue;
+            }
+            for (o, lo) in out[q][from..to].iter_mut().zip(&self.force_lo[..n]) {
+                *o += w * lo;
+            }
+            for (o, lo) in out_sym[q][from..to].iter_mut().zip(&self.sym_lo[..n]) {
+                *o += w * lo;
+            }
         }
     }
 
@@ -451,4 +510,16 @@ impl Voice {
     pub fn energy(&self) -> f32 {
         if self.contact.is_active() { f32::INFINITY } else { self.bank.energy() + self.sym.energy() }
     }
+}
+
+/// One-pole coefficient of the low band shared between regions.
+fn share_coefficient(sample_rate: f64) -> f64 {
+    1.0 - (-std::f64::consts::TAU * crate::board::SHARE_HZ / sample_rate).exp()
+}
+
+/// Response of that one-pole at ω (rad/s): a / (1 − (1 − a)·e^{−iω/fs}).
+pub fn share_lowpass(omega: f64, sample_rate: f64) -> crate::complex::C64 {
+    use crate::complex::C64;
+    let a = share_coefficient(sample_rate);
+    C64::new(a, 0.0) / (C64::ONE - C64::polar(1.0 - a, -omega / sample_rate))
 }

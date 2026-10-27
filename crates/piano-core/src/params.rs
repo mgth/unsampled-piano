@@ -918,6 +918,26 @@ impl Default for PianoModel {
 }
 
 impl PianoModel {
+    /// (key, Σ √(T·μ) over its strings, kg/s) of the keys whose dampers
+    /// rest on their strings: their load on the bridge.
+    pub fn damped_strings(&self) -> Vec<(u8, f64)> {
+        (21..=self.damper.highest_note.min(108))
+            .map(|n| {
+                let p = self.note(n);
+                (n, p.strings as f64 * (p.tension * p.mu).sqrt())
+            })
+            .collect()
+    }
+
+    /// The soundboard, loaded by the damped strings.
+    pub fn board(&self) -> Option<crate::soundboard::Soundboard> {
+        self.soundboard.map(|p| {
+            let mut sb = crate::soundboard::Soundboard::new(p);
+            sb.load_strings(&self.damped_strings());
+            sb
+        })
+    }
+
     pub fn note(&self, note: u8) -> NoteParams {
         let f0 = note_freq(note, self.a4) * 2f64.powf((self.stretch.cents(note) + self.temperament.cents(note)) / 1200.0);
         let length = self.scale.length(note);

@@ -83,3 +83,16 @@ fn threads_do_not_change_the_output() {
     let b = torture(&mut Engine::new(EngineConfig { threads: 4, ..cfg }), 600);
     assert!(a.iter().zip(&b).all(|(x, y)| x.to_bits() == y.to_bits()), "threads change the render");
 }
+
+/// The same, and no allocation, with the board's low modes driven at each
+/// key (a bank of their own).
+#[test]
+fn threads_do_not_change_the_exact_drive() {
+    let mut model = piano_core::params::PianoModel::default();
+    model.soundboard.as_mut().unwrap().exact_below = 1000.0;
+    let cfg = EngineConfig { model, ..EngineConfig::default() };
+    let a = torture(&mut Engine::new(cfg), 300);
+    let b = torture(&mut Engine::new(EngineConfig { threads: 4, ..cfg }), 300);
+    assert!(a.iter().zip(&b).all(|(x, y)| x.to_bits() == y.to_bits()), "threads change the render");
+    assert!(a.iter().any(|x| *x != 0.0));
+}

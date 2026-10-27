@@ -175,6 +175,18 @@ pub struct SoundboardParams {
     /// it for a microphone behind it (no diffraction modelled).
     pub lid_reflection: f64,
     pub lid_transmission: f64,
+    /// The strings resting on the bridge with their dampers down absorb
+    /// what reaches them: each loads the bridge, on average over frequency,
+    /// with its characteristic impedance √(T·μ) (a lossy string's input
+    /// resistance averages to it). Scale on that load (0: none). It damps
+    /// the board's modes where the bridge works them, most below ≈ 1 kHz,
+    /// which smooths its response from key to key (docs/evenness.md).
+    pub string_load: f64,
+    /// Board modes below this frequency (Hz) are driven at each key's own
+    /// bridge point instead of its region's ([`crate::board::LowDrive`]):
+    /// a more even board from key to key, for a bank of ≈ 40–70 more modes.
+    /// 0: off.
+    pub exact_below: f64,
 }
 
 impl Default for SoundboardParams {
@@ -282,6 +294,8 @@ impl SoundboardParams {
         lid_hinge_height: 0.25,
         lid_reflection: 0.85,
         lid_transmission: 0.1,
+        string_load: 1.0,
+        exact_below: 0.0,
     };
 
     fn h(&self) -> f64 {
@@ -436,6 +450,8 @@ pub struct PlateMode {
     pub m: u32,
     pub n: u32,
     pub omega: f64,
+    /// Damping rate (1/s) the damped strings add ([`Soundboard::load_strings`]).
+    pub load: f64,
 }
 
 pub struct Soundboard {
@@ -474,13 +490,13 @@ impl Soundboard {
                 if w > w_max {
                     break;
                 }
-                modes.push(PlateMode { m, n, omega: w });
+                modes.push(PlateMode { m, n, omega: w, load: 0.0 });
                 n += 1;
             }
             m += 1;
         }
         if p.piston_freq > 0.0 && p.piston_mass > 0.0 {
-            modes.push(PlateMode { m: 0, n: 0, omega: TAU * p.piston_freq });
+            modes.push(PlateMode { m: 0, n: 0, omega: TAU * p.piston_freq, load: 0.0 });
         }
         modes.sort_by(|x, y| x.omega.total_cmp(&y.omega));
         Self { params, modes }
@@ -498,7 +514,31 @@ impl Soundboard {
 
     /// Loss factor of a mode.
     pub fn mode_eta(&self, mode: &PlateMode) -> f64 {
-        if mode.m == 0 { self.params.piston_loss } else { self.eta(mode.omega) }
+        let own = if mode.m == 0 { self.params.piston_loss } else { self.eta(mode.omega) };
+        own + 2.0 * mode.load / mode.omega
+    }
+
+    /// Adds the load of the damped strings to every mode: a dashpot c at
+    /// the bridge adds c·Φ_n²/2 to mode n's damping rate (Φ mass-normalised,
+    /// spread along the bridge as the key drives it). `strings`: (key, sum
+    /// of √(T·μ) over its strings, kg/s), for the keys whose dampers rest
+    /// on them.
+    pub fn load_strings(&mut self, strings: &[(u8, f64)]) {
+        let scale = self.params.string_load;
+        if scale <= 0.0 {
+            return;
+        }
+        // Summed in key order whatever the thread count.
+        let shapes = crate::par::map(strings.len(), |i| self.bridge_shapes(strings[i].0));
+        let mut load = vec![0.0; self.modes.len()];
+        for (&(_, z), sh) in strings.iter().zip(&shapes) {
+            for (l, phi) in load.iter_mut().zip(sh) {
+                *l += 0.5 * scale * z * phi * phi;
+            }
+        }
+        for (md, l) in self.modes.iter_mut().zip(load) {
+            md.load = l;
+        }
     }
 
     pub fn eta(&self, omega: f64) -> f64 {

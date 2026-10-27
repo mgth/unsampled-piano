@@ -255,6 +255,10 @@ pub struct Engine {
     voices: Vec<Voice>,
     /// Pedal positions, 0–1.
     sustain: f64,
+    /// Share of the damped strings' load the board feels (follows the
+    /// dampers lifted by the pedal), and the value its banks hold.
+    board_load: f64,
+    board_load_set: f64,
     soft: f64,
     sostenuto_down: bool,
     /// Middle pedal down while it works a practice mute (`mute_felt` > 0).
@@ -281,6 +285,12 @@ pub struct Engine {
     /// bridge for the strings), and by the sympathetic ones (radiates only).
     board: Option<BoardBank>,
     board_sym: Option<BoardBank>,
+    /// The low modes driven at each key (Instrument::low) and their
+    /// profile inputs for the current block. The sympathetic forces keep
+    /// the regions: a diffuse halo, where the exact drive changes nothing
+    /// audible and would double the cost.
+    board_low: Option<BoardBank>,
+    basis: Vec<Vec<f32>>,
     board_sym_awake: bool,
     board_awake: bool,
     /// Bridge velocity per region (this sub-block) and its last sample; the
@@ -340,7 +350,13 @@ impl Engine {
             })
             .collect();
         let rim_couple = inst.rim.as_ref().map_or(&[][..], |r| &r.couple[..]);
-        let board = inst.board.as_ref().map(|m| BoardBank::with_extra(cfg.sample_rate, m, rim_couple, SUB_BLOCK));
+        // The low modes apart when they are driven at each key; the rim's
+        // projections follow their modes.
+        let n_low = inst.low.as_ref().map_or(0, |l| l.n);
+        let (low_couple, high_couple) = rim_couple.split_at(n_low.min(rim_couple.len()));
+        let low_modes = inst.low.as_ref().zip(inst.board.as_ref()).map(|(l, m)| l.modes(m));
+        let board = inst.board.as_ref().map(|m| BoardBank::with_extra(cfg.sample_rate, &m[n_low..], high_couple, SUB_BLOCK));
+        let board_low = low_modes.as_ref().map(|m| BoardBank::with_extra(cfg.sample_rate, m, low_couple, SUB_BLOCK));
         let frame = inst.frame.as_ref().map(|m| BoardBank::new(cfg.sample_rate, m, SUB_BLOCK));
         let rim = inst.rim.as_ref().map(|r| crate::structure::RimBank::new(r, cfg.sample_rate));
         let n_proj = inst.rim.as_ref().map_or(0, |r| r.projections.len());
@@ -366,6 +382,8 @@ impl Engine {
             gain: db_to_gain(live.output_gain_db),
             voices,
             sustain: 0.0,
+            board_load: 1.0,
+            board_load_set: 1.0,
             soft: 0.0,
             sostenuto_down: false,
             mute_down: false,
@@ -382,6 +400,8 @@ impl Engine {
             rim_awake: false,
             board,
             board_sym,
+            board_low,
+            basis: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             board_sym_awake: false,
             board_awake: false,
             disp: vec![vec![0.0; SUB_BLOCK]; REGIONS],
@@ -475,8 +495,9 @@ impl Engine {
     }
 
     pub fn active_modes(&self) -> usize {
-        let board = if self.board_awake { self.board.as_ref().map_or(0, |b| b.len()) } else { 0 };
-        let board_sym = if self.board_sym_awake { self.board_sym.as_ref().map_or(0, |b| b.len()) } else { 0 };
+        let len = |b: &Option<BoardBank>| b.as_ref().map_or(0, |b| b.len());
+        let board = if self.board_awake { len(&self.board) + len(&self.board_low) } else { 0 };
+        let board_sym = if self.board_sym_awake { len(&self.board_sym) } else { 0 };
         self.voices.iter().filter(|v| v.active).map(|v| v.bank.len() + v.sym.len()).sum::<usize>() + board + board_sym
     }
 
@@ -541,7 +562,7 @@ impl Engine {
         let out_gain = self.smooth_gain(len);
         self.update_dampers(len);
         self.add_listeners();
-        for r in self.region.iter_mut().chain(self.region_sym.iter_mut()).chain(self.region_agraffe.iter_mut()) {
+        for r in self.region.iter_mut().chain(&mut self.region_sym).chain(&mut self.region_agraffe).chain(&mut self.basis) {
             r[..len].fill(0.0);
         }
         // Bridge displacement SUB_BLOCK samples ago, for the strings.
@@ -579,14 +600,16 @@ impl Engine {
                 }
             }
             Some(board) => {
-                let has_input = self.region.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
+                let any = |b: &[Vec<f32>]| b.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
+                let has_input = any(&self.region) || any(&self.basis);
+                let thr = self.shortcuts.board_silence;
                 for f in &mut self.rim_force {
                     f[..len].fill(0.0);
                 }
                 let run_board = has_input || self.board_awake;
                 let has_frame = self.region_agraffe.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
                 let run_frame = self.frame.is_some() && (has_frame || self.frame_awake);
-                let has_sym = self.region_sym.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
+                let has_sym = any(&self.region_sym);
                 let run_sym = self.board_sym.is_some() && (has_sym || self.board_sym_awake);
                 if let Some(pool) = self.pool.as_mut().filter(|_| run_board) {
                     // The board's parts, the frame and the sympathetic board in
@@ -621,7 +644,11 @@ impl Engine {
                     });
                     let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
                     board.finish([&mut *left, &mut *right], Some(&mut self.disp), rim_force);
-                    self.board_awake = has_input || board.energy() > self.shortcuts.board_silence;
+                    if let Some(low) = self.board_low.as_mut() {
+                        let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
+                        low.process(&self.basis, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
+                    }
+                    self.board_awake = has_input || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr);
                     if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
                         rim.process(&self.rim_force, len, [&mut *left, &mut *right]);
                         self.rim_awake = self.board_awake || rim.energy() > self.shortcuts.board_silence;
@@ -638,7 +665,11 @@ impl Engine {
                     if run_board {
                         let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
                         board.process(&self.region, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
-                        self.board_awake = has_input || board.energy() > self.shortcuts.board_silence;
+                        if let Some(low) = self.board_low.as_mut() {
+                            let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
+                            low.process(&self.basis, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
+                        }
+                        self.board_awake = has_input || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr);
                     }
                     if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
                         rim.process(&self.rim_force, len, [&mut *left, &mut *right]);
@@ -655,7 +686,7 @@ impl Engine {
                     self.frame_awake = has_frame || frame.energy() > self.shortcuts.board_silence;
                 }
                 if let Some(bs) = self.board_sym.as_ref().filter(|_| run_sym) {
-                    self.board_sym_awake = has_sym || bs.energy() > self.shortcuts.board_silence;
+                    self.board_sym_awake = has_sym || bs.energy() > thr;
                 }
                 // The banks carry acceleration weights: the pressure is the
                 // derivative of their sum (board::to_acceleration_weights).
@@ -730,8 +761,8 @@ impl Engine {
             });
             for &i in &self.busy {
                 let v = &self.voices[i];
-                let r = region_of(v.note);
-                v.mix(&mut self.region[r][from..to], &mut self.region_sym[r][from..to], with_frame.then(|| &mut self.region_agraffe[r][from..to]), from, to);
+                let basis = Some(&mut self.basis[..]);
+                v.mix(self.inst.table.get(v.note), &mut self.region, &mut self.region_sym, with_frame.then_some(&mut self.region_agraffe[..]), basis, from, to);
             }
             return;
         }
@@ -740,16 +771,9 @@ impl Engine {
             let r = region_of(v.note);
             // Fully damped strings do not resonate: skip their input.
             let bridge = (sympathy && v.engagement < deaf).then(|| (&self.disp_in[r][from..to], SUB_BLOCK));
-            v.render(
-                nm,
-                &mut self.region[r][from..to],
-                &mut self.region_sym[r][from..to],
-                with_frame.then(|| &mut self.region_agraffe[r][from..to]),
-                t0,
-                from,
-                to,
-                bridge,
-            );
+            v.compute(nm, with_frame, t0, from, to, bridge);
+            let basis = Some(&mut self.basis[..]);
+            v.mix(nm, &mut self.region, &mut self.region_sym, with_frame.then_some(&mut self.region_agraffe[..]), basis, from, to);
         }
     }
 
@@ -797,6 +821,18 @@ impl Engine {
             }
             v.engagement = e;
             v.set_damper_rate(nm.damper_rate(&self.live, v.engagement));
+        }
+        // The strings at rest stop soaking up the board's vibration while
+        // the pedal lifts their dampers (Soundboard::load_strings).
+        let k = if pedal > self.board_load { k_fall } else { k_lift };
+        let l = self.board_load + (pedal - self.board_load) * k;
+        self.board_load = if (l - pedal).abs() < 1e-3 { pedal } else { l };
+        let l = self.board_load;
+        if (l - self.board_load_set).abs() >= 0.01 || (l == pedal && l != self.board_load_set) {
+            self.board_load_set = l;
+            for b in self.board.iter_mut().chain(&mut self.board_sym).chain(&mut self.board_low) {
+                b.set_load(l);
+            }
         }
     }
 
@@ -1016,7 +1052,7 @@ pub fn strike_stats(cfg: &EngineConfig, note: u8, velocity: u8, oversample: Opti
 
 /// Contact duration (s), peak force (N) and largest felt compression (m).
 pub fn strike_stats_full(cfg: &EngineConfig, note: u8, velocity: u8, oversample: Option<usize>) -> (f64, f64, f64) {
-    let board = cfg.model.soundboard.map(crate::soundboard::Soundboard::new);
+    let board = cfg.model.board();
     let nm = crate::note_model::NoteModel::build(&cfg.model, board.as_ref(), None, note, cfg.sample_rate, MAX_MODES);
     let mut v = Voice::new(cfg.sample_rate, cfg.max_block);
     v.setup(&nm, false);

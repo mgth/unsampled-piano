@@ -5,7 +5,6 @@
 use crate::board::{self, BoardMode};
 use crate::note_model::{PianoTable, Resolution};
 use crate::params::PianoModel;
-use crate::soundboard::Soundboard;
 use crate::structure::RimModel;
 
 pub use crate::board::{region_of, MICS, REGIONS};
@@ -20,6 +19,9 @@ pub struct Instrument {
     pub table: PianoTable,
     /// Soundboard modes when it is rendered (radiation and sympathy).
     pub board: Option<Vec<BoardMode>>,
+    /// The low modes' drive at each key (soundboard `exact_below` > 0): the
+    /// first `low.n` modes of `board` run in a bank of their own.
+    pub low: Option<board::LowDrive>,
     /// Frame modes (driven at the agraffes) and rim model, when enabled
     /// with a rendered soundboard.
     pub frame: Option<Vec<BoardMode>>,
@@ -37,9 +39,14 @@ impl Instrument {
         let source = model;
         let model = model.with_macros();
         let model = PianoModel { soundboard: model.soundboard.map(|s| s.resolved()), ..model };
-        let sb = model.soundboard.map(Soundboard::new);
+        let sb = model.board();
         let modes = sb.as_ref().filter(|s| s.params.radiate).map(|s| board::board_modes(s, sample_rate));
-        let table = PianoTable::with_resolution(&model, sb.as_ref(), modes.as_deref(), sample_rate, res);
+        let low = sb
+            .as_ref()
+            .zip(modes.as_ref())
+            .filter(|(s, _)| s.params.exact_below > 0.0)
+            .and_then(|(s, m)| board::LowDrive::new(s, m, s.params.exact_below, sample_rate));
+        let table = PianoTable::with_resolution(&model, sb.as_ref(), modes.as_deref(), low.as_ref(), sample_rate, res);
         let rendered = sb.as_ref().zip(modes.as_ref());
         let frame = rendered
             .filter(|_| model.frame.enabled)
@@ -70,6 +77,6 @@ impl Instrument {
                 });
             }
         }
-        Self { model, source, sample_rate, table, board: modes, frame, rim }
+        Self { model, source, sample_rate, table, board: modes, low, frame, rim }
     }
 }

@@ -5,6 +5,7 @@ pub mod action;
 pub mod board;
 pub mod complex;
 pub mod denormal;
+pub mod eigen;
 pub mod engine;
 pub mod hammer;
 pub mod instrument;

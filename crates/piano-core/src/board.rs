@@ -28,6 +28,9 @@ pub const OUTPUTS: usize = MICS + REGIONS;
 pub struct BoardMode {
     pub freq_hz: f64,
     pub sigma: f64,
+    /// The damped strings' share of `sigma` (1/s), which the dampers'
+    /// engagement scales while playing ([`BoardBank::set_load`]).
+    pub load: f64,
     /// Input gain from each region (Φ_n(x_r)·T).
     pub inputs: [f64; REGIONS],
     /// Complex output weights: mics, then region displacements.
@@ -108,6 +111,12 @@ pub struct BoardBank {
     isa: Isa,
     /// fs², for [`Self::energy`].
     fs2: f32,
+    /// Per mode: damping without the strings' load, the load (1/s), and
+    /// cos/sin of ω·T, to move the poles with the dampers; sample period;
+    /// the load scale the poles hold.
+    poles: Vec<(f64, f64, f64, f64)>,
+    t: f64,
+    load_scale: f64,
 }
 
 impl BoardBank {
@@ -187,6 +196,37 @@ impl BoardBank {
             extra_w,
             isa,
             fs2: (sample_rate * sample_rate) as f32,
+            poles: modes
+                .iter()
+                .map(|m| {
+                    let (s, c) = (std::f64::consts::TAU * m.freq_hz * t).sin_cos();
+                    (m.sigma - m.load, m.load, c, s)
+                })
+                .collect(),
+            t,
+            load_scale: 1.0,
+        }
+    }
+
+    /// Scales the damped strings' load on every mode: 1 with every damper
+    /// on its strings (as built), 0 with all of them lifted.
+    pub fn set_load(&mut self, scale: f64) {
+        if scale == self.load_scale {
+            return;
+        }
+        self.load_scale = scale;
+        for part in &mut self.parts {
+            for (j, c) in part.chunks.iter_mut().enumerate() {
+                for l in 0..LANES {
+                    let Some(&(own, load, co, s)) = self.poles.get((part.c0 + j) * LANES + l) else { break };
+                    if load == 0.0 {
+                        continue;
+                    }
+                    let r = (-(own + scale * load) * self.t).exp();
+                    c.pr[l] = (r * co) as f32;
+                    c.pi[l] = (r * s) as f32;
+                }
+            }
         }
     }
 
@@ -595,22 +635,88 @@ fn tile<'w, V: V16, const OT: usize, const TT: usize>(
 /// `o`, as the bank renders a real sinusoid: x(t) = cos ωt gives
 /// y(t) = Re(H·e^{iωt}). Includes the counter-rotating part of each pole.
 pub fn transfer(modes: &[BoardMode], r: usize, o: usize, omega: f64, sample_rate: f64) -> crate::complex::C64 {
+    transfer_with(modes, |_, m| m.inputs[r], o, omega, sample_rate)
+}
+
+/// [`transfer`] with each mode's input gain given by `input` (index, mode).
+pub fn transfer_with(modes: &[BoardMode], input: impl Fn(usize, &BoardMode) -> f64, o: usize, omega: f64, sample_rate: f64) -> crate::complex::C64 {
     use crate::complex::C64;
     let t = 1.0 / sample_rate;
     let e_neg = C64::polar(1.0, -omega * t);
     let e_pos = C64::polar(1.0, omega * t);
     let mut h = C64::ZERO;
-    for m in modes {
+    for (i, m) in modes.iter().enumerate() {
         let p = C64::polar((-m.sigma * t).exp(), std::f64::consts::TAU * m.freq_hz * t);
-        let b = C64::new(m.inputs[r], 0.0);
+        let g = input(i, m);
+        let b = C64::new(g, 0.0);
         let w = C64::new(m.outputs[o].0, m.outputs[o].1);
         let a = b / (C64::ONE - p * e_neg).scale(2.0);
         let bb = b / (C64::ONE - p * e_pos).scale(2.0);
         h += w * a + (w * bb).conj();
         // Same direct-term correction as the bank.
-        h += C64::new(-0.5 * m.outputs[o].0 * m.inputs[r], 0.0);
+        h += C64::new(-0.5 * m.outputs[o].0 * g, 0.0);
     }
     h
+}
+
+/// Every key driving the board's low modes at its own bridge point, not
+/// at its region's: one region per ≈ 5.5 keys made the board's answer jump
+/// from key to key (docs/evenness.md). Below 1 kHz the keys' drive shapes
+/// span few dimensions: their first 16 principal profiles keep 99.98 % of
+/// them (examples/board_basis.rs). The low modes then run in a bank of
+/// their own whose 16 inputs are these profiles, each key feeding them
+/// with its own weights; the other modes keep the regions.
+/// Profiles kept (of at most [`REGIONS`] inputs).
+pub const PROFILES: usize = REGIONS;
+
+#[derive(Clone, Debug)]
+pub struct LowDrive {
+    /// The first `n` board modes (those below the soundboard's
+    /// `exact_below`).
+    pub n: usize,
+    /// Per low mode: its gain from each profile (profile · T).
+    pub inputs: Vec<[f64; REGIONS]>,
+    /// Per key A0..C8: its weight on each profile.
+    pub keys: Vec<[f64; REGIONS]>,
+}
+
+impl LowDrive {
+    /// From the soundboard and its rendered modes (sorted by frequency,
+    /// [`board_modes`]); None when no mode lies below `f_max`.
+    pub fn new(sb: &crate::soundboard::Soundboard, modes: &[BoardMode], f_max: f64, sample_rate: f64) -> Option<Self> {
+        let n = modes.iter().take_while(|m| m.freq_hz < f_max).count();
+        if n == 0 {
+            return None;
+        }
+        let shapes: Vec<Vec<f64>> = crate::par::map(88, |k| sb.bridge_shapes(21 + k as u8)[..n].to_vec());
+        let mut gram = vec![0.0; n * n];
+        for s in &shapes {
+            for i in 0..n {
+                for j in 0..n {
+                    gram[i * n + j] += s[i] * s[j];
+                }
+            }
+        }
+        let (_, mut profiles) = crate::eigen::symmetric(&gram, n);
+        profiles.truncate(PROFILES);
+        let t = 1.0 / sample_rate;
+        let inputs = (0..n).map(|i| std::array::from_fn(|j| profiles.get(j).map_or(0.0, |v| v[i] * t))).collect();
+        let keys = shapes
+            .iter()
+            .map(|s| std::array::from_fn(|j| profiles.get(j).map_or(0.0, |v| v.iter().zip(s).map(|(a, b)| a * b).sum())))
+            .collect();
+        Some(Self { n, inputs, keys })
+    }
+
+    /// The low modes as the bank of profiles runs them.
+    pub fn modes(&self, modes: &[BoardMode]) -> Vec<BoardMode> {
+        modes[..self.n].iter().zip(&self.inputs).map(|(m, i)| BoardMode { inputs: *i, ..*m }).collect()
+    }
+
+    /// A key's weights on the profiles.
+    pub fn key(&self, note: u8) -> [f64; REGIONS] {
+        self.keys[(note.clamp(21, 108) - 21) as usize]
+    }
 }
 
 /// Response of the differentiator the engine applies to the summed mic
@@ -687,6 +793,7 @@ fn board_modes_with(sb: &crate::soundboard::Soundboard, shapes: &[Vec<f64>], sam
             BoardMode {
                 freq_hz: md.omega / std::f64::consts::TAU,
                 sigma,
+                load: md.load,
                 inputs: std::array::from_fn(|r| shapes[r][i] * t),
                 outputs,
             }
@@ -699,6 +806,26 @@ pub fn region_of(note: u8) -> usize {
     ((note.clamp(21, 108) - 21) as usize * REGIONS / 88).min(REGIONS - 1)
 }
 
+/// Below this frequency a key's bridge forces are shared between the two
+/// regions around it, above it the nearest region takes them. Neighbouring
+/// regions drive the board alike at low frequencies (their drive shapes
+/// correlate by 0.9 at 100–200 Hz, 0.6–0.7 at 200–400 Hz, 0.2 at 400–800 Hz
+/// in the middle: examples/region_coherence.rs), where one region per key
+/// made the board's answer jump at the regions' ends (E4 to F4: 13 dB on
+/// the fundamental). Above, they no longer add coherently: sharing lost
+/// ≈ 3 dB of the treble's upper partials.
+pub const SHARE_HZ: f64 = 400.0;
+
+/// The two regions a key's low-frequency forces are shared between, and
+/// their weights (linear between the regions' centres).
+pub fn region_weights(note: u8) -> [(usize, f32); 2] {
+    let x = ((note.clamp(21, 108) - 21) as f64 + 0.5) * REGIONS as f64 / 88.0 - 0.5;
+    let r0 = (x.max(0.0).floor() as usize).min(REGIONS - 1);
+    let r1 = (r0 + 1).min(REGIONS - 1);
+    let w1 = if r1 == r0 { 0.0 } else { (x - r0 as f64).clamp(0.0, 1.0) as f32 };
+    [(r0, 1.0 - w1), (r1, w1)]
+}
+
 /// Key at the middle of a region (its bridge point stands for the region).
 pub fn region_center_note(r: usize) -> u8 {
     21 + ((2 * r + 1) * 88 / (2 * REGIONS)) as u8
@@ -708,6 +835,47 @@ pub fn region_center_note(r: usize) -> u8 {
 mod tests {
     use super::*;
     use crate::soundboard::{Soundboard, SoundboardParams};
+
+    /// The profiles rebuild every key's drive of the modes below 1 kHz.
+    #[test]
+    fn low_drive_rebuilds_each_key() {
+        let sr = 48_000.0;
+        let sb = crate::params::PianoModel::default().board().unwrap();
+        let modes = board_modes(&sb, sr);
+        let ld = LowDrive::new(&sb, &modes, 1000.0, sr).unwrap();
+        assert!(ld.n > 30 && modes[ld.n].freq_hz >= 1000.0);
+        let (mut err, mut sum) = (0.0, 0.0);
+        for note in 21..=108 {
+            let exact = sb.bridge_shapes(note);
+            for i in 0..ld.n {
+                let rebuilt: f64 = ld.inputs[i].iter().zip(ld.key(note)).map(|(a, b)| a * b).sum::<f64>() * sr;
+                err += (rebuilt - exact[i]).powi(2);
+                sum += exact[i].powi(2);
+            }
+        }
+        assert!((err / sum).sqrt() < 0.02, "{}", (err / sum).sqrt());
+    }
+
+    /// With every damper lifted, the board has the poles it has without the
+    /// strings' load.
+    #[test]
+    fn lifted_dampers_remove_the_string_load() {
+        let sr = 48_000.0;
+        let model = crate::params::PianoModel::default();
+        let loaded = board_modes(&model.board().unwrap(), sr);
+        let bare = board_modes(&Soundboard::new(model.soundboard.unwrap()), sr);
+        assert!(loaded.iter().filter(|m| m.freq_hz < 400.0).all(|m| m.load > 0.2 * m.sigma));
+        let mut a = BoardBank::new(sr, &loaded, 64);
+        let b = BoardBank::new(sr, &bare, 64);
+        a.set_load(0.0);
+        for (pa, pb) in a.parts.iter().zip(&b.parts) {
+            for (ca, cb) in pa.chunks.iter().zip(&pb.chunks) {
+                for l in 0..LANES {
+                    assert!((ca.pr[l] - cb.pr[l]).abs() < 1e-6 && (ca.pi[l] - cb.pi[l]).abs() < 1e-6);
+                }
+            }
+        }
+    }
 
     /// The rendered velocity transfer matches the plate's own mobility Y at
     /// the driving point, and a rendered sine matches `transfer`.

@@ -38,6 +38,11 @@ pub struct NoteModel {
     pub modes: Vec<ModeSpec>,
     /// Bridge region feeding / feeding back to this key.
     pub region: usize,
+    /// The regions its low band is shared between ([`board::region_weights`]).
+    pub region_mix: [(usize, f32); 2],
+    /// Its weights on the low modes' drive profiles ([`board::LowDrive`]),
+    /// when they run apart.
+    pub basis: Option<[f32; board::REGIONS]>,
     pub has_damper: bool,
     pub unison: crate::params::UnisonLaw,
     /// Output weight of the horizontal oscillators (polarization.radiation).
@@ -121,7 +126,7 @@ impl NoteModel {
         sample_rate: f64,
         max_modes: usize,
     ) -> Self {
-        Self::build_with(model, board, board_modes, note, sample_rate, Resolution { max_modes, ..Resolution::DEFAULT })
+        Self::build_with(model, board, board_modes, None, note, sample_rate, Resolution { max_modes, ..Resolution::DEFAULT })
     }
 
     /// [`Self::build`] at a given [`Resolution`].
@@ -129,6 +134,7 @@ impl NoteModel {
         model: &PianoModel,
         board: Option<&Soundboard>,
         board_modes: Option<&[BoardMode]>,
+        low: Option<&board::LowDrive>,
         note: u8,
         sample_rate: f64,
         res: Resolution,
@@ -136,6 +142,14 @@ impl NoteModel {
         let max_modes = res.max_modes;
         let np = model.note(note);
         let region = board::region_of(note);
+        // With the low modes driven at the key itself, the others take its
+        // own region whole (no low band to share).
+        let region_mix = if low.is_some() { [(region, 1.0), (region, 0.0)] } else { board::region_weights(note) };
+        let basis = low.map(|ld| ld.key(note).map(|x| x as f32));
+        // Each low mode's gain from this key (its drive shape · T, as the
+        // profiles rebuild it).
+        let low_gain: Option<(usize, Vec<f64>)> =
+            low.map(|ld| (ld.n, ld.inputs.iter().map(|inp| inp.iter().zip(ld.key(note)).map(|(a, b)| a * b).sum()).collect()));
         let has_damper = note <= model.damper.highest_note;
         let sympathy = board_modes.filter(|_| model.sympathetic.enabled);
         let dt = 1.0 / sample_rate;
@@ -208,7 +222,23 @@ impl NoteModel {
                 let h_self = sympathy.map(|bm| {
                     let w = cl.lam[m].im;
                     let diff = (C64::ONE - C64::polar(1.0, -w * dt)).scale(sample_rate);
-                    board::transfer(bm, region, MICS + region, w, sample_rate) * diff
+                    let h = match &low_gain {
+                        // The low modes from the key itself, the others
+                        // from its region.
+                        Some((n, g)) => {
+                            board::transfer_with(&bm[..*n], |i, _| g[i], MICS + region, w, sample_rate)
+                                + board::transfer(&bm[*n..], region, MICS + region, w, sample_rate)
+                        }
+                        // Its low band reaches the board through two regions,
+                        // the rest through its own (Voice::mix).
+                        None => {
+                            let lp = crate::voice::share_lowpass(w, sample_rate);
+                            let low = region_mix.iter().fold(C64::ZERO, |h, &(r, wr)| h + board::transfer(bm, r, MICS + region, w, sample_rate).scale(wr as f64));
+                            let own = board::transfer(bm, region, MICS + region, w, sample_rate);
+                            lp * low + (C64::ONE - lp) * own
+                        }
+                    };
+                    h * diff
                 });
                 let (g1, g2) = match h_self {
                     Some(h) => {
@@ -260,6 +290,8 @@ impl NoteModel {
             phys,
             modes,
             region,
+            region_mix,
+            basis,
             has_damper,
             unison: model.unison,
             h_radiation: pol.radiation,
@@ -369,18 +401,19 @@ impl PianoTable {
         sample_rate: f64,
         max_modes: usize,
     ) -> Self {
-        Self::with_resolution(model, board, board_modes, sample_rate, Resolution { max_modes, ..Resolution::DEFAULT })
+        Self::with_resolution(model, board, board_modes, None, sample_rate, Resolution { max_modes, ..Resolution::DEFAULT })
     }
 
     pub fn with_resolution(
         model: &PianoModel,
         board: Option<&Soundboard>,
         board_modes: Option<&[BoardMode]>,
+        low: Option<&board::LowDrive>,
         sample_rate: f64,
         res: Resolution,
     ) -> Self {
         // Independent keys: built in parallel (≈ 0.5 s on one core).
-        let notes = crate::par::map(88, |i| NoteModel::build_with(model, board, board_modes, 21 + i as u8, sample_rate, res));
+        let notes = crate::par::map(88, |i| NoteModel::build_with(model, board, board_modes, low, 21 + i as u8, sample_rate, res));
         Self { notes }
     }
 
