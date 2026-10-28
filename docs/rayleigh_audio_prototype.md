@@ -1,5 +1,7 @@
 # Prototype audio du rayonnement à la fréquence excitée
 
+> Précision du 29 octobre : le contrôle « joueur » de cette étude utilisait une sonde aux coordonnées du pianiste, sans couvercle ni salle. Il ne reproduisait pas tout le preset pianiste livré (couvercle 35°). Les valeurs historiques sont conservées ; voir [le contrôle spatial et binaural corrigé](rayleigh_c8_player.md).
+
 28 octobre 2026, branche `codex/piano-main-revalidation`, base `aac9cb1`. **Défaut et rendu courant de l’application inchangés.** Le prototype fonctionne hors ligne dans ce worktree. Le contrôle reste le contact expérimental équilibré de l’étude précédente ; il n’est pas devenu le défaut.
 
 ## Décision

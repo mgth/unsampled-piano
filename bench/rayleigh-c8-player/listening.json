@@ -1,0 +1,51 @@
+{
+ "common_gain": 44.56037209069789,
+ "timeline": [
+  {
+   "velocity": 45,
+   "variant": "baseline",
+   "start_seconds": 0.0
+  },
+  {
+   "velocity": 45,
+   "variant": "soft",
+   "start_seconds": 1.5000208333333334
+  },
+  {
+   "velocity": 45,
+   "variant": "energy",
+   "start_seconds": 3.0000416666666667
+  },
+  {
+   "velocity": 56,
+   "variant": "baseline",
+   "start_seconds": 4.5000625
+  },
+  {
+   "velocity": 56,
+   "variant": "soft",
+   "start_seconds": 6.000083333333333
+  },
+  {
+   "velocity": 56,
+   "variant": "energy",
+   "start_seconds": 7.500104166666667
+  },
+  {
+   "velocity": 100,
+   "variant": "baseline",
+   "start_seconds": 9.000125
+  },
+  {
+   "velocity": 100,
+   "variant": "soft",
+   "start_seconds": 10.500145833333333
+  },
+  {
+   "velocity": 100,
+   "variant": "energy",
+   "start_seconds": 12.000166666666667
+  }
+ ],
+ "policy": "Actual player preset + studio. One common gain, identical 20 ms end fade in montage only. Comparison candidates are not promoted."
+}

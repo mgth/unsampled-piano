@@ -1,5 +1,7 @@
 # Do8 : récupération du volume et de la bande 1–2 kHz
 
+> Précision du 29 octobre : le contrôle « joueur » de cette étude utilisait une sonde aux coordonnées du pianiste, sans couvercle ni salle. Il ne reproduisait pas tout le preset pianiste livré (couvercle 35°). Les valeurs historiques sont conservées ; voir [le contrôle spatial et binaural corrigé](rayleigh_c8_player.md).
+
 Étude du 28 octobre 2026, après `1ba30c6`, dans `codex/piano-main-revalidation`. **Les défauts et le moteur de production sont inchangés.** Le prototype audio reste hors ligne et sur notes isolées. Le contact de Fa♯7 et tous les autres sons hors Do8 sont conservés à l’identique.
 
 Le candidat `recovered` récupère l’énergie de Do8, améliore le mf et réduit les creux dans le banc à micros rapprochés. Ce résultat tient également avec dix sous-pas de contact. Il ne valide pas encore le réalisme à toutes les positions d’écoute ni aux vélocités extrêmes.

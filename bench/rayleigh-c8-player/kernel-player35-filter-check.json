@@ -1,0 +1,15 @@
+{
+ "samples": 65536,
+ "duration": 1.3653333333333333,
+ "minimum_sigma": 36.88923139625509,
+ "pole_tail_bound": 1.8813698778513217e-22,
+ "delay_oversampling": 32,
+ "spatial_step": "kernel-player35",
+ "interpolation_halfwidth": 32,
+ "interpolation_kaiser_beta": 8.6,
+ "tail_peak_relative": {
+  "current": 5.711300230925636e-16,
+  "driven": 2.0850831502745253e-15
+ },
+ "kernel_sum_error": 5.095095632835951e-10
+}

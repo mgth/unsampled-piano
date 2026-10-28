@@ -1,0 +1,73 @@
+{
+ "retained": {
+  "102": {
+   "params": {
+    "q": 1.0,
+    "h": 0.3,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  },
+  "108": {
+   "params": {
+    "q": 0.3,
+    "h": 0.6,
+    "p": -1.0,
+    "w": 1.0,
+    "d": 1.5e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 0.05
+   }
+  }
+ },
+ "promoted": false,
+ "reason": "Contact-only candidates give small player low-band changes at the expense of previous volume recovery or dense dips. Keep the previous recovered profile. Default unchanged.",
+ "candidates": {
+  "soft": {
+   "mf_preserved": true,
+   "close_dip_preserved": true,
+   "player_dip_preserved": true,
+   "close_volume_preserved": false,
+   "fsharp_identical": true,
+   "player_band_change": [
+    0.011916686940423915,
+    0.016385829057938395,
+    0.023178066306286382
+   ]
+  },
+  "weighted": {
+   "mf_preserved": true,
+   "close_dip_preserved": false,
+   "player_dip_preserved": false,
+   "close_volume_preserved": false,
+   "fsharp_identical": true,
+   "player_band_change": [
+    0.061622144481646046,
+    0.06885994218744429,
+    0.08575866617609051
+   ]
+  },
+  "energy": {
+   "mf_preserved": true,
+   "close_dip_preserved": false,
+   "player_dip_preserved": true,
+   "close_volume_preserved": false,
+   "fsharp_identical": true,
+   "player_band_change": [
+    0.23682212046200846,
+    0.14507684661910503,
+    0.10033046739717832
+   ]
+  }
+ }
+}

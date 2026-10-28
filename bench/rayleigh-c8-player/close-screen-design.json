@@ -1,0 +1,454 @@
+{
+ "cases": [
+  {
+   "name": "control",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "q0.25",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "q0.35",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "p-1.25",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "p-0.75",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -0.75,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "h0.4",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.4,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "h0.8",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.8,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "w0.8",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 0.8,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "w1.2",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.2,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "d1e-05",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "d2e-05",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 2e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "shank_share0.4",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.4,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "shank_share0.5",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.5,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "shank_freq250",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 250,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "shank_freq350",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 350,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "shank_freq400",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 400,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "shank_loss0.025",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.025
+    }
+   }
+  },
+  {
+   "name": "shank_loss0.075",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.075
+    }
+   }
+  },
+  {
+   "name": "shank_loss0.1",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "strike_ratio0.11",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "strike_ratio": 0.11
+    }
+   }
+  },
+  {
+   "name": "strike_ratio0.115",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "strike_ratio": 0.115
+    }
+   }
+  },
+  {
+   "name": "strike_ratio0.125",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "strike_ratio": 0.125
+    }
+   }
+  },
+  {
+   "name": "strike_ratio0.13",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "strike_ratio": 0.13
+    }
+   }
+  },
+  {
+   "name": "hammer_mass_scale0.9",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 0.9
+    }
+   }
+  },
+  {
+   "name": "hammer_mass_scale1.1",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.1
+    }
+   }
+  }
+ ],
+ "velocities": [
+  28,
+  36,
+  44,
+  45,
+  52,
+  56,
+  60,
+  68,
+  76,
+  84,
+  92,
+  100,
+  108,
+  116,
+  124,
+  127
+ ],
+ "policy": "Same Do8-only parameter changes at two listening positions. Close-mic references stay frozen; no player-reference score inferred."
+}

@@ -1,0 +1,46 @@
+{
+ "soft": {
+  "params": {
+   "q": 0.25,
+   "h": 0.6,
+   "p": -1.0,
+   "w": 1.0,
+   "d": 1.5e-05
+  },
+  "extra": {
+   "shank_share": 0.45,
+   "shank_freq": 300,
+   "shank_loss": 0.05
+  }
+ },
+ "weighted": {
+  "params": {
+   "q": 0.25,
+   "h": 0.6,
+   "p": -1.0,
+   "w": 1.0,
+   "d": 1.5e-05
+  },
+  "extra": {
+   "shank_share": 0.45,
+   "shank_freq": 300,
+   "shank_loss": 0.05,
+   "hammer_mass_scale": 1.05
+  }
+ },
+ "energy": {
+  "params": {
+   "q": 0.25,
+   "h": 0.6,
+   "p": -1.0,
+   "w": 1.0,
+   "d": 1.5e-05
+  },
+  "extra": {
+   "shank_share": 0.45,
+   "shank_freq": 350,
+   "shank_loss": 0.05,
+   "hammer_mass_scale": 1.1
+  }
+ }
+}

@@ -1,0 +1,378 @@
+{
+ "cases": [
+  {
+   "name": "c00",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.05
+    }
+   }
+  },
+  {
+   "name": "c01",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.05
+    }
+   }
+  },
+  {
+   "name": "c02",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 350,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.05
+    }
+   }
+  },
+  {
+   "name": "c03",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 350,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.05
+    }
+   }
+  },
+  {
+   "name": "c04",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.1
+    }
+   }
+  },
+  {
+   "name": "c05",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.1
+    }
+   }
+  },
+  {
+   "name": "c06",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 350,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.1
+    }
+   }
+  },
+  {
+   "name": "c07",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 350,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.1
+    }
+   }
+  },
+  {
+   "name": "c08",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.05
+    }
+   }
+  },
+  {
+   "name": "c09",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.05
+    }
+   }
+  },
+  {
+   "name": "c10",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 350,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.05
+    }
+   }
+  },
+  {
+   "name": "c11",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 350,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.05
+    }
+   }
+  },
+  {
+   "name": "c12",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.1
+    }
+   }
+  },
+  {
+   "name": "c13",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.1
+    }
+   }
+  },
+  {
+   "name": "c14",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 350,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.1
+    }
+   }
+  },
+  {
+   "name": "c15",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 350,
+     "shank_loss": 0.05,
+     "hammer_mass_scale": 1.1
+    }
+   }
+  },
+  {
+   "name": "c16",
+   "entry": {
+    "params": {
+     "q": 0.2,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.35,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "c17",
+   "entry": {
+    "params": {
+     "q": 0.2,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.4,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "c18",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.35,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "c19",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1e-05
+    },
+    "extra": {
+     "shank_share": 0.4,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  }
+ ],
+ "velocities": [
+  28,
+  36,
+  44,
+  45,
+  52,
+  56,
+  60,
+  68,
+  76,
+  84,
+  92,
+  100,
+  108,
+  116,
+  124,
+  127
+ ]
+}

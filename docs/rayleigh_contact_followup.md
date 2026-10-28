@@ -1,5 +1,7 @@
 # Rayonnement intégral : contact, pp et Do8
 
+> Précision du 29 octobre : le contrôle « joueur » de cette étude utilisait une sonde aux coordonnées du pianiste, sans couvercle ni salle. Il ne reproduisait pas tout le preset pianiste livré (couvercle 35°). Les valeurs historiques sont conservées ; voir [le contrôle spatial et binaural corrigé](rayleigh_c8_player.md).
+
 Étude du 28 octobre 2026 dans `codex/piano-main-revalidation`, après `6343657`. Le prototype reste audio hors ligne, sur notes isolées. **Aucun défaut, moteur de production, preset livré ou réglage UI n’est modifié.** Les deux contacts expérimentaux améliorent les cibles locales et ne réintroduisent pas de creux sur Fa♯7/Do8, mais le passage intégral ne satisfait pas encore tous les garde-fous : niveau de Do8, équilibre au mf, autres touches et dépendance à la position d’écoute.
 
 ## Causes isolées

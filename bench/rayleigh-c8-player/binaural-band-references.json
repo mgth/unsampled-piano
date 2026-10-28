@@ -1,0 +1,200 @@
+{
+ "reference": {
+  "plath": {
+   "105:100": {
+    "path": "/home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/sets/plath-calibrated/A7v13.wav",
+    "sha256": "66866611eab00465a073f596eb762afae2678a7682d64c5decc7f739fd96f2a2",
+    "onset": 5053,
+    "band": -63.42740665096897,
+    "noise": -122.74361675599023,
+    "snr": 59.31621010502126,
+    "eligible": true
+   },
+   "106:100": {
+    "path": "/home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/sets/plath-calibrated/A#7v13.wav",
+    "sha256": "23aa19df9c09f2ff8a5e7539dfefa920d73b7d575e36ca4234411e1da46dd6ef",
+    "onset": 5069,
+    "band": -63.03921976775291,
+    "noise": -120.42831017703264,
+    "snr": 57.38909040927973,
+    "eligible": true
+   },
+   "107:100": {
+    "path": "/home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/sets/plath-calibrated/B7v13.wav",
+    "sha256": "5cc5753cd6cbf5fb62f44b5b6c29b7e3d76d8ad2f1bb050aad6bd0a1bb8f0f8b",
+    "onset": 5069,
+    "band": -62.78895250947697,
+    "noise": -120.96611895767361,
+    "snr": 58.177166448196644,
+    "eligible": true
+   },
+   "108:100": {
+    "path": "/home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/sets/plath-calibrated/C8v13.wav",
+    "sha256": "047a1a9bc6ed87f41e6e506dae71be781d9a7cdf2611e8cf2681fad1a0dd7559",
+    "onset": 5069,
+    "band": -63.31054005984498,
+    "noise": -121.68748611963966,
+    "snr": 58.376946059794676,
+    "eligible": true
+   }
+  },
+  "bivib_grand": {
+   "105:45": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/A7v4.wav",
+    "sha256": "66d62dbf03caf14c7b09a83d20460ba0cf96c1b98c8ba69876bf32c5687d7820",
+    "onset": 2825,
+    "band": -62.39706524515866,
+    "noise": -96.53626200368461,
+    "snr": 34.139196758525955,
+    "eligible": true
+   },
+   "106:45": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/A#7v4.wav",
+    "sha256": "5913e80ca6c105fce17ff522fce1ec3f7a0546eeb7566d3cce785b49cc680d3d",
+    "onset": 2844,
+    "band": -63.183831010224225,
+    "noise": -97.58469929153003,
+    "snr": 34.400868281305804,
+    "eligible": true
+   },
+   "107:45": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/B7v4.wav",
+    "sha256": "46888a0310ecf3e50ff34a39c016fa1a2f1e44378714d2b5db308004051a045f",
+    "onset": 2756,
+    "band": -63.31318777823981,
+    "noise": -95.62007683326625,
+    "snr": 32.306889055026446,
+    "eligible": true
+   },
+   "108:45": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/C8v4.wav",
+    "sha256": "cfe480795d33e04799e1dc21fa4e9ec4c0897bf854437ea2fc2d339e95a57209",
+    "onset": 488,
+    "band": -90.8644520164018,
+    "noise": null,
+    "snr": null,
+    "eligible": false
+   },
+   "105:56": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/A7v8.wav",
+    "sha256": "d6555ed03dcd0c3b8a4e9bcdd75f735a3041ee8d08da16d80039b3a5ef068ceb",
+    "onset": 2808,
+    "band": -58.932650034139144,
+    "noise": -95.42462467438082,
+    "snr": 36.49197464024168,
+    "eligible": true
+   },
+   "106:56": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/A#7v8.wav",
+    "sha256": "3183bf17c511da07d44886a55c1a66a57615e91c8195e5655d0969a4df2ec864",
+    "onset": 2972,
+    "band": -59.948311826179,
+    "noise": -95.22061680319455,
+    "snr": 35.272304977015544,
+    "eligible": true
+   },
+   "107:56": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/B7v8.wav",
+    "sha256": "57c2881cabd144250c2d6324fd743cddc19e287e7085d8029bde0ee91f75d0f9",
+    "onset": 2888,
+    "band": -59.83251892651401,
+    "noise": -94.922396405152,
+    "snr": 35.08987747863799,
+    "eligible": true
+   },
+   "108:56": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/C8v8.wav",
+    "sha256": "3c92a0e49dd7b323cb12b30e940ba28fd10ce2236813ccb6702f50386ea4621a",
+    "onset": 2754,
+    "band": -61.438966091293906,
+    "noise": -96.21342087508066,
+    "snr": 34.77445478378675,
+    "eligible": true
+   },
+   "105:100": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/A7v13.wav",
+    "sha256": "6e7e50c1570851c08aee76d197d2c19341f46783849f7db1255c9f83aeb9e131",
+    "onset": 2612,
+    "band": -49.49922481127551,
+    "noise": -75.44630529798928,
+    "snr": 25.947080486713773,
+    "eligible": true
+   },
+   "106:100": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/A#7v13.wav",
+    "sha256": "56a47c6edd216d4939fa10f43e786837abf6ffb1cb320687d2d6aff0324c871d",
+    "onset": 2898,
+    "band": -50.70130256832371,
+    "noise": -76.83842484769282,
+    "snr": 26.13712227936911,
+    "eligible": true
+   },
+   "107:100": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/B7v13.wav",
+    "sha256": "732969684ddb5a6a46d0f8c0f2025ac6a7860584f157c9002a2752fe43d3db76",
+    "onset": 2694,
+    "band": -51.371115033604454,
+    "noise": -74.68252262051493,
+    "snr": 23.311407586910477,
+    "eligible": true
+   },
+   "108:100": {
+    "path": "/home/user/dev/piano/out/bench/sets/bivib_grand/C8v13.wav",
+    "sha256": "83c508a7a47c5d6bbdb629a5a5e303acaef35f7883f51c9f6ccc8c6f4d190930",
+    "onset": 3128,
+    "band": -52.09983377500737,
+    "noise": -78.44999489402556,
+    "snr": 26.350161119018196,
+    "eligible": true
+   }
+  }
+ },
+ "rows": [
+  {
+   "source": "plath",
+   "velocity": 100,
+   "note": 108,
+   "anchor": [
+    "105:100",
+    "106:100",
+    "107:100"
+   ],
+   "target": -0.27132029209207076
+  },
+  {
+   "source": "bivib_grand",
+   "velocity": 56,
+   "note": 108,
+   "anchor": [
+    "105:56",
+    "106:56",
+    "107:56"
+   ],
+   "target": -1.606447164779894
+  },
+  {
+   "source": "bivib_grand",
+   "velocity": 100,
+   "note": 108,
+   "anchor": [
+    "105:100",
+    "106:100",
+    "107:100"
+   ],
+   "target": -1.398531206683657
+  }
+ ],
+ "excluded": [
+  {
+   "source": "bivib_grand",
+   "velocity": 45,
+   "reason": "C8 band lacks a 20 ms pre-onset noise window / 12 dB SNR, or fewer than two eligible neighbors",
+   "anchor": [
+    "105:45",
+    "106:45",
+    "107:45"
+   ]
+  }
+ ],
+ "policy": "Auxiliary corpus: 1\u20132 kHz C8 relative to median same-band neighbors 105\u2013107. Reference-only SNR>=12 dB and >=20 ms pre-onset window ending 5 ms before detected onset; >=2 neighbors. No gain fit. No changes to historical partial support."
+}

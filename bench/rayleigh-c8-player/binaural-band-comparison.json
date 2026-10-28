@@ -1,0 +1,89 @@
+{
+ "rows": [
+  {
+   "source": "plath",
+   "velocity": 100,
+   "note": 108,
+   "anchor": [
+    "105:100",
+    "106:100",
+    "107:100"
+   ],
+   "target": -0.27132029209207076,
+   "model_setup": "player_actual_dry",
+   "values": {
+    "baseline": -0.7925885648569064,
+    "soft": -0.78571584042448,
+    "weighted": -0.762088750840384,
+    "energy": -0.6875332929739528
+   },
+   "errors": {
+    "baseline": -0.5212682727648357,
+    "soft": -0.5143955483324092,
+    "weighted": -0.4907684587483132,
+    "energy": -0.41621300088188207
+   }
+  },
+  {
+   "source": "bivib_grand",
+   "velocity": 56,
+   "note": 108,
+   "anchor": [
+    "105:56",
+    "106:56",
+    "107:56"
+   ],
+   "target": -1.606447164779894,
+   "model_setup": "player_actual",
+   "values": {
+    "baseline": -1.263269879460367,
+    "soft": -1.2468840504024286,
+    "weighted": -1.1944099372729227,
+    "energy": -1.118193032841262
+   },
+   "errors": {
+    "baseline": 0.34317728531952696,
+    "soft": 0.35956311437746535,
+    "weighted": 0.41203722750697125,
+    "energy": 0.488254131938632
+   }
+  },
+  {
+   "source": "bivib_grand",
+   "velocity": 100,
+   "note": 108,
+   "anchor": [
+    "105:100",
+    "106:100",
+    "107:100"
+   ],
+   "target": -1.398531206683657,
+   "model_setup": "player_actual",
+   "values": {
+    "baseline": -1.9050928011859796,
+    "soft": -1.8819147348796932,
+    "weighted": -1.819334135009889,
+    "energy": -1.8047623337888012
+   },
+   "errors": {
+    "baseline": -0.5065615945023225,
+    "soft": -0.48338352819603614,
+    "weighted": -0.420802928326232,
+    "energy": -0.4062311271051442
+   }
+  }
+ ],
+ "excluded": [
+  {
+   "source": "bivib_grand",
+   "velocity": 45,
+   "reason": "C8 band lacks a 20 ms pre-onset noise window / 12 dB SNR, or fewer than two eligible neighbors",
+   "anchor": [
+    "105:45",
+    "106:45",
+    "107:45"
+   ]
+  }
+ ],
+ "policy": "Same reference identities and neighbors for all candidates. Plath compared dry; BiVib compared with fixed studio room (room mismatch remains). Model has bare omnis, no dummy-head/HRTF. No claim of fully matched geometry."
+}
