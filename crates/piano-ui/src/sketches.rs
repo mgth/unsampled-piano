@@ -253,11 +253,11 @@ const TRAY_Y: f32 = 116.0;
 const ROD_X: f32 = 355.0;
 const PEDAL_Y: f32 = 176.0;
 
-const HIGHLIGHT: Color32 = Color32::from_rgb(239, 159, 39);
-const FELT: Color32 = Color32::from_rgb(222, 212, 188);
+pub(crate) const HIGHLIGHT: Color32 = Color32::from_rgb(239, 159, 39);
+pub(crate) const FELT: Color32 = Color32::from_rgb(222, 212, 188);
 const CORE: Color32 = Color32::from_rgb(140, 120, 100);
-const WOOD: Color32 = Color32::from_rgb(186, 117, 23);
-const BRIDGE: Color32 = Color32::from_rgb(205, 95, 50);
+pub(crate) const WOOD: Color32 = Color32::from_rgb(186, 117, 23);
+pub(crate) const BRIDGE: Color32 = Color32::from_rgb(205, 95, 50);
 
 /// The action at `width`, `lit` parts highlighted; `path` picks the key
 /// whose felt depth is drawn (bass, middle or treble).
@@ -738,12 +738,12 @@ pub fn string(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, key: &m
 
 const KEYS_H: f32 = 22.0;
 
-fn is_black(m: u8) -> bool {
+pub(crate) fn is_black(m: u8) -> bool {
     matches!(m % 12, 1 | 3 | 6 | 8 | 10)
 }
 
 /// Left edge and width of a key, in white-key widths from A0.
-fn key_span(m: u8) -> (f32, f32) {
+pub(crate) fn key_span(m: u8) -> (f32, f32) {
     let whites = (21..m).filter(|&n| !is_black(n)).count() as f32;
     if is_black(m) { (whites - 0.3, 0.6) } else { (whites, 1.0) }
 }
@@ -1146,7 +1146,7 @@ fn key_range(model: &PianoModel, path: &str) -> Option<(u8, u8)> {
     })
 }
 
-fn note_name(n: u8) -> String {
+pub(crate) fn note_name(n: u8) -> String {
     crate::widgets::note_name(n)
 }
 

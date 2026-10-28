@@ -361,7 +361,8 @@ mod tests {
     #[test]
     fn shown_texts_have_their_glyphs() {
         let ctx = egui::Context::default();
-        let _ = ctx.run_ui(Default::default(), |_| {});
+        // The frame's font atlas is never uploaded here: drop it knowingly.
+        ctx.run_ui(Default::default(), |_| {}).textures_delta.clear();
         let reg = piano_params::Registry::new();
         let mut texts: Vec<String> = reg.params().iter().map(|p| p.meta.label.clone()).collect();
         for p in reg.params() {
@@ -369,6 +370,8 @@ mod tests {
                 texts.extend([h.what.to_string(), h.how.to_string()]);
             }
         }
+        // The Model page's numbers.
+        texts.push("1.70 × 1.30 m, open 45°".into());
         texts.extend(NOTE_CLASSES.iter().chain(piano_core::params::TemperamentLaw::NAMES.iter()).map(|s| s.to_string()));
         let font = egui::FontId::proportional(14.0);
         let missing: std::collections::BTreeSet<char> =

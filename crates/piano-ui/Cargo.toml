@@ -14,6 +14,12 @@ piano-params.workspace = true
 # Text needs fonts: since 0.37 egui ships them only on request (eframe
 # asks for them, the plugin adapter does not).
 egui = { workspace = true, features = ["default_fonts"] }
+# The Model page's 3D view on the GPU, through egui's own OpenGL painter
+# (the host must paint with egui_glow).
+egui_glow = { version = "0.37.0", default-features = false, optional = true }
+
+[features]
+gpu = ["dep:egui_glow"]
 
 [dev-dependencies]
 eframe.workspace = true
