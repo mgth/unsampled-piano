@@ -164,6 +164,11 @@ pub fn run(
         "unsampled-piano",
         options,
         Box::new(move |cc| {
+            let mut ui = ui;
+            // The Model page's 3D view paints through eframe's glow renderer.
+            if cc.gl.is_some() {
+                ui.enable_gpu();
+            }
             let _ = repaint.set(cc.egui_ctx.clone());
             cc.egui_ctx.set_theme(theme(&app.theme));
             let ctx = cc.egui_ctx.clone();

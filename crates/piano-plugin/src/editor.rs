@@ -127,6 +127,10 @@ impl PianoControl for PluginControl<'_> {
         self.ctl.midi()
     }
 
+    fn observe(&self) -> Option<piano_core::Observation> {
+        self.ctl.observe()
+    }
+
     /// The host maps its own controllers to its parameters.
     fn midi_learnable(&self, path: &str) -> bool {
         LiveParam::from_path(path).is_none()

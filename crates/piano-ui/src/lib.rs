@@ -5,6 +5,7 @@
 
 mod mics;
 pub mod mock;
+mod model;
 pub mod sections;
 pub mod shot;
 mod simple;
@@ -27,6 +28,8 @@ const KOFI: &str = "https://ko-fi.com/mgth";
 const MIDI_PAGE: usize = usize::MAX;
 /// Page index of the host's own page ([`HostPage`]).
 const HOST_PAGE: usize = usize::MAX - 1;
+/// Page index of the instrument's model ([`model::ModelView`]).
+const MODEL_PAGE: usize = usize::MAX - 2;
 
 /// A page the host adds to the interface, listed last: the standalone
 /// player's audio and MIDI settings (a plugin's host handles those).
@@ -46,6 +49,7 @@ pub struct PianoUi {
     /// Parameter whose help is shown (registry index).
     about: Option<usize>,
     mics: mics::MicView,
+    model: model::ModelView,
     /// Parameter under the pointer (registry index), lighting its part in
     /// the page's sketch on the next frame.
     hovered: Option<usize>,
@@ -131,6 +135,7 @@ impl PianoUi {
             search: String::new(),
             about: None,
             mics: mics::MicView::default(),
+            model: model::ModelView::default(),
             hovered: None,
             key: 60,
             presets,
@@ -145,6 +150,13 @@ impl PianoUi {
             limiting: LoadMeter::default(),
             host_page: None,
         }
+    }
+
+    /// Lets the Model page's 3D view draw on the GPU: the host paints
+    /// with egui_glow (eframe's glow renderer).
+    #[cfg(feature = "gpu")]
+    pub fn enable_gpu(&mut self) {
+        self.model.enable_gpu();
     }
 
     /// Adds the host's page, listed after the others.
@@ -228,6 +240,16 @@ impl PianoUi {
         if title.eq_ignore_ascii_case("midi") {
             self.page = MIDI_PAGE;
             self.search.clear();
+        } else if let Some(mode) = title.strip_prefix("Model").or_else(|| title.strip_prefix("model")) {
+            self.page = MODEL_PAGE;
+            self.search.clear();
+            // "Model", "Model live", "Model editor".
+            match mode.trim().to_ascii_lowercase().as_str() {
+                "live" => self.model.mode = model::Mode::Live,
+                "editor" => self.model.mode = model::Mode::Editor,
+                "static" => self.model.mode = model::Mode::Static,
+                _ => {}
+            }
         } else if self.host_page.as_ref().is_some_and(|h| h.title().eq_ignore_ascii_case(title)) {
             self.page = HOST_PAGE;
             self.search.clear();
@@ -323,6 +345,15 @@ impl PianoUi {
             ui.add_space(6.0);
             ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("Search…").desired_width(140.0));
             ui.add_space(6.0);
+            if ui
+                .selectable_label(self.page == MODEL_PAGE && self.search.is_empty(), "Model")
+                .on_hover_text("The instrument as the model builds it: static, live, or edited on its plan")
+                .clicked()
+            {
+                self.page = MODEL_PAGE;
+                self.search.clear();
+            }
+            ui.add_space(6.0);
             for (i, s) in SECTIONS.iter().enumerate() {
                 if !self.section.contains(&i) {
                     continue;
@@ -379,6 +410,8 @@ impl PianoUi {
                 egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
                     if self.page == MIDI_PAGE && self.search.is_empty() {
                         self.midi_page(ui, control);
+                    } else if self.page == MODEL_PAGE && self.search.is_empty() {
+                        self.model_page(ui, control, &model);
                     } else if let (HOST_PAGE, true, Some(h)) = (self.page, self.search.is_empty(), self.host_page.as_mut()) {
                         h.show(ui);
                     } else {
@@ -470,6 +503,23 @@ impl PianoUi {
             }
         });
         self.hovered = hovered;
+    }
+
+    fn model_page(&mut self, ui: &mut Ui, control: &mut dyn PianoControl, model: &PianoModel) {
+        ui.heading("Model");
+        let values = self.registry.read(model);
+        let lit = self.hovered.and_then(|i| sketches::locate(&self.registry.params()[i].path)).map_or(&[][..], |(_, parts)| parts);
+        let (shown, open) = self.model.show(ui, control, model, &self.registry, &values, &mut self.key, lit);
+        if let Some(i) = shown.clicked {
+            self.about = if self.about == Some(i) { None } else { Some(i) };
+        }
+        if shown.touched.is_some() {
+            self.about = shown.touched;
+        }
+        self.hovered = shown.hovered;
+        if let Some(page) = open {
+            self.open_page(page);
+        }
     }
 
     /// A page's sketches and curves, packed in rows: sketches 380 px wide,
@@ -870,6 +920,31 @@ mod slider_tests {
         assert_eq!((ui.about, ui.hovered), (Some(i), Some(i)));
         frame(&mut ui, &mut control, &ctx, vec![button(at + Vec2::new(36.0, 0.0), false)]);
         assert_ne!(piano_params::get(&control.model(), &ui.registry.params()[i].path), Some(ui.registry.params()[i].default));
+    }
+
+    #[test]
+    fn the_editor_drags_the_board_longer() {
+        let ctx = egui::Context::default();
+        let mut ui = PianoUi::new(None);
+        ui.open_page("Model editor");
+        let mut control = MockControl::new(PianoModel::default());
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        let at = ui.model.handles_shown.iter().find(|h| h.0 == "Board length").expect("the board's handle").1;
+        let a = |c: &MockControl| c.model().soundboard.unwrap().a;
+        let before = a(&control);
+        let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Default::default() };
+        frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(at)]);
+        frame(&mut ui, &mut control, &ctx, vec![button(at, true)]);
+        // Away from the keyboard: up on the plan.
+        for k in 1..=5 {
+            frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(at - Vec2::new(0.0, 6.0 * k as f32))]);
+        }
+        frame(&mut ui, &mut control, &ctx, vec![button(at - Vec2::new(0.0, 30.0), false)]);
+        let after = a(&control);
+        assert!(after > before + 0.05, "board length {before} -> {after}");
+        // Nothing else moved with it.
+        assert_eq!(control.model().soundboard.unwrap().b, PianoModel::default().soundboard.unwrap().b);
     }
 
     #[test]

@@ -32,6 +32,8 @@ impl eframe::App for Demo {
 fn main() -> eframe::Result {
     let presets = std::env::args().nth(1).map(Into::into);
     let mut ui = PianoUi::new(presets);
+    #[cfg(feature = "gpu")]
+    ui.enable_gpu();
     if let Ok(page) = std::env::var("PIANO_UI_PAGE") {
         ui.open_page(&page);
     }

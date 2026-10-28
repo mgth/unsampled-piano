@@ -253,11 +253,11 @@ const TRAY_Y: f32 = 116.0;
 const ROD_X: f32 = 355.0;
 const PEDAL_Y: f32 = 176.0;
 
-const HIGHLIGHT: Color32 = Color32::from_rgb(239, 159, 39);
-const FELT: Color32 = Color32::from_rgb(222, 212, 188);
+pub(crate) const HIGHLIGHT: Color32 = Color32::from_rgb(239, 159, 39);
+pub(crate) const FELT: Color32 = Color32::from_rgb(222, 212, 188);
 const CORE: Color32 = Color32::from_rgb(140, 120, 100);
-const WOOD: Color32 = Color32::from_rgb(186, 117, 23);
-const BRIDGE: Color32 = Color32::from_rgb(205, 95, 50);
+pub(crate) const WOOD: Color32 = Color32::from_rgb(186, 117, 23);
+pub(crate) const BRIDGE: Color32 = Color32::from_rgb(205, 95, 50);
 
 /// The action at `width`, `lit` parts highlighted; `path` picks the key
 /// whose felt depth is drawn (bass, middle or treble).
@@ -738,12 +738,12 @@ pub fn string(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, key: &m
 
 const KEYS_H: f32 = 22.0;
 
-fn is_black(m: u8) -> bool {
+pub(crate) fn is_black(m: u8) -> bool {
     matches!(m % 12, 1 | 3 | 6 | 8 | 10)
 }
 
 /// Left edge and width of a key, in white-key widths from A0.
-fn key_span(m: u8) -> (f32, f32) {
+pub(crate) fn key_span(m: u8) -> (f32, f32) {
     let whites = (21..m).filter(|&n| !is_black(n)).count() as f32;
     if is_black(m) { (whites - 0.3, 0.6) } else { (whites, 1.0) }
 }
@@ -818,12 +818,24 @@ pub fn plan(ui: &mut Ui, model: &PianoModel, lit: &[Part], key: &mut u8, width: 
     p.text(at(8.0, top - 14.0), Align2::LEFT_TOP, "The case from above (to scale)", font.clone(), weak);
 
     // Rim and case; the piston mode moves it all.
+    // The board within its outline (the full rectangle unless one is set),
+    // the rim's wall around it.
+    let outline = crate::model::scene::board_outline(&sb);
     if rim.enabled {
-        let case = rect_m((-t, -t), (sb.a + t, sb.b + t));
-        p.rect_filled(case, 3.0 * k, if lit(Part::Rim) { HIGHLIGHT.gamma_multiply(0.6) } else { weak.gamma_multiply(0.35) });
+        let wall: Vec<Pos2> = outline.iter().map(|&(x, y)| pl(x, y)).collect();
+        let c = if lit(Part::Rim) { HIGHLIGHT.gamma_multiply(0.6) } else { weak.gamma_multiply(0.35) };
+        p.add(Shape::closed_line(wall, Stroke::new(2.0 * t as f32 * s * k, c)));
     }
     let board = rect_m((0.0, 0.0), (sb.a, sb.b));
-    p.rect_filled(board, 0.0, if lit(Part::Board) { HIGHLIGHT.gamma_multiply(0.45) } else { WOOD.gamma_multiply(0.3) });
+    let fill = if lit(Part::Board) { HIGHLIGHT.gamma_multiply(0.45) } else { WOOD.gamma_multiply(0.3) };
+    let mut mesh = egui::Mesh::default();
+    for &(x, y) in &outline {
+        mesh.colored_vertex(pl(x, y), fill);
+    }
+    for [a, b, c] in crate::model::scene::triangulate(&outline) {
+        mesh.add_triangle(a as u32, b as u32, c as u32);
+    }
+    p.add(Shape::mesh(mesh));
     if lit(Part::BoardEdge) {
         // A band as deep as the losses reach (e^(-d/edge_depth)).
         let d = (sb.edge_depth as f32 * s * k).clamp(2.0, board.width().min(board.height()) / 2.0);
@@ -1146,7 +1158,7 @@ fn key_range(model: &PianoModel, path: &str) -> Option<(u8, u8)> {
     })
 }
 
-fn note_name(n: u8) -> String {
+pub(crate) fn note_name(n: u8) -> String {
     crate::widgets::note_name(n)
 }
 

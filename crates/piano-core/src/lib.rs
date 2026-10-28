@@ -14,6 +14,7 @@ pub mod live;
 pub mod macros;
 pub mod modal;
 pub mod note_model;
+pub mod observe;
 pub mod par;
 pub mod params;
 pub mod room;
@@ -26,3 +27,4 @@ pub mod voice;
 
 pub use engine::{Engine, EngineConfig, Event, Quality, TimedEvent};
 pub use live::LiveParam;
+pub use observe::Observation;
