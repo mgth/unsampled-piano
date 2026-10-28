@@ -237,6 +237,21 @@ pub fn board_outline(sb: &SoundboardParams) -> Vec<(f64, f64)> {
     p
 }
 
+/// The iron frame's outline in plate coordinates, as the engine has it: the
+/// case's, carried forward over the pin block (`FrameParams::outline`).
+pub fn frame_outline(model: &PianoModel, sb: &SoundboardParams) -> Vec<(f64, f64)> {
+    let f = &model.frame;
+    let plate = f.plate(sb);
+    let mut p = Outline::new(&plate).map_or_else(|| vec![(0.0, 0.0), (f.a, 0.0), (f.a, f.b), (0.0, f.b)], |o| o.points);
+    for q in &mut p {
+        q.0 += f.offset_x;
+    }
+    if signed_area(&p) < 0.0 {
+        p.reverse();
+    }
+    p
+}
+
 fn signed_area(p: &[(f64, f64)]) -> f64 {
     0.5 * p.iter().zip(p.iter().cycle().skip(1)).map(|(a, b)| a.0 * b.1 - b.0 * a.1).sum::<f64>()
 }
@@ -476,14 +491,19 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     if f.enabled && o.frame {
         let c = rgba(pick(Part::Frame, IRON), if lit(Part::Frame) || lit(Part::FrameHeight) { 0.45 } else { 0.18 });
         let z = f.height;
-        let q = [place.at(f.offset_x, 0.0, z), place.at(f.offset_x + f.a, 0.0, z), place.at(f.offset_x + f.a, f.b, z), place.at(f.offset_x, f.b, z)];
-        b.quad(true, [q[0], q[1], q[2], q[3]], c);
-        b.quad(true, [q[3], q[2], q[1], q[0]], c);
-        let edge = rgba(pick(Part::Frame, IRON), 0.9);
-        for i in 0..4 {
-            b.line(q[i], q[(i + 1) % 4], edge);
+        let outline = frame_outline(model, &sb);
+        let q: Vec<V3> = outline.iter().map(|&(x, y)| place.at(x, y, z)).collect();
+        for [i, j, k] in triangulate(&outline) {
+            b.tri(true, [q[i], q[j], q[k]], [c; 3]);
+            b.tri(true, [q[i], q[k], q[j]], [c; 3]);
         }
-        b.label(q[1], "Frame", "Frame & rim");
+        let edge = rgba(pick(Part::Frame, IRON), 0.9);
+        for i in 0..q.len() {
+            b.line(q[i], q[(i + 1) % q.len()], edge);
+        }
+        // Labelled at its tail, the farthest point from the keyboard.
+        let tail = (0..outline.len()).max_by(|&i, &j| outline[i].0.total_cmp(&outline[j].0)).unwrap_or(0);
+        b.label(q[tail], "Frame", "Frame & rim");
     }
 
     // The lid, hinged along the bass side.
