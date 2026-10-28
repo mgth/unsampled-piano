@@ -1,0 +1,67 @@
+{
+ "profiles": {
+  "contact": {
+   "102": {
+    "params": {
+     "q": 1.0,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 2.0
+    }
+   },
+   "108": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  "contact_pp": {
+   "102": {
+    "params": {
+     "q": 1.0,
+     "h": 0.1,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 2.0
+    }
+   },
+   "108": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 2.0
+    }
+   }
+  }
+ },
+ "policy": "Experimental full radiator on every key; contact-only changes on 102 and 108. contact balances fixed-coverage error, absolute energy and dense velocity dips; contact_pp favors F-sharp pp and velocity regularity. C8 height009 retains energy better than rejected c025, with remaining mf and level tradeoffs. Same references used for selection and evaluation. No default change."
+}

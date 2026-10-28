@@ -1,0 +1,218 @@
+[
+ {
+  "note": 108,
+  "name": "height000",
+  "entry": {
+   "params": {
+    "q": 0.3,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 1e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ {
+  "note": 108,
+  "name": "height001",
+  "entry": {
+   "params": {
+    "q": 0.3,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 1.5e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ {
+  "note": 108,
+  "name": "height002",
+  "entry": {
+   "params": {
+    "q": 0.3,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 2e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ {
+  "note": 108,
+  "name": "height003",
+  "entry": {
+   "params": {
+    "q": 0.3,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 2.5e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ {
+  "note": 108,
+  "name": "height004",
+  "entry": {
+   "params": {
+    "q": 0.35,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 1e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ {
+  "note": 108,
+  "name": "height005",
+  "entry": {
+   "params": {
+    "q": 0.35,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 1.5e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ {
+  "note": 108,
+  "name": "height006",
+  "entry": {
+   "params": {
+    "q": 0.35,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 2e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ {
+  "note": 108,
+  "name": "height007",
+  "entry": {
+   "params": {
+    "q": 0.35,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 2.5e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ {
+  "note": 108,
+  "name": "height008",
+  "entry": {
+   "params": {
+    "q": 0.4,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 1e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ {
+  "note": 108,
+  "name": "height009",
+  "entry": {
+   "params": {
+    "q": 0.4,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 1.5e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ {
+  "note": 108,
+  "name": "height010",
+  "entry": {
+   "params": {
+    "q": 0.4,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 2e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ {
+  "note": 108,
+  "name": "height011",
+  "entry": {
+   "params": {
+    "q": 0.4,
+    "h": 0.6,
+    "p": -1.5,
+    "w": 1.0,
+    "d": 2.5e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  }
+ }
+]

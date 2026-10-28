@@ -1,0 +1,1011 @@
+{
+ "cases": [
+  {
+   "note": 102,
+   "name": "control",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "main",
+   "entry": {
+    "params": {
+     "q": 1,
+     "h": 0.6,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt00",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": -2,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt01",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": -1,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt02",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt03",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.3,
+     "p": -2,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt04",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.3,
+     "p": -1,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt05",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt06",
+   "entry": {
+    "params": {
+     "q": 0.65,
+     "h": 0.3,
+     "p": -2,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt07",
+   "entry": {
+    "params": {
+     "q": 0.65,
+     "h": 0.3,
+     "p": -1,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt08",
+   "entry": {
+    "params": {
+     "q": 0.65,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt09",
+   "entry": {
+    "params": {
+     "q": 1.0,
+     "h": 0.3,
+     "p": -2,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt10",
+   "entry": {
+    "params": {
+     "q": 1.0,
+     "h": 0.3,
+     "p": -1,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt11",
+   "entry": {
+    "params": {
+     "q": 1.0,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt12",
+   "entry": {
+    "params": {
+     "q": 1.6,
+     "h": 0.3,
+     "p": -2,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt13",
+   "entry": {
+    "params": {
+     "q": 1.6,
+     "h": 0.3,
+     "p": -1,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "felt14",
+   "entry": {
+    "params": {
+     "q": 1.6,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "mechanics00",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "mechanics01",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "mechanics02",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.3,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "mechanics03",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "mechanics04",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.085,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "mechanics05",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.095,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "mechanics06",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.12,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "mechanics07",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.14,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "height00",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "height01",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "height02",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 5e-05
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 102,
+   "name": "height03",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "control",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "main",
+   "entry": {
+    "params": {
+     "q": 1,
+     "h": 0.6,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt00",
+   "entry": {
+    "params": {
+     "q": 0.15,
+     "h": 0.3,
+     "p": -2,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt01",
+   "entry": {
+    "params": {
+     "q": 0.15,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt02",
+   "entry": {
+    "params": {
+     "q": 0.15,
+     "h": 0.3,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt03",
+   "entry": {
+    "params": {
+     "q": 0.15,
+     "h": 0.3,
+     "p": 0,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt04",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": -2,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt05",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt06",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt07",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": 0,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt08",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -2,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt09",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt10",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt11",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": 0,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt12",
+   "entry": {
+    "params": {
+     "q": 0.75,
+     "h": 0.3,
+     "p": -2,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt13",
+   "entry": {
+    "params": {
+     "q": 0.75,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt14",
+   "entry": {
+    "params": {
+     "q": 0.75,
+     "h": 0.3,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "felt15",
+   "entry": {
+    "params": {
+     "q": 0.75,
+     "h": 0.3,
+     "p": 0,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "mechanics00",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "mechanics01",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "mechanics02",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.3,
+     "shank_freq": 150,
+     "shank_loss": 2.0
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "mechanics03",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "mechanics04",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "strike_ratio": 0.085
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "mechanics05",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "strike_ratio": 0.095
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "mechanics06",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "strike_ratio": 0.12
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "mechanics07",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "strike_ratio": 0.14
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "height00",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 0
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "height01",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "height02",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 5e-05
+    },
+    "extra": {}
+   }
+  },
+  {
+   "note": 108,
+   "name": "height03",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 0.0001
+    },
+    "extra": {}
+   }
+  }
+ ],
+ "velocities": [
+  28,
+  36,
+  44,
+  45,
+  52,
+  56,
+  60,
+  68,
+  76,
+  84,
+  92,
+  100,
+  108,
+  116,
+  124,
+  127
+ ],
+ "policy": "Full radiator, fixed mechanics except stated contact fields, same source rows. No output EQ or velocity-dependent mix."
+}

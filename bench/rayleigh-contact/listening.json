@@ -1,0 +1,96 @@
+{
+ "gain": 1,
+ "timeline": [
+  {
+   "note": 102,
+   "velocity": 45,
+   "variant": "balanced",
+   "start_seconds": 0.0
+  },
+  {
+   "note": 102,
+   "velocity": 45,
+   "variant": "driven",
+   "start_seconds": 1.5000208333333334
+  },
+  {
+   "note": 102,
+   "velocity": 45,
+   "variant": "contact",
+   "start_seconds": 3.0000416666666667
+  },
+  {
+   "note": 102,
+   "velocity": 100,
+   "variant": "balanced",
+   "start_seconds": 4.5000625
+  },
+  {
+   "note": 102,
+   "velocity": 100,
+   "variant": "driven",
+   "start_seconds": 6.000083333333333
+  },
+  {
+   "note": 102,
+   "velocity": 100,
+   "variant": "contact",
+   "start_seconds": 7.500104166666667
+  },
+  {
+   "note": 108,
+   "velocity": 45,
+   "variant": "balanced",
+   "start_seconds": 9.000125
+  },
+  {
+   "note": 108,
+   "velocity": 45,
+   "variant": "driven",
+   "start_seconds": 10.500145833333333
+  },
+  {
+   "note": 108,
+   "velocity": 45,
+   "variant": "contact",
+   "start_seconds": 12.000166666666667
+  },
+  {
+   "note": 108,
+   "velocity": 56,
+   "variant": "balanced",
+   "start_seconds": 13.5001875
+  },
+  {
+   "note": 108,
+   "velocity": 56,
+   "variant": "driven",
+   "start_seconds": 15.000208333333333
+  },
+  {
+   "note": 108,
+   "velocity": 56,
+   "variant": "contact",
+   "start_seconds": 16.500229166666667
+  },
+  {
+   "note": 108,
+   "velocity": 100,
+   "variant": "balanced",
+   "start_seconds": 18.00025
+  },
+  {
+   "note": 108,
+   "velocity": 100,
+   "variant": "driven",
+   "start_seconds": 19.50027083333333
+  },
+  {
+   "note": 108,
+   "velocity": 100,
+   "variant": "contact",
+   "start_seconds": 21.000291666666666
+  }
+ ],
+ "policy": "One common gain for every item; identical 20 ms end fade only in montage, 300 ms silence. Measurements use untouched WAVs."
+}

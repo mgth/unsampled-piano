@@ -1,0 +1,472 @@
+{
+ "cases": [
+  {
+   "note": 108,
+   "name": "e000",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.1,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 0.7
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e001",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.1,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 1.4
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e002",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 0.7
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e003",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 1.4
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e004",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 0.7
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e005",
+   "entry": {
+    "params": {
+     "q": 0.25,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 1.4
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e006",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.1,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 0.7
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e007",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.1,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 1.4
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e008",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 0.7
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e009",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 1.4
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e010",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 0.7
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e011",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 1.4
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e012",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.1,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 0.7
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e013",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.1,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 1.4
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e014",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 0.7
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e015",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 1.4
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e016",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 0.7
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e017",
+   "entry": {
+    "params": {
+     "q": 0.45,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 600,
+     "shank_loss": 1.0,
+     "hammer_mass_scale": 1.4
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e018",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.1,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.15,
+     "shank_freq": 600,
+     "shank_loss": 1.0
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e019",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.15,
+     "shank_freq": 600,
+     "shank_loss": 1.0
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e020",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.15,
+     "shank_freq": 600,
+     "shank_loss": 1.0
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e021",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.1,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.3,
+     "shank_freq": 600,
+     "shank_loss": 1.0
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e022",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.3,
+     "shank_freq": 600,
+     "shank_loss": 1.0
+    }
+   }
+  },
+  {
+   "note": 108,
+   "name": "e023",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 4e-05
+    },
+    "extra": {
+     "shank_share": 0.3,
+     "shank_freq": 600,
+     "shank_loss": 1.0
+    }
+   }
+  }
+ ],
+ "velocities": [
+  28,
+  36,
+  44,
+  45,
+  52,
+  56,
+  60,
+  68,
+  76,
+  84,
+  92,
+  100,
+  108,
+  116,
+  124,
+  127
+ ]
+}
