@@ -209,6 +209,25 @@ The board's own shape does what the microphones could not. With the grand outlin
 
 **Heard: C is better.** The outline with the recalibrated board is now the default (SoundboardParams::GRAND_2M, bench baseline 1.11). The user adds that the recording stays richer in every version, with "a rounder resonance" wholly absent from the model: the next lead.
 
+## The rounder resonance: the bass fundamentals' excess
+
+With the outline on, the user still hears the recording as "richer, a rounder resonance, wholly absent from the model". Measured on the Beethoven passage: what stays between the notes per band (the pedal's halo, p10/p50 of the 10 ms level) and the bands' fall rates are the same in both; the long-term spectrum differs at 50–80 Hz (model +5 to +9 dB), 99 Hz (−4), 397 Hz (+6), 500–630 Hz (−4 to −7), 1.26 kHz (+5), 1.6 kHz (−4) and 4–8 kHz (−4 to −6).
+
+On the isolated bass keys A0–C3 (Liang's 28 against the model's), the level of partials 1–12 at 0.3 s re the note's peak, averaged over the keys, model − real:
+
+| | p1 | p2 | p3 | p4 | p5 | p6 | p7 | p8 | p9 | p10 | p11 | p12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| default (outline) | **+8** | +2 | −1 | +1 | −1 | −3 | 0 | +5 | −3 | −1 | 0 | +2 |
+
+One systematic deviation: **the fundamental, 8 dB too strong** (p8 is the strike point's notch, deeper on the Disklavier). The eight grands of the bench say the same in their own terms (bass sustain partials 2–6 re partial 1: +14 to +16 dB on the real pianos, +9 to +10 in the model; attack p2–p6 likewise). The key-to-key roughness of the partials' levels is not it (7.4 dB rms in the model, 6.3–8.2 on the real pianos). Nor are the bridge's bass-side impedance slope, the edge loss (no change), the tension ramp (`unison.load_ramp` 0: the contact shortens from 4.1 to 3.4 ms at A1, +1.2 dB on partials 5–12, bench 1.12), the piston, the frame and rim (no change), the lid (−2 dB on p1), the room (none). Below the board's first mode (122 Hz) the model's board radiates the fundamentals quasi-statically, through a point image of the back face 0.6 m below at 0.6 gain, which cancels only 4 dB at 55 Hz; real grands radiate little below 80–100 Hz ([bass_radiation.md](bass_radiation.md)).
+
+Two levers, both set once on the rectangle:
+- `crown_freq` 90 → 120 Hz (the first mode 122 → ≈ 143 Hz; stiffer below it): p1 +8 → +5, the passage's 50–79 Hz excess +9/+6/+5 → +5/+2/+0.5, bench 1.10 (13 better, 6 worse: the bass's sustain p4/p6/p8 and attack p2/p3 better, the middle's sustain p6/p8 worse). 150 overshoots (99–125 Hz −15/−9, bench 1.18).
+- `back_gain` 0.85 and `back_depth` 0.4 m (a fuller, nearer short circuit): p1 −1, p2–p4 −1, bench 1.09.
+- Both: p1 +4, passage 50–79 Hz +5/+2/+1, bench **1.09** (23 better, 14 worse).
+
+A/B in out/ab_round (Beethoven and A1/D2, studio throughout): now, crown 120, crown 120 + back face.
+
 ## Still open
 
 - **C2–A2 lacks body.** Relative to the strongest partial, partials 4–6 lie 10–13 dB under the recording in the sustain (−1 to −5 at the attack): they decay at −14 dB/s against −9. The edge loss is not it (off: −12). The bench's eight grands agree: the bass's partials 4–12 are 4–8 dB weak in the sustain. The bridge's conductance at 300–800 Hz is next.
