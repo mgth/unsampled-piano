@@ -254,6 +254,11 @@ outline = [
 outline_below = 1500.0
 rib_spacing = 0.0
 rib_share = 0.0
+scatter = 0.0
+scatter_corner = 1500.0
+scatter_step = 0.1
+scatter_height = 0.05
+scatter_shadow = 0.0
 
 [damper]
 position = 0.14
