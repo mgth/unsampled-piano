@@ -1,0 +1,60 @@
+{
+ "cases": {
+  "player": {},
+  "front_only": {
+   "soundboard.back_gain": 0
+  },
+  "grid10": {
+   "soundboard.grid_step": 0.01
+  },
+  "grid75": {
+   "soundboard.grid_step": 0.0075
+  },
+  "grid5": {
+   "soundboard.grid_step": 0.005
+  },
+  "bare_board": {
+   "frame.enabled": false,
+   "rim.enabled": false,
+   "sympathetic.enabled": false,
+   "noise.action": 0,
+   "noise.keybed": 0
+  },
+  "long_outline": {
+   "soundboard.outline_below": 3000
+  },
+  "close": {}
+ },
+ "windows": {
+  "attack": [
+   0,
+   0.06
+  ],
+  "early": [
+   0.03,
+   0.12
+  ],
+  "body": [
+   0.08,
+   0.2
+  ],
+  "late": [
+   0.2,
+   0.5
+  ]
+ },
+ "model_frequencies": [
+  3007.502152467564,
+  6116.958951937106,
+  9424.812091582808
+ ],
+ "real_frequencies": [
+  3015.174,
+  6032.695,
+  9054.903972595732
+ ],
+ "welch_samples": 1024,
+ "hop": 128,
+ "minimum_snr": 12,
+ "minimum_coherence": 0.8
+}

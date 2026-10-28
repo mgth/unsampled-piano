@@ -97,6 +97,8 @@ Le niveau d’attaque de la variante équilibrée baisse de 0,14/0,41/0,87 dB fa
 
 ## Ce qui reste de P3 forte : contrôle réel supplémentaire
 
+**Précision issue de l’étude suivante :** le rapport de pics ci-dessous n’identifie pas un transfert scalaire fiable dans la bande P3 de Plath. Les mesures synchrones de cohérence et la séparation des pics sont détaillées dans [la suite chevalet–oreilles](bridge_ear_followup.md). L’écart de transmission de 7 dB ne doit pas servir de cible de calibration. Les valeurs historiques ci-dessous restent inchangées.
+
 Les cinq prises de Fa♯7 de Plath permettent de séparer pression binaurale et accélération du chevalet, sans supposer la signification du canal `F` (non utilisé). Ce contrôle n’a pas servi à choisir les candidats. Même analyse de puissance sur 60 ms ; pression et accélération alignées sur leur propre attaque. P3 n’est pas suivi dans le survey tardif de cette note : sa fenêtre utilise le f0/B estimé à partir de P1/P2, avec SNR explicitement vérifié. Les cinq prises passent 12 dB : 17–21 dB dans la pression, 34–40 dB dans l’accélération.
 
 | P3/P1 à forte | Plath, cinq prises | Modèle main, position joueur | Variante équilibrée, position joueur |
