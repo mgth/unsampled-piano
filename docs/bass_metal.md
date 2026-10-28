@@ -92,6 +92,18 @@ The scale gave every string 750 N: a key's load on the bridge, Σ √(T·μ), do
 
 36 also brings the middle's partials 4–12 and centroid towards the grands; the top's balance gets 0.5 z worse (+1.3). On the Beethoven passage (out/ab_tension: recording, 0, 24, 36) the user heard 24 and 36 a little better than before and alike, and the whole still far from the recording.
 
+## Still far: the stereo image
+
+Liang's pair (spaced omnis about 50 cm above the strings) hears the bass almost identically: L/R correlation +0.95–0.99 at 63–125 Hz, +0.5 at 160 and 315 Hz, the bass 2–3 dB to the left. The model with the close microphones, over 22–32 s:
+
+- **Antiphase.** +0.8 at 50–100 Hz, then −0.76 at 160 Hz and −0.72 at 315 Hz. The rectangle's modes are symmetric or antisymmetric about its centre, and the two microphones sit symmetric about it: the (2,1)/(1,2) pair near 145 Hz and the modes near 315 Hz reach them in opposite phase. Without the room, without the back face, with the engine's own microphones at 1.5 m or other pairs at 50 cm, 315 Hz stays at −0.5 to −0.7; across the keyboard at mid-length, 160 Hz goes to −0.1. The grand's outline (docs/outline.md) with that pair gives +0.9 at 63–125 Hz and +0.6 at 160 Hz.
+- **Sides.** The close pair puts the bass on the right (−8 dB at 63 Hz); the recording has it on the left.
+- **Placement.** Moving a pair 10 cm swings the bass between in phase and antiphase and the balance by up to 20 dB: the model's field above the board follows its modes far more than the recording's does.
+
+The long-term spectrum of the same 10 s, model − recording (dB re the total): +7 to +10 at 50–80 Hz, +6 at 200 Hz, +6 at 1.26 kHz, −4 to −7 at 4–8 kHz.
+
+A diagnostic A/B in out/ab_diag: the recording; the model now; the model with its channels swapped and its two channels summed below 400 Hz; the same with a third-octave EQ onto the recording's long-term spectrum.
+
 ## Still open
 
 - **C2–A2 lacks body.** Relative to the strongest partial, partials 4–6 lie 10–13 dB under the recording in the sustain (−1 to −5 at the attack): they decay at −14 dB/s against −9. The edge loss is not it (off: −12). The bench's eight grands agree: the bass's partials 4–12 are 4–8 dB weak in the sustain. The bridge's conductance at 300–800 Hz is next.
