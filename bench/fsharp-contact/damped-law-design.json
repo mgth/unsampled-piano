@@ -1,0 +1,575 @@
+{
+ "grid": {
+  "e000": {
+   "params": {
+    "q": 0.08,
+    "h": 0.05,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e001": {
+   "params": {
+    "q": 0.08,
+    "h": 0.15,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e002": {
+   "params": {
+    "q": 0.08,
+    "h": 0.3,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e003": {
+   "params": {
+    "q": 0.08,
+    "h": 0.05,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e004": {
+   "params": {
+    "q": 0.08,
+    "h": 0.15,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e005": {
+   "params": {
+    "q": 0.08,
+    "h": 0.3,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e006": {
+   "params": {
+    "q": 0.08,
+    "h": 0.05,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e007": {
+   "params": {
+    "q": 0.08,
+    "h": 0.15,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e008": {
+   "params": {
+    "q": 0.08,
+    "h": 0.3,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e009": {
+   "params": {
+    "q": 0.12,
+    "h": 0.05,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e010": {
+   "params": {
+    "q": 0.12,
+    "h": 0.15,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e011": {
+   "params": {
+    "q": 0.12,
+    "h": 0.3,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e012": {
+   "params": {
+    "q": 0.12,
+    "h": 0.05,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e013": {
+   "params": {
+    "q": 0.12,
+    "h": 0.15,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e014": {
+   "params": {
+    "q": 0.12,
+    "h": 0.3,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e015": {
+   "params": {
+    "q": 0.12,
+    "h": 0.05,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e016": {
+   "params": {
+    "q": 0.12,
+    "h": 0.15,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e017": {
+   "params": {
+    "q": 0.12,
+    "h": 0.3,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e018": {
+   "params": {
+    "q": 0.18,
+    "h": 0.05,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e019": {
+   "params": {
+    "q": 0.18,
+    "h": 0.15,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e020": {
+   "params": {
+    "q": 0.18,
+    "h": 0.3,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e021": {
+   "params": {
+    "q": 0.18,
+    "h": 0.05,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e022": {
+   "params": {
+    "q": 0.18,
+    "h": 0.15,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e023": {
+   "params": {
+    "q": 0.18,
+    "h": 0.3,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e024": {
+   "params": {
+    "q": 0.18,
+    "h": 0.05,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e025": {
+   "params": {
+    "q": 0.18,
+    "h": 0.15,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e026": {
+   "params": {
+    "q": 0.18,
+    "h": 0.3,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e027": {
+   "params": {
+    "q": 0.25,
+    "h": 0.05,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e028": {
+   "params": {
+    "q": 0.25,
+    "h": 0.15,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e029": {
+   "params": {
+    "q": 0.25,
+    "h": 0.3,
+    "p": -2,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e030": {
+   "params": {
+    "q": 0.25,
+    "h": 0.05,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e031": {
+   "params": {
+    "q": 0.25,
+    "h": 0.15,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e032": {
+   "params": {
+    "q": 0.25,
+    "h": 0.3,
+    "p": -1,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e033": {
+   "params": {
+    "q": 0.25,
+    "h": 0.05,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e034": {
+   "params": {
+    "q": 0.25,
+    "h": 0.15,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  },
+  "e035": {
+   "params": {
+    "q": 0.25,
+    "h": 0.3,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 150,
+    "shank_loss": 2.0
+   }
+  }
+ },
+ "velocities": [
+  28,
+  32,
+  36,
+  40,
+  44,
+  45,
+  48,
+  52,
+  56,
+  60,
+  64,
+  68,
+  72,
+  76,
+  80,
+  84,
+  88,
+  92,
+  96,
+  100,
+  104,
+  108,
+  112,
+  116,
+  120,
+  124,
+  127
+ ],
+ "refit": true,
+ "hypothesis": "lower exponent reduces pp-to-ff spectral growth after damping-induced smoothing"
+}

@@ -1,0 +1,44 @@
+{
+ "cases": {
+  "no_detune": {
+   "unison.width_mid": 0,
+   "unison.width_treble": 0
+  },
+  "weak_bridge": {
+   "bridge.g_1k": 4.6e-05
+  },
+  "strong_bridge": {
+   "bridge.g_1k": 0.0046
+  }
+ },
+ "velocities": [
+  28,
+  32,
+  36,
+  40,
+  44,
+  45,
+  48,
+  52,
+  56,
+  60,
+  64,
+  68,
+  72,
+  76,
+  80,
+  84,
+  88,
+  92,
+  96,
+  100,
+  104,
+  108,
+  112,
+  116,
+  120,
+  124,
+  127
+ ],
+ "bridge_law_inactive": true
+}

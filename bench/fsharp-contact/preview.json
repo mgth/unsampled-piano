@@ -1,0 +1,10 @@
+{
+ "file": "out/fsharp-contact/fsharp-comparison.wav",
+ "order": [
+  "main v45 v56 v100",
+  "protected v45 v56 v100",
+  "balanced v45 v56 v100"
+ ],
+ "common_gain_db": 12.041199826559248,
+ "per_note_normalization": false
+}

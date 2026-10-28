@@ -1,0 +1,71 @@
+{
+ "cases": {
+  "base": {},
+  "level": {
+   "unison.height_spread": 0
+  },
+  "rigid": {
+   "shank_share": 0
+  },
+  "no_core": {
+   "core_hardness": 0
+  },
+  "even_hit": {
+   "unison.hit_spread": 0
+  },
+  "fixed_hit": {
+   "unison.soft_exponent": 0
+  },
+  "no_sym": {
+   "sympathetic.enabled": false
+  },
+  "no_knock": {
+   "noise.action": 0
+  },
+  "no_limiter": {
+   "limiter": 0
+  },
+  "local": null
+ },
+ "velocities": [
+  28,
+  32,
+  36,
+  40,
+  44,
+  45,
+  48,
+  52,
+  56,
+  60,
+  64,
+  68,
+  72,
+  76,
+  80,
+  84,
+  88,
+  92,
+  96,
+  100,
+  104,
+  108,
+  112,
+  116,
+  120,
+  124,
+  127
+ ],
+ "frequencies": [
+  3007.502152467564,
+  6116.958951937106,
+  9424.812091582808,
+  13017.653697170617
+ ],
+ "contact_substeps": [
+  5,
+  10,
+  20
+ ],
+ "note": 102
+}

@@ -1,0 +1,21 @@
+{
+ "source": "e035",
+ "cases": {
+  "selected": {},
+  "undo_shank_loss": {
+   "shank_loss": 0.1
+  },
+  "undo_shank_frequency": {
+   "shank_freq": 300
+  },
+  "undo_shank_share": {
+   "shank_share": 0.3
+  },
+  "undo_contact_scale": {
+   "hardness": 0.3
+  },
+  "undo_hysteresis": {
+   "hysteresis": 0.1
+  }
+ }
+}

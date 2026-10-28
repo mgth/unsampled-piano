@@ -1,0 +1,42 @@
+{
+ "engine_base_commit": "d0d3fef",
+ "synthesis_unchanged": true,
+ "production_default_sha256": "0a761844a082b918fe3700ab09918091f18cf10c3fed660db9f25f5e46fb9f73",
+ "reference_sha256": "7182ecd702687cb1e3841b84eb84c796713d3f5c7141850a01bba07215f04813",
+ "binaries": {
+  "out/main-revalidation/bin/contact_batch": "0ab95695e70213b2d47cb1bc683c455c664b9c1bf3a97f4a8de27738c3843416",
+  "out/main-revalidation/bin/piano-survey": "b71f2ef93f48703bac194030945c21569ea6a1286d3223d84a1245b42eb7a84a",
+  "out/fsharp-contact/contact_stages": "2524781cfcc7b6529732288089080de619429f6a252f075f1ac55a80b9bc371a"
+ },
+ "screen_counts": {
+  "screen-results": 49,
+  "refine-results": 100,
+  "mechanics-results": 57,
+  "damping-results": 36,
+  "damped-law-results": 36
+ },
+ "screen_velocities": 27,
+ "validation_wavs": {
+  "attack": 144,
+  "dense": 1200,
+  "full": 270
+ },
+ "python_tests_passed": 9,
+ "probe_compiles": true,
+ "probe_build_note": "The probe logic was unchanged; source was rustfmt-formatted between initial and player diagnostics. Hash identifies the final formatted build.",
+ "source_hashes": {
+  "crates/piano-render/examples/contact_stages.rs": "2c3b9f0245e1641d41644d5e268f42d5080dd3f28cab536b17e66a72627adbbc",
+  "bench/fsharp-contact/diagnose.py": "901b4613167f3b9d51f93ba2c53682aad891a3f592da99e1b5b5a33f8fb55b21",
+  "bench/fsharp-contact/search.py": "1bfbb4054c21bcb28373d71cde82e3b89384ca8e5212ded53489f9b1216ee619",
+  "bench/fsharp-contact/refine.py": "9b3624ca952a97491d79b85e58064cbd63c4a5657ef931a43e1d85ea5efc4dd8",
+  "bench/fsharp-contact/mechanics.py": "926bc9848a3a9662beb03b7ed082759573ff0d55700244ac29f56e389da90c2d",
+  "bench/fsharp-contact/damping.py": "65a7ea0354e8046f49461d160077ceaa6f5f071a27ab5119be75912e2833f472",
+  "bench/fsharp-contact/damped_law.py": "1b88538c77ca2d009f0c4ee1f5db779a81efb4095689b92b3f405fda878dfcf6",
+  "bench/fsharp-contact/validate.py": "70b8578ae30dd69b0b1b16c4601a0d5b20c878c41c3bbb36db96e5b0151b228a",
+  "bench/fsharp-contact/ablate_selected.py": "df1bfde591373b1b71001ec2657847ed641a6d063c4f396d2358da19716dd93c",
+  "bench/fsharp-contact/plath_check.py": "2a645acc590e4bbf1c0c1b55b5326128dd9a156bb78ff2f87415153d76cbef89",
+  "bench/fsharp-contact/player_check.py": "8af40640d70cc12e96b7193272a12ff23355010884607395fbf832c76ddc0a6f",
+  "bench/fsharp-contact/present.py": "02463f4646f3459b0d4ec89be2208a82694e3fe97d83a9aa005e90020fe1157d",
+  "bench/fsharp-contact/unison_check.py": "2d92d9c439657bf9ec37569361828cfc52dd66dd6bc40ba95066845704216457"
+ }
+}
