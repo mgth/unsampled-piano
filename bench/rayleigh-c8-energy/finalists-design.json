@@ -1,0 +1,227 @@
+{
+ "cases": [
+  {
+   "name": "f000",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.025
+    }
+   }
+  },
+  {
+   "name": "f001",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "f002",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.075
+    }
+   }
+  },
+  {
+   "name": "f003",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.025
+    }
+   }
+  },
+  {
+   "name": "f004",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "f005",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.075
+    }
+   }
+  },
+  {
+   "name": "f006",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.6,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.025
+    }
+   }
+  },
+  {
+   "name": "f007",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.6,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "f008",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.6,
+     "p": -1.25,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.075
+    }
+   }
+  },
+  {
+   "name": "f009",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.025
+    }
+   }
+  },
+  {
+   "name": "f010",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "f011",
+   "entry": {
+    "params": {
+     "q": 0.35,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.075
+    }
+   }
+  }
+ ],
+ "velocities": [
+  28,
+  36,
+  44,
+  45,
+  52,
+  56,
+  60,
+  68,
+  76,
+  84,
+  92,
+  100,
+  108,
+  116,
+  124,
+  127
+ ],
+ "policy": "Frozen stereo/Plath benchmark. Only Do8 contact fields vary; full integral radiation, no gain fit or EQ."
+}

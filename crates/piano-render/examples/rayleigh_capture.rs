@@ -1,5 +1,7 @@
 //! Soundboard stage capture and room processing for the offline prototype.
-//! rayleigh_capture capture PRESET OUT NOTE VELOCITIES HOLD TAIL
+//! rayleigh_capture capture PRESET OUT NOTE VELOCITIES HOLD TAIL [audit10]
+//! audit10 retains the Full instrument, doubles contact steps and disables
+//! engine silence shortcuts. This is a research sensitivity check, not a preset.
 //! rayleigh_capture room PRESET IN.wav OUT.wav
 use piano_core::{
     board::BoardBank, engine::SUB_BLOCK, instrument::Instrument, params::PianoModel, Engine,
@@ -55,7 +57,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     assert_eq!(a[1], "capture");
-    assert_eq!(a.len(), 8);
+    assert!(a.len() == 8 || a.len() == 9);
+    let quality = match a.get(8).map(String::as_str) {
+        None => piano_core::engine::Quality::Full,
+        Some("audit10") => piano_core::engine::Quality::Overkill,
+        Some(_) => return Err("unknown capture audit mode".into()),
+    };
     let model = PianoModel {
         room: piano_core::room::RoomParams {
             enabled: false,
@@ -64,6 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..original
     };
     let cfg = EngineConfig {
+        quality,
         model,
         max_block: SUB_BLOCK,
         threads: 1,

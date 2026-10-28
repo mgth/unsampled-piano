@@ -1,0 +1,51 @@
+{
+ "common_gain": 5.033523364517319,
+ "timeline": [
+  {
+   "velocity": 45,
+   "variant": "balanced",
+   "start_seconds": 0.0
+  },
+  {
+   "velocity": 45,
+   "variant": "contact",
+   "start_seconds": 1.5000208333333334
+  },
+  {
+   "velocity": 45,
+   "variant": "recovered",
+   "start_seconds": 3.0000416666666667
+  },
+  {
+   "velocity": 56,
+   "variant": "balanced",
+   "start_seconds": 4.5000625
+  },
+  {
+   "velocity": 56,
+   "variant": "contact",
+   "start_seconds": 6.000083333333333
+  },
+  {
+   "velocity": 56,
+   "variant": "recovered",
+   "start_seconds": 7.500104166666667
+  },
+  {
+   "velocity": 100,
+   "variant": "balanced",
+   "start_seconds": 9.000125
+  },
+  {
+   "velocity": 100,
+   "variant": "contact",
+   "start_seconds": 10.500145833333333
+  },
+  {
+   "velocity": 100,
+   "variant": "recovered",
+   "start_seconds": 12.000166666666667
+  }
+ ],
+ "policy": "One common gain for all items. Identical 20 ms end fade in montage only. No per-note normalization."
+}

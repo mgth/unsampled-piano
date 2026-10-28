@@ -1,0 +1,67 @@
+{
+ "profiles": {
+  "recovered": {
+   "102": {
+    "params": {
+     "q": 1.0,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 2.0
+    }
+   },
+   "108": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  "recovered_mf": {
+   "102": {
+    "params": {
+     "q": 1.0,
+     "h": 0.3,
+     "p": 0,
+     "w": 1,
+     "d": 0.0001
+    },
+    "extra": {
+     "strike_ratio": 0.105,
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 2.0
+    }
+   },
+   "108": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.075
+    }
+   }
+  }
+ },
+ "policy": "Full integral radiator; only Do8 contact changes from previous contact profile. F-sharp and every other key frozen. No gain or output EQ. f004 balances level and mf; f005 favors mf. Same references used for tuning and reporting; no default change."
+}

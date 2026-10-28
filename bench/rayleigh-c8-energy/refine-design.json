@@ -1,0 +1,839 @@
+{
+ "cases": [
+  {
+   "name": "r000",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r001",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r002",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r003",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r004",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.3,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r005",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.3,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r006",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r007",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r008",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.3,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r009",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.3,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r010",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r011",
+   "entry": {
+    "params": {
+     "q": 0.3,
+     "h": 0.6,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r012",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r013",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r014",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r015",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r016",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.3,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r017",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.3,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r018",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r019",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r020",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.3,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r021",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.3,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r022",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r023",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r024",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r025",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.3,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r026",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r027",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r028",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.3,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r029",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.3,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r030",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r031",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r032",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.3,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r033",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.3,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r034",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.6,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r035",
+   "entry": {
+    "params": {
+     "q": 0.5,
+     "h": 0.6,
+     "p": -0.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.1
+    }
+   }
+  },
+  {
+   "name": "r036",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "r037",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "r038",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "r039",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.05
+    }
+   }
+  },
+  {
+   "name": "r040",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.2
+    }
+   }
+  },
+  {
+   "name": "r041",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.2
+    }
+   }
+  },
+  {
+   "name": "r042",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.2
+    }
+   }
+  },
+  {
+   "name": "r043",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.2
+    }
+   }
+  },
+  {
+   "name": "r044",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.3
+    }
+   }
+  },
+  {
+   "name": "r045",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.5,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.3
+    }
+   }
+  },
+  {
+   "name": "r046",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 1.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.3
+    }
+   }
+  },
+  {
+   "name": "r047",
+   "entry": {
+    "params": {
+     "q": 0.4,
+     "h": 0.6,
+     "p": -1.0,
+     "w": 1.0,
+     "d": 2.5e-05
+    },
+    "extra": {
+     "shank_share": 0.45,
+     "shank_freq": 300,
+     "shank_loss": 0.3
+    }
+   }
+  }
+ ],
+ "velocities": [
+  28,
+  36,
+  44,
+  45,
+  52,
+  56,
+  60,
+  68,
+  76,
+  84,
+  92,
+  100,
+  108,
+  116,
+  124,
+  127
+ ],
+ "policy": "Frozen stereo/Plath benchmark. Only Do8 contact fields vary; full integral radiation, no gain fit or EQ."
+}
