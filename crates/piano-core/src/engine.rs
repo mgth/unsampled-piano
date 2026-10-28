@@ -1124,6 +1124,11 @@ pub fn strike_stats_full(cfg: &EngineConfig, note: u8, velocity: u8, oversample:
 /// Contact force (N) at each output sample of one strike on a string at
 /// rest, until the episode ends. Allocates: analysis use only.
 pub fn strike_force(cfg: &EngineConfig, note: u8, velocity: u8) -> Vec<f64> {
+    strike_forces(cfg, note, velocity).iter().map(|f| f.iter().sum()).collect()
+}
+
+/// The same, string by string.
+pub fn strike_forces(cfg: &EngineConfig, note: u8, velocity: u8) -> Vec<[f64; crate::hammer::NS]> {
     let board = cfg.model.board();
     let nm = crate::note_model::NoteModel::build(&cfg.model, board.as_ref(), None, note, cfg.sample_rate, MAX_MODES);
     let mut v = Voice::new(cfg.sample_rate, cfg.max_block);
@@ -1132,7 +1137,7 @@ pub fn strike_force(cfg: &EngineConfig, note: u8, velocity: u8) -> Vec<f64> {
     let mut out = [0.0f32; 1];
     let mut force = Vec::new();
     while v.contact.is_active() && v.contact.run(&mut out, None) == 1 {
-        force.push(v.contact.force());
+        force.push(v.contact.string_forces());
     }
     force
 }

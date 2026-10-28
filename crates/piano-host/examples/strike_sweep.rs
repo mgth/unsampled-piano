@@ -1,7 +1,7 @@
 //! Contact of one key's strike over the velocities, with a preset:
 //! `cargo run --release -p piano-host --example strike_sweep -- preset.toml 84 [vel...]`
 //! (with velocities: the force at each sample, as a bar per 0.1 ms row).
-use piano_core::engine::{hammer_velocity, strike_force, strike_stats_full, EngineConfig};
+use piano_core::engine::{hammer_velocity, strike_force, strike_forces, strike_stats_full, EngineConfig};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -17,6 +17,10 @@ fn main() {
             let line: String = f.iter().map(|x| b" .:-=+*#%@"[((x / peak) * 9.0).round() as usize] as char).collect();
             println!("{line}");
             println!("  every 5 samples (N): {}", f.iter().step_by(5).map(|x| format!("{x:.2}")).collect::<Vec<_>>().join(" "));
+            for s in 0..3 {
+                let fs: Vec<f64> = strike_forces(&cfg, note, vel).iter().map(|x| x[s]).collect();
+                println!("  string {s}, every 5 samples: {}", fs.iter().step_by(5).take(24).map(|x| format!("{x:.2}")).collect::<Vec<_>>().join(" "));
+            }
             // Spectrum of the pulse: its nulls against the partials.
             let n = 4096;
             let peak_bin = |lo: f64, hi: f64| {

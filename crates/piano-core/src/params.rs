@@ -242,11 +242,12 @@ pub struct UnisonLaw {
     /// the velocity (docs/release.md).
     pub soft_exponent: f64,
     pub soft_speed: f64,
-    /// Height spread of a unison's strings under the hammer (m): a blow at
-    /// v meets the lowest string up to height_spread/v after the highest,
-    /// which takes no force until then. 0.1 mm: 0.2 ms at pp, short against
-    /// a 2–3 ms contact, so the strings' partials barely part
-    /// (docs/release.md).
+    /// Height spread of a unison's strings under the hammer (m): each string
+    /// presses its own part of the felt, the lowest from when the felt has
+    /// travelled up to height_spread past the highest, and is compressed
+    /// that much less. 0.1 mm: the strings take pulses of a little different
+    /// lengths and shapes, whose spectral dips fall apart
+    /// (docs/strike_shape.md, docs/release.md).
     pub height_spread: f64,
 }
 
@@ -913,7 +914,11 @@ impl Default for PianoModel {
             core_depth_mid: 0.0,
             core_depth_treble: 0.0,
             p_offset: 0.0,
-            hysteresis: 0.3,
+            // 0.3 with the single felt (docs/middle_highs.md); with a contact
+            // per string, 0.6 scores better against the real grands (bench
+            // 1.03 against 1.07) and fills the treble's spectral dips
+            // (docs/strike_shape.md).
+            hysteresis: 0.6,
             contact_width_scale: 1.0,
             hammer_mass_scale: 1.0,
             shank_share: 0.3,

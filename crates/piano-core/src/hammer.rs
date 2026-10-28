@@ -20,9 +20,20 @@
 //! F = Q·[u^p + α·d(u^p)/dt]. Everything is linear in the unknown F, so each
 //! step is one scalar division: no iteration, fixed cost O(modes).
 //!
+//! The strings of a unison each press their own part of the felt: string s
+//! sees the compression u_s = x − d_s − Σ_{k∈s} φ_k·q_k (d_s: how much lower
+//! it lies than the highest) and takes F_s from a felt of σ_s of the
+//! hammer's stiffness (σ_s its share, Σσ = 1). Each has its own ψ_s; the
+//! hammer takes ΣF_s. The step is then a small linear system,
+//! F_s(1 + a_s·Λ_s) + a_s·μ·ΣF = b_s (μ = Δt²/m), solved in closed form,
+//! strings whose force would pull left out. Strings level with one another
+//! give the single felt on their mean displacement exactly; strings not
+//! quite level take pulses of different lengths and shapes, whose spectral
+//! dips fall at different frequencies (docs/strike_shape.md).
+//!
 //! Energy: multiplying each equation by its centred difference gives
 //! H[n+½] − H[n−½] = −Σ d_k(Δq_k)²/γ_k − η(Δu)² ≤ 0 with
-//! H = Σ_k [s_k(q[n+1]² + q[n]²) − 2c_k·q[n+1]q[n]]/γ_k + (m/T²)(x[n+1] − x[n])² + ψ[n+½]²,
+//! H = Σ_k [s_k(q[n+1]² + q[n]²) − 2c_k·q[n+1]q[n]]/γ_k + (m/T²)(x[n+1] − x[n])² + Σ_s ψ_s[n+½]²,
 //! s = (1+e)/2, d = (1−e)/2. H is positive definite (|c| < s), hence stable.
 //! The two guards below (no pulling force, ψ reset when out of contact) only
 //! remove energy.
@@ -41,9 +52,12 @@ pub struct PhysMode {
     pub state: C64,
     /// Fraction of the hammer seen by this string (1, or 0 when shifted away).
     pub hit: f64,
-    /// Time (s) after the start of the strike at which the hammer reaches
-    /// this string (a unison's strings do not lie at one height).
+    /// Time (s) after the start of the strike at which the hammer, at its
+    /// speed, would reach this string (a unison's strings do not lie at one
+    /// height): the string lies delay·v below the highest.
     pub delay: f64,
+    /// The string of the unison it belongs to (0..3): its own contact.
+    pub string: u8,
     /// Share of its bridge force that reaches the output, as in the modal
     /// bank: 1 for a vertical oscillator, `polarization.radiation` for a
     /// horizontal one.
@@ -58,6 +72,8 @@ const MAX_CONTACT_S: f64 = 0.03;
 
 /// Modes per chunk of the update loop (f64 lanes of an AVX-512 register).
 const CL: usize = 8;
+/// Strings of a unison, each with its own contact.
+pub const NS: usize = 3;
 
 /// Per-mode data of [`CL`] modes, in lanes: the update loop vectorises
 /// across modes. Padding lanes are all zero and stay zero.
@@ -66,8 +82,9 @@ const CL: usize = 8;
 struct Lanes {
     c: [f64; CL],
     e: [f64; CL],
-    gphi: [f64; CL],
-    phi: [f64; CL],
+    /// Per string: γφ and φ of the modes on that string, 0 elsewhere.
+    gphi: [[f64; CL]; NS],
+    phi: [[f64; CL]; NS],
     /// Output weights (bridge force).
     out_w: [f64; CL],
     /// Force on the agraffe end, −T·∂y/∂x(L) = T·Σ (kπ/L)·(−1)^{k+1}·q_k
@@ -90,8 +107,9 @@ pub struct ContactSolver {
     /// Inverse of γ_k (energy weights).
     inv_gamma: Vec<f64>,
     n: usize,
-    /// Σ φ·pred: string displacement under the hammer if no force acted.
-    w_star: f64,
+    /// Per string, Σ φ·pred: its displacement under the hammer if no force
+    /// acted.
+    w_star: [f64; NS],
     isa: crate::modal::Isa,
     // Hammer and contact.
     /// Base sample period, and the solver's (base / oversample).
@@ -108,27 +126,26 @@ pub struct ContactSolver {
     max_u: f64,
     p: f64,
     alpha: f64,
-    lambda: f64,
-    /// Residual (static) correction of the truncated modal string: the
-    /// compliance under the hammer of the modes left out (m/N), and the
-    /// share of the hammer force that reaches the bridge and the agraffe
-    /// quasi-statically through them.
-    c_res: f64,
+    /// Per string: its share σ of the felt (0: not struck), how much lower
+    /// it lies than the highest (m), and Σφ²γ of its modes.
+    sigma: [f64; NS],
+    offset: [f64; NS],
+    lambda: [f64; NS],
+    /// Residual (static) correction of the truncated modal string: per
+    /// string, the compliance under the hammer of the modes left out (m/N);
+    /// the share of the hammer force that reaches the bridge and the agraffe
+    /// quasi-statically through them; and the compliance sum per unit
+    /// weight, kept between strikes.
+    c_res: [f64; NS],
+    c_tail: f64,
     r_bridge: f64,
     r_agraffe: f64,
     /// What the residual was computed for (a voice keeps its key: the sums
     /// are redone only when the instrument changes).
     residual_key: [f64; 8],
-    /// Strings the hammer has not reached yet: per mode, the step at which
-    /// it does (0: from the start), its weight φ and γ; and the next such
-    /// step (usize::MAX: none left).
-    gate: Vec<usize>,
-    gate_phi: Vec<f64>,
-    gate_gamma: Vec<f64>,
-    next_gate: usize,
-    /// Contact force at the last two steps (N).
-    f0: f64,
-    f1: f64,
+    /// Contact force of each string at the last two steps (N).
+    f0: [f64; NS],
+    f1: [f64; NS],
     x0: f64,
     x1: f64,
     /// Flexible shank: its position now and one step earlier (m), effective
@@ -138,9 +155,9 @@ pub struct ContactSolver {
     shank_mass: f64,
     shank_k: f64,
     shank_c: f64,
-    w0: f64,
-    w1: f64,
-    psi: f64,
+    w0: [f64; NS],
+    w1: [f64; NS],
+    psi: [f64; NS],
     // Episode bookkeeping.
     active: bool,
     samples: usize,
@@ -156,7 +173,7 @@ impl ContactSolver {
             ps: vec![0.0; max_modes],
             inv_gamma: vec![0.0; max_modes],
             n: 0,
-            w_star: 0.0,
+            w_star: [0.0; NS],
             isa: crate::modal::Isa::detect(),
             base_dt: 1.0 / sample_rate,
             oversample: 1,
@@ -169,17 +186,16 @@ impl ContactSolver {
             max_u: 0.0,
             p: 0.0,
             alpha: 0.0,
-            lambda: 0.0,
-            c_res: 0.0,
+            sigma: [0.0; NS],
+            offset: [0.0; NS],
+            lambda: [0.0; NS],
+            c_res: [0.0; NS],
+            c_tail: 0.0,
             r_bridge: 0.0,
             r_agraffe: 0.0,
             residual_key: [f64::NAN; 8],
-            gate: vec![0; max_modes],
-            gate_phi: vec![0.0; max_modes],
-            gate_gamma: vec![0.0; max_modes],
-            next_gate: usize::MAX,
-            f0: 0.0,
-            f1: 0.0,
+            f0: [0.0; NS],
+            f1: [0.0; NS],
             x0: 0.0,
             x1: 0.0,
             y0: 0.0,
@@ -187,9 +203,9 @@ impl ContactSolver {
             shank_mass: 0.0,
             shank_k: 0.0,
             shank_c: 0.0,
-            w0: 0.0,
-            w1: 0.0,
-            psi: 0.0,
+            w0: [0.0; NS],
+            w1: [0.0; NS],
+            psi: [0.0; NS],
             active: false,
             samples: 0,
             separated: 0,
@@ -223,8 +239,13 @@ impl ContactSolver {
         (v, f, k)
     }
 
-    /// Contact force at the last step (N).
+    /// Contact force at the last step (N), all strings.
     pub fn force(&self) -> f64 {
+        self.f0.iter().sum()
+    }
+
+    /// Contact force of each string at the last step (N).
+    pub fn string_forces(&self) -> [f64; NS] {
         self.f0
     }
 
@@ -255,22 +276,36 @@ impl ContactSolver {
         let dt = self.dt;
         let modal_mass = note.mu * note.length / 2.0;
         let half_w = std::f64::consts::PI * note.contact_width / (2.0 * note.length);
-        let mut lambda = 0.0;
-        let mut w0 = 0.0;
-        let mut w1 = 0.0;
+        let mut lambda = [0.0; NS];
+        let mut w0 = [0.0; NS];
+        let mut w1 = [0.0; NS];
         let mut n = 0;
-        // The strings of a unison lie side by side under one felt: in
-        // parallel. The felt presses on their mean displacement (weighted by
-        // the share each one takes, `hit`) and each takes that share of the
-        // force; summing the displacements instead put them in series, the
-        // hammer seeing them N² times too compliant.
+        // The strings of a unison lie side by side under one felt, each
+        // pressing its own part: string s takes σ_s of the felt, its share
+        // of the force `hit` (summed over its oscillators, the horizontal
+        // one included), and its compression is the felt's travel past its
+        // mean displacement, weighted alike. Strings at one height then make
+        // the single felt on the unison's mean displacement, in parallel
+        // (summing the displacements put them in series, the hammer seeing
+        // them N² times too compliant). A string lower than the highest by
+        // d meets the felt when it has travelled d.
         // (Modes come ordered by partial: the first ones are partial 1. No
         // allocation: the iterator is walked twice.)
         let modes = modes.into_iter();
         let share: f64 = modes.clone().take_while(|m| m.k == 1).map(|m| m.hit).sum::<f64>().max(1e-9);
-        let shares2: f64 = modes.clone().take_while(|m| m.k == 1).map(|m| (m.hit / share).powi(2)).sum();
+        let (mut sigma, mut sq, mut offset) = ([0.0; NS], [0.0; NS], [f64::INFINITY; NS]);
+        for m in modes.clone().take_while(|m| m.k == 1) {
+            let s = (m.string as usize).min(NS - 1);
+            sigma[s] += m.hit / share;
+            sq[s] += (m.hit / share).powi(2);
+            offset[s] = offset[s].min(m.delay.max(0.0) * v);
+        }
+        for s in 0..NS {
+            if sigma[s] <= 1e-12 {
+                (sigma[s], offset[s]) = (0.0, 0.0);
+            }
+        }
         let mut k_max = 0;
-        self.next_gate = usize::MAX;
         for m in modes.take(self.ps.len()) {
             let i = n;
             n += 1;
@@ -278,35 +313,31 @@ impl ContactSolver {
             let ln = &mut self.lanes[i / CL];
             let l = i % CL;
             let k = m.k as f64;
+            let s = (m.string as usize).min(NS - 1);
             let r = (-m.sigma * dt).exp();
             let th = std::f64::consts::TAU * m.freq * dt;
             let (sn, cs) = th.sin_cos();
             let gamma = dt * r * sn / (modal_mass * std::f64::consts::TAU * m.freq);
-            // Mode shape at the strike point, averaged over the felt width.
-            // The bridge is at x = 0 and the hammer strikes `strike_pos`·L
-            // from the *agraffe* (x = L): striking near the bridge would push
-            // it quasi-statically with most of the hammer force (a thump).
+            // Mode shape at the strike point, averaged over the felt width,
+            // weighted within its string. The bridge is at x = 0 and the
+            // hammer strikes `strike_pos`·L from the *agraffe* (x = L):
+            // striking near the bridge would push it quasi-statically with
+            // most of the hammer force (a thump).
             let x = k * half_w;
-            let phi = m.hit / share
-                * (k * std::f64::consts::PI * (1.0 - note.strike_pos)).sin()
-                * if x > 1e-9 { x.sin() / x } else { 1.0 };
+            let phi = if sigma[s] > 0.0 {
+                m.hit / (share * sigma[s])
+                    * (k * std::f64::consts::PI * (1.0 - note.strike_pos)).sin()
+                    * if x > 1e-9 { x.sin() / x } else { 1.0 }
+            } else {
+                0.0
+            };
             ln.c[l] = r * cs;
             self.ps[i] = r * sn;
             ln.e[l] = r * r;
-            // A string the hammer reaches later takes no force until then;
-            // at rest, it joins without moving the felt (w unchanged).
-            let gate = (m.delay.max(0.0) / dt).round() as usize;
-            self.gate[i] = gate;
-            self.gate_phi[i] = phi;
-            self.gate_gamma[i] = gamma;
-            let phi = if gate > 0 {
-                self.next_gate = self.next_gate.min(gate);
-                0.0
-            } else {
-                phi
-            };
-            ln.phi[l] = phi;
-            ln.gphi[l] = gamma * phi;
+            for j in 0..NS {
+                ln.phi[j][l] = if j == s { phi } else { 0.0 };
+                ln.gphi[j][l] = if j == s { gamma * phi } else { 0.0 };
+            }
             self.inv_gamma[i] = 1.0 / gamma;
             // Bridge force T·∂y/∂x(0) = T·Σ (kπ/L)·q_k, weighted as the bank
             // weights it (a horizontal oscillator radiated at full weight
@@ -314,24 +345,28 @@ impl ContactSolver {
             // re-strike, a click).
             ln.out_w[l] = m.radiation * note.tension * k * std::f64::consts::PI / note.length;
             ln.out_a[l] = if m.k % 2 == 0 { -ln.out_w[l] } else { ln.out_w[l] };
-            lambda += phi * phi * gamma;
+            lambda[s] += phi * phi * gamma;
             // Displacements now and one sub-step earlier from the complex amplitude.
             let pole = C64::new(r * cs, r * sn);
             ln.q0[l] = m.state.re;
             ln.q1[l] = (m.state / pole).re;
             ln.pred[l] = 2.0 * ln.c[l] * ln.q0[l] - ln.e[l] * ln.q1[l];
-            w0 += phi * ln.q0[l];
-            w1 += phi * ln.q1[l];
+            w0[s] += phi * ln.q0[l];
+            w1[s] += phi * ln.q1[l];
         }
         self.n = n;
         if n % CL != 0 {
             // Padding lanes of the last chunk: inert.
             let ln = &mut self.lanes[n / CL];
-            for a in [&mut ln.c, &mut ln.e, &mut ln.gphi, &mut ln.phi, &mut ln.out_w, &mut ln.out_a, &mut ln.q0, &mut ln.q1, &mut ln.pred] {
+            for a in [&mut ln.c, &mut ln.e, &mut ln.out_w, &mut ln.out_a, &mut ln.q0, &mut ln.q1, &mut ln.pred] {
                 a[n % CL..].fill(0.0);
             }
+            for j in 0..NS {
+                ln.phi[j][n % CL..].fill(0.0);
+                ln.gphi[j][n % CL..].fill(0.0);
+            }
         }
-        self.w_star = update::<false>(&mut self.lanes[..n.div_ceil(CL)], 0.0).3;
+        self.w_star = update::<false>(&mut self.lanes[..n.div_ceil(CL)], [0.0; NS]).3;
         // The modes kept stop at k_max (a few in the top treble: four at C8
         // below 20 kHz). For an ideal string pushed at x_h = (1 − β)·L from
         // the bridge, the static deflection gives the bridge β of the force,
@@ -341,13 +376,15 @@ impl ContactSolver {
         // C8, the knock of the top treble lost. The modes above k_max are
         // added here as their static response, felt width included.
         // Each left-out mode k answers statically with q = φ·F/(m·ω_k²).
-        let key = [note.f0, note.b, note.length, note.tension, note.mu, note.strike_pos, note.contact_width, k_max as f64 + shares2 * 1e3];
+        let key = [note.f0, note.b, note.length, note.tension, note.mu, note.strike_pos, note.contact_width, k_max as f64];
         if key != self.residual_key {
             self.residual_key = key;
-            self.residual(note, k_max, shares2, half_w, modal_mass);
+            self.residual(note, k_max, half_w, modal_mass);
         }
-        self.f0 = 0.0;
-        self.f1 = 0.0;
+        // Each string's oscillators weigh (hit/share)/σ in its compression.
+        self.c_res = std::array::from_fn(|s| if sigma[s] > 0.0 { self.c_tail * sq[s] / (sigma[s] * sigma[s]) } else { 0.0 });
+        self.f0 = [0.0; NS];
+        self.f1 = [0.0; NS];
 
         let h = note.hammer;
         self.mass = h.mass_kg;
@@ -359,10 +396,15 @@ impl ContactSolver {
         self.max_u = 0.0;
         // Passivity must not depend on parameters: hysteresis only dissipates.
         self.alpha = h.alpha.max(0.0);
-        self.lambda = lambda + dt * dt / self.mass + self.c_res;
-        // Hammer arrives at the string now, at speed v, its shank unbent.
-        self.x0 = w0;
-        self.x1 = w0 - v * dt;
+        self.sigma = sigma;
+        self.offset = offset;
+        self.lambda = lambda;
+        // Hammer arrives at the first string it meets now, at speed v, its
+        // shank unbent.
+        let first = (0..NS).filter(|&s| sigma[s] > 0.0).map(|s| offset[s] + w0[s]).fold(f64::INFINITY, f64::min);
+        let first = if first.is_finite() { first } else { 0.0 };
+        self.x0 = first;
+        self.x1 = first - v * dt;
         self.shank_mass = h.shank_mass;
         self.shank_k = h.shank_k;
         self.shank_c = h.shank_c;
@@ -370,7 +412,7 @@ impl ContactSolver {
         self.y1 = self.x1;
         self.w0 = w0;
         self.w1 = w1;
-        self.psi = 0.0;
+        self.psi = [0.0; NS];
         self.active = true;
         self.samples = 0;
         self.separated = 0;
@@ -379,7 +421,7 @@ impl ContactSolver {
     }
 
     /// The residual sums of `strike` (see there), for modes above `k_max`.
-    fn residual(&mut self, note: &NoteParams, k_max: u32, shares2: f64, half_w: f64, modal_mass: f64) {
+    fn residual(&mut self, note: &NoteParams, k_max: u32, half_w: f64, modal_mass: f64) {
         let (mut c_tail, mut b_tail, mut a_tail) = (0.0, 0.0, 0.0);
         for k in k_max + 1..=k_max + RESIDUAL_TERMS {
             let kf = k as f64;
@@ -393,7 +435,7 @@ impl ContactSolver {
             b_tail += out_w * q;
             a_tail += if k % 2 == 0 { -out_w * q } else { out_w * q };
         }
-        self.c_res = shares2 * c_tail;
+        self.c_tail = c_tail;
         self.r_bridge = b_tail;
         self.r_agraffe = a_tail;
     }
@@ -437,36 +479,9 @@ impl ContactSolver {
         out.len()
     }
 
-    /// The hammer reaches the strings due at this step: their modes start
-    /// taking the force (the felt sees their displacement from now on).
-    fn open_gates(&mut self) {
-        let step = self.samples;
-        let mut next = usize::MAX;
-        for i in 0..self.n {
-            let g = self.gate[i];
-            if g == step {
-                let (ln, l) = (&mut self.lanes[i / CL], i % CL);
-                let (phi, gamma) = (self.gate_phi[i], self.gate_gamma[i]);
-                ln.phi[l] = phi;
-                ln.gphi[l] = gamma * phi;
-                self.lambda += phi * phi * gamma;
-                self.w0 += phi * ln.q0[l];
-                self.w1 += phi * ln.q1[l];
-                self.w_star += phi * ln.pred[l];
-            } else if g > step {
-                next = next.min(g);
-            }
-        }
-        self.next_gate = next;
-    }
-
     fn step(&mut self) -> (f64, f64) {
-        if self.samples == self.next_gate {
-            self.open_gates();
-        }
         let dt = self.dt;
-        // String displacement under the hammer from the free predictions.
-        let w_star = self.w_star;
+        let mu = dt * dt / self.mass;
         // The shank pulls the head with a force known at this step (explicit
         // central difference: stable while ω·dt < 2, ω some 10³ rad/s).
         let fs = if self.shank_mass > 0.0 {
@@ -475,38 +490,83 @@ impl ContactSolver {
             0.0
         };
         let x_star = 2.0 * self.x0 - self.x1 + dt * dt / self.mass * fs;
-        let u_star = x_star - w_star;
-        // The residual modes deflect with the force at once (no inertia).
-        let u_now = self.x0 - self.w0 - self.c_res * self.f0;
-        let u_prev = self.x1 - self.w1 - self.c_res * self.f1;
 
-        // Quadratised felt law and linearised hysteresis at u[n].
-        // g = F/√(2V) (= √(Q(p+1)/2)·u^((p−1)/2) for a single power law),
-        // hysteresis α·dF/dt linearised.
-        let (g, eta) = if u_now > 0.0 {
-            let (v, f, k) = self.felt(u_now);
-            let g = if v > 0.0 { f / (2.0 * v).sqrt() } else { 0.0 };
-            (g, self.alpha * k / (2.0 * dt))
-        } else {
-            (0.0, 0.0)
-        };
-        let a = g * g / 4.0 + eta;
-        let mut f = (g * self.psi + a * (u_star - u_prev)) / (1.0 + a * self.lambda);
-        let clamped = f < 0.0;
-        if clamped {
-            f = 0.0;
+        // Per string: the compression if no force acted, now and one step
+        // earlier (the residual modes deflect with the force at once), and
+        // the quadratised felt law (a felt of σ of the stiffness: V_s = σ·V,
+        // g_s = √σ·g) with its linearised hysteresis at u[n].
+        let (mut u_star, mut u_prev, mut g, mut a, mut b, mut big) = ([0.0; NS], [0.0; NS], [0.0; NS], [0.0; NS], [0.0; NS], [0.0; NS]);
+        let mut on = [false; NS];
+        for s in 0..NS {
+            let sg = self.sigma[s];
+            if sg <= 0.0 {
+                continue;
+            }
+            on[s] = true;
+            let d = self.offset[s];
+            u_star[s] = x_star - d - self.w_star[s];
+            let u_now = self.x0 - d - self.w0[s] - self.c_res[s] * self.f0[s];
+            u_prev[s] = self.x1 - d - self.w1[s] - self.c_res[s] * self.f1[s];
+            // g = F/√(2V) (= √(Q(p+1)/2)·u^((p−1)/2) for a single power law),
+            // hysteresis α·dF/dt linearised.
+            let (gs, eta) = if u_now > 0.0 {
+                let (v, f, k) = self.felt(u_now);
+                let g = if v > 0.0 { f / (2.0 * v).sqrt() } else { 0.0 };
+                (sg.sqrt() * g, sg * self.alpha * k / (2.0 * dt))
+            } else {
+                (0.0, 0.0)
+            };
+            g[s] = gs;
+            a[s] = gs * gs / 4.0 + eta;
+            b[s] = gs * self.psi[s] + a[s] * (u_star[s] - u_prev[s]);
+            big[s] = self.lambda[s] + self.c_res[s];
         }
-        let u_next = u_star - f * self.lambda;
-        self.max_u = self.max_u.max(u_next);
-        if !clamped {
-            self.psi += g * (u_next - u_prev) / 2.0;
+        // F_s·(1 + a_s·Λ_s) + a_s·μ·S = b_s, S = ΣF: S = Σ(b/(1+aΛ)) / (1 + μ·Σ(a/(1+aΛ))).
+        // A string whose force would pull is left out (no pulling force) and
+        // the rest solved again.
+        let mut f = [0.0; NS];
+        let mut total = 0.0;
+        for _ in 0..NS {
+            let (mut sb, mut sa) = (0.0, 0.0);
+            for s in 0..NS {
+                if on[s] {
+                    let den = 1.0 + a[s] * big[s];
+                    sb += b[s] / den;
+                    sa += a[s] / den;
+                }
+            }
+            total = sb / (1.0 + mu * sa);
+            let mut again = false;
+            for s in 0..NS {
+                f[s] = if on[s] { (b[s] - a[s] * mu * total) / (1.0 + a[s] * big[s]) } else { 0.0 };
+                if on[s] && f[s] < 0.0 {
+                    on[s] = false;
+                    again = true;
+                }
+            }
+            if !again {
+                break;
+            }
         }
-        if u_next <= 0.0 {
-            self.psi = 0.0;
+        if on.iter().all(|o| !o) {
+            (f, total) = ([0.0; NS], 0.0);
+        }
+        for s in 0..NS {
+            if self.sigma[s] <= 0.0 {
+                continue;
+            }
+            let u_next = u_star[s] - big[s] * f[s] - mu * total;
+            self.max_u = self.max_u.max(u_next);
+            if on[s] {
+                self.psi[s] += g[s] * (u_next - u_prev[s]) / 2.0;
+            }
+            if u_next <= 0.0 {
+                self.psi[s] = 0.0;
+            }
         }
 
         // Updates.
-        let x_next = x_star - dt * dt / self.mass * f;
+        let x_next = x_star - mu * total;
         if self.shank_mass > 0.0 {
             let y_next = 2.0 * self.y0 - self.y1 - dt * dt / self.shank_mass * fs;
             self.y1 = self.y0;
@@ -531,8 +591,8 @@ impl ContactSolver {
 
         // Episode end: separated long enough, or too long.
         self.samples += 1;
-        self.max_force = self.max_force.max(f);
-        if f > 0.0 {
+        self.max_force = self.max_force.max(total);
+        if total > 0.0 {
             self.contact_samples += 1;
             self.separated = 0;
         } else if self.contact_samples > 0 || self.samples > 1 {
@@ -541,7 +601,7 @@ impl ContactSolver {
         if self.separated as f64 * dt > RELEASE_AFTER_S || self.samples as f64 * dt > MAX_CONTACT_S {
             self.active = false;
         }
-        (out + self.r_bridge * f, out_a + self.r_agraffe * f)
+        (out + self.r_bridge * total, out_a + self.r_agraffe * total)
     }
 
     /// Discrete energy H[n+½] (twice the physical energy), for checks.
@@ -566,46 +626,50 @@ impl ContactSolver {
         } else {
             0.0
         };
-        h + self.mass / (self.dt * self.dt) * v * v + self.psi * self.psi + self.c_res * (self.f0 * self.f0 + self.f1 * self.f1) / 2.0 + shank
+        let felt: f64 = (0..NS).map(|s| self.psi[s] * self.psi[s] + self.c_res[s] * (self.f0[s] * self.f0[s] + self.f1[s] * self.f1[s]) / 2.0).sum();
+        h + self.mass / (self.dt * self.dt) * v * v + felt + shank
     }
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
-fn update_avx2(lanes: &mut [Lanes], f: f64) -> (f64, f64, f64, f64) {
+fn update_avx2(lanes: &mut [Lanes], f: [f64; NS]) -> ([f64; NS], f64, f64, [f64; NS]) {
     update::<true>(lanes, f)
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f")]
-fn update_avx512(lanes: &mut [Lanes], f: f64) -> (f64, f64, f64, f64) {
+fn update_avx512(lanes: &mut [Lanes], f: [f64; NS]) -> ([f64; NS], f64, f64, [f64; NS]) {
     update::<true>(lanes, f)
 }
 
-/// One pass over the modes: with `STEP`, q ← pred + γφ·F and the next
-/// prediction; returns Σφq, the bridge and agraffe forces, and Σφ·pred
-/// (the next step's free displacement under the hammer). Lane sums are
-/// reduced in a fixed order: the same result on every ISA.
+/// One pass over the modes: with `STEP`, q ← pred + γφ·F (each string's
+/// force on its modes) and the next prediction; returns per string Σφq, the
+/// bridge and agraffe forces, and per string Σφ·pred (the next step's free
+/// displacement under the hammer). Lane sums are reduced in a fixed order:
+/// the same result on every ISA.
 #[inline(always)]
-fn update<const STEP: bool>(lanes: &mut [Lanes], f: f64) -> (f64, f64, f64, f64) {
-    let (mut w, mut o, mut oa, mut ws) = ([0.0f64; CL], [0.0f64; CL], [0.0f64; CL], [0.0f64; CL]);
+fn update<const STEP: bool>(lanes: &mut [Lanes], f: [f64; NS]) -> ([f64; NS], f64, f64, [f64; NS]) {
+    let (mut w, mut o, mut oa, mut ws) = ([[0.0f64; CL]; NS], [0.0f64; CL], [0.0f64; CL], [[0.0f64; CL]; NS]);
     for ln in lanes {
         for l in 0..CL {
-            let q = if STEP { ln.pred[l] + ln.gphi[l] * f } else { ln.q0[l] };
+            let q = if STEP { ln.pred[l] + ln.gphi[0][l] * f[0] + ln.gphi[1][l] * f[1] + ln.gphi[2][l] * f[2] } else { ln.q0[l] };
             if STEP {
                 let p = 2.0 * ln.c[l] * q - ln.e[l] * ln.q0[l];
                 ln.q1[l] = ln.q0[l];
                 ln.q0[l] = q;
                 ln.pred[l] = p;
             }
-            w[l] += ln.phi[l] * q;
+            for s in 0..NS {
+                w[s][l] += ln.phi[s][l] * q;
+                ws[s][l] += ln.phi[s][l] * ln.pred[l];
+            }
             o[l] += ln.out_w[l] * q;
             oa[l] += ln.out_a[l] * q;
-            ws[l] += ln.phi[l] * ln.pred[l];
         }
     }
     let sum = |a: [f64; CL]| ((a[0] + a[4]) + (a[1] + a[5])) + ((a[2] + a[6]) + (a[3] + a[7]));
-    (sum(w), sum(o), sum(oa), sum(ws))
+    (w.map(sum), sum(o), sum(oa), ws.map(sum))
 }
 
 #[cfg(test)]
@@ -629,6 +693,7 @@ mod tests {
                     state: C64::ZERO,
                     hit: 1.0,
                     delay: 0.0,
+                    string: 0,
                     radiation: 1.0,
                 })
             })
@@ -665,7 +730,7 @@ mod tests {
         while s.is_active() {
             s.run(&mut out, None);
             let h = s.energy();
-            if s.psi > 0.0 {
+            if s.psi.iter().any(|&p| p > 0.0) {
                 assert!((h - h0).abs() / h0 < 1e-3, "drift in contact {:e}", (h - h0) / h0);
             }
             assert!(h <= prev * (1.0 + 1e-12));
@@ -763,5 +828,115 @@ mod tests {
             last = Some((s.contact_time(), s.max_force()));
         }
     }
-}
+    /// A unison at heights `heights` (m) below the highest string, struck at
+    /// `v`: each partial's modes, one per string.
+    fn unison(note: u8, heights: &[f64], v: f64) -> (Vec<PhysMode>, NoteParams) {
+        let (single, _) = setup(note, 1.0);
+        let np = PianoModel::default().note(note);
+        let modes = single
+            .iter()
+            .flat_map(|m| heights.iter().enumerate().map(move |(s, h)| PhysMode { delay: h / v, string: s as u8, ..*m }))
+            .collect();
+        (modes, np)
+    }
 
+    fn strike_out(np: &NoteParams, v: f64, modes: &[PhysMode]) -> (ContactSolver, Vec<f64>) {
+        let mut s = ContactSolver::new(modes.len(), 48_000.0);
+        s.strike(np, v, 4, modes.iter().copied());
+        let mut out = [0.0f32; 1];
+        let mut force = Vec::new();
+        while s.is_active() && s.run(&mut out, None) == 1 {
+            force.push(s.force());
+        }
+        (s, force)
+    }
+
+    #[test]
+    fn level_strings_make_the_single_felt() {
+        // Three strings at one height move as one string three times as
+        // heavy and as tense (same modes) under the whole felt: each takes a
+        // third of the force.
+        for v in [0.5, 2.0] {
+            let (three, np) = unison(84, &[0.0; 3], v);
+            let (one, _) = unison(84, &[0.0], v);
+            let mut np3 = np;
+            np3.mu *= 3.0;
+            np3.tension *= 3.0;
+            let (s1, f1) = strike_out(&np3, v, &one);
+            let (s3, f3) = strike_out(&np, v, &three);
+            let peak = f1.iter().cloned().fold(0.0, f64::max);
+            let n = f1.len().min(f3.len());
+            for (a, b) in f1[..n].iter().zip(&f3[..n]) {
+                assert!((a - b).abs() < 1e-9 * peak, "{a} vs {b}");
+            }
+            for i in 0..one.len() {
+                let z = s1.complex_state(i);
+                for j in 0..3 {
+                    assert!((s3.complex_state(3 * i + j) - z).norm() < 1e-6 * (z.norm() + 1e-15), "mode {i}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn uneven_strings_energy_never_grows() {
+        for note in [45u8, 84, 100] {
+            for v in [0.4, 1.5, 5.0] {
+                let (modes, np) = unison(note, &[0.0, 0.36e-4, 1e-4], v);
+                let mut s = ContactSolver::new(modes.len(), 48_000.0);
+                s.strike(&np, v, 2, modes.iter().copied());
+                let mut out = [0.0f32; 1];
+                s.run(&mut out, None);
+                let mut prev = s.energy();
+                while s.is_active() {
+                    s.run(&mut out, None);
+                    let h = s.energy();
+                    assert!(h <= prev * (1.0 + 1e-12), "note {note} v {v}: {h} > {prev}");
+                    prev = h;
+                }
+            }
+        }
+    }
+
+    /// Per partial 2–4 of `note`, the largest fall of its level (re partial
+    /// 1, the strings summed) below its level at softer blows (dB), over
+    /// 0.4–2.5 m/s; averaged.
+    fn dips(note: u8, heights: &[f64]) -> f64 {
+        let mut levels: Vec<[f64; 3]> = Vec::new();
+        for j in 0..22 {
+            let v = 0.4 * (2.5f64 / 0.4).powf(j as f64 / 21.0);
+            let (modes, np) = unison(note, heights, v);
+            let (s, _) = strike_out(&np, v, &modes);
+            let n = heights.len();
+            let partial = |k: usize| (0..n).map(|j| s.complex_state(k * n + j)).fold(C64::ZERO, |a, b| a + b).norm();
+            levels.push(std::array::from_fn(|k| 20.0 * (partial(k + 1) / partial(0)).log10()));
+        }
+        let mut total = 0.0;
+        for k in 0..3 {
+            let (mut best, mut dip) = (f64::NEG_INFINITY, 0.0f64);
+            for l in &levels {
+                best = best.max(l[k]);
+                dip = dip.max(best - l[k]);
+            }
+            total += dip;
+        }
+        total / 3.0
+    }
+
+    #[test]
+    fn uneven_strings_fill_the_spectral_dips() {
+        // A smooth, symmetric force pulse has spectral zeros that sweep
+        // through the partials as the blow quickens: one partial fades at
+        // some velocity (a hollow "plop" at C6 around velocity 50). The
+        // single felt on the unison's mean displacement, with the lower
+        // strings let in when the hammer reached them, kinked the pulse and
+        // dug 15–25 dB dips at C6–C7 (real grands: 5–10). Each string on its
+        // own contact keeps the pulse smooth and the dips shallower. C7
+        // keeps 13 dB (Salamander: 8; 20 before).
+        for (note, heights, most) in [(84u8, [0.0, 0.36e-4, 1e-4], 9.0), (90, [0.0, 1e-4, 0.86e-4], 9.0), (96, [0.0, 1e-4, 0.13e-4], 15.0)] {
+            let d = dips(note, &heights);
+            eprintln!("key {note}: partials 2-4, mean dip {d:.1} dB");
+            assert!(d < most, "key {note}: {d:.1} dB");
+        }
+    }
+}
