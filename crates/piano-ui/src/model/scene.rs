@@ -17,7 +17,7 @@
 
 use egui::Color32;
 use piano_core::params::PianoModel;
-use piano_core::soundboard::SoundboardParams;
+use piano_core::soundboard::{Outline, SoundboardParams};
 use piano_core::Observation;
 
 use super::cam::{add, cross, dot, norm, scale, sub, V3};
@@ -227,6 +227,77 @@ impl Builder {
     }
 }
 
+/// The board's outline in plate metres, counter-clockwise: the model's
+/// own (`soundboard.outline`), or the full a × b rectangle.
+pub fn board_outline(sb: &SoundboardParams) -> Vec<(f64, f64)> {
+    let mut p = Outline::new(sb).map_or_else(|| vec![(0.0, 0.0), (sb.a, 0.0), (sb.a, sb.b), (0.0, sb.b)], |o| o.points);
+    if signed_area(&p) < 0.0 {
+        p.reverse();
+    }
+    p
+}
+
+fn signed_area(p: &[(f64, f64)]) -> f64 {
+    0.5 * p.iter().zip(p.iter().cycle().skip(1)).map(|(a, b)| a.0 * b.1 - b.0 * a.1).sum::<f64>()
+}
+
+fn cross2(a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> f64 {
+    (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)
+}
+
+/// The part of the polygon `subject` inside the convex counter-clockwise
+/// `window` (Sutherland–Hodgman).
+pub fn clip(subject: &[(f64, f64)], window: &[(f64, f64)]) -> Vec<(f64, f64)> {
+    let mut out = subject.to_vec();
+    for k in 0..window.len() {
+        let (a, b) = (window[k], window[(k + 1) % window.len()]);
+        let input = std::mem::take(&mut out);
+        let cut = |p: (f64, f64), q: (f64, f64)| {
+            let (dp, dq) = (cross2(a, b, p), cross2(a, b, q));
+            let t = dp / (dp - dq);
+            (p.0 + t * (q.0 - p.0), p.1 + t * (q.1 - p.1))
+        };
+        for (i, &p) in input.iter().enumerate() {
+            let q = input[(i + 1) % input.len()];
+            match (cross2(a, b, p) >= 0.0, cross2(a, b, q) >= 0.0) {
+                (true, true) => out.push(q),
+                (true, false) => out.push(cut(p, q)),
+                (false, true) => out.extend([cut(p, q), q]),
+                (false, false) => {}
+            }
+        }
+        if out.is_empty() {
+            break;
+        }
+    }
+    out
+}
+
+/// Triangles covering the simple counter-clockwise polygon `p` (ear
+/// clipping), as indices into it.
+pub fn triangulate(p: &[(f64, f64)]) -> Vec<[usize; 3]> {
+    let mut idx: Vec<usize> = (0..p.len()).collect();
+    let mut tris = Vec::new();
+    while idx.len() > 3 {
+        let n = idx.len();
+        let ear = (0..n).find(|&i| {
+            let (a, b, c) = (p[idx[(i + n - 1) % n]], p[idx[i]], p[idx[(i + 1) % n]]);
+            cross2(a, b, c) > 0.0
+                && idx.iter().all(|&j| {
+                    let q = p[j];
+                    q == a || q == b || q == c || !(cross2(a, b, q) >= 0.0 && cross2(b, c, q) >= 0.0 && cross2(c, a, q) >= 0.0)
+                })
+        });
+        let Some(i) = ear else { break };
+        tris.push([idx[(i + n - 1) % n], idx[i], idx[(i + 1) % n]]);
+        idx.remove(i);
+    }
+    if idx.len() == 3 {
+        tris.push([idx[0], idx[1], idx[2]]);
+    }
+    tris
+}
+
 /// Where each key's strings start across the agraffes (m, plate y): the
 /// keys' places along the keyboard, laid over the main bridge's span.
 pub fn key_across(sb: &SoundboardParams, m: u8) -> f64 {
@@ -267,37 +338,65 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let obs = live.map(|l| l.obs);
     let key_level = |m: u8| live.map_or(0.0, |l| l.keys[m as usize]);
 
-    // The soundboard, a grid so that its motion can colour it.
+    // The soundboard within its outline, on a grid so that its motion can
+    // colour it: each grid cell clipped to the outline.
     let (gx, gy) = BOARD_GRID;
     let wood = pick(Part::Board, sketches::WOOD);
-    let colour_at = |i: usize, j: usize| -> [f32; 4] {
-        match live.and_then(|l| l.board) {
-            Some(field) => rgba(heat(field[j * gx + i]), 1.0),
-            None => rgba(wood, 1.0),
-        }
+    let outline = board_outline(&sb);
+    let field = live.and_then(|l| l.board);
+    let colour = |x: f64, y: f64| -> [f32; 4] {
+        let Some(f) = field else { return rgba(wood, 1.0) };
+        let (u, v) = ((x / sb.a).clamp(0.0, 1.0) * (gx - 1) as f64, (y / sb.b).clamp(0.0, 1.0) * (gy - 1) as f64);
+        let (i, j) = ((u as usize).min(gx - 2), (v as usize).min(gy - 2));
+        let (fu, fv) = ((u - i as f64) as f32, (v - j as f64) as f32);
+        let at = |i: usize, j: usize| f[j * gx + i];
+        let level = (at(i, j) * (1.0 - fu) + at(i + 1, j) * fu) * (1.0 - fv) + (at(i, j + 1) * (1.0 - fu) + at(i + 1, j + 1) * fu) * fv;
+        rgba(heat(level), 1.0)
     };
-    let pt = |i: usize, j: usize| place.at(sb.a * i as f64 / (gx - 1) as f64, sb.b * j as f64 / (gy - 1) as f64, 0.0);
     for j in 0..gy - 1 {
         for i in 0..gx - 1 {
-            let p = [pt(i, j), pt(i + 1, j), pt(i + 1, j + 1), pt(i, j + 1)];
-            let c = [colour_at(i, j), colour_at(i + 1, j), colour_at(i + 1, j + 1), colour_at(i, j + 1)];
-            // Wound so that the normal points to the board's face (+z).
-            b.tri(false, [p[0], p[2], p[1]], [c[0], c[2], c[1]]);
-            b.tri(false, [p[0], p[3], p[2]], [c[0], c[3], c[2]]);
+            let (x0, x1) = (sb.a * i as f64 / (gx - 1) as f64, sb.a * (i + 1) as f64 / (gx - 1) as f64);
+            let (y0, y1) = (sb.b * j as f64 / (gy - 1) as f64, sb.b * (j + 1) as f64 / (gy - 1) as f64);
+            let piece = clip(&outline, &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)]);
+            for k in 1..piece.len().saturating_sub(1) {
+                let t = [piece[0], piece[k], piece[k + 1]];
+                b.tri(false, t.map(|(x, y)| place.at(x, y, 0.0)), t.map(|(x, y)| colour(x, y)));
+            }
         }
     }
-    b.plate_box((0.0, 0.0, -0.012), (sb.a, sb.b, -0.002), wood.gamma_multiply(0.7));
-    b.label(place.at(sb.a * 0.75, sb.b * 0.2, 0.0), "Soundboard", "Soundboard");
+    // Its underside and edge.
+    let under = rgba(wood.gamma_multiply(0.7), 1.0);
+    for [i, j, k] in triangulate(&outline) {
+        b.tri(false, [outline[i], outline[k], outline[j]].map(|(x, y)| place.at(x, y, -0.012)), [under; 3]);
+    }
+    for (k, &p) in outline.iter().enumerate() {
+        let q = outline[(k + 1) % outline.len()];
+        b.quad(false, [place.at(p.0, p.1, -0.012), place.at(q.0, q.1, -0.012), place.at(q.0, q.1, 0.0), place.at(p.0, p.1, 0.0)], under);
+    }
+    b.label(place.at(sb.a * 0.45, sb.b * 0.7, 0.0), "Soundboard", "Soundboard");
 
-    // The case: the rim's walls around the board.
+    // The case: the rim's walls along the board's outline (the front one
+    // lower, under the keys' end).
     let t = if rim.enabled { rim.thickness } else { 0.02 };
     let (z0, z1) = if rim.enabled { (rim.top - rim.height, rim.top) } else { (-0.25, 0.05) };
     let case = pick(Part::Rim, CASE);
-    b.plate_box((-t, -t, z0), (sb.a + t, 0.0, z1), case);
-    b.plate_box((-t, sb.b, z0), (sb.a + t, sb.b + t, z1), case);
-    b.plate_box((sb.a, 0.0, z0), (sb.a + t, sb.b, z1), case);
-    b.plate_box((-t, 0.0, z0), (0.0, sb.b, z1.min(0.0)), case);
-    b.label(place.at(sb.a + t, sb.b * 0.5, z1), if rim.enabled { "Rim" } else { "Case (not modelled)" }, "Frame & rim");
+    for (k, &p) in outline.iter().enumerate() {
+        let q = outline[(k + 1) % outline.len()];
+        let (dx, dy) = (q.0 - p.0, q.1 - p.1);
+        let len = dx.hypot(dy);
+        if len < 1e-6 {
+            continue;
+        }
+        // Outwards (the outline turns counter-clockwise), lengthened by
+        // half the wall at both ends to close the corners.
+        let (ux, uy) = (dx / len * t / 2.0, dy / len * t / 2.0);
+        let (ox, oy) = (uy, -ux);
+        let front = p.0.abs() < 1e-6 && q.0.abs() < 1e-6;
+        let top = if front { z1.min(0.0) } else { z1 };
+        b.beam((p.0 - ux + ox, p.1 - uy + oy), (q.0 + ux + ox, q.1 + uy + oy), z0, t, top - z0, case);
+    }
+    let rim_label = outline.iter().cloned().fold((0.0, 0.0), |m, p| if p.0 > m.0 { p } else { m });
+    b.label(place.at(rim_label.0 + t, rim_label.1, z1), if rim.enabled { "Rim" } else { "Case (not modelled)" }, "Frame & rim");
 
     // Bridges on the board.
     let main = pick(Part::Bridges, sketches::BRIDGE);
@@ -519,6 +618,32 @@ mod tests {
         // Strings cross: the bass ones start across the keyboard's bass end.
         let ((_, a0), (_, b0), _) = string_ends(&m, &sb, 21);
         assert!(a0 > b0, "A0 from y = {a0} to {b0}");
+    }
+
+    #[test]
+    fn an_outlined_board_is_drawn_within_its_outline() {
+        let mut m = PianoModel::default();
+        let sb = m.soundboard.as_mut().unwrap();
+        sb.outline = SoundboardParams::GRAND_OUTLINE;
+        let sb = *sb;
+        let outline = board_outline(&sb);
+        let area = signed_area(&outline);
+        assert!(area > 0.0 && area < 0.9 * sb.a * sb.b, "{area}");
+        // The grid's pieces cover the outline, the underside too.
+        let pieces: f64 = (0..10)
+            .flat_map(|i| (0..10).map(move |j| (i, j)))
+            .map(|(i, j)| {
+                let (x0, y0, w, h) = (sb.a * i as f64 / 10.0, sb.b * j as f64 / 10.0, sb.a / 10.0, sb.b / 10.0);
+                signed_area(&clip(&outline, &[(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)]))
+            })
+            .sum();
+        assert!((pieces - area).abs() < 1e-9 * area.max(1.0), "{pieces} vs {area}");
+        let under: f64 = triangulate(&outline).iter().map(|t| signed_area(&t.map(|i| outline[i]))).sum();
+        assert!((under - area).abs() < 1e-9, "{under} vs {area}");
+        // No board drawn outside it: the board's top lies within the outline.
+        let s = build(&m, None, &options());
+        let corner = Place { vertical: false, top: 0.0 }.at(sb.a * 0.95, sb.b * 0.05, 0.0);
+        assert!(!s.tris.iter().any(|v| v.pos[2] == 0.0 && (v.pos[0] - corner[0]).abs() < 0.02 && (v.pos[1] - corner[1]).abs() < 0.02));
     }
 
     #[test]

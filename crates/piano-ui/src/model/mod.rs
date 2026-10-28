@@ -48,7 +48,7 @@ pub enum Mode {
 
 /// The geometry the editor lists beside the plan.
 const GEOMETRY: &[(&str, &[&str])] = &[
-    ("Soundboard", &["soundboard.a", "soundboard.b", "soundboard.main_bridge_from"]),
+    ("Soundboard", &["soundboard.a", "soundboard.b", "soundboard.outline_below", "soundboard.main_bridge_from"]),
     ("Frame", &["frame.offset_x", "frame.agraffe_x", "frame.a", "frame.b", "frame.height"]),
     ("Rim", &["rim.thickness", "rim.height", "rim.top"]),
     ("Lid", &["soundboard.lid_angle", "soundboard.lid_hinge_height"]),
@@ -214,6 +214,20 @@ fn handles(model: &PianoModel) -> Vec<Handle> {
     for (i, &p) in sb.bass_bridge.iter().enumerate() {
         h.push(point("Bass bridge point", "bass_bridge", i, p));
     }
+    if piano_core::soundboard::Outline::new(&sb).is_some() {
+        // Repeated vertices (the unused ones) share one handle: the first.
+        for (i, &(u, v)) in sb.outline.iter().enumerate() {
+            if i > 0 && sb.outline[..i].contains(&(u, v)) {
+                continue;
+            }
+            h.push(Handle {
+                name: "Outline point",
+                at: (u * sb.a, v * sb.b),
+                x: Some((format!("soundboard.outline[{i}][0]"), sb.a, 0.0)),
+                y: Some((format!("soundboard.outline[{i}][1]"), sb.b, 0.0)),
+            });
+        }
+    }
     let f = &model.frame;
     if f.enabled {
         h.push(Handle { name: "Agraffes", at: (scene::agraffe_x(model), sb.b * 0.08), x: Some(("frame.agraffe_x".into(), 1.0, f.offset_x)), y: None });
@@ -328,6 +342,7 @@ impl ModelView {
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.set_width(plan_w);
+                        outline_buttons(ui, control, model);
                         self.editor_plan(ui, control, model, registry, &scene, plan_w);
                         if three_d {
                             ui.add_space(6.0);
@@ -559,6 +574,36 @@ impl ModelView {
     }
 }
 
+/// The board's outline: a grand's, or the full rectangle. Each sets every
+/// vertex in one gesture; the instrument rebuilds once.
+fn outline_buttons(ui: &mut Ui, control: &mut dyn PianoControl, model: &PianoModel) {
+    let Some(sb) = model.soundboard else { return };
+    let rect = [(0.0, 0.0); piano_core::soundboard::OUTLINE_POINTS];
+    let outlined = piano_core::soundboard::Outline::new(&sb).is_some();
+    ui.horizontal(|ui| {
+        ui.label("Board outline:");
+        let set = |control: &mut dyn PianoControl, points: &[(f64, f64)]| {
+            let paths: Vec<String> = (0..points.len()).flat_map(|i| [format!("soundboard.outline[{i}][0]"), format!("soundboard.outline[{i}][1]")]).collect();
+            paths.iter().for_each(|p| control.begin_edit(p));
+            for (path, v) in paths.iter().zip(points.iter().flat_map(|&(u, v)| [u, v])) {
+                control.set(path, Value::Float(v));
+            }
+            paths.iter().for_each(|p| control.end_edit(p));
+        };
+        if ui
+            .selectable_label(outlined, "Grand's")
+            .on_hover_text("The bentside curving in towards the tail; the board's modes below the outline's corner frequency become the outlined board's own")
+            .clicked()
+            && !outlined
+        {
+            set(control, &SoundboardParams::GRAND_OUTLINE);
+        }
+        if ui.selectable_label(!outlined, "Rectangle").on_hover_text("The full a × b board").clicked() && outlined {
+            set(control, &rect);
+        }
+    });
+}
+
 /// The editor's parameter rows (the geometry without handles too).
 fn geometry_rows(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], control: &mut dyn PianoControl) -> Shown {
     let mut shown = Shown::default();
@@ -597,6 +642,10 @@ fn numbers(ui: &mut Ui, model: &PianoModel) {
         match built_board(model) {
             Some(sb) => {
                 row("Soundboard", format!("{:.2} × {:.2} m{}", sb.a, sb.b, if sb.vertical { ", standing" } else { "" }));
+                match piano_core::soundboard::Outline::new(&sb) {
+                    Some(o) => row("Outline", format!("{:.0} % of the rectangle, own modes under {:.0} Hz", 100.0 * o.area() / (sb.a * sb.b), sb.outline_below)),
+                    None => row("Outline", "the full rectangle".into()),
+                }
                 let board = Soundboard::new(sb);
                 let below = |f: f64| board.modes.iter().filter(|m| m.omega / std::f64::consts::TAU < f).count();
                 let first = board.modes.iter().find(|m| m.m > 0).map_or(0.0, |m| m.omega / std::f64::consts::TAU);
@@ -627,7 +676,7 @@ fn numbers(ui: &mut Ui, model: &PianoModel) {
     });
     ui.add_space(6.0);
     ui.label(
-        RichText::new("Board and case are the model's rectangles; legs, keyboard and pedals only situate the instrument. Click a name to open its page.")
+        RichText::new("Board and case follow the model's outline (a rectangle unless one is set); legs, keyboard and pedals only situate the instrument. Click a name to open its page.")
             .small()
             .weak(),
     );
@@ -674,7 +723,9 @@ mod tests {
     #[test]
     fn handles_name_real_parameters() {
         let reg = Registry::new();
-        let m = PianoModel::default();
+        let mut m = PianoModel::default();
+        m.soundboard.as_mut().unwrap().outline = SoundboardParams::GRAND_OUTLINE;
+        assert_eq!(handles(&m).iter().filter(|h| h.name == "Outline point").count(), 10);
         for h in handles(&m) {
             for (path, _, _) in h.x.iter().chain(&h.y) {
                 assert!(reg.get(path).is_some(), "{} sets {path}, which is no parameter", h.name);
