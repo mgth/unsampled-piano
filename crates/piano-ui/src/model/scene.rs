@@ -99,6 +99,10 @@ const UPRIGHT_BASE: f64 = 0.2;
 const UPRIGHT_KEYS_Z: f64 = 0.72;
 const UPRIGHT_KEYS_Y: f64 = -0.27;
 
+/// Bends up to this angle (degrees) are shaded as a curve, sharper ones as
+/// corners.
+const SMOOTH_DEG: f64 = 40.0;
+
 const STEEL: Color32 = Color32::from_rgb(170, 172, 178);
 const COPPER: Color32 = Color32::from_rgb(184, 115, 70);
 const IRON: Color32 = Color32::from_rgb(190, 160, 90);
@@ -132,6 +136,11 @@ struct Place {
 }
 
 impl Place {
+    /// A plate direction in world coordinates.
+    fn dir(&self, x: f64, y: f64, z: f64) -> V3 {
+        norm(sub(self.at(x, y, z), self.at(0.0, 0.0, 0.0)))
+    }
+
     fn at(&self, x: f64, y: f64, z: f64) -> V3 {
         if self.vertical { [-y as f32, -z as f32, (self.top - x) as f32] } else { [-y as f32, x as f32, z as f32] }
     }
@@ -148,6 +157,94 @@ impl Builder {
         let out = if glass { &mut self.s.glass } else { &mut self.s.tris };
         for (pos, color) in p.into_iter().zip(c) {
             out.push(Vertex { pos, normal: n, color });
+        }
+    }
+
+    /// A quad with a normal at each corner (smooth shading).
+    fn quad_n(&mut self, p: [V3; 4], n: [V3; 4], c: [f32; 4]) {
+        for k in [0, 1, 2, 0, 2, 3] {
+            self.s.tris.push(Vertex { pos: p[k], normal: n[k], color: c });
+        }
+    }
+
+    /// A wall of constant section along the plate polyline `line`, between
+    /// `a` and `b` metres to its right (outwards on a counter-clockwise
+    /// outline), from `z0` up to each segment's `top`: one piece, mitred at
+    /// the joins, shaded smooth where the line bends by less than
+    /// [`SMOOTH_DEG`], with a step where two segments' tops differ.
+    #[allow(clippy::too_many_arguments)]
+    fn wall(&mut self, line: &[(f64, f64)], closed: bool, a: f64, b: f64, z0: f64, top: &dyn Fn(usize) -> f64, c: Color32) {
+        let n = line.len();
+        let segs = if closed { n } else { n - 1 };
+        if n < 2 {
+            return;
+        }
+        let c = rgba(c, 1.0);
+        let right = |k: usize| {
+            let (p, q) = (line[k], line[(k + 1) % n]);
+            let (dx, dy) = (q.0 - p.0, q.1 - p.1);
+            let l = dx.hypot(dy).max(1e-12);
+            (dy / l, -dx / l)
+        };
+        // Per vertex: the segments on either side (None at an open end),
+        // the mitre direction and its length factor, and whether the bend
+        // is smooth.
+        let joint = |i: usize| -> (Option<usize>, Option<usize>) {
+            let prev = if i > 0 { Some(i - 1) } else if closed { Some(n - 1) } else { None };
+            let next = if i < segs { Some(i) } else { None };
+            (prev, next)
+        };
+        let mut mitre = Vec::with_capacity(n);
+        for i in 0..n {
+            let (prev, next) = joint(i);
+            let (m, smooth) = match (prev.map(right), next.map(right)) {
+                (Some(u), Some(v)) => {
+                    let (mx, my) = (u.0 + v.0, u.1 + v.1);
+                    let l = mx.hypot(my).max(1e-12);
+                    let m = (mx / l, my / l);
+                    let k = 1.0 / (m.0 * v.0 + m.1 * v.1).max(0.3);
+                    ((m.0 * k, m.1 * k), u.0 * v.0 + u.1 * v.1 > SMOOTH_DEG.to_radians().cos())
+                }
+                (Some(u), None) | (None, Some(u)) => (u, false),
+                (None, None) => ((0.0, 0.0), false),
+            };
+            mitre.push((m, smooth));
+        }
+        let at = |i: usize, off: f64| (line[i].0 + mitre[i].0.0 * off, line[i].1 + mitre[i].0.1 * off);
+        let pl = self.place;
+        let w = |p: (f64, f64), z: f64| pl.at(p.0, p.1, z);
+        let (up, down) = (pl.dir(0.0, 0.0, 1.0), pl.dir(0.0, 0.0, -1.0));
+        for k in 0..segs {
+            let (i, j) = (k, (k + 1) % n);
+            let h = top(k);
+            let (li, lj, ri, rj) = (at(i, a), at(j, a), at(i, b), at(j, b));
+            // The faces' own normal, or the mitre's at a smooth bend.
+            let face = right(k);
+            let side = |v: usize| if mitre[v].1 { mitre[v].0 } else { face };
+            let (si, sj) = (side(i), side(j));
+            let out = |s: (f64, f64)| pl.dir(s.0, s.1, 0.0);
+            let inn = |s: (f64, f64)| pl.dir(-s.0, -s.1, 0.0);
+            self.quad_n([w(li, h), w(lj, h), w(rj, h), w(ri, h)], [up; 4], c);
+            self.quad_n([w(li, z0), w(ri, z0), w(rj, z0), w(lj, z0)], [down; 4], c);
+            self.quad_n([w(ri, z0), w(ri, h), w(rj, h), w(rj, z0)], [out(si), out(si), out(sj), out(sj)], c);
+            self.quad_n([w(li, z0), w(lj, z0), w(lj, h), w(li, h)], [inn(si), inn(si), inn(sj), inn(sj)], c);
+        }
+        // Steps between segments of different heights, and open ends.
+        for i in 0..n {
+            let (prev, next) = joint(i);
+            let (lo, hi, along) = match (prev, next) {
+                (Some(p), Some(q)) if (top(p) - top(q)).abs() > 1e-9 => {
+                    let lower = if top(p) < top(q) { p } else { q };
+                    let r = right(lower);
+                    (top(p).min(top(q)), top(p).max(top(q)), (-r.1, r.0))
+                }
+                (Some(p), None) => (z0, top(p), (-right(p).1, right(p).0)),
+                (None, Some(q)) => (z0, top(q), (-right(q).1, right(q).0)),
+                _ => continue,
+            };
+            let d = pl.dir(along.0, along.1, 0.0);
+            let (l, r) = (at(i, a), at(i, b));
+            self.quad_n([w(l, lo), w(r, lo), w(r, hi), w(l, hi)], [d; 4], c);
         }
     }
 
@@ -182,19 +279,6 @@ impl Builder {
         let u = sub(p.at(b.0, a.1, a.2), o);
         let v = sub(p.at(a.0, b.1, a.2), o);
         let w = sub(p.at(a.0, a.1, b.2), o);
-        self.cuboid(o, u, v, w, c);
-    }
-
-    /// A box of `width` and `height` along the plate segment p → q at z0.
-    fn beam(&mut self, p: (f64, f64), q: (f64, f64), z0: f64, width: f64, height: f64, c: Color32) {
-        let pl = self.place;
-        let (dx, dy) = (q.0 - p.0, q.1 - p.1);
-        let l = dx.hypot(dy).max(1e-9);
-        let (nx, ny) = (-dy / l * width / 2.0, dx / l * width / 2.0);
-        let o = pl.at(p.0 - nx, p.1 - ny, z0);
-        let u = sub(pl.at(q.0 - nx, q.1 - ny, z0), o);
-        let v = sub(pl.at(p.0 + nx, p.1 + ny, z0), o);
-        let w = sub(pl.at(p.0 - nx, p.1 - ny, z0 + height), o);
         self.cuboid(o, u, v, w, c);
     }
 
@@ -379,14 +463,10 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             }
         }
     }
-    // Its underside and edge.
+    // Its underside (its edge is against the rim's wall).
     let under = rgba(wood.gamma_multiply(0.7), 1.0);
     for [i, j, k] in triangulate(&outline) {
         b.tri(false, [outline[i], outline[k], outline[j]].map(|(x, y)| place.at(x, y, -0.012)), [under; 3]);
-    }
-    for (k, &p) in outline.iter().enumerate() {
-        let q = outline[(k + 1) % outline.len()];
-        b.quad(false, [place.at(p.0, p.1, -0.012), place.at(q.0, q.1, -0.012), place.at(q.0, q.1, 0.0), place.at(p.0, p.1, 0.0)], under);
     }
     b.label(place.at(sb.a * 0.45, sb.b * 0.7, 0.0), "Soundboard", "Soundboard");
 
@@ -395,21 +475,11 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let t = if rim.enabled { rim.thickness } else { 0.02 };
     let (z0, z1) = if rim.enabled { (rim.top - rim.height, rim.top) } else { (-0.25, 0.05) };
     let case = pick(Part::Rim, CASE);
-    for (k, &p) in outline.iter().enumerate() {
-        let q = outline[(k + 1) % outline.len()];
-        let (dx, dy) = (q.0 - p.0, q.1 - p.1);
-        let len = dx.hypot(dy);
-        if len < 1e-6 {
-            continue;
-        }
-        // Outwards (the outline turns counter-clockwise), lengthened by
-        // half the wall at both ends to close the corners.
-        let (ux, uy) = (dx / len * t / 2.0, dy / len * t / 2.0);
-        let (ox, oy) = (uy, -ux);
-        let front = p.0.abs() < 1e-6 && q.0.abs() < 1e-6;
-        let top = if front { z1.min(0.0) } else { z1 };
-        b.beam((p.0 - ux + ox, p.1 - uy + oy), (q.0 + ux + ox, q.1 + uy + oy), z0, t, top - z0, case);
-    }
+    let front = |k: usize| {
+        let (p, q) = (outline[k], outline[(k + 1) % outline.len()]);
+        p.0.abs() < 1e-6 && q.0.abs() < 1e-6
+    };
+    b.wall(&outline, true, 0.0, t, z0, &|k| if front(k) { z1.min(0.0) } else { z1 }, case);
     let rim_label = outline.iter().cloned().fold((0.0, 0.0), |m, p| if p.0 > m.0 { p } else { m });
     b.label(place.at(rim_label.0 + t, rim_label.1, z1), if rim.enabled { "Rim" } else { "Case (not modelled)" }, "Frame & rim");
 
@@ -417,11 +487,9 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let main = pick(Part::Bridges, sketches::BRIDGE);
     let bass = if lit(Part::BassBridge) { sketches::HIGHLIGHT } else { main };
     let tb: Vec<(f64, f64)> = sb.treble_bridge.iter().map(|&(u, v)| (u * sb.a, v * sb.b)).collect();
-    for w in tb.windows(2) {
-        b.beam(w[0], w[1], 0.0, 0.025, BRIDGE_H, main);
-    }
+    b.wall(&tb, false, -0.0125, 0.0125, 0.0, &|_| BRIDGE_H, main);
     let bb: Vec<(f64, f64)> = sb.bass_bridge.iter().map(|&(u, v)| (u * sb.a, v * sb.b)).collect();
-    b.beam(bb[0], bb[1], 0.0, 0.03, BRIDGE_H + BASS_RISE, bass);
+    b.wall(&bb, false, -0.015, 0.015, 0.0, &|_| BRIDGE_H + BASS_RISE, bass);
     let (lx, ly) = tb[2];
     b.label(place.at(lx, ly, BRIDGE_H), "Bridge", "Soundboard");
     b.label(place.at(bb[0].0, bb[0].1, BRIDGE_H + BASS_RISE), "Bass bridge", "Soundboard");
@@ -664,6 +732,29 @@ mod tests {
         let s = build(&m, None, &options());
         let corner = Place { vertical: false, top: 0.0 }.at(sb.a * 0.95, sb.b * 0.05, 0.0);
         assert!(!s.tris.iter().any(|v| v.pos[2] == 0.0 && (v.pos[0] - corner[0]).abs() < 0.02 && (v.pos[1] - corner[1]).abs() < 0.02));
+    }
+
+    #[test]
+    fn the_rim_is_one_wall_without_overlaps() {
+        let mut m = PianoModel::default();
+        m.soundboard.as_mut().unwrap().outline = SoundboardParams::GRAND_OUTLINE;
+        let sb = m.soundboard.unwrap();
+        let outline = board_outline(&sb);
+        let mut b = Builder { s: Scene::default(), place: Place { vertical: false, top: 0.0 } };
+        let (t, z0, z1) = (0.075, -0.25, 0.05);
+        b.wall(&outline, true, 0.0, t, z0, &|_| z1, CASE);
+        // Its top is the ring between the outline and its offset: its area
+        // is the offset polygon's minus the outline's, no more (no overlap).
+        let top: f64 = b.s.tris.as_chunks::<3>().0.iter().filter(|t| t.iter().all(|v| (v.pos[2] - z1 as f32).abs() < 1e-6)).map(|t| {
+            let p = t.map(|v| (v.pos[0] as f64, v.pos[1] as f64));
+            signed_area(&p).abs()
+        }).sum();
+        let perimeter: f64 = outline.iter().zip(outline.iter().cycle().skip(1)).map(|(p, q)| (q.0 - p.0).hypot(q.1 - p.1)).sum();
+        // A ring t wide around a convex-ish outline: perimeter·t plus the
+        // corners' mitres, well under the overlapping blocks' sum.
+        assert!(top > perimeter * t && top < perimeter * t + 8.0 * t * t, "{top} vs {}", perimeter * t);
+        // Every normal is a unit vector.
+        assert!(b.s.tris.iter().all(|v| (dot(v.normal, v.normal) - 1.0).abs() < 1e-4));
     }
 
     #[test]
