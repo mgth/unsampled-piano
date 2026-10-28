@@ -185,6 +185,22 @@ Tried, as the user asked, against the D2 hole. Eight bass keys (E1–C3) rendere
 
 BiVib's and Plath's binaural pairs on the same keys: +0.4 to +0.95 in every band. The modes between 260 and 335 Hz are (3,2), (2,3), (4,1) and (1,4), one every 20 Hz with a 9 Hz bandwidth: each dominates its band alone, and reaches any two microphones 0.5–0.8 m apart in opposite lobes. Moving the pair moves the dips (D2's partial 4 −37 → −27 dB on the mono sum, A2's partial 3 then −17) and repairs the low bands' correlation, not 315 Hz; the pair's place also sets the registers' balance (the treble and top worsen: bench 1.11–1.22). The real lever is the board's regularity (ribs, outline, the modes' density near 300 Hz), the open "board colouring" item. A/B in out/ab_mics (Beethoven and A1/D2: now, P7, P10) for the ear; nothing changed.
 
+**Heard: P10 helps.** On A1 and on the Beethoven passage, the user hears P10 "really better", drier than the recording but correcting part of the tube. What P10 changes is the attack's arrival at the two microphones: with the pair 0.8 m apart, a bass attack reaches them 3.7 ms apart with no correlation (200 Hz–4 kHz, first 40 ms), and the two channels sum into a comb; the real pairs are within 0.2–1.7 ms and correlated +0.2 to +0.5 (BiVib, Plath, Headroom/Splendid/Helgesson). The stereo flam suspected on 2026-10-27 was right, and is heard even on one channel through the room and the board's antiphase. A grid of pairs on eight bass keys:
+
+| pair | attack lag | attack corr | L/R 63–125 Hz | bench |
+|---|---|---|---|---|
+| now, 0.4 m high | 3.7 ms | −0.02 | 0.0 / +0.4 / +0.1 / 0.0 | 1.09 |
+| now, 0.5 m | 3.3 | −0.26 | −0.2 / +0.3 / +0.1 / −0.1 | |
+| P10: (0.33, 0.40) (0.50, 0.60); 0.5 | 1.4 | +0.37 | +0.2 / +0.8 / +0.6 / +0.5 | 1.16 |
+| P10 at 0.4 m | 1.5 | +0.14 | +0.1 / +0.8 / +0.6 / +0.5 | |
+| P13: treble as now, bass (0.46, 0.60); 0.5 | 1.5 | +0.43 | +0.4 / +0.6 / +0.5 / +0.3 | 1.19 |
+| P20: treble as now, bass (0.44, 0.62); 0.5 | 1.4 | +0.44 | +0.6 / +0.9 / +0.6 / +0.4 | 1.18 |
+| P20 at 0.6 m | 1.7 | +0.26 | +0.1 / +0.5 / +0.5 / +0.6 | |
+
+The closer pairs cost the bench 0.07–0.10, mostly the middle's key-to-key evenness of partials 1–2 (z +0.7 → +2.1–2.7: the bass microphone now hangs over the middle of the main bridge) and the top's 2 kHz bands. A/B in out/ab_mics2 (now, P10, P13, P20). **Heard: with the studio on every file, the current pair's timbre is the closest to the recording.** The first set's isolated notes with P7 and P10 had been rendered without the room while "now" had the studio: what the user liked ("drier") may have been the missing room, not the pair. A pair × room square in out/ab_square (A1, D2: now and P10, each with and without the studio) separates the two. The user then noted the studio is barely audible in these files, so both verdicts stand: P10 takes part of the tube away *and* moves the timbre away from the recording.
+
+No gradual compromise exists: with the treble microphone kept, the bass one moved from (0.71, 0.65) to (0.64, 0.64), (0.58, 0.63), (0.52, 0.62) at 0.4 or 0.5 m leaves the attack's L/R correlation at −0.1 to −0.5 (lag 2–3 ms); only within ≈ 0.45 m of the other microphone ((0.44–0.50, 0.60–0.62) at 0.5 m) does it turn positive (+0.4). The real pairs' coherence at 0.5–0.8 m spacing says the recorded bass attack has a localised, direct component (the strings' and hammer's region, path differences of 0.2–1.7 ms) that the model's attack, radiated by the whole board's modes, has not. That is the lead behind the microphones: not where they stand, but what reaches them first.
+
 ## Still open
 
 - **C2–A2 lacks body.** Relative to the strongest partial, partials 4–6 lie 10–13 dB under the recording in the sustain (−1 to −5 at the attack): they decay at −14 dB/s against −9. The edge loss is not it (off: −12). The bench's eight grands agree: the bass's partials 4–12 are 4–8 dB weak in the sustain. The bridge's conductance at 300–800 Hz is next.
