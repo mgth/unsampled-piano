@@ -3,7 +3,8 @@
 Plath's concert grand, partial by partial (docs/stage_swap.md). For each
 partial between --lo and --hi Hz: its level early (0.05–0.2 s) and in the
 sustain (0.3–1 s), model minus real (dB), and its decay rate over 0.1–1 s
-on each side (dB/s). Levels within a signal are re its strongest partial
+on each side (dB/s), with the deepest dip of its envelope below that
+trend (a unison's beat null). Levels within a signal are re its strongest partial
 early, so that the two instruments' overall levels do not matter.
 
   tools/bridge_partials.py <plath dir> --keys 33,45 [--velocity 105] [--lo 300] [--hi 2200]
@@ -49,9 +50,11 @@ def partials(x, m, lo, hi):
         le = 10 * np.log10(Pe[c - 3: c + 4].sum() + 1e-30); ls = 10 * np.log10(Ps[c - 3: c + 4].sum() + 1e-30)
         top = max(top, le)
         ct = int(np.argmin(np.abs(ft - g))); e = 10 * np.log10(St[:, max(ct - 1, 0): ct + 2].sum(1) + 1e-30)
-        sel = (t > 0.1) & (t < 1.0); rate = np.polyfit(t[sel], e[sel], 1)[0]
-        if g >= lo: out[k] = [g, le, ls, rate]
-    return {k: (g, le - top, ls - top, r) for k, (g, le, ls, r) in out.items()}
+        sel = (t > 0.1) & (t < 1.0); fit = np.polyfit(t[sel], e[sel], 1); rate = fit[0]
+        # the deepest dip below the exponential trend: a unison's beat null
+        dip = float((e[sel] - np.polyval(fit, t[sel])).min())
+        if g >= lo: out[k] = [g, le, ls, rate, dip]
+    return {k: (g, le - top, ls - top, r, d) for k, (g, le, ls, r, d) in out.items()}
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -70,13 +73,14 @@ def main():
         am = np.diff(np.fromfile(prefix + "_bridge.f32", np.float32).astype(float), prepend=0.0) * SR
         R, M = partials(ar, m, a.lo, a.hi), partials(am, m, a.lo, a.hi)
         print(f"\n{b.name(m)} (velocity {a.velocity}), bridge acceleration per partial, model − real: early 0.05–0.2 s, sustain 0.3–1 s; decay 0.1–1 s")
-        print("    k     Hz  real early | early diff  sustain diff | decay real  model (dB/s)")
+        print("    k     Hz  real early | early diff  sustain diff | decay real  model (dB/s) | dip real  model (dB)")
         for k in sorted(set(R) & set(M)):
-            print(f"  {k:3d} {R[k][0]:6.0f}  {R[k][1]:6.1f}    | {M[k][1] - R[k][1]:+6.1f}      {M[k][2] - R[k][2]:+6.1f}     | {R[k][3]:6.1f}  {M[k][3]:6.1f}")
+            print(f"  {k:3d} {R[k][0]:6.0f}  {R[k][1]:6.1f}    | {M[k][1] - R[k][1]:+6.1f}      {M[k][2] - R[k][2]:+6.1f}     | {R[k][3]:6.1f}  {M[k][3]:6.1f}      | {R[k][4]:6.1f}  {M[k][4]:6.1f}")
         ks = [k for k in R if k in M and R[k][0] >= 1000]
         if ks:
             dr = np.median([R[k][3] for k in ks]); dm = np.median([M[k][3] for k in ks])
-            print(f"  median decay of the partials above 1 kHz: real {dr:.1f}, model {dm:.1f} dB/s")
+            pr = np.median([R[k][4] for k in ks]); pm = np.median([M[k][4] for k in ks])
+            print(f"  partials above 1 kHz, medians: decay real {dr:.1f}, model {dm:.1f} dB/s; deepest dip below the trend real {pr:.1f}, model {pm:.1f} dB")
     for f in os.listdir(tmp): os.remove(os.path.join(tmp, f))
     os.rmdir(tmp)
 

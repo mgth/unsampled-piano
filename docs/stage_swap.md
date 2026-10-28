@@ -82,3 +82,23 @@ Partial by partial on A1, D2 and A2 the model's decays are not uniform where the
 The early levels differ by ±10 dB from partial to partial (A2: +9 at partial 12, +6 at 13 and 16, −8 at 11 and 14), the hammer's and the bridge's share of the whistles; and the real bridge has deep antiresonances the model's has not (A1's partial 18 at 1015 Hz: −43 dB early on the real bridge, −6 on the model's): the fine-structure spread axis 3 of docs/realism_axes.md measured.
 
 So the two verdicts meet: the board and its radiation are the weaker stage to the ear (B worst), and the strings' stage errs where the board couples them (the decays), which the same corner of the board model explains.
+
+### The corner tried; the unisons found
+
+The outline's corner moved (`outline_below` 3 kHz, 6 kHz; the board builds in 0.5 and 2.3 s instead of 0.2) and the rectangle (presets/default.toml) leave the bridge decays where they were (A1 −15.6 to −15.9 dB/s whatever the corner, A2 −16.4 to −22.8), and the bench worsens (1.15, 1.17; the rectangle 1.09). The corner is not it.
+
+The envelopes are. At the bridge, the model's A1 partials near 1.2 kHz fall 22–24 dB by 0.6 s and come back to −8 dB by 1 s; those near 2 kHz fall 18–22 dB by 0.35 s and come back to −6 dB: beat nulls, one period per partial, the period shrinking as the partial number grows. The real Steinway's partials fall 4–8 dB over the second with wobbles of a decibel or two. A bichord detuned by `unison.width_mid` = 1 cent beats at k·f₁/1731 Hz: 0.74 Hz at A1's partial 22, 1.2 Hz at partial 35, nulls at 0.67 and 0.42 s, as measured. The real pair's strings are tuned closer than that, or locked by the bridge; either way its bridge shows no null. `tools/bridge_partials.py` now reports the deepest dip of each partial's envelope below its exponential trend; medians over the partials above 1 kHz:
+
+| | A1 real / model | D2 real / model | A2 real / model |
+|---|---|---|---|
+| deepest dip, 1 cent (default) | −1.1 / **−13.8** dB | −0.8 / **−8.9** | −0.3 / **−7.9** |
+| deepest dip, 0.2 cent | −1.1 / −0.3 | −0.8 / −0.4 | −0.3 / −0.3 |
+| decay, 1 cent | −5.5 / −15.6 dB/s | −7.5 / −6.7 | −9.9 / −16.4 |
+| decay, 0.2 cent | −5.5 / −10.4 | −7.5 / −10.2 | −9.9 / −12.7 |
+| decay, 0 cent | −5.5 / −8.6 | −7.5 / −8.8 | −9.9 / −11.0 |
+
+The "decay two to three times too fast below 1.5 kHz, none above" of the section before was the nulls' first halves and their recoveries read as slopes. With the pair at 0.2 cent the bridge decays sit within 3–5 dB/s of the real piano's and nothing dips. What remains on A1 is excitation: partials 20–22 (1.17–1.28 kHz), the real bridge's strongest lines, lie 19–24 dB lower on the model's bridge from the first 0.2 s, and partials 17–19 and 31 are 10–30 dB stronger: the real board's own resonances and antiresonances at the bass bridge, which the model's bridge has not.
+
+Bench: 0.2 cent scores 1.19 and 0 cent 1.20 against 1.11 (23 measures worse, 12 better): the middle's early decays become too slow (z −0.2 → +1.2/+1.6) and its envelopes at 2–3 s too low, the treble's sustain partials 3, 8 and 12 too weak. The beats were part of the calibration of the losses and the coupling: the bench cannot judge the width on its own, and the losses would have to be set again at the narrower width. docs/bass_metal.md had seen the nulls sweep ("a flanger") and tried an irregular detune, which keeps them; a narrower pair was never heard.
+
+Listening files: `out/ab_swap_ob3000/` (the corner at 3 kHz: 0 and B, as asked) and `out/ab_swap_u02/` (the pair at 0.2 cent: A and M against the default's).
