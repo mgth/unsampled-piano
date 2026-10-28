@@ -80,6 +80,13 @@ pub struct SoundboardParams {
     pub bridge_stiffness: f64,
     pub bridge_line_mass: f64,
     pub bridge_spread: f64,
+    /// The bridges as beams in the board's own modes (0: off): their
+    /// bending stiffness `bridge_stiffness` along their curve and their
+    /// mass `bridge_line_mass`, times this factor, glued along the main and
+    /// the bass bridge's lines. Neighbouring points of a bridge then move
+    /// together. They act on the outlined board's own modes, below
+    /// `outline_below` (docs/bridge_beam.md).
+    pub bridge_beam: f64,
     /// Boards are thicker and more densely ribbed under the treble: the
     /// impedance under the bridge grows as e^{slope·(key − 60)} (the uniform
     /// plate sets its value at C4). Applied to the shapes through which the
@@ -301,6 +308,7 @@ impl SoundboardParams {
         bridge_stiffness: 470.0,
         bridge_line_mass: 0.6,
         bridge_spread: 0.3,
+        bridge_beam: 0.0,
         // ×2.4 at C8, ×0.4 at A0 relative to C4. The treble side was set on
         // Salamander's decay envelopes alone (0.035, ×4.6 at C8,
         // docs/sustain.md); against eight real grands 0.02 lets the top
@@ -811,8 +819,17 @@ impl Soundboard {
             }
             row
         });
-        let a: Vec<f64> = rows.into_iter().flatten().collect();
-        let (vals, vecs) = crate::eigen::symmetric_ql(&a, nb);
+        let mut a: Vec<f64> = rows.into_iter().flatten().collect();
+        let (vals, vecs) = if p.bridge_beam > 0.0 {
+            let mut m = vec![0.0; nb * nb];
+            for i in 0..nb {
+                m[i * nb + i] = 1.0;
+            }
+            self.add_bridge_beams(&mut a, &mut m, mm as usize, nm as usize);
+            crate::eigen::generalized(&a, &m, nb)
+        } else {
+            crate::eigen::symmetric_ql(&a, nb)
+        };
         let mut modes = Vec::new();
         for (lam, v) in vals.into_iter().zip(vecs) {
             let omega = lam.max(0.0).sqrt();
@@ -825,6 +842,60 @@ impl Soundboard {
             self.ritz.push(v);
         }
         modes
+    }
+
+    /// Adds the bridges as beams to the basis's stiffness `k` and mass `m`
+    /// (row-major, the basis's size): EI·∫Φ_i,ss·Φ_j,ss ds and μ·∫Φ_i·Φ_j ds
+    /// along each bridge's curve, s its arc length, Φ_ss its second
+    /// derivative along the tangent (the curvature's term left out), by the
+    /// midpoint rule on ≥ 8 points per wavelength of the basis.
+    fn add_bridge_beams(&self, k: &mut [f64], m: &mut [f64], mm: usize, nm: usize) {
+        let p = &self.params;
+        let nb = self.basis.len();
+        let (ei, mu) = (p.bridge_beam * p.bridge_stiffness, p.bridge_beam * p.bridge_line_mass);
+        let norm = 2.0 / (p.rho_h * p.a * p.b).sqrt();
+        let step = (p.a / mm.max(1) as f64).min(p.b / nm.max(1) as f64) / 8.0;
+        let main = p.main_bridge_from as f64;
+        let mut segments: Vec<((f64, f64), (f64, f64))> = Vec::new();
+        for (lo, hi, on_main) in [(main, 108.0, true), (21.0, main - 1.0, false)] {
+            if hi <= lo {
+                continue;
+            }
+            let (a0, a1) = (p.bridge_point_at(lo, on_main), p.bridge_point_at(hi, on_main));
+            // Fine enough whatever the curve: refine until each piece is
+            // shorter than the step.
+            let n = 2000.max(((a1.0 - a0.0).hypot(a1.1 - a0.1) / step * 4.0) as usize);
+            let pts: Vec<(f64, f64)> = (0..=n).map(|i| p.bridge_point_at(lo + (hi - lo) * i as f64 / n as f64, on_main)).collect();
+            for w in pts.windows(2) {
+                segments.push((w[0], w[1]));
+            }
+        }
+        let (mut g, mut h) = (vec![0.0; nb], vec![0.0; nb]);
+        let (mut sx, mut sy) = (Vec::new(), Vec::new());
+        for &((x0, y0), (x1, y1)) in &segments {
+            let ds = (x1 - x0).hypot(y1 - y0);
+            if ds <= 0.0 {
+                continue;
+            }
+            let (tx, ty) = ((x1 - x0) / ds, (y1 - y0) / ds);
+            let (x, y) = (0.5 * (x0 + x1), 0.5 * (y0 + y1));
+            sines(PI * x / p.a, mm, &mut sx);
+            sines(PI * y / p.b, nm, &mut sy);
+            for (i, &(mi, ni, _)) in self.basis.iter().enumerate() {
+                let (kx, ky) = (mi as f64 * PI / p.a, ni as f64 * PI / p.b);
+                let phi = norm * sx[mi as usize] * sy[ni as usize];
+                let phi_xy = norm * kx * ky * (kx * x).cos() * (ky * y).cos();
+                h[i] = phi;
+                g[i] = -(tx * tx * kx * kx + ty * ty * ky * ky) * phi + 2.0 * tx * ty * phi_xy;
+            }
+            for i in 0..nb {
+                let (gi, hi) = (ei * ds * g[i], mu * ds * h[i]);
+                for j in 0..nb {
+                    k[i * nb + j] += gi * g[j];
+                    m[i * nb + j] += hi * h[j];
+                }
+            }
+        }
     }
 
     /// Mass-normalised mode shape at (x, y) metres (uniform for the piston
@@ -935,6 +1006,7 @@ impl Soundboard {
         self.modes
             .iter()
             .map(|md| {
+                let taper = taper * self.beam_drive(md);
                 let half = 0.5 * self.drive_length(md.omega) / per_key;
                 if half < 1e-3 {
                     let (x, y) = p.bridge_point(note);
@@ -951,6 +1023,24 @@ impl Soundboard {
                 taper * acc / wsum
             })
             .collect()
+    }
+
+    /// The bridge beam's share of the drive for a mode that does not have
+    /// the beam in its shape (the rectangle's, above `outline_below`, or a
+    /// board without an outline): there the modes overlap and the board is
+    /// an infinite plate under an infinite beam, whose impedances add,
+    /// Z = 8·√(D·ρh) + 2(1 + i)·(EI·μ³)^¼·√ω. Its conductance against the
+    /// plate's alone, √ of it on the shape (1 without the beam). The own
+    /// modes with the beam give the same within 0.5 dB at 1 kHz.
+    fn beam_drive(&self, md: &PlateMode) -> f64 {
+        let p = &self.params;
+        if p.bridge_beam <= 0.0 || md.ritz.is_some() || md.m == 0 {
+            return 1.0;
+        }
+        let zp = 1.0 / p.mean_mobility();
+        let zb = p.bridge_beam * 2.0 * (p.bridge_stiffness * p.bridge_line_mass.powi(3)).powf(0.25) * md.omega.sqrt();
+        let (re, im) = (zp + zb, zb);
+        (zp * re / (re * re + im * im)).sqrt()
     }
 
     /// Plate mobility for a drive with the given per-mode shapes.

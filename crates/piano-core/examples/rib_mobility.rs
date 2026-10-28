@@ -4,7 +4,8 @@
 //! the vibration above ≈ 1 kHz on a real board (Ege et al. 2013), which
 //! lowers and roughens the mobility there.
 //!   cargo run --release -p piano-core --example rib_mobility
-//! (RIB_SPACING, RIB_SHARE, RIB_JITTER and BELOW override the board; docs/ribs.md.)
+//! (RIB_SPACING, RIB_SHARE, RIB_JITTER, BEAM, SPREAD and BELOW override the board;
+//! docs/ribs.md, docs/bridge_beam.md.)
 use piano_core::params::PianoModel;
 use piano_core::soundboard::Soundboard;
 use std::f64::consts::TAU;
@@ -21,6 +22,12 @@ fn main() {
     }
     if let Some(v) = env("RIB_JITTER") {
         p.rib_jitter = v;
+    }
+    if let Some(v) = env("BEAM") {
+        p.bridge_beam = v;
+    }
+    if let Some(v) = env("SPREAD") {
+        p.bridge_spread = v;
     }
     if let Some(v) = env("BELOW") {
         p.outline_below = v;

@@ -608,6 +608,13 @@ const HELP: &[(&str, &str, &str)] = &[
          `rib_spacing` (N·m²).",
     ),
     (
+        "soundboard.bridge_beam",
+        "The bridges as beams glued on the soundboard: their weight and stiffness along their \
+         curve make neighbouring points of a bridge move together. 0: off.",
+        "Factor on `bridge_stiffness` (EI, N·m²) and `bridge_line_mass` (kg/m) added along the main \
+         and the bass bridge in the outlined board's own modes, below `outline_below`.",
+    ),
+    (
         "soundboard.rib_jitter",
         "How irregular the ribs are: a real board's ribs are not equally spaced nor alike, which \
          confines its high vibrations between them. 0: equally spaced and alike.",

@@ -125,6 +125,7 @@ series_stiffness = 20000000.0
 bridge_stiffness = 470.0
 bridge_line_mass = 0.6
 bridge_spread = 0.3
+bridge_beam = 0.0
 impedance_slope = 0.0024
 impedance_slope_bass = 0.0076
 f_max = 20000.0

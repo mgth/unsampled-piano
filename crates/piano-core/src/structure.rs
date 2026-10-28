@@ -123,6 +123,7 @@ impl FrameParams {
             edge_depth: 0.2,
             edge_corner: 200.0,
             bridge_mass: 0.0,
+            bridge_beam: 0.0,
             series_stiffness: f64::INFINITY,
             f_max: self.f_max,
             mics: board.mics.map(|(x, y, z)| (x - self.offset_x, y, z - self.height)),

@@ -208,6 +208,80 @@ pub fn symmetric_ql(a: &[f64], n: usize) -> (Vec<f64>, Vec<Vec<f64>>) {
     (order.iter().map(|&i| d[i]).collect(), order.into_iter().map(|i| std::mem::take(&mut v[i])).collect())
 }
 
+/// The generalised problem K·v = λ·M·v, K symmetric, M symmetric positive
+/// definite (both `n`×`n`, row-major): eigenvalues ascending and
+/// eigenvectors normalised to vᵀ·M·v = 1. Cholesky M = L·Lᵀ, then the
+/// symmetric L⁻¹·K·L⁻ᵀ by [`symmetric_ql`], and v = L⁻ᵀ·y.
+pub fn generalized(k: &[f64], m: &[f64], n: usize) -> (Vec<f64>, Vec<Vec<f64>>) {
+    assert!(k.len() == n * n && m.len() == n * n);
+    // Cholesky, lower triangle.
+    let mut l = vec![0.0; n * n];
+    for i in 0..n {
+        for j in 0..=i {
+            let mut s = m[i * n + j];
+            for q in 0..j {
+                s -= l[i * n + q] * l[j * n + q];
+            }
+            l[i * n + j] = if i == j { s.max(1e-300).sqrt() } else { s / l[j * n + j] };
+        }
+    }
+    // Y = L⁻¹·K (forward substitution, one column at a time, rows kept).
+    let forward = |b: &mut [f64]| {
+        for i in 0..n {
+            let mut s = b[i];
+            for q in 0..i {
+                s -= l[i * n + q] * b[q];
+            }
+            b[i] = s / l[i * n + i];
+        }
+    };
+    let mut y = vec![0.0; n * n];
+    let mut col = vec![0.0; n];
+    for j in 0..n {
+        for i in 0..n {
+            col[i] = k[i * n + j];
+        }
+        forward(&mut col);
+        for i in 0..n {
+            y[i * n + j] = col[i];
+        }
+    }
+    // C = L⁻¹·Yᵀ (K symmetric: (L⁻¹K)ᵀ = K·L⁻ᵀ), symmetrised.
+    let mut c = vec![0.0; n * n];
+    for j in 0..n {
+        for i in 0..n {
+            col[i] = y[j * n + i];
+        }
+        forward(&mut col);
+        for i in 0..n {
+            c[i * n + j] = col[i];
+        }
+    }
+    for i in 0..n {
+        for j in 0..i {
+            let s = 0.5 * (c[i * n + j] + c[j * n + i]);
+            c[i * n + j] = s;
+            c[j * n + i] = s;
+        }
+    }
+    let (vals, vecs) = symmetric_ql(&c, n);
+    // v = L⁻ᵀ·y (back substitution).
+    let vecs = vecs
+        .into_iter()
+        .map(|mut v| {
+            for i in (0..n).rev() {
+                let mut s = v[i];
+                for q in i + 1..n {
+                    s -= l[q * n + i] * v[q];
+                }
+                v[i] = s / l[i * n + i];
+            }
+            v
+        })
+        .collect();
+    (vals, vecs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -247,5 +321,23 @@ mod tests {
             }
             assert!((x.iter().map(|v| v * v).sum::<f64>() - 1.0).abs() < 1e-12);
         }
+    }
+
+    #[test]
+    fn generalized_solves_k_v_equals_lambda_m_v() {
+        let n = 5;
+        let k: Vec<f64> = (0..n * n).map(|x| { let (i, j) = (x / n, x % n); if i == j { 4.0 + i as f64 } else { 0.3 / (1.0 + (i + j) as f64) } }).collect();
+        let m: Vec<f64> = (0..n * n).map(|x| { let (i, j) = (x / n, x % n); if i == j { 1.0 + 0.2 * j as f64 } else { 0.05 } }).collect();
+        let (vals, vecs) = generalized(&k, &m, n);
+        for (lam, v) in vals.iter().zip(&vecs) {
+            for i in 0..n {
+                let kv: f64 = (0..n).map(|j| k[i * n + j] * v[j]).sum();
+                let mv: f64 = (0..n).map(|j| m[i * n + j] * v[j]).sum();
+                assert!((kv - lam * mv).abs() < 1e-10, "{kv} vs {}", lam * mv);
+            }
+            let vmv: f64 = (0..n).map(|i| v[i] * (0..n).map(|j| m[i * n + j] * v[j]).sum::<f64>()).sum();
+            assert!((vmv - 1.0).abs() < 1e-10);
+        }
+        assert!(vals.windows(2).all(|w| w[0] <= w[1]));
     }
 }
