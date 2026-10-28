@@ -123,6 +123,28 @@ Measured on A1 and D2 at velocity 96 (Liang's isolated notes against the model, 
 
 Open: the hammer's force rise in the bass (felt compliance), the attack's dispersive pulse train, what fills the recording between the partials.
 
+## The chirps the board should hide
+
+Status as of 2026-10-28.
+
+A 3 ms-window spectrogram of the first 120 ms of A1 and D2 (velocity 96, close microphones, studio) against Liang's isolated notes: the model's attack holds a regular train of **slanted chirps**, one per string period, each sweeping from 7 kHz down to 2 kHz over most of the period. The recording holds steady horizontal lines from the first millisecond, no slant. Five more real grands' A1 at forte (Plath's concert grand in an anechoic chamber, BiVib's Disklavier, Headroom's C3, Splendid's Steinway, Helgesson's CF-3) show no slanted chirps either. A "spring" (dispersive allpass) echo is what the user picked as the effect that brings the recording closest to the model: the chirp train is the tube.
+
+The chirps are the stiff string's dispersion: a sharp pulse from the hammer passes the bridge once per period, its high partials ahead of its low ones (f′(k) is 85 Hz at 4 kHz and 107 Hz at 6 kHz for A1 with B = 0.8·10⁻⁴: 2.6 ms more spread per period). Two questions: do real strings chirp, and if they do, why is it not heard?
+
+**Real strings chirp.** Plath's data holds the bridge acceleration at the hitch pins. For A1 it shows the same slanted chirps, one per period, over 0.5–4 kHz, for the whole first 120 ms. His binaural recording at the player's head, in the same anechoic chamber, shows none: steady lines at 1.5–4.5 kHz and unslanted pulses below 2 kHz. The coherence between the bridge acceleration and the ear's pressure is 0.33–0.37 at 1–4 kHz. Between the bridge and the ear, the real board and its radiation smear the chirp into a continuum; the model's do not.
+
+Two differences with the real pianos:
+- **The model's chirps reach 7 kHz, the real string's stop near 4 kHz.** The model's hammer force rises to its peak in 0.2 ms whatever the felt (`hardness` 0.1, `core_hardness` 0.5, `hysteresis` 1, `contact_width_scale` 3: the peak is 2·Z·v and the felt reaches it within 0.6 mm). The real force's spectrum must fall faster above 3 kHz. Not resolved.
+- **The model's board rings too briefly at 2–6 kHz.** η(f) = 0.02·(1 + f/2500) gives 0.044 at 3 kHz and 0.06 at 5 kHz (T60 17 and 7 ms, shorter than the period). Real boards measure 2–3 % roughly constant ([brightness.md](brightness.md)); above the coincidence frequency (≈ 0.9 kHz) the radiation damping 415/(2π·f·ρh) adds only 0.003 at 3 kHz. With η flat the chirps blur into lines and texture: 0.02 noticeably (A1 and D2), 0.015 more, 0.01 almost like the recordings. The room (studio or none) and the microphones (close or concert) change nothing; `loss_corner` 10 000 too little.
+
+What else was tried on A1/D2, by spectrogram: a 1.75× bass inharmonicity (B 1.25·10⁻⁴, Liang's A1 has 1.4·10⁻⁴; the eight grands' bass medians span 0.65–1.25·10⁻⁴, the model's 0.89) merges the chirps after three periods instead of eight; `losses.winding` 4·10⁻⁴ fades them earlier; a softer core adds little; neither removes the first periods.
+
+Attack levels (0–60 ms, third octaves re the note's own 200–800 Hz) put the model's 4–5 kHz inside the six real A1s' spread and its 6.3–8 kHz on their bright side; its 1.26–2 kHz sit 5–10 dB under most of them.
+
+Bench (eight grands): flat η 0.02 scores 1.26 (36 worse, 9 better), flat 0.01 1.35, against 1.09. The bass register holds (0.76 → 0.78 / 0.79); the middle, treble and top attacks' 4–8 kHz and the top's balance get too bright: the rising η was doing the work of some other missing loss above 2 kHz in those registers. A/B in out/ab_tube (Beethoven 22–32 s with the pedal, plus A1 and D2 isolated in out/ab_tube/notes): the recording, now, η 0.02 flat, η 0.01 flat. If the ear confirms, the next step is to keep the flat damping and find what the treble's high bands need instead.
+
+Scripts in the shared notes folder (tube_scripts2/): `atk.py` (attack close-up), `attk3.py` (attack third octaves), `hf.py` (comb fit, early decays), `plath.py` (bridge acceleration against the ear), `notes_ab.py`.
+
 ## Still open
 
 - **C2–A2 lacks body.** Relative to the strongest partial, partials 4–6 lie 10–13 dB under the recording in the sustain (−1 to −5 at the attack): they decay at −14 dB/s against −9. The edge loss is not it (off: −12). The bench's eight grands agree: the bass's partials 4–12 are 4–8 dB weak in the sustain. The bridge's conductance at 300–800 Hz is next.
