@@ -1,0 +1,15 @@
+{
+ "attack_support_matches_previous": true,
+ "attack_total_rows": 459,
+ "attack_top_rows": 349,
+ "transition_rows": 110,
+ "sustain_rows": 71,
+ "full_component_keys_identical": true,
+ "full_components": 191,
+ "model_wavs": {
+  "attack": 144,
+  "dense": 1200,
+  "full": 270
+ },
+ "unchanged_notes_below_93_bitwise": 72
+}

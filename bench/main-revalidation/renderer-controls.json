@@ -1,0 +1,17 @@
+[
+ {
+  "note": 97,
+  "velocity": 45,
+  "cli_matches_batch_bitwise": true
+ },
+ {
+  "note": 102,
+  "velocity": 100,
+  "cli_matches_batch_bitwise": true
+ },
+ {
+  "note": 108,
+  "velocity": 56,
+  "cli_matches_batch_bitwise": true
+ }
+]

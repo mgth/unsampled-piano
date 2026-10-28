@@ -60,6 +60,28 @@ pub fn estimate(x: &[f32], sr: f64, f0_nominal: f64, opt: Options) -> Option<Inh
     // Treble partials die fast: shorten the segment, keeping ≥ 300 periods.
     let len = opt.len.min((300.0 / f0_nominal).max(0.15));
     let spec = Spectrum::new(x, sr, start, (len * sr) as usize, 8);
+    estimate_spectrum(spec, on, sr, f0_nominal, opt)
+}
+
+/// Shared onset from RMS pressure across channels. This signal is used
+/// only for timing, never as input to a Fourier transform.
+pub fn onset_channels(channels: &[&[f32]]) -> usize {
+    assert!(!channels.is_empty());
+    assert!(channels.iter().all(|c| c.len() == channels[0].len()));
+    let powers: Vec<f64> = (0..channels[0].len()).map(|i| channels.iter().map(|c| (c[i] as f64).powi(2)).sum::<f64>()).collect();
+    let peak = powers.iter().copied().fold(0.0, f64::max);
+    powers.iter().position(|p| *p >= 0.01 * peak).unwrap_or(0)
+}
+
+pub fn estimate_channels(channels: &[&[f32]], sr: f64, f0_nominal: f64, opt: Options) -> Option<InharmonicityFit> {
+    let on = onset_channels(channels);
+    let start = on + (opt.skip * sr) as usize;
+    let len = opt.len.min((300.0 / f0_nominal).max(0.15));
+    let spec = Spectrum::channel_power(channels, sr, start, (len * sr) as usize, 8);
+    estimate_spectrum(spec, on, sr, f0_nominal, opt)
+}
+
+fn estimate_spectrum(spec: Spectrum, on: usize, sr: f64, f0_nominal: f64, opt: Options) -> Option<InharmonicityFit> {
     let fmax = opt.fmax.min(0.95 * sr / 2.0);
 
     let (mut f0, mut b) = (f0_nominal, 0.0);
@@ -75,9 +97,9 @@ pub fn estimate(x: &[f32], sr: f64, f0_nominal: f64, opt: Options) -> Option<Inh
         let spacing = f0 * (1.0 + 2.0 * b * kf * kf) / (1.0 + b * kf * kf).sqrt();
         // Before B is known, the uncertainty grows with k.
         let half = if found.len() < 4 { 0.35 * spacing } else { 0.2 * spacing };
-        let accepted = spec.peak_in(pred - half, pred + half).filter(|&(_, lvl)| {
-            lvl - spec.median_in(pred - spacing, pred + spacing) >= opt.min_snr_db
-        });
+        let accepted = spec
+            .peak_in(pred - half, pred + half)
+            .filter(|&(_, lvl)| lvl - spec.median_in(pred - spacing, pred + spacing) >= opt.min_snr_db);
         match accepted {
             Some((f, lvl)) => {
                 misses = 0;
@@ -112,8 +134,7 @@ pub fn estimate(x: &[f32], sr: f64, f0_nominal: f64, opt: Options) -> Option<Inh
         abs.sort_by(f64::total_cmp);
         // Bridge coupling shifts partials by a few cents: do not reject that.
         let mad = abs[abs.len() / 2].max(0.5);
-        let keep: Vec<TrackedPartial> =
-            found.iter().zip(&res).filter(|(_, r)| r.abs() <= 4.0 * mad).map(|(p, _)| p.clone()).collect();
+        let keep: Vec<TrackedPartial> = found.iter().zip(&res).filter(|(_, r)| r.abs() <= 4.0 * mad).map(|(p, _)| p.clone()).collect();
         if keep.len() >= 2 {
             found = keep;
         }
@@ -155,7 +176,7 @@ fn fit(p: &[TrackedPartial]) -> Option<(f64, f64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::synth::{render, Partial};
+    use crate::synth::{Partial, render};
 
     fn tone(f0: f64, b: f64, sr: f64) -> Vec<f32> {
         let parts: Vec<Partial> = (1..=200u32)

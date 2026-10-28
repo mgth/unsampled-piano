@@ -1,0 +1,49 @@
+{
+ "commit": "c0c91ce1d2f7477f6ed89e150adb7777a3ba225e",
+ "default_sha256": "0a761844a082b918fe3700ab09918091f18cf10c3fed660db9f25f5e46fb9f73",
+ "compiled_default_sha256": "a143e1a8fc0548d9a4ac47a524f0232e9510f76b593ee6f4c857d19969b2f502",
+ "effective_sha256": "dfc3e76b9e4db5094d5f246731947569990a41e93e8bd8609807bfef6585f9dc",
+ "binaries": {
+  "unsampled-piano-render": "b19d2db80de9b2a1614b342469a2664c9fb297b27728bd2893317c35106fea0d",
+  "piano-survey": "b71f2ef93f48703bac194030945c21569ea6a1286d3223d84a1245b42eb7a84a",
+  "contact_batch": "0ab95695e70213b2d47cb1bc683c455c664b9c1bf3a97f4a8de27738c3843416",
+  "top_probe": "d8dd8068da6c0bff0ccc3d17f41836a9ed6af00fbaa42a092a47926da53d29a2",
+  "unsampled-piano": "47d2c8373fc3c7fe0f05f559105401aacbf88ae9c565ce4807080f1e3cdadc78"
+ },
+ "analysis": {
+  "tools/bench.py": "ea1057ed501e94c152c783a741c6a14170dae112aa5e33385672662c8deb4ca0",
+  "tools/plath_set.py": "deff0335df8d2295de23313868087fbb9f839a4735fd905104b77e786f7310f8",
+  "crates/piano-analysis/src/decay.rs": "2c8a023852ce0781d2f4b38494f6ffe01d98db29cca5d2177d1788088048e8e1",
+  "crates/piano-analysis/src/distance.rs": "55d3a1d892d87ee5f1d9c73cb07ef65c53bcebea36ac608dec33fb02177dac04",
+  "crates/piano-analysis/src/esprit.rs": "f36e0311b1c72abb0fbccbbb1c1a09baffb14661c5e01e10c38f6868e3a56cc2",
+  "crates/piano-analysis/src/inharm.rs": "7e984f5f2250b248a9a7564473208910d66ffb0c3749acf66b0c14240d9ca1b6",
+  "crates/piano-analysis/src/io.rs": "01ec0260f13a4eb1eb644824ebd658fc653978e707656225dd5f979aeaf7a989",
+  "crates/piano-analysis/src/lib.rs": "bec71aec8586e4199fc91a550c9669751dcb9bdf3f17b507a60803376aa48cbc",
+  "crates/piano-analysis/src/spectrum.rs": "63628a9350ef350360325a641d91e873aba56bd682ce10dd0ccdf55278ad33c7",
+  "crates/piano-analysis/src/synth.rs": "77c322f3a568fcac3c28f511e462e8dc3651f16d48656fa2552959726b5d82a9",
+  "crates/piano-analysis/src/bin/piano-analyze.rs": "00ed75ba8ba9ddbb3fa48113ca5fe38f43d15b9f2a958b1a4bc6771810e17303",
+  "crates/piano-analysis/src/bin/piano-survey.rs": "4e319ede39600ea02e57d023134925bf28afb3e8f24d2108e5e498f20b63fe61"
+ },
+ "reference_policy": "Corrected reference audio/surveys reused; attack metrics remeasured. All model audio newly rendered.",
+ "reference_surveys": {
+  "iowa": "700b7fdffe774a6e8aebf6c3d0980645a2179212f13566aac7bca3b145bf6ddb",
+  "salamander": "eb6369fda8ac47208122411858edabe4b72f879f613105b727d17789bbff65a4",
+  "headroom": "aceac7a380b85a1472789c53acf1e35f8111452f9ec3af03ef13f91dfe623f92",
+  "splendid": "02b4d1576a58c75fd378b4a7e506ac16f477370849f0c683930a3ee2823f12ce",
+  "helgesson": "f492297c93aced3b0cd939f06ab121bb22f1e45c1c91bc8b8e1ba6e31dedea1d",
+  "liang": "446917a3d6983b2710b9436c79cc2e6ac0c9d764fe6227c61091416cd0279dd9",
+  "plath": "f2aec0a4d1075477b5e6d20d0aff535686f8de2501c4852669cf01ab0ada6c70",
+  "bivib_grand": "d7a719506bebcd82496b7d1e56a9d5cea32dc2901fe5b8f171e65687ab1dd37a",
+  "bivib_upright": "79475ff9454391aa38503a759ac59e11bd7598f3dcfc29a8a4037781bc4448ae",
+  "maps_close": "3b599b9826f7b7c7f1a5ca7459e76979df908b0a93ab5ce023df31010a6daf8f",
+  "commercial": "d503cd5da55d5d8eca01975fee3ed2ccd4846166acf7ceba6cc166de9d536444"
+ },
+ "profiles_frozen": true,
+ "source_dsp_unchanged": true,
+ "plath_check": {
+  "notes": 88,
+  "max_gain_error": 3.8443084373826486e-08
+ },
+ "rust_tests_passed": 146,
+ "python_tests_passed": 9
+}

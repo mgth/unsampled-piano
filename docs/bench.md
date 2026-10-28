@@ -1,5 +1,7 @@
 # Test bench: scoring the model against real pianos
 
+Mise à jour du 28 octobre 2026 : le protocole `channel-power-v2` mesure la puissance moyenne des canaux, y compris le suivi des partiels et les décroissances. Plath est importé avec un gain unique de 0,01/Pa ; l’import normalisé par note est refusé. Les caches portent une version d’analyse. La nouvelle baseline porte sur le défaut compilé du main consolidé, score 1,107. Voir [la revalidation](main_revalidation.md) pour le protocole, la couverture et la divergence du fichier `presets/default.toml`. Les résultats historiques ci-dessous précèdent ce protocole.
+
 Status as of 2026-10-24.
 
 Until now each change was measured with the script written for it (`tools/band_score.py`, `tools/hammer_score.py`, `tools/set_metrics.py`…), and what it moved elsewhere was found later: the release-ring gain of the treble cost its mf sustain at 3 s. The bench measures everything at every change, with one fixed set of measures, and against real pianos only. The commercial modelled piano used so far as a reference is itself a model: its biases would become ours. It is still measured, as information, and never enters the targets.
