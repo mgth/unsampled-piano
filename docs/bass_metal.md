@@ -104,6 +104,25 @@ The long-term spectrum of the same 10 s, model − recording (dB re the total): 
 
 A diagnostic A/B in out/ab_diag: the recording; the model now; the model with its channels swapped and its two channels summed below 400 Hz; the same with a third-octave EQ onto the recording's long-term spectrum.
 
+## The "PVC tube" in the attack
+
+What the user hears in the model's bass, on Beethoven and on isolated notes (A1, D2): a metallic, synthetic resonance, "as inside a long PVC tube", or "a ruler twanged on a table's edge". It is clearly in the attack; the model's sustain is a little metallic too. It is there with no room and no back face. The bench does not flag it.
+
+Heard and ruled out (A/B, the tube stays): the 220 Hz hollow; damping the board's lowest modes (kept, cleaner articulation); the unisons' tension ramp (kept, a little better); the bass on the left and coherent below 400 Hz plus an EQ onto the recording's long-term spectrum; everything below 90 Hz lowered by 10 or 20 dB; the grand's outline; an irregular offset of each wound string's partials (it removes a sweeping "flanger" null of the unisons, see below, not the tube).
+
+Pointed to: of five effects added to Liang's A1 (a long tube's comb resonance, a flutter echo, a dispersive "spring" echo, partials locked to exact harmonics, a rattle), the spring echo (120 first-order allpasses at 0.6, added 30 ms late at 0.8) brings the recording closest to the model, "less bad". Splicing the model's first 80 ms onto the recording brings the tube; the recording's attack onto the model removes most of it. Band and 20 ms splices inside the attack were too audible to judge.
+
+Measured on A1 and D2 at velocity 96 (Liang's isolated notes against the model, close microphones):
+- **The first pulse**: aligned on the string's arrival (Liang's notes open with 25–30 ms of action noise), the model's first 1–6 kHz pulse is no stronger than the recording's.
+- **The pulse train**: a 192-point spectrogram of the first 150 ms shows a regular train of slanted chirps, one per string period, at 4–7 kHz (A1) and 2.5–5 kHz (D2). Liang's attack is more continuous there.
+- **The hammer**: the contact force reaches half its peak 0.05 ms after first contact, and its peak (25–28 N) is set by the strings' impedance, 2·Z·v. The graded felt's second term (`core_p` 7, `core_hardness` × Stulov's unscaled Q0) dominates from 0.45 mm, so `hardness` and `hardness_slope_bass` do not change the force; `core_depth_bass` 1 mm makes it 0.09 ms.
+- **Between the partials**: energy at 300 Hz–5 kHz off the partials, 0.08–0.6 s, re the energy on them: A1 −18 dB in the model, −7.6 in the recording; D2 −19 and −18.
+- **Inharmonicity**: below Liang's (A0 2.2e-4 against 3.6e-4, A1 8e-5 against 1.5e-4), within the eight grands' register median.
+- **The unisons**: a detune in cents makes every partial's beat grow as k; their nulls sweep down as 1/t (A1: 2.7 kHz at 0.3 s, 1.5 kHz at 0.55 s), absent with no detune and in the recording. A spread of B between strings only multiplies the arcs; an irregular ±0.5–1 cent per string and partial, wound strings only, removes them (bench 1.09, nothing worse). Not kept: the user heard no change in the tube.
+- **High bands**: 1–4 kHz stand 4–6 dB higher at 1–1.5 s re the attack (D1–A2 mean).
+
+Open: the hammer's force rise in the bass (felt compliance), the attack's dispersive pulse train, what fills the recording between the partials.
+
 ## Still open
 
 - **C2–A2 lacks body.** Relative to the strongest partial, partials 4–6 lie 10–13 dB under the recording in the sustain (−1 to −5 at the attack): they decay at −14 dB/s against −9. The edge loss is not it (off: −12). The bench's eight grands agree: the bass's partials 4–12 are 4–8 dB weak in the sustain. The bridge's conductance at 300–800 Hz is next.
