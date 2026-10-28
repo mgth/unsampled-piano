@@ -1,6 +1,6 @@
 # Stage swap: the model's strings through a real board, the real strings through the model's
 
-Status as of 2026-10-28. Tools: `tools/stage_swap.py`, piano-render's `bridge_signal` example, `Engine::bridge_force` / `bridge_velocity` / `pressure_scale`. Listening files in `out/ab_swap/` (not in the repository), their measures in `out/ab_swap/report.txt`.
+Status as of 2026-10-28. Tools: `tools/stage_swap.py`, `tools/bridge_partials.py`, piano-render's `bridge_signal` example, `Engine::bridge_force` / `bridge_velocity` / `pressure_scale`. Listening files in `out/ab_swap/` (not in the repository), their measures in `out/ab_swap/report.txt`.
 
 ## Why
 
@@ -61,3 +61,24 @@ The lid: at the player's position the model's lid at 35° changes the radiation 
 - The accelerometer's exact spot on the bridge, the dummy head's equalisation and the piano's state are Plath's; the model's bridge signal is the region's drive, a Hann average along a few keys of bridge, not a point.
 - One velocity per key, chosen on the sustain's bridge level; the model's velocity law and the real forte do not have to agree at the attack.
 - Isolated notes only. A passage would need the engine to write the bridge force of every key apart, and a real board response per key: the same machinery, more plumbing.
+
+## Heard (2026-10-28)
+
+The user, on the four keys: the real piano is the closest to the truth in every case, **B is always the worst** (the real strings through the model's board sound less like a piano than the model itself), A in between. In A there are often "whistles, like in overtone singing": the real piano has them too; in A2 they are much too strong, in D2 light, in A0 absent, in A1 weaker than in the real piano.
+
+What the whistles are, partial by partial (0.3–1 s, both files through the same real board, so the difference is the model's bridge signal against the real one): on A2, partial 13 (1444 Hz) stands 14 dB above the real piano's and is the strongest line of the file; on A1, partials 20–30 (1.2–1.8 kHz), which the real Steinway holds at −1 to −9 dB under its strongest partial for a second, lie 18 to 40 dB lower. The real board rings a few partials out, and the model's strings give it the wrong ones.
+
+### The strings' stage, measured at the bridge
+
+`tools/bridge_partials.py` compares the model's bridge acceleration with Plath's, partial by partial: the level early (0.05–0.2 s) and in the sustain (0.3–1 s), and the decay over 0.1–1 s, no board or ear involved. Median decay of the partials above 1 kHz, dB/s:
+
+| | A0 | A1 | D2 | A2 |
+|---|---|---|---|---|
+| real | −14.5 | −5.5 | −7.5 | −9.9 |
+| model | −15.5 | −15.6 | −6.7 | −16.4 |
+
+Partial by partial on A1, D2 and A2 the model's decays are not uniform where the real piano's are (−4 to −12 dB/s from 1 to 2.2 kHz): **−15 to −29 dB/s between 1 and 1.5 kHz, 0 to −4 dB/s between 1.7 and 2.2 kHz** (A1 partials 31–35, D2 partials 22–28). The decay of a partial through the bridge is the board's conductance there: the model's bass bridge has too much of it just below 1.5 kHz and almost none just above. That is where `outline_below` (1.5 kHz) hands the board from the outlined plate's own modes to the rectangle's, whose modal density jumps at the corner (docs/outline.md). The real board, ribbed, has no such step. Verify with this tool once the corner is moved (`outline_below` 3 kHz, which docs/outline.md found neutral on the bench) or the board above it made continuous with the one below.
+
+The early levels differ by ±10 dB from partial to partial (A2: +9 at partial 12, +6 at 13 and 16, −8 at 11 and 14), the hammer's and the bridge's share of the whistles; and the real bridge has deep antiresonances the model's has not (A1's partial 18 at 1015 Hz: −43 dB early on the real bridge, −6 on the model's): the fine-structure spread axis 3 of docs/realism_axes.md measured.
+
+So the two verdicts meet: the board and its radiation are the weaker stage to the ear (B worst), and the strings' stage errs where the board couples them (the decays), which the same corner of the board model explains.
