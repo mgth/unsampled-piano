@@ -13,7 +13,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let mut model = piano_host::load_preset(std::path::Path::new(&args[1])).unwrap();
     for l in &args[2..] {
-        model = piano_host::load_over(std::path::Path::new(l), &model).unwrap();
+        model = piano_host::load_listening(std::path::Path::new(l), &model).unwrap();
     }
     let model = model.with_macros();
     let model = PianoModel { soundboard: model.soundboard.map(|s| s.resolved()), ..model };

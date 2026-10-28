@@ -535,6 +535,25 @@ impl Engine {
         &self.disp_in[r]
     }
 
+    /// The primary bridge force (N: the struck strings and the knocks)
+    /// summed at region `r` over the last sub-block rendered, and the
+    /// bridge velocity there (m/s). Valid for a block of exactly
+    /// [`SUB_BLOCK`] samples: the stage swap reads them block by block
+    /// (piano-render's `bridge_signal` example).
+    pub fn bridge_force(&self, r: usize) -> &[f32] {
+        &self.region[r]
+    }
+
+    pub fn bridge_velocity(&self, r: usize) -> &[f32] {
+        &self.disp[r]
+    }
+
+    /// Factor from the pressure at the microphones (Pa) to the output
+    /// samples, the listening set-up's own `mic_gain_db` apart.
+    pub fn pressure_scale(&self) -> f32 {
+        self.gain * PRESSURE_GAIN
+    }
+
     pub fn board_awake(&self) -> bool {
         self.board_awake
     }
