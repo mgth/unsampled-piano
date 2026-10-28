@@ -228,7 +228,10 @@ Two levers, both set once on the rectangle:
 
 A/B in out/ab_round (Beethoven and A1/D2, studio throughout): now, crown 120, crown 120 + back face.
 
+**Heard: neither changes the roundness.** Not kept. The 8 dB excess of the fundamental is real and measured on nine pianos, but it is not what the ear calls the missing "rounder resonance". Remaining leads for it, in order: the strings' energy between the partials (−18 dB in the model against −8 in the recording at A1, 300 Hz–5 kHz, 0.08–0.6 s), the sympathetic halo's spectrum with the pedal, and the board's structure (ribs, two bridges), which also governs the sustain's 315 Hz antiphase and the key-to-key dips.
+
 ## Still open
 
+- **The "tube" and the "rounder resonance"** (2026-10-28): what the user hears in the bass against Liang's recording. Removed in part by the grand's outline (the stereo attack, now the default). Not changed by: the board's damping, a softer bass felt, the longitudinal modes, the microphones' pair (apart from the outline), the crown and the back face. Still open leads above.
 - **C2–A2 lacks body.** Relative to the strongest partial, partials 4–6 lie 10–13 dB under the recording in the sustain (−1 to −5 at the attack): they decay at −14 dB/s against −9. The edge loss is not it (off: −12). The bench's eight grands agree: the bass's partials 4–12 are 4–8 dB weak in the sustain. The bridge's conductance at 300–800 Hz is next.
 - Partials above the 20th of C2–A2 stand 5–20 dB over the recording.
