@@ -48,5 +48,9 @@ Listening excerpts: `out/nonlinear/` (A1 ff and 45 s of the Rachmaninoff, with a
 ## What remains
 
 - Pitch glide at ff (tension modulation on the transverse modes).
-- Phantoms during hammer contact: the first 2 to 5 ms are not computed.
 - Origin of the rest of the bass brightening.
+- Phantoms during hammer contact: the first 2 to 5 ms are not computed (a working patch exists, see below).
+
+## 2026-10-28: during the contact, and the modes' own ringing (tried, not kept)
+
+The recordings' bass attacks hold the strings' longitudinal modes as lines at 1–3 kHz, −17 to −25 dB re the strongest partial at ff, ringing for seconds (−13 to −55 dB/s, a loss factor of 3–10·10⁻⁴; docs/bass_metal.md, "The longitudinal modes"). `long_loss` 0.005 kills the model's in 0.3 s. Two things were tried together: driving the modes while the hammer is on the strings as well (the contact solver handing the voice each partial's mean displacement per sample; alone −16 dB re the signal, no bench measure), and `long_loss` 0.001 or 0.0005 (D2's first mode at −27 dB, −32 or −16 dB/s, phantom median unchanged at −26.9 dB, bench 1.10). On the 3 ms spectrogram the lines then fill the attack as in the recordings; the user heard no change in the bass's "tube" and asked not to keep the sound. The code is kept as a patch in the sessions' notes (longitudinal_contact_drive.patch); "phantoms during hammer contact" stays open.

@@ -145,6 +145,46 @@ Bench (eight grands): flat η 0.02 scores 1.26 (36 worse, 9 better), flat 0.01 1
 
 Scripts in the shared notes folder (tube_scripts2/): `atk.py` (attack close-up), `attk3.py` (attack third octaves), `hf.py` (comb fit, early decays), `plath.py` (bridge acceleration against the ear), `notes_ab.py`.
 
+## Heard: not the board; the percussion is Liang's
+
+The user heard no difference between the three board dampings: the visible blur of the chirps is not what the ear calls the tube. What the user heard instead on the isolated notes: A1 less percussive in the recording than in the model, D2 more. Attack (0–30 ms) over sustain (0.3–0.6 s), broadband:
+
+| | Liang | model | Plath | BiVib | Headroom |
+|---|---|---|---|---|---|
+| A1 | 2.8 dB | 7.8 | 8.9 | 6.4 | 9.0 |
+| D2 (D♯2 for the sets) | 11.1 | 7.8 | 7.2 | 5.5 | 9.5 |
+
+Liang's Disklavier is the one with the inversion: its A1's second partial (110 Hz) builds up for 100 ms to −3 dB and stays, a high-Q low resonance of that board; its D2's partials 1–3 fall 10–15 dB over 400 ms (Plath's D♯2 7 dB, the model's 4). On the other grands the two keys are about equally percussive, the model in their middle. Not followed (the user chose to stay with the real pianos' mean).
+
+Two side findings:
+- **D2's partial 4 (294 Hz) is 20 dB down at the close microphones only**: −20 dB at the bridge force, −16 with the player's microphones, −20 with the concert pair, −28/−30 dB on each close channel and −39 on their sum. The close pair sits at mirror-image points about the rectangle's centre ((0.29, 0.35) and (0.71, 0.65) of the board), so every antisymmetric board mode reaches the two microphones in antiphase (the stereo image's −0.7 correlation at 160 and 315 Hz, above). A real board has no such symmetry.
+- **A softer bass felt is not it.** A top felt 3 × softer at A1 with the core pushed 0.74 mm deep (`hardness_slope_bass` 0.15, `core_depth_bass` 2) slows the force's rise to 0.45 ms and takes 25–35 dB off the attack above 2 kHz; the recordings have 10 dB *more* there than the model (bench 1.44–1.47). The model's bass felt is stiffer than the published laws at 1 mm (≈ 440 N against Chaigne & Askenfelt's 50 N for C2 and Giordano's 10–30 N), yet the force's rise stays near 0.2–0.3 ms whatever the felt: the peak is 2·Z·v, reached within 0.6–1 mm.
+
+## The longitudinal modes
+
+What the recordings have at 1–3 kHz in the attack that the model lacks: spectral lines off the stiff-string comb, 30–230 ms after the onset, at −17 to −25 dB re the strongest partial at ff (Plath A1 1438 and 1550 Hz; Headroom A1 1605–1857; BiVib A1 1438 and 2178; Plath, BiVib and Headroom D♯2 2046–2196 and 3081–3236; Liang D2 1774 and 2768). They grow much faster than the hammer speed (BiVib A1's 2178 Hz line: −58, −48, −31 dB at velocities 45, 56, 100; D♯2's 2193 Hz: −59, −51, −23): a nonlinear excitation, the longitudinal modes of the strings, at 2–3 times a first mode of 720–930 Hz (A1) and 1.0–1.1 kHz (D♯2). And they ring: −13 to −55 dB/s, mostly −15 to −40, i.e. a T60 of 1.5–4 s, a loss factor of 3–10·10⁻⁴.
+
+The model had them at −32 to −41 dB with `long_loss` 0.005 (−160 dB/s at 1143 Hz: gone in 0.3 s). Its first longitudinal modes lie at 930 Hz (A1) and 1143 Hz (D2), 10–25 % above the recordings' (its bass strings carry 427–479 N and are lighter). Two changes:
+- the longitudinal modes are now driven **while the hammer is on the strings** too (the partials' displacements are read off the contact solver; before, the drive started 2 ms after the contact, with a 2 ms ramp). On its own it changes the output by −16 dB re the signal and no measure (bench 1.09 → 1.09);
+- `long_loss` 0.001 (candidate B) or 0.0005 (C). D2's first longitudinal mode then stands at −27 dB at 30 ms (recordings' lines −26 to −33) and decays at −32 / −16 dB/s (recordings −13 to −55); the phantom partials' median stays −26.9 dB (Salamander −28.7, Iowa −26.0; `coupling` 0.6 would put it at −21.9). Bench 1.10 (one measure worse: the bass's mf 4–8 kHz, z +0.3 → +1.1). On the 3 ms spectrogram the lines fill the space between the chirps, as in the recordings.
+
+A/B in out/ab_long (Beethoven 22–32 s with the pedal, and A1/D2 isolated): the recording, now, B, C. **Heard: neither B nor C changes the tube.** Not kept (the code is a patch in the sessions' notes); the tube is still not the chirps' masking either. Next: the close microphones' symmetry.
+
+## The close microphones' pair
+
+Tried, as the user asked, against the D2 hole. Eight bass keys (E1–C3) rendered dry with the close pair moved; each pair judged on the spread of its partials' levels (1–6, at 100 ms) relative to the bridge force, its deepest dip, and the L/R correlation per third octave (`mic_modes` example, tube_scripts2/micpair.py):
+
+| pair (x, y of the board; z m) | spread | deepest dip | L/R at 63–125 Hz | 160–250 | 315 | bench |
+|---|---|---|---|---|---|---|
+| now: (0.29, 0.35) (0.71, 0.65); 0.4 | 6.7 dB | −15.1 (D2 p4) | 0.0 / +0.4 / +0.1 / 0.0 | −0.2 / +0.5 / −0.4 | **−0.88** | 1.09 |
+| bass mic at (0.78, 0.56) | 5.8 | −13.9 (A1 p1) | 0.0 / +0.4 / +0.1 / +0.1 | −0.1 / +0.6 / −0.2 | −0.61 | 1.16 |
+| (0.30, 0.35) (0.62, 0.75) | 5.9 | −13.2 (A1 p1) | +0.1 / +0.3 / +0.1 / 0.0 | −0.2 / +0.5 / −0.4 | −0.63 | 1.11 |
+| P7: (0.33, 0.33) (0.60, 0.52) | 6.3 | −16.7 (A2 p3) | +0.4 / +0.5 / +0.7 / +0.6 | 0.0 / +0.6 / +0.2 | −0.29 | 1.22 |
+| P10: (0.33, 0.40) (0.50, 0.60); 0.5 | 6.4 | −15.9 (A1 p1) | +0.2 / +0.8 / +0.6 / +0.5 | 0.0 / +0.5 / +0.4 | −0.30 | 1.16 |
+| now, raised to 0.7 m | 7.6 | −22.2 | −0.8 / −0.6 / −0.5 / −0.4 | −0.5 / +0.2 / −0.5 | −0.75 | |
+
+BiVib's and Plath's binaural pairs on the same keys: +0.4 to +0.95 in every band. The modes between 260 and 335 Hz are (3,2), (2,3), (4,1) and (1,4), one every 20 Hz with a 9 Hz bandwidth: each dominates its band alone, and reaches any two microphones 0.5–0.8 m apart in opposite lobes. Moving the pair moves the dips (D2's partial 4 −37 → −27 dB on the mono sum, A2's partial 3 then −17) and repairs the low bands' correlation, not 315 Hz; the pair's place also sets the registers' balance (the treble and top worsen: bench 1.11–1.22). The real lever is the board's regularity (ribs, outline, the modes' density near 300 Hz), the open "board colouring" item. A/B in out/ab_mics (Beethoven and A1/D2: now, P7, P10) for the ear; nothing changed.
+
 ## Still open
 
 - **C2–A2 lacks body.** Relative to the strongest partial, partials 4–6 lie 10–13 dB under the recording in the sustain (−1 to −5 at the attack): they decay at −14 dB/s against −9. The edge loss is not it (off: −12). The bench's eight grands agree: the bass's partials 4–12 are 4–8 dB weak in the sustain. The bridge's conductance at 300–800 Hz is next.
