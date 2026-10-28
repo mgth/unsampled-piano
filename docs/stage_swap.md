@@ -102,3 +102,22 @@ The "decay two to three times too fast below 1.5 kHz, none above" of the section
 Bench: 0.2 cent scores 1.19 and 0 cent 1.20 against 1.11 (23 measures worse, 12 better): the middle's early decays become too slow (z −0.2 → +1.2/+1.6) and its envelopes at 2–3 s too low, the treble's sustain partials 3, 8 and 12 too weak. The beats were part of the calibration of the losses and the coupling: the bench cannot judge the width on its own, and the losses would have to be set again at the narrower width. docs/bass_metal.md had seen the nulls sweep ("a flanger") and tried an irregular detune, which keeps them; a narrower pair was never heard.
 
 Listening files: `out/ab_swap_ob3000/` (the corner at 3 kHz: 0 and B, as asked) and `out/ab_swap_u02/` (the pair at 0.2 cent: A and M against the default's).
+
+## Heard: A is right, M is a bell (2026-10-28, later)
+
+On the unison files the user's verdict was not about the unisons: A, the model's strings through the real board, is right at either width; **M, the model itself at the player's seat, "is nonsense, it sounds like a bell"**. The strings and the hammer pass through a real board unnoticed; the board and its radiation do not.
+
+What the bell is, on the same strings (M − A, partial by partial, 0.3–1 s): on A2 the model's board gives +10, +16 and +19 dB on partials 1, 5 and 7 (110, 550, 770 Hz) and −12 to −29 dB on partials 12–20 (1.3–2.2 kHz); on A1 +8 to +26 dB on partials 8–20 (440–1100 Hz) and the fundamental region against the 1.2 kHz lines the real board rings out. A few mid partials stand alone, the brightness above 1.3 kHz is buried. Switching off the frame, the rim, the back face, the sympathetic strings or the action's noise, or taking a cardioid, changes none of it (0.1 dB); moving the microphones (0.8 or 1.2 m high, nearer the keyboard, the close pair, 1 m above the board's centre) brings the rms of M − A from 15 to 10–12 dB and keeps the same partials on top. It is the board's radiation.
+
+`radiation_probe` (piano-render) says where: per third octave of mode frequency, the mean |pressure per unit modal velocity|² of the board's modes at the first microphone, lid off:
+
+| mode frequency | 315 | 630 | 794 | 1000 | 1260 | 2000 | 3175 | 4000 | 6350 | 8000 Hz |
+|---|---|---|---|---|---|---|---|---|---|---|
+| player's seat (dB) | 30 | 36 | **39** | 36 | 27 | 17 | 17 | 14 | 8 | 5 |
+| close pair above the board | 37 | 36 | 37 | 40 | 44 | 43 | 45 | 44 | 45 | 44 |
+
+Towards the player, 95 cm in front of the keyboard end and 45 cm up, the model's modes above 2 kHz radiate 20–30 dB less than those at 600–1000 Hz, where the plate's coincidence lies (800–1200 Hz for D 4590/2040 and ρh 8.4); above the board the same modes radiate flat. A plate in an infinite baffle sends its short-wavelength modes upwards and almost nothing along the surface, and nothing in the model diffracts them towards a listener at grazing incidence: no case, no keyboard, no frame or strings in the way, no rib-bounded modes radiating as small sources. Plath's grand, through the same strings, sounds right to the ear from that seat; its bridge-to-ear transfer (docs/realism_axes.md, axis 3) is −7 at 1.26 kHz and −9 to −11 dB at 3–5 kHz against the model's from the bass bridge, −11 to −20 dB at 2–5 kHz from the middle's.
+
+So the lead: **the board's radiation at low elevation**, which every listening preset in front of the instrument meets and the close pair meets in part (its M − A keeps +9 to +21 dB on the same low partials). Candidates, in order: the case and the keyboard as obstacles and diffractors of the board's field (the Rayleigh integral sees an infinite baffle); the modes above 1 kHz as rib-localised small radiators rather than whole-plate sines; the strings' and the frame's own radiation to the player. Test: M − A per partial at the player's seat (`out/ab_swap`), the radiation probe's slope above 1 kHz, and the bridge-to-ear table against Plath; then B and M against the real piano for the ear.
+
+The unisons at 0.2 cent stand as measured at the bridge (no beat nulls, decays within 3–5 dB/s of the real piano) and unheard: the board came first.
