@@ -207,6 +207,8 @@ Where the recorded bass attack is coherent between the two channels (first 40 ms
 
 The board's own shape does what the microphones could not. With the grand outline ([outline.md](outline.md), `soundboard.outline`, off by default) and the same pair, the attack's coherence turns positive in every band: +0.21 / +0.17 / +0.23 / +0.30 / +0.15 (250 Hz–8 kHz; broadband lag 3.7 → 2.9 ms, correlation −0.02 → +0.20). The sustain's correlation at 315 Hz stays −0.84 and the transfer dips stay (spread 6.4 dB). Bench: outline alone 1.15 (22 worse, 16 better: the middle's 1 kHz bands and centroid, the treble's partial 8), outline with the board recalibrated as the earlier session had it (ρh 8.4, D 4590/2040, impedance slopes 0.0024/0.0076) 1.11 (17 worse, 19 better). A/B in out/ab_outline2 (Beethoven and A1/D2 with the studio throughout: rectangle, outline, outline recalibrated). On 2026-10-27 the user had heard the outline as "a bit more even" and the tube "maybe B/C, not flagrant", before the lowest modes were damped (`loss_low_corner` 200).
 
+**Heard: C is better.** The outline with the recalibrated board is now the default (SoundboardParams::GRAND_2M, bench baseline 1.11). The user adds that the recording stays richer in every version, with "a rounder resonance" wholly absent from the model: the next lead.
+
 ## Still open
 
 - **C2–A2 lacks body.** Relative to the strongest partial, partials 4–6 lie 10–13 dB under the recording in the sustain (−1 to −5 at the attack): they decay at −14 dB/s against −9. The edge loss is not it (off: −12). The bench's eight grands agree: the bass's partials 4–12 are 4–8 dB weak in the sustain. The bridge's conductance at 300–800 Hz is next.

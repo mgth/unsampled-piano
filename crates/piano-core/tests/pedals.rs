@@ -180,7 +180,9 @@ fn upright_repeats_slower_than_a_grand() {
     };
     let (soon, late) = (level(0.06, 0.01) - level(0.0, 0.01), level(0.06, 0.1) - level(0.0, 0.1));
     eprintln!("re-strike 10 ms after the release: {soon:+.1} dB; 100 ms after: {late:+.2} dB");
-    assert!(soon < -3.0, "an upright should re-strike weaker at once");
+    // The 50 ms level also depends on the board under C4: −3.3 dB with the
+    // rectangle, −2.6 with the grand's outline (the default since 2026-10-28).
+    assert!(soon < -2.0, "an upright should re-strike weaker at once");
     assert!(late.abs() < 0.05, "and as a grand once its action has reset");
 }
 

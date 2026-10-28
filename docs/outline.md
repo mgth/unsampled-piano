@@ -1,6 +1,6 @@
 # The soundboard's outline
 
-Status as of 2026-10-27.
+Status as of 2026-10-28: **on by default** since that day (see the end).
 
 ## Why
 
@@ -115,7 +115,7 @@ The model's lowest board mode, lightly damped once the pedal is down, makes one 
 
 - An outline in the physics is feasible and cheap: 0.04 s more to build, slightly fewer modes, nothing changed when it is off.
 - The prototype grand outline does not settle the key-to-key unevenness. On every key, partial 1 gains 0.7 dB of evenness and partial 2 nothing; the bench's larger gain (7.7 → 6.1 dB) owes much to the keys it samples. It also unbalances calibrations made on the rectangle (the middle's decay, the treble's) and puts a boom on B2 with the pedal.
-- The outline stays off in the default. `GRAND_OUTLINE` is there for listening and for the next steps.
+- The outline stayed off in the default until 2026-10-28 (below).
 
 ## Next
 
@@ -130,3 +130,7 @@ The model's lowest board mode, lightly damped once the pedal is down, makes one 
 - The rim stays the rectangle's ring (its perimeter, radiation and modes); only the forces it receives follow the outline.
 - The lid stays a rectangle as wide as the board.
 - Uprights keep the rectangle.
+
+## 2026-10-28: on by default
+
+What settled it was not the evenness but the stereo attack of the bass ([bass_metal.md](bass_metal.md), "The attack's coherence, band by band"). With the rectangle, the modes at 260–335 Hz reach the two close microphones in antiphase: a bass attack arrives at them 3.7 ms apart with no correlation between the channels (real pairs 0.2–1.7 ms, +0.2 to +0.5), which the user heard as part of the bass's "tube". With the outline and the same microphones the attack is coherent in every band from 250 Hz to 8 kHz. The user chose the outline with the board recalibrated: `rho_h`, `dx`, `dy` × 1.2 (the modes above `outline_below` keep a fifth of their mass outside the outline), `impedance_slope` 0.0024 and `impedance_slope_bass` 0.0076 instead of 0.02 and 0. Bench 1.11 against the rectangle's 1.09 (17 measures worse, 19 better); the new baseline. Still to do: ribs and the two bridges; the sustain's 315 Hz still reaches the pair in antiphase (−0.84).

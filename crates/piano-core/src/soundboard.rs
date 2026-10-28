@@ -232,9 +232,14 @@ impl SoundboardParams {
     pub const GRAND_2M: Self = Self {
         a: 1.7,
         b: 1.3,
-        rho_h: 7.0,
-        dx: 3825.0,
-        dy: 1700.0,
+        // Surface mass and stiffnesses × 1.2 since the board has its grand
+        // outline (82 % of the rectangle): the modes above `outline_below`
+        // are the rectangle's, mass-normalised on it, so a fifth of their
+        // mass lies outside the outline; the same D/ρh keeps the modal
+        // frequencies and the calibrated mobility (docs/outline.md).
+        rho_h: 8.4,
+        dx: 4590.0,
+        dy: 2040.0,
         loss_factor: 0.02,
         // Wood and radiation damping grow with frequency: η = 0.02·(1 +
         // f/2500 Hz). The share of its energy the board radiates falls as
@@ -267,8 +272,11 @@ impl SoundboardParams {
         // docs/sustain.md); against eight real grands 0.02 lets the top
         // strings lose their prompt sound faster into the bridge (bench
         // 1.53 → 1.51 with the top losses lowered, docs/top_treble.md).
-        impedance_slope: 0.02,
-        impedance_slope_bass: 0.0,
+        // Re-set with the outline, which gathers the low modes on the bass
+        // side (the rectangle had 0.02 and 0): bench 1.11 against 1.15 with
+        // the rectangle's slopes, docs/bass_metal.md.
+        impedance_slope: 0.0024,
+        impedance_slope_bass: 0.0076,
         f_max: 20_000.0,
         // A broad mode near 40 Hz (docs/bass.md). Mass set on the late
         // sustain of the bass (docs/long_sustain.md): with 1.5 kg it took
@@ -322,7 +330,13 @@ impl SoundboardParams {
         string_load: 1.0,
         string_load_free: 1.0,
         exact_below: 0.0,
-        outline: [(0.0, 0.0); OUTLINE_POINTS],
+        // The grand's outline (docs/outline.md), on since 2026-10-28: with
+        // the rectangle, the modes at 260–335 Hz reached the two close
+        // microphones in antiphase and a bass attack arrived 3.7 ms apart
+        // with no correlation between the channels (real pairs: 0.2–1.7 ms,
+        // +0.2 to +0.5), a flam the user heard as a "tube" in the bass; the
+        // outline makes the attack coherent in every band (docs/bass_metal.md).
+        outline: Self::GRAND_OUTLINE,
         outline_below: 1500.0,
     };
 
@@ -1012,9 +1026,23 @@ impl Soundboard {
 mod tests {
     use super::*;
 
+    /// The 2 m grand as the uniform rectangle it was calibrated as before
+    /// its outline went on (the outline's recalibration undone).
+    fn rectangle() -> SoundboardParams {
+        SoundboardParams {
+            outline: [(0.0, 0.0); OUTLINE_POINTS],
+            rho_h: 7.0,
+            dx: 3825.0,
+            dy: 1700.0,
+            impedance_slope: 0.02,
+            impedance_slope_bass: 0.0,
+            ..SoundboardParams::GRAND_2M
+        }
+    }
+
     #[test]
     fn modal_density_and_mean_mobility_match_measurements() {
-        let sb = Soundboard::new(SoundboardParams::GRAND_2M);
+        let sb = Soundboard::new(rectangle());
         let p = sb.params;
         // Ege et al. 2013: ≈ 1 mode per 19.5 Hz.
         let dens = sb.modal_density(200.0, 1000.0);
@@ -1058,7 +1086,7 @@ mod tests {
     /// No outline, or one without area: the rectangle, bit for bit.
     #[test]
     fn an_outline_without_area_is_the_rectangle() {
-        let base = SoundboardParams { f_max: 3000.0, grid_step: 0.05, ..SoundboardParams::GRAND_2M };
+        let base = SoundboardParams { f_max: 3000.0, grid_step: 0.05, ..rectangle() };
         let bits = |p: SoundboardParams| {
             let sb = Soundboard::new(p);
             assert!(sb.outline.is_none() && sb.ritz.is_empty());
@@ -1079,7 +1107,7 @@ mod tests {
     /// that short.
     #[test]
     fn a_shorter_outline_has_the_shorter_boards_modes() {
-        let base = SoundboardParams::GRAND_2M;
+        let base = rectangle();
         let r = 0.75;
         let mut outline = [(0.0, 1.0); OUTLINE_POINTS];
         outline[..4].copy_from_slice(&[(0.0, 0.0), (r, 0.0), (r, 1.0), (0.0, 1.0)]);
