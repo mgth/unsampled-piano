@@ -25,6 +25,12 @@ pub trait PianoControl {
     fn midi(&mut self) -> Option<&mut MidiLearn> {
         None
     }
+    /// What the engine is doing now (keys, dampers, string energies, board
+    /// motion), for the model page's live view; None when the host does
+    /// not report it.
+    fn observe(&self) -> Option<piano_core::Observation> {
+        None
+    }
     /// Whether a controller may be learnt for `path` (a plugin leaves its
     /// automatable parameters to the host's own MIDI mapping).
     fn midi_learnable(&self, path: &str) -> bool {

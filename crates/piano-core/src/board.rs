@@ -264,6 +264,25 @@ impl BoardBank {
         e * self.fs2
     }
 
+    /// Modulus of each mode's state, in the order of the modes given, into
+    /// `out` (as many as fit); returns how many were written.
+    pub fn amplitudes(&self, out: &mut [f32]) -> usize {
+        let n = self.n_modes.min(out.len());
+        for part in &self.parts {
+            // Only the chunks holding the modes asked for.
+            let used = n.div_ceil(LANES).saturating_sub(part.c0).min(part.chunks.len());
+            for (ci, c) in part.chunks[..used].iter().enumerate() {
+                for l in 0..LANES {
+                    let i = (part.c0 + ci) * LANES + l;
+                    if i < n {
+                        out[i] = c.zr[l].hypot(c.zi[l]);
+                    }
+                }
+            }
+        }
+        n
+    }
+
     /// Advances by `len` samples. `inputs[r][..len]` are the region forces;
     /// the outputs are *added* to `mics[o][..len]` and, when given,
     /// `disp[r][..len]` (bridge velocity at the region points) and

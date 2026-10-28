@@ -530,6 +530,34 @@ impl Engine {
         self.voices.iter().filter(|v| v.active).map(|v| (v.note, v.energy())).collect()
     }
 
+    /// Adds this engine's state to `obs` (the interface's live view; no
+    /// allocation, O(voices + observed modes)). Clear it first, then add
+    /// every engine playing ([`crate::observe::Observation::merge`] for
+    /// engines observed apart).
+    pub fn observe(&self, obs: &mut crate::Observation) {
+        let mut own = crate::Observation::default();
+        for (k, &down) in own.keys.iter_mut().zip(&self.key_down) {
+            k.down = down;
+            // No voice: the strings rest, under their damper unless the
+            // pedal lifts it.
+            k.damper = if down { 0.0 } else { 1.0 - self.sustain as f32 };
+        }
+        for v in self.voices.iter().filter(|v| v.active) {
+            let k = &mut own.keys[v.note as usize & 127];
+            k.hammer |= v.contact.is_active();
+            k.damper = k.damper.min(v.engagement as f32);
+            k.energy += v.bank.energy() + v.sym.energy();
+        }
+        (own.sustain, own.soft, own.sostenuto) = (self.sustain as f32, self.soft as f32, self.sostenuto_down);
+        // The low modes run apart when driven key by key: they come first.
+        let mut n = self.board_low.as_ref().map_or(0, |b| b.amplitudes(&mut own.board));
+        if let Some(b) = &self.board {
+            n += b.amplitudes(&mut own.board[n..]);
+        }
+        own.board_modes = n;
+        obs.merge(&own);
+    }
+
     /// Bridge displacement fed to the strings at region `r` (diagnostics).
     pub fn bridge_input(&self, r: usize) -> &[f32] {
         &self.disp_in[r]

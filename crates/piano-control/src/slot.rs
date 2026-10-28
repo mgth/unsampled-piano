@@ -72,7 +72,17 @@ pub struct EngineSlot {
     doubled_seen: u32,
     /// On the engines' sum, the last stage (live `limiter`).
     limiter: piano_core::limiter::Limiter,
+    /// The engines' state for the interface: this block's, the most of
+    /// every block since it was last published, and the samples since.
+    observation: Box<piano_core::Observation>,
+    held: Box<piano_core::Observation>,
+    since_observed: usize,
 }
+
+/// The interface's live view gets the engines' state this often, held over
+/// every block in between: a single look per frame would catch the board's
+/// beats at random points (temporal aliasing) and miss most blows.
+const OBSERVE_HZ: f64 = 60.0;
 
 impl EngineSlot {
     #[allow(clippy::too_many_arguments)]
@@ -109,6 +119,9 @@ impl EngineSlot {
             shared,
             doubled_seen: 0,
             limiter: piano_core::limiter::Limiter::new(cfg.sample_rate),
+            observation: Box::default(),
+            held: Box::default(),
+            since_observed: 0,
         }
     }
 
@@ -261,6 +274,18 @@ impl EngineSlot {
             self.doubled_seen = d;
         }
         self.shared.engines.store(self.engines() as u32, Ordering::Relaxed);
+        self.observation.clear();
+        self.current.observe(&mut self.observation);
+        for r in self.retiring.iter().flatten() {
+            r.engine.observe(&mut self.observation);
+        }
+        self.held.hold(&self.observation);
+        self.since_observed += left.len();
+        if self.since_observed as f64 >= self.sample_rate / OBSERVE_HZ {
+            self.since_observed = 0;
+            self.shared.observed.store(&self.held);
+            self.held.clear();
+        }
     }
 
     /// The limiter (when on) on the engines' sum, then the meter: samples

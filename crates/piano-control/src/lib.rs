@@ -27,7 +27,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use piano_core::params::PianoModel;
-use piano_core::{Engine, EngineConfig, Event, LiveParam};
+use piano_core::observe::OBSERVED_MODES;
+use piano_core::{Engine, EngineConfig, Event, LiveParam, Observation};
 use piano_params::midi::{CcAction, MidiLearn, MidiMap, RouteTable};
 use piano_params::{PianoControl, Status, Value};
 
@@ -59,6 +60,68 @@ pub struct Shared {
     pub clipped: AtomicU32,
     pub peak: AtomicU32,
     pub limiting: AtomicU32,
+    /// The engines' state for the interface ([`Controller::observe`]).
+    pub observed: Observed,
+}
+
+/// An [`Observation`] in atomics: the audio side stores it field by field
+/// (no lock), the interface reads whatever stands, a frame possibly mixing
+/// two blocks, which a picture does not show.
+pub struct Observed {
+    /// Per key: energy (f32 bits), and down | hammer << 1 | damper ×1e4 << 2.
+    energy: [AtomicU32; 128],
+    flags: [AtomicU32; 128],
+    /// Sustain and soft pedal ×1e4, sostenuto 0/1, board modes set.
+    pedals: [AtomicU32; 4],
+    board: [AtomicU32; OBSERVED_MODES],
+    /// Blocks published, 0 before the first.
+    pub published: AtomicU64,
+}
+
+impl Default for Observed {
+    fn default() -> Self {
+        Self {
+            energy: std::array::from_fn(|_| AtomicU32::new(0)),
+            flags: std::array::from_fn(|_| AtomicU32::new(10_000 << 2)),
+            pedals: std::array::from_fn(|_| AtomicU32::new(0)),
+            board: std::array::from_fn(|_| AtomicU32::new(0)),
+            published: AtomicU64::new(0),
+        }
+    }
+}
+
+impl Observed {
+    pub fn store(&self, o: &Observation) {
+        let r = Ordering::Relaxed;
+        for ((e, f), k) in self.energy.iter().zip(&self.flags).zip(&o.keys) {
+            e.store(k.energy.to_bits(), r);
+            f.store(k.down as u32 | (k.hammer as u32) << 1 | ((k.damper.clamp(0.0, 1.0) * 1e4) as u32) << 2, r);
+        }
+        for (a, v) in self.pedals.iter().zip([(o.sustain * 1e4) as u32, (o.soft * 1e4) as u32, o.sostenuto as u32, o.board_modes as u32]) {
+            a.store(v, r);
+        }
+        for (a, v) in self.board.iter().zip(&o.board[..o.board_modes]) {
+            a.store(v.to_bits(), r);
+        }
+        self.published.fetch_add(1, r);
+    }
+
+    pub fn load(&self) -> Observation {
+        let r = Ordering::Relaxed;
+        let mut o = Observation::default();
+        for ((k, e), f) in o.keys.iter_mut().zip(&self.energy).zip(&self.flags) {
+            let f = f.load(r);
+            k.energy = f32::from_bits(e.load(r));
+            (k.down, k.hammer, k.damper) = (f & 1 != 0, f & 2 != 0, (f >> 2) as f32 / 1e4);
+        }
+        let p = self.pedals.each_ref().map(|a| a.load(r));
+        (o.sustain, o.soft, o.sostenuto) = (p[0] as f32 / 1e4, p[1] as f32 / 1e4, p[2] != 0);
+        o.board_modes = (p[3] as usize).min(OBSERVED_MODES);
+        for (v, a) in o.board[..o.board_modes].iter_mut().zip(&self.board) {
+            *v = f32::from_bits(a.load(r));
+        }
+        o
+    }
 }
 
 /// What the worker reports besides the counters.
@@ -233,6 +296,11 @@ impl PianoControl for Controller {
 
     fn midi(&mut self) -> Option<&mut MidiLearn> {
         Some(&mut self.midi)
+    }
+
+    fn observe(&self) -> Option<Observation> {
+        let o = &self.shared.observed;
+        (o.published.load(Ordering::Relaxed) > 0).then(|| o.load())
     }
 }
 
