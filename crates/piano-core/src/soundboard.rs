@@ -216,6 +216,12 @@ pub struct SoundboardParams {
     /// the outlined board's own modes, below `outline_below`.
     pub rib_spacing: f64,
     pub rib_share: f64,
+    /// Irregular ribs, as a real board's are (0: equally spaced and alike):
+    /// each rib moves by up to ± half this share of the spacing and its
+    /// stiffness varies by up to ± this share, from a fixed pseudo-random
+    /// sequence (their mean stays `rib_share`). Periodic ribs make waves
+    /// that spread over the whole board; irregular ones confine them.
+    pub rib_jitter: f64,
     /// What lies over the board (strings, frame, dampers, bridges)
     /// scatters its sound in every direction, where the board itself, a
     /// plate, sends its high frequencies straight up and almost nothing
@@ -368,6 +374,7 @@ impl SoundboardParams {
         outline_below: 1500.0,
         rib_spacing: 0.0,
         rib_share: 0.0,
+        rib_jitter: 0.0,
         scatter: 0.0,
         scatter_corner: 1500.0,
         scatter_step: 0.1,
@@ -756,14 +763,22 @@ impl Soundboard {
         // plate, EI/s on dy, is already in `dy`: it is taken out again,
         // (a/2s)·δ_ij, so that the long waves see nothing and the short ones
         // the ribs' period.
-        let ribs: Vec<Vec<f64>> = if p.rib_spacing > 0.0 && p.rib_share > 0.0 {
+        // Irregular ribs: each moved and stiffened by its own pseudo-random
+        // draws in [−½, ½] (the same at every build), the stiffnesses
+        // normalised to a mean of 1.
+        let draw = |r: usize, k: f64| ((r as f64 * 12.9898 + k * 78.233).sin() * 43_758.545_3).rem_euclid(1.0) - 0.5;
+        let ribs: Vec<(f64, Vec<f64>)> = if p.rib_spacing > 0.0 && p.rib_share > 0.0 {
             let n_ribs = (p.a / p.rib_spacing).floor().max(1.0) as usize;
             let margin = 0.5 * (p.a - (n_ribs as f64 - 1.0) * p.rib_spacing);
+            let j = p.rib_jitter.clamp(0.0, 1.0);
+            let weights: Vec<f64> = (0..n_ribs).map(|r| 1.0 + 2.0 * j * draw(r, 2.0)).collect();
+            let mean = weights.iter().sum::<f64>() / n_ribs as f64;
             (0..n_ribs)
                 .map(|r| {
+                    let x = (margin + (r as f64 + j * draw(r, 1.0)) * p.rib_spacing).clamp(0.0, p.a);
                     let mut sx = Vec::new();
-                    sines(PI * (margin + r as f64 * p.rib_spacing) / p.a, mm as usize, &mut sx);
-                    sx
+                    sines(PI * x / p.a, mm as usize, &mut sx);
+                    (weights[r] / mean, sx)
                 })
                 .collect()
         } else {
@@ -790,7 +805,7 @@ impl Soundboard {
                     if nj != ni {
                         continue;
                     }
-                    let s: f64 = ribs.iter().map(|sx| sx[mi as usize] * sx[mj as usize]).sum();
+                    let s: f64 = ribs.iter().map(|(w, sx)| w * sx[mi as usize] * sx[mj as usize]).sum();
                     row[j] += rib_gain * k4 * (s - if mi == mj { smeared } else { 0.0 });
                 }
             }

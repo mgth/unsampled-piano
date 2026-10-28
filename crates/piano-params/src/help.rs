@@ -608,6 +608,13 @@ const HELP: &[(&str, &str, &str)] = &[
          `rib_spacing` (N·m²).",
     ),
     (
+        "soundboard.rib_jitter",
+        "How irregular the ribs are: a real board's ribs are not equally spaced nor alike, which \
+         confines its high vibrations between them. 0: equally spaced and alike.",
+        "Each rib moves by up to ± half this share of `rib_spacing` and its stiffness varies by up \
+         to ± this share (a fixed pseudo-random sequence, mean kept).",
+    ),
+    (
         "soundboard.scatter",
         "How much of the soundboard's sound is scattered in every direction by what lies over it: \
          the strings, the iron frame, the dampers and the bridges. The board alone sends its highs \

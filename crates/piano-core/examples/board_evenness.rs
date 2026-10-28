@@ -35,6 +35,18 @@ fn main() {
     if let Some(v) = std::env::var("LOAD").ok().and_then(|v| v.parse().ok()) {
         p.string_load = v;
     }
+    // RIB_SPACING=m, RIB_SHARE=s, BELOW=Hz: the ribs and the outlined
+    // board's own modes' corner.
+    let env = |k: &str| std::env::var(k).ok().and_then(|v| v.parse::<f64>().ok());
+    if let Some(v) = env("RIB_SPACING") {
+        p.rib_spacing = v;
+    }
+    if let Some(v) = env("RIB_SHARE") {
+        p.rib_share = v;
+    }
+    if let Some(v) = env("BELOW") {
+        p.outline_below = v;
+    }
     let mut sb = Soundboard::new(p.resolved());
     sb.load_strings(&model.damped_strings());
     // Effective loss factor of the modes, per octave band.
@@ -102,7 +114,9 @@ fn main() {
     println!("key,f0,p1_db,p2_db,total_db,ild1_db");
     let mut prev: Option<f64> = None;
     let mut jumps = Vec::new();
-    for note in 48u8..=84 {
+    // FROM=key, TO=key: the keys measured (C3–C6 by default).
+    let (from, to) = (env("FROM").map_or(48, |v| v as u8), env("TO").map_or(84, |v| v as u8));
+    for note in from..=to {
         let np = model.note(note);
         // DRIVE=key (exact), region (nearest region's centre, as rendered),
         // split (two regions, amplitude weights), cross:<Hz> (split below the
