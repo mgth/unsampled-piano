@@ -59,7 +59,7 @@ The loss on the modes sped up the middle's fundamentals as much as the bass's pa
 
 ## The edge loss
 
-`soundboard.edge_loss` adds to the bridge mobility a conductance seen by each key's strings, e^(−d/edge_depth) with d the bridge point's distance to the nearest edge, falling above `edge_corner` as 1/(1 + (f/edge_corner)²). It damps the strings and radiates nothing: the energy goes into the rim and the case, which the model does not take back from the board. Defaults: 1e-3 s/kg, 15 cm, 400 Hz. The low-frequency mode loss is back to 0 (`loss_low_corner`, kept as a parameter).
+`soundboard.edge_loss` adds to the bridge mobility a conductance seen by each key's strings, e^(−d/edge_depth) with d the bridge point's distance to the nearest edge, falling above `edge_corner` as 1/(1 + (f/edge_corner)²). It damps the strings and radiates nothing: the energy goes into the rim and the case, which the model does not take back from the board. Defaults: 1e-3 s/kg, 15 cm, 400 Hz. The low-frequency mode loss went back to 0 here; it is now 200 Hz, for the lowest modes only (docs/bass_metal.md, "Not precise").
 
 With it, the piston mode returns to 40 Hz, 0.7 and 6 kg: at 60 Hz and 3 kg on top of the edge loss, the bass's partial 1 decayed at −7 dB/s against −5.4.
 

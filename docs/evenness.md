@@ -40,7 +40,7 @@ Taken apart:
 | 1.5× / 2× the modal density at equal mean mobility | 7.5 / 7.4, 9.1 / 5.7 | 1.41, 1.75 |
 | other microphone set-ups | 9.5–12.8 / 7.4–8.2 | 1.24–1.43 |
 
-None was kept. A more realistic board (ribs, an irregular outline, two bridges) would be the next step.
+None was kept. A more realistic board (ribs, an irregular outline, two bridges) would be the next step. The outline is now in the model, off by default: on every key it gains 0.7 dB on partial 1 and nothing on partial 2 (docs/outline.md).
 
 ## Key to key while playing
 
@@ -57,7 +57,7 @@ The attack level (0–100 ms, both channels' power) of every key from C3 to C6, 
 
 ### What changed
 
-- **The damped strings load the board** (`soundboard.string_load`, 1). Each string resting under its damper absorbs what reaches it from the bridge: averaged over frequency, a lossy string's input resistance is its characteristic impedance √(T·μ). Mode n gains a damping rate ½·Σ√(T·μ)·Φ_n² over the damped keys. Its loss factor goes from 0.021 to 0.069 at 100–200 Hz and from 0.022 to 0.043 at 200–400 Hz, and stays nearly the same above 800 Hz. The pedal lifts the dampers and the load with them: the board's poles follow the dampers' engagement (`BoardBank::set_load`). The board sounds ≈ 2 dB quieter without pedal, 1.3 dB with it.
+- **The damped strings load the board** (`soundboard.string_load`, 1). Each string resting under its damper absorbs what reaches it from the bridge: averaged over frequency, a lossy string's input resistance is its characteristic impedance √(T·μ). Mode n gains a damping rate ½·Σ√(T·μ)·Φ_n² over the damped keys. Its loss factor goes from 0.021 to 0.069 at 100–200 Hz and from 0.022 to 0.043 at 200–400 Hz, and stays nearly the same above 800 Hz. The pedal first lifted the load with the dampers (the board's poles follow `BoardBank::set_load`); with the pedal down the board's first mode then droned. Free strings load the board as much on average, so the load now stays (`soundboard.string_load_free`, docs/pedal_drone.md). The board sounds ≈ 2 dB quieter without pedal.
 - **Low band shared between two regions.** Below 400 Hz (`board::SHARE_HZ`), a key's forces go to the two regions around it with linear weights. Above, they go to its own region. Neighbouring regions' drive shapes correlate by 0.9 at 100–200 Hz, by 0.6–0.7 at 200–400 Hz and by 0.2 at 400–800 Hz in the middle (`examples/region_coherence.rs`). Sharing at all frequencies lost ≈ 3 dB of the treble's upper partials, because the two regions no longer add coherently.
 - **Exact drive of the low modes, optional** (`soundboard.exact_below`, Hz; 0 by default). The board modes below it run in a bank of their own. The keys' drive shapes of the modes below 1 kHz span few dimensions: their 16 principal profiles keep 99.98 % of them. The low bank's 16 inputs are these profiles (`board::LowDrive`, Jacobi decomposition of their Gram matrix at build time), and each key feeds them with its own weights. Its shapes are then rebuilt within 1–1.5 %, against 19–49 % for its region's. The sympathetic forces keep the regions: they form a diffuse halo, and the exact drive there doubled the cost for nothing audible.
 
@@ -82,4 +82,3 @@ Cost: about 5 % of the Chopin for the sharing (each key feeds two regions), and 
 
 - The strings read the bridge's motion at their region (sympathy), even with the exact drive.
 - The keys held down lift their own dampers, but their strings' load stays.
-- With the pedal down, the board's modes lose the load, but the strings' coupling, computed at build time, keeps it.

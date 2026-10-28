@@ -325,6 +325,14 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("losses.top_from", "Key from which the top strings lose energy faster.", "MIDI note where top_slope starts."),
     (
+        "losses.winding",
+        "Losses of the lowest strings' copper winding: higher values make the low bass's bright, \
+         metallic ring after the attack die away sooner.",
+        "Loss factor η: every partial loses ½·η·ω, full at A0 (double-wound strings), fading out \
+         linearly to `winding_until`. 0: none (docs/bass_metal.md).",
+    ),
+    ("losses.winding_until", "Key where the winding losses have faded out.", "MIDI note."),
+    (
         "scale.len_c8",
         "Speaking length of the highest string (C8), between its two bearing points.",
         "Lengths grow by `ratio_per_octave` per octave down to `break_note`. This generic 2 m \
@@ -384,6 +392,15 @@ const HELP: &[(&str, &str, &str)] = &[
          other.",
         "Height spread (m) of a unison's strings: string j takes no hammer force until \
          h_j·spread/v (h_j in 0…1, irregular per key, v the hammer speed) (docs/release.md).",
+    ),
+    (
+        "unison.load_ramp",
+        "Where a key gets a second or a third string, the strings start a little slacker and \
+         reach their full tension over this many keys. More: the first double and triple \
+         strings of the bass ring longer.",
+        "Semitones; the first bichord and trichord carry (n−1)/n of the scale's tension per \
+         string, so the key's load on the bridge, Σ √(T·μ), does not jump. 0: full tension \
+         everywhere (docs/bass_metal.md).",
     ),
     ("unison.soft_speed", "Hammer speed at which the unevenness is `hit_spread`; slower blows are more uneven.", "Reference speed (m/s) of the soft-blow law."),
     (
@@ -481,6 +498,16 @@ const HELP: &[(&str, &str, &str)] = &[
          0.04 at 200–400 Hz, 0.034 at 400–800 Hz (docs/evenness.md).",
     ),
     (
+        "soundboard.string_load_free",
+        "How much the strings still calm the soundboard when the sustain pedal lifts the dampers. \
+         Free strings take the board's vibration too, and sing it back as resonance. 0: with the \
+         pedal down the board rings on its own, a drone on its lowest resonance.",
+        "Share of the damped strings' load kept while the pedal lifts the dampers (1: a free \
+         string's input resistance averaged over frequency, √(T·μ) as for a damped one). The \
+         sympathetic coupling is one-way: this load is the energy the listening strings take from \
+         the board (docs/pedal_drone.md).",
+    ),
+    (
         "soundboard.exact_below",
         "Below this frequency every key drives the soundboard at its own point on the bridge, \
          not at the point standing for its group of keys: neighbouring keys sound more alike. \
@@ -554,6 +581,22 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("soundboard.bass_bridge", "Where the separate bass bridge lies, nearer the middle of the board.", "Segment of 2 points [x, y] (fractions of the board size), from the note below `main_bridge_from` down to A0."),
     ("soundboard.main_bridge_from", "Lowest key on the main bridge; the keys below are on the bass bridge.", "MIDI note."),
+    (
+        "soundboard.outline",
+        "The soundboard's shape. A grand's board follows the curved side of its case and narrows \
+         towards the tail; all points at zero: a plain rectangle.",
+        "Polygon of 10 points [x, y], fractions of the board size (as the bridges), inside the \
+         a × b rectangle; unused points repeat the last one. The rim holds the board along it: \
+         its resonances below `outline_below` are the outlined plate's own (docs/outline.md).",
+    ),
+    (
+        "soundboard.outline_below",
+        "Up to this frequency the soundboard resonates with its own shape (see Outline); above, \
+         as the rectangle around it.",
+        "Rayleigh–Ritz on the rectangle's modes below 4× this frequency, a stiff ground holding \
+         the board outside the outline. Above it the rectangle's modes stay, radiating from \
+         inside the outline only (Hz).",
+    ),
     (
         "soundboard.mics",
         "Where the two microphones stand: the first gives the left channel, the second the \
@@ -721,8 +764,9 @@ const HELP: &[(&str, &str, &str)] = &[
     (
         "sympathetic.gain",
         "Strength of the sympathetic resonance.",
-        "Scale on the bridge-to-string gain. 1 is the one-way physical value: on pedalled chords \
-         it matches a Disklavier grand's halo within 0.5–2.5 dB (tools/pedal_bench.py).",
+        "Scale on the bridge-to-string gain. 1 is the one-way physical value, which misses the \
+         braking of the bridge by the strings ringing at its frequency: 0.6 matches a Disklavier \
+         grand's pedal halo in the middle (tools/pedal_bench.py, docs/pedal_drone.md).",
     ),
     ("sympathetic.self_cancel", "Keeps a key from resonating with its own vibration through the bridge.", "Cancels each key's own contribution to its bridge input (already in its coupled modes)."),
     // Nonlinearity

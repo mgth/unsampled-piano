@@ -182,12 +182,34 @@ pub struct SoundboardParams {
     /// the board's modes where the bridge works them, most below ≈ 1 kHz,
     /// which smooths its response from key to key (docs/evenness.md).
     pub string_load: f64,
+    /// Share of that load the board keeps while the pedal lifts the
+    /// dampers. A free string still loads the bridge: its input resistance
+    /// Re(Z0·coth γL), averaged over frequency, is √(T·μ) as for a damped
+    /// one, only gathered at its partials. The sympathy is one-way (the
+    /// listening strings take nothing back from the board), so this load
+    /// is the energy they sing back. 0: the pedal leaves the board bare, and
+    /// its first mode droned (+9 dB at 100 Hz on Liang's pedalled Chopin
+    /// op. 10 no. 3, the bass's pedal halo 8.7 dB over the Disklavier's;
+    /// docs/pedal_drone.md).
+    pub string_load_free: f64,
     /// Board modes below this frequency (Hz) are driven at each key's own
     /// bridge point instead of its region's ([`crate::board::LowDrive`]):
     /// a more even board from key to key, for a bank of ≈ 40–70 more modes.
     /// 0: off.
     pub exact_below: f64,
+    /// The board's outline, a polygon in normalised plate coordinates (as
+    /// the bridges) inside the a × b rectangle: a grand's board follows the
+    /// bentside and narrows towards the tail. Unused vertices repeat the
+    /// last one; no area (the default, all zeros): the full rectangle.
+    pub outline: [(f64, f64); OUTLINE_POINTS],
+    /// Below this frequency (Hz) the board has the outlined plate's own
+    /// modes (Rayleigh–Ritz on the rectangle's, [`Soundboard::new`]);
+    /// above, the rectangle's, radiating from inside the outline only.
+    pub outline_below: f64,
 }
+
+/// Vertices of [`SoundboardParams::outline`].
+pub const OUTLINE_POINTS: usize = 10;
 
 impl Default for SoundboardParams {
     fn default() -> Self {
@@ -210,9 +232,14 @@ impl SoundboardParams {
     pub const GRAND_2M: Self = Self {
         a: 1.7,
         b: 1.3,
-        rho_h: 7.0,
-        dx: 3825.0,
-        dy: 1700.0,
+        // Surface mass and stiffnesses × 1.2 since the board has its grand
+        // outline (82 % of the rectangle): the modes above `outline_below`
+        // are the rectangle's, mass-normalised on it, so a fifth of their
+        // mass lies outside the outline; the same D/ρh keeps the modal
+        // frequencies and the calibrated mobility (docs/outline.md).
+        rho_h: 8.4,
+        dx: 4590.0,
+        dy: 2040.0,
         loss_factor: 0.02,
         // Wood and radiation damping grow with frequency: η = 0.02·(1 +
         // f/2500 Hz). The share of its energy the board radiates falls as
@@ -225,8 +252,11 @@ impl SoundboardParams {
         // edge. 1e-3 s/kg within ≈ 15 cm of it, fading above 400 Hz: on
         // every key of A0–D#4, partials 1–3 decay over the first 1.5 s
         // within 1–4 dB/s of eight real grands (the middle's partial 1 at
-        // −12.3 dB/s against −12.2).
-        loss_low_corner: 0.0,
+        // −12.3 dB/s against −12.2). Only the lowest modes get more: at
+        // 200 Hz, η × 3.7 at 110 Hz and × 1.6 at 260 Hz. A1's second partial
+        // lies on the first mode (108.8 Hz) and kept ringing between the
+        // left hand's notes in Beethoven (docs/bass_metal.md).
+        loss_low_corner: 200.0,
         edge_loss: 1e-3,
         edge_depth: 0.15,
         edge_corner: 400.0,
@@ -242,8 +272,11 @@ impl SoundboardParams {
         // docs/sustain.md); against eight real grands 0.02 lets the top
         // strings lose their prompt sound faster into the bridge (bench
         // 1.53 → 1.51 with the top losses lowered, docs/top_treble.md).
-        impedance_slope: 0.02,
-        impedance_slope_bass: 0.0,
+        // Re-set with the outline, which gathers the low modes on the bass
+        // side (the rectangle had 0.02 and 0): bench 1.11 against 1.15 with
+        // the rectangle's slopes, docs/bass_metal.md.
+        impedance_slope: 0.0024,
+        impedance_slope_bass: 0.0076,
         f_max: 20_000.0,
         // A broad mode near 40 Hz (docs/bass.md). Mass set on the late
         // sustain of the bass (docs/long_sustain.md): with 1.5 kg it took
@@ -295,8 +328,35 @@ impl SoundboardParams {
         lid_reflection: 0.85,
         lid_transmission: 0.1,
         string_load: 1.0,
+        string_load_free: 1.0,
         exact_below: 0.0,
+        // The grand's outline (docs/outline.md), on since 2026-10-28: with
+        // the rectangle, the modes at 260–335 Hz reached the two close
+        // microphones in antiphase and a bass attack arrived 3.7 ms apart
+        // with no correlation between the channels (real pairs: 0.2–1.7 ms,
+        // +0.2 to +0.5), a flam the user heard as a "tube" in the bass; the
+        // outline makes the attack coherent in every band (docs/bass_metal.md).
+        outline: Self::GRAND_OUTLINE,
+        outline_below: 1500.0,
     };
+
+    /// A grand's outline for the 2 m board: straight front edge (x = 0) and
+    /// spine (the bass side, y = b); the bentside leaves the treble cheek
+    /// 20 cm behind the front edge and curves in towards the tail, which
+    /// keeps the bass side's 60 %: 82 % of the rectangle. The bass bridge's
+    /// end (A0) lies 16 cm inside it (27 cm from the rectangle's edge).
+    pub const GRAND_OUTLINE: [(f64, f64); OUTLINE_POINTS] = [
+        (0.0, 0.0),
+        (0.12, 0.0),
+        (0.30, 0.10),
+        (0.50, 0.21),
+        (0.70, 0.28),
+        (0.85, 0.30),
+        (0.95, 0.33),
+        (1.0, 0.40),
+        (1.0, 1.0),
+        (0.0, 1.0),
+    ];
 
     fn h(&self) -> f64 {
         (self.dx * self.dy).sqrt()
@@ -447,17 +507,139 @@ impl Lid {
 
 #[derive(Clone, Copy, Debug)]
 pub struct PlateMode {
+    /// The rectangle's mode (m, n); for an outlined board's own mode, its
+    /// largest component.
     pub m: u32,
     pub n: u32,
     pub omega: f64,
     /// Damping rate (1/s) the damped strings add ([`Soundboard::load_strings`]).
     pub load: f64,
+    /// An outlined board's own mode: its index in [`Soundboard::ritz`].
+    pub ritz: Option<u32>,
 }
 
 pub struct Soundboard {
     pub params: SoundboardParams,
     pub modes: Vec<PlateMode>,
+    /// The outline, when the board is not the full rectangle.
+    pub outline: Option<Outline>,
+    /// The outlined board's own modes, on the rectangle's modes `basis`:
+    /// Φ = Σ_k ritz[i][k]·Φ_basis[k] (both mass-normalised); basis modes
+    /// as (m, n, ω).
+    pub basis: Vec<(u32, u32, f64)>,
+    pub ritz: Vec<Vec<f64>>,
+    /// The stiff ground that holds the board outside the outline: its
+    /// stiffness (N/m³) and the cells it acts on, (x, y, area outside the
+    /// outline), with the basis shapes there (`cells[c]`, `held[c·basis + k]`).
+    pub ground: f64,
+    pub cells: Vec<(f64, f64, f64)>,
+    held: Vec<f64>,
 }
+
+/// The board's outline in metres (a closed polygon).
+#[derive(Clone, Debug)]
+pub struct Outline {
+    pub points: Vec<(f64, f64)>,
+}
+
+impl Outline {
+    /// None when the polygon has no area (the full rectangle).
+    pub fn new(p: &SoundboardParams) -> Option<Self> {
+        let mut points: Vec<(f64, f64)> = Vec::new();
+        for &(u, v) in &p.outline {
+            let q = (u.clamp(0.0, 1.0) * p.a, v.clamp(0.0, 1.0) * p.b);
+            if points.last() != Some(&q) {
+                points.push(q);
+            }
+        }
+        while points.len() > 1 && points.first() == points.last() {
+            points.pop();
+        }
+        let o = Self { points };
+        (o.area() > 1e-6 * p.a * p.b).then_some(o)
+    }
+
+    fn edges(&self) -> impl Iterator<Item = ((f64, f64), (f64, f64))> + '_ {
+        self.points.iter().zip(self.points.iter().cycle().skip(1)).map(|(&p, &q)| (p, q))
+    }
+
+    pub fn area(&self) -> f64 {
+        0.5 * self.edges().map(|(p, q)| p.0 * q.1 - q.0 * p.1).sum::<f64>().abs()
+    }
+
+    pub fn contains(&self, x: f64, y: f64) -> bool {
+        self.edges().filter(|&(p, q)| (p.1 > y) != (q.1 > y) && x < p.0 + (y - p.1) / (q.1 - p.1) * (q.0 - p.0)).count() % 2 == 1
+    }
+
+    /// Distance (m) to the nearest edge.
+    pub fn edge_distance(&self, x: f64, y: f64) -> f64 {
+        self.edges()
+            .map(|(p, q)| {
+                let (dx, dy) = (q.0 - p.0, q.1 - p.1);
+                let t = (((x - p.0) * dx + (y - p.1) * dy) / (dx * dx + dy * dy).max(1e-30)).clamp(0.0, 1.0);
+                (x - p.0 - t * dx).hypot(y - p.1 - t * dy)
+            })
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    /// Share of the cell centred on (x, y), dx × dy, inside the outline.
+    pub fn coverage(&self, x: f64, y: f64, dx: f64, dy: f64) -> f64 {
+        const S: usize = 4;
+        let off = |i: usize| (i as f64 + 0.5) / S as f64 - 0.5;
+        let inside = (0..S * S).filter(|&i| self.contains(x + off(i % S) * dx, y + off(i / S) * dy)).count();
+        inside as f64 / (S * S) as f64
+    }
+}
+
+/// The rectangle's modes below w_max (rad/s), unsorted: (m, n, ω).
+fn rectangle_modes(p: &SoundboardParams, w_max: f64) -> Vec<(u32, u32, f64)> {
+    let k = PI * PI / p.rho_h.sqrt();
+    let mut modes = Vec::new();
+    let mut m = 1;
+    loop {
+        let xm = ((m as f64 + 0.5) / p.a).powi(2);
+        if k * (p.dx * xm * xm).sqrt() > w_max {
+            break;
+        }
+        let mut n = 1;
+        loop {
+            let yn = ((n as f64 + 0.5) / p.b).powi(2);
+            let w = (k * k * (p.dx * xm * xm + 2.0 * p.h() * xm * yn + p.dy * yn * yn) + (TAU * p.crown_freq).powi(2)).sqrt();
+            if w > w_max {
+                break;
+            }
+            modes.push((m, n, w));
+            n += 1;
+        }
+        m += 1;
+    }
+    modes
+}
+
+/// sin(k·θ) for k = 0..n (Chebyshev recurrence).
+fn sines(theta: f64, n: usize, out: &mut Vec<f64>) {
+    out.clear();
+    out.push(0.0);
+    if n == 0 {
+        return;
+    }
+    let (s1, c2) = (theta.sin(), 2.0 * theta.cos());
+    out.push(s1);
+    for k in 2..=n {
+        out.push(c2 * out[k - 1] - out[k - 2]);
+    }
+}
+
+/// The outlined board's modes are sought among the rectangle's below
+/// `BASIS` × the outline's corner frequency. A shorter rectangle taken as
+/// an outline gets its own analytic modes within 1 % rms; on a grand's
+/// outline the lowest twelve move by < 1 % from 4× to 8× (examples/outline_modes.rs).
+const BASIS: f64 = 4.0;
+/// The ground holding the board outside the outline, as the frequency
+/// (relative to the basis's highest) it would give the board on its own:
+/// softer, the modes leak out of the outline (−3 % at 0.5×); much stiffer,
+/// the truncated basis locks (+0.5 % at 4×).
+const GROUND: f64 = 2.0;
 
 impl SoundboardParams {
     /// The same set-up with the microphones in use (`mics_upright` on a
@@ -472,34 +654,94 @@ impl SoundboardParams {
 
 impl Soundboard {
     /// All modes below `f_max` (and below `nyquist`), sorted by frequency.
+    ///
+    /// With an outline, the modes below `outline_below` are the outlined
+    /// board's own, by Rayleigh–Ritz on the rectangle's modes below
+    /// [`BASIS`] times that frequency: a stiff elastic ground holds the
+    /// board outside the outline (the rim, clamping it there), adding
+    /// ω_g²·∫_outside Φ_i·Φ_j·ρh to the rectangle's diagonal ω_i². The
+    /// lowest eigenvectors are the board inside the outline. Above, the
+    /// rectangle's modes remain, radiating from inside the outline only.
     pub fn new(params: SoundboardParams) -> Self {
         let p = params;
         let w_max = TAU * p.f_max;
-        let k = PI * PI / p.rho_h.sqrt();
-        let mut modes = Vec::new();
-        let mut m = 1;
-        loop {
-            let xm = ((m as f64 + 0.5) / p.a).powi(2);
-            if k * (p.dx * xm * xm).sqrt() > w_max {
-                break;
-            }
-            let mut n = 1;
-            loop {
-                let yn = ((n as f64 + 0.5) / p.b).powi(2);
-                let w = (k * k * (p.dx * xm * xm + 2.0 * p.h() * xm * yn + p.dy * yn * yn) + (TAU * p.crown_freq).powi(2)).sqrt();
-                if w > w_max {
-                    break;
-                }
-                modes.push(PlateMode { m, n, omega: w, load: 0.0 });
-                n += 1;
-            }
-            m += 1;
+        let mut modes: Vec<PlateMode> =
+            rectangle_modes(&p, w_max).into_iter().map(|(m, n, omega)| PlateMode { m, n, omega, load: 0.0, ritz: None }).collect();
+        let mut sb = Self { params, modes: Vec::new(), outline: Outline::new(&p), basis: Vec::new(), ritz: Vec::new(), ground: 0.0, cells: Vec::new(), held: Vec::new() };
+        if sb.outline.is_some() && p.outline_below > 0.0 {
+            let wc = TAU * p.outline_below;
+            let own = sb.outlined_modes(wc);
+            modes.retain(|m| m.omega >= wc);
+            modes.extend(own.into_iter().filter(|m| m.omega <= w_max));
         }
         if p.piston_freq > 0.0 && p.piston_mass > 0.0 {
-            modes.push(PlateMode { m: 0, n: 0, omega: TAU * p.piston_freq, load: 0.0 });
+            modes.push(PlateMode { m: 0, n: 0, omega: TAU * p.piston_freq, load: 0.0, ritz: None });
         }
         modes.sort_by(|x, y| x.omega.total_cmp(&y.omega));
-        Self { params, modes }
+        sb.modes = modes;
+        sb
+    }
+
+    /// The outlined board's modes below `wc` (rad/s); fills the basis, the
+    /// ground and the Ritz vectors.
+    fn outlined_modes(&mut self, wc: f64) -> Vec<PlateMode> {
+        let p = self.params;
+        let outline = self.outline.as_ref().expect("an outline");
+        let mut basis = rectangle_modes(&p, BASIS * wc);
+        basis.sort_by(|x, y| x.2.total_cmp(&y.2));
+        let nb = basis.len();
+        let w_top = basis.last().map_or(wc, |b| b.2);
+        self.ground = p.rho_h * (GROUND * w_top).powi(2);
+        // Cells outside the outline, on a grid of ≥ 8 points per wavelength
+        // of the basis.
+        let (mm, nm) = basis.iter().fold((1, 1), |(a, b), &(m, n, _)| (a.max(m), b.max(n)));
+        let step = (p.a / mm as f64).min(p.b / nm as f64) / 4.0;
+        let (nx, ny) = ((p.a / step).ceil() as usize, (p.b / step).ceil() as usize);
+        let (dx, dy) = (p.a / nx as f64, p.b / ny as f64);
+        self.cells = (0..nx * ny)
+            .filter_map(|c| {
+                let (x, y) = ((c / ny) as f64 * dx + 0.5 * dx, (c % ny) as f64 * dy + 0.5 * dy);
+                let out = 1.0 - outline.coverage(x, y, dx, dy);
+                (out > 0.0).then_some((x, y, out * dx * dy))
+            })
+            .collect();
+        self.basis = basis.clone();
+        let norm = 2.0 / (p.rho_h * p.a * p.b).sqrt();
+        let held: Vec<Vec<f64>> = crate::par::map(self.cells.len(), |c| {
+            let (x, y, _) = self.cells[c];
+            let (mut sx, mut sy) = (Vec::new(), Vec::new());
+            sines(PI * x / p.a, mm as usize, &mut sx);
+            sines(PI * y / p.b, nm as usize, &mut sy);
+            self.basis.iter().map(|&(m, n, _)| norm * sx[m as usize] * sy[n as usize]).collect()
+        });
+        self.held = held.into_iter().flatten().collect();
+        // A = diag(ω²) + ω_g²·G, G_ij = ρh·Σ_cells Φ_i·Φ_j·area.
+        let rows: Vec<Vec<f64>> = crate::par::map(nb, |i| {
+            let mut row = vec![0.0; nb];
+            for (c, &(_, _, area)) in self.cells.iter().enumerate() {
+                let h = &self.held[c * nb..(c + 1) * nb];
+                let wi = self.ground * area * h[i];
+                for (r, hj) in row.iter_mut().zip(h) {
+                    *r += wi * hj;
+                }
+            }
+            row[i] += basis[i].2 * basis[i].2;
+            row
+        });
+        let a: Vec<f64> = rows.into_iter().flatten().collect();
+        let (vals, vecs) = crate::eigen::symmetric_ql(&a, nb);
+        let mut modes = Vec::new();
+        for (lam, v) in vals.into_iter().zip(vecs) {
+            let omega = lam.max(0.0).sqrt();
+            if omega >= wc {
+                break;
+            }
+            let k = (0..nb).max_by(|&i, &j| v[i].abs().total_cmp(&v[j].abs())).unwrap_or(0);
+            let (m, n, _) = self.basis[k];
+            modes.push(PlateMode { m, n, omega, load: 0.0, ritz: Some(self.ritz.len() as u32) });
+            self.ritz.push(v);
+        }
+        modes
     }
 
     /// Mass-normalised mode shape at (x, y) metres (uniform for the piston
@@ -509,7 +751,40 @@ impl Soundboard {
         if mode.m == 0 {
             return 1.0 / p.piston_mass.sqrt();
         }
+        if let Some(r) = mode.ritz {
+            return self.ritz_shape(&self.ritz[r as usize], x, y);
+        }
         2.0 / (p.rho_h * p.a * p.b).sqrt() * (mode.m as f64 * PI * x / p.a).sin() * (mode.n as f64 * PI * y / p.b).sin()
+    }
+
+    fn ritz_shape(&self, coefs: &[f64], x: f64, y: f64) -> f64 {
+        let p = &self.params;
+        let (mm, nm) = self.basis.iter().fold((1, 1), |(a, b), &(m, n, _)| (a.max(m), b.max(n)));
+        let (mut sx, mut sy) = (Vec::new(), Vec::new());
+        sines(PI * x / p.a, mm as usize, &mut sx);
+        sines(PI * y / p.b, nm as usize, &mut sy);
+        let sum: f64 = self.basis.iter().zip(coefs).map(|(&(m, n, _), c)| c * sx[m as usize] * sy[n as usize]).sum();
+        2.0 / (p.rho_h * p.a * p.b).sqrt() * sum
+    }
+
+    /// The forces (N per unit modal displacement) with which an outlined
+    /// board's own mode pushes on the ground that holds it outside the
+    /// outline, at (x, y): its reaction on the rim where the outline leaves
+    /// the rectangle (where they share an edge, its basis modes' own edge
+    /// reactions, [`Self::ritz`]). None for the others.
+    pub fn held_forces(&self, mode: &PlateMode) -> Option<Vec<(f64, f64, f64)>> {
+        let coefs = &self.ritz[mode.ritz? as usize];
+        let nb = self.basis.len();
+        Some(
+            self.cells
+                .iter()
+                .enumerate()
+                .map(|(c, &(x, y, area))| {
+                    let phi: f64 = self.held[c * nb..(c + 1) * nb].iter().zip(coefs).map(|(h, k)| h * k).sum();
+                    (x, y, self.ground * area * phi)
+                })
+                .collect(),
+        )
     }
 
     /// Loss factor of a mode.
@@ -622,7 +897,10 @@ impl Soundboard {
             return 0.0;
         }
         let (x, y) = p.bridge_point_at(note as f64, note >= p.main_bridge_from);
-        let d = x.min(p.a - x).min(y).min(p.b - y).max(0.0);
+        let d = match &self.outline {
+            Some(o) => o.edge_distance(x, y),
+            None => x.min(p.a - x).min(y).min(p.b - y).max(0.0),
+        };
         let f = omega / TAU;
         p.edge_loss * (-d / p.edge_depth.max(1e-6)).exp() / (1.0 + (f / p.edge_corner.max(1.0)).powi(2))
     }
@@ -671,6 +949,16 @@ impl Soundboard {
             }
         }
         let ds = dx * dy;
+        // With an outline, only the cells inside it radiate.
+        let cover: Option<Vec<f64>> = self.outline.as_ref().map(|o| {
+            (0..nx * ny).map(|c| o.coverage((c / ny) as f64 * dx + 0.5 * dx, (c % ny) as f64 * dy + 0.5 * dy, dx, dy)).collect()
+        });
+        // The outlined board's own modes, on the basis's sines tabulated once.
+        let (mm, nm) = self.basis.iter().fold((0, 0), |(a, b), &(m, n, _)| (a.max(m as usize), b.max(n as usize)));
+        let tab = |count: usize, cells: usize, d: f64, len: f64| -> Vec<Vec<f64>> {
+            (0..=count).map(|m| (0..cells).map(|i| (m as f64 * PI * (i as f64 + 0.5) * d / len).sin()).collect()).collect()
+        };
+        let (bx, by) = if self.ritz.is_empty() { (Vec::new(), Vec::new()) } else { (tab(mm, nx, dx, p.a), tab(nm, ny, dy, p.b)) };
         crate::par::map(n_modes, |i| {
             let md = &self.modes[i];
             let k = md.omega / C0;
@@ -685,9 +973,31 @@ impl Soundboard {
                 .map(|j| if piston { 1.0 } else { (md.n as f64 * PI * (j as f64 + 0.5) * dy / p.b).sin() })
                 .collect();
             let norm = if piston { p.piston_radiation / p.piston_mass.sqrt() } else { 2.0 / (p.rho_h * p.a * p.b).sqrt() };
+            // Σ_k c_k·sin(m_k·x)·sin(n_k·y) on the grid: rows m first.
+            let own: Option<Vec<f64>> = md.ritz.filter(|_| !piston).map(|r| {
+                let mut rows = vec![vec![0.0; ny]; mm + 1];
+                for (&(m, n, _), c) in self.basis.iter().zip(&self.ritz[r as usize]) {
+                    for (v, s) in rows[m as usize].iter_mut().zip(&by[n as usize]) {
+                        *v += c * s;
+                    }
+                }
+                let mut grid = vec![0.0; nx * ny];
+                for (m, row) in rows.iter().enumerate().filter(|(_, r)| r.iter().any(|&v| v != 0.0)) {
+                    for (i, sxi) in bx[m].iter().enumerate() {
+                        for (g, v) in grid[i * ny..(i + 1) * ny].iter_mut().zip(row) {
+                            *g += sxi * v;
+                        }
+                    }
+                }
+                grid
+            });
             let mut acc = vec![C64::ZERO; np];
             for (c, g) in geo.chunks(np).enumerate() {
-                let phi = norm * sx[c / ny] * sy[c % ny] * ds;
+                // (Same operation order as without an outline: bit-identical.)
+                let mut phi = own.as_ref().map_or_else(|| norm * sx[c / ny] * sy[c % ny], |o| norm * o[c]) * ds;
+                if let Some(w) = &cover {
+                    phi *= w[c];
+                }
                 for (a, pt) in acc.iter_mut().zip(g) {
                     // Front face (through the case) and its lid image in
                     // phase, back face and its wall image in antiphase.
@@ -716,9 +1026,23 @@ impl Soundboard {
 mod tests {
     use super::*;
 
+    /// The 2 m grand as the uniform rectangle it was calibrated as before
+    /// its outline went on (the outline's recalibration undone).
+    fn rectangle() -> SoundboardParams {
+        SoundboardParams {
+            outline: [(0.0, 0.0); OUTLINE_POINTS],
+            rho_h: 7.0,
+            dx: 3825.0,
+            dy: 1700.0,
+            impedance_slope: 0.02,
+            impedance_slope_bass: 0.0,
+            ..SoundboardParams::GRAND_2M
+        }
+    }
+
     #[test]
     fn modal_density_and_mean_mobility_match_measurements() {
-        let sb = Soundboard::new(SoundboardParams::GRAND_2M);
+        let sb = Soundboard::new(rectangle());
         let p = sb.params;
         // Ege et al. 2013: ≈ 1 mode per 19.5 Hz.
         let dens = sb.modal_density(200.0, 1000.0);
@@ -757,6 +1081,76 @@ mod tests {
         assert!((low(walled) - low(base)).abs() > 0.05 * low(base));
         let baffled = SoundboardParams { back_gain: 0.0, ..base };
         assert_eq!(low(SoundboardParams { wall_distance: 0.3, ..baffled }), low(baffled));
+    }
+
+    /// No outline, or one without area: the rectangle, bit for bit.
+    #[test]
+    fn an_outline_without_area_is_the_rectangle() {
+        let base = SoundboardParams { f_max: 3000.0, grid_step: 0.05, ..rectangle() };
+        let bits = |p: SoundboardParams| {
+            let sb = Soundboard::new(p);
+            assert!(sb.outline.is_none() && sb.ritz.is_empty());
+            let mut v: Vec<u64> = sb.modes.iter().map(|m| m.omega.to_bits()).collect();
+            v.extend(sb.bridge_shapes(40).iter().map(|x| x.to_bits()));
+            v.extend(sb.radiation().iter().flat_map(|r| r.iter().flat_map(|c| [c.re.to_bits(), c.im.to_bits()])));
+            v.push(sb.edge_conductance(21, 600.0).to_bits());
+            v
+        };
+        let want = bits(base);
+        assert_eq!(bits(SoundboardParams { outline: [(0.3, 0.6); OUTLINE_POINTS], ..base }), want);
+        let mut line = [(1.0, 1.0); OUTLINE_POINTS];
+        line[0] = (0.0, 0.0);
+        assert_eq!(bits(SoundboardParams { outline: line, ..base }), want);
+    }
+
+    /// A shorter rectangle taken as an outline gets the modes of a board
+    /// that short.
+    #[test]
+    fn a_shorter_outline_has_the_shorter_boards_modes() {
+        let base = rectangle();
+        let r = 0.75;
+        let mut outline = [(0.0, 1.0); OUTLINE_POINTS];
+        outline[..4].copy_from_slice(&[(0.0, 0.0), (r, 0.0), (r, 1.0), (0.0, 1.0)]);
+        let sb = Soundboard::new(SoundboardParams { outline, ..base });
+        let short = Soundboard::new(SoundboardParams { a: r * base.a, ..base });
+        let own: Vec<f64> = sb.modes.iter().filter(|m| m.ritz.is_some()).map(|m| m.omega).collect();
+        let want: Vec<f64> = short.modes.iter().filter(|m| m.m > 0).map(|m| m.omega).collect();
+        assert!(own.len().abs_diff(want.iter().filter(|&&w| w < TAU * base.outline_below).count()) <= 2);
+        let err = (own.iter().zip(&want).map(|(a, b)| (a / b - 1.0).powi(2)).sum::<f64>() / own.len() as f64).sqrt();
+        assert!(err < 0.015, "rms {:.2} %", 100.0 * err);
+        // Above the corner, the rectangle's modes.
+        assert!(sb.modes.iter().filter(|m| m.omega >= TAU * base.outline_below).all(|m| m.ritz.is_none()));
+    }
+
+    /// The grand's outline: the bridges inside, the board's own modes at
+    /// rest outside it, the mean mobility kept (fewer modes, each larger).
+    #[test]
+    fn a_grand_outline_holds_its_board() {
+        let p = SoundboardParams { outline: SoundboardParams::GRAND_OUTLINE, ..SoundboardParams::GRAND_2M };
+        let sb = Soundboard::new(p);
+        let o = sb.outline.as_ref().unwrap();
+        for note in 21..=108 {
+            let (x, y) = p.bridge_point(note);
+            assert!(o.contains(x, y) && o.edge_distance(x, y) > 0.05, "key {note}");
+        }
+        let cells = 60;
+        let (dx, dy) = (p.a / cells as f64, p.b / cells as f64);
+        for md in sb.modes.iter().filter(|m| m.ritz.is_some()) {
+            let (mut inside, mut outside) = (0.0, 0.0);
+            for c in 0..cells * cells {
+                let (x, y) = ((c / cells) as f64 * dx + 0.5 * dx, (c % cells) as f64 * dy + 0.5 * dy);
+                let phi2 = sb.shape(md, x, y).powi(2);
+                if o.edge_distance(x, y) < 0.05 {
+                    continue;
+                }
+                if o.contains(x, y) { inside += phi2 } else { outside += phi2 }
+            }
+            assert!(outside < 0.01 * inside, "{:.0} Hz: {:.3}", md.omega / TAU, outside / inside);
+        }
+        let (x, y) = p.bridge_point(60);
+        let n = 4000;
+        let mean = (0..n).map(|i| sb.admittance(x, y, TAU * (300.0 + 2700.0 * i as f64 / n as f64)).re).sum::<f64>() / n as f64;
+        assert!(mean > 0.3 * p.mean_mobility() && mean < 3.0 * p.mean_mobility(), "mean Re Y {mean:e}");
     }
 
     #[test]

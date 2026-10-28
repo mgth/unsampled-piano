@@ -185,6 +185,14 @@ pub struct LossLaw {
     /// after release (docs/release_ring.md).
     pub top_slope: f64,
     pub top_from: u8,
+    /// Loss factor of the winding: the copper wound on the steel core rubs
+    /// as the string bends, ½·η·ω_k on every partial. The lowest strings
+    /// carry two layers of it: full at A0, fading out linearly to
+    /// `winding_until`. Without it the low bass's partials above 1 kHz rang
+    /// 2–8× too long against a Disklavier grand, a metallic sustain
+    /// (docs/bass_metal.md).
+    pub winding: f64,
+    pub winding_until: u8,
 }
 
 
@@ -192,7 +200,7 @@ impl LossLaw {
     /// Early ("prompt") decay of single partials, Salamander survey. A single
     /// string per note cannot reproduce the two-stage decay (Phase 2).
     pub const SALAMANDER_EARLY: Self =
-        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108 };
+        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108, winding: 0.0, winding_until: 40 };
     /// Intrinsic string losses: law of the ESPRIT aftersound (no bridge
     /// losses), scaled down by the decay calibration of the full instrument
     /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. b1
@@ -207,14 +215,20 @@ impl LossLaw {
     /// losses set against a commercial modelled piano's release ring
     /// (docs/release_ring.md) cut short the slow aftersound that real top
     /// strings keep, −11 to −21 dB/s at C7 after the first 0.4 s on four
-    /// real grands (docs/top_treble.md).
+    /// real grands (docs/top_treble.md). Winding losses 2e-4 (A0 → E2):
+    /// the low bass's partials above 1 kHz no longer ring on, a metallic
+    /// sustain (docs/bass_metal.md).
     pub const SALAMANDER_STRING: Self =
-        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84 };
+        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 2e-4, winding_until: 40 };
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
         let wound = ((self.wound_until as f64 + 12.0 - note as f64) / 12.0).clamp(0.0, 1.0);
         let top = self.top_slope * (note as f64 - self.top_from as f64).max(0.0);
-        self.b1_floor * wound + (self.b1_slope * note as f64 + self.b1_offset + top).exp() + self.b2 * freq * freq
+        let double = ((self.winding_until as f64 - note as f64) / (self.winding_until as f64 - 21.0).max(1.0)).clamp(0.0, 1.0);
+        self.b1_floor * wound
+            + (self.b1_slope * note as f64 + self.b1_offset + top).exp()
+            + self.b2 * freq * freq
+            + 0.5 * self.winding * double * std::f64::consts::TAU * freq
     }
 }
 
@@ -249,6 +263,15 @@ pub struct UnisonLaw {
     /// lengths and shapes, whose spectral dips fall apart
     /// (docs/strike_shape.md, docs/release.md).
     pub height_spread: f64,
+    /// Semitones over which the strings of a new unison come up to the full
+    /// tension (0: full from the first key). A key's strings load the bridge
+    /// with Σ √(T·μ); the first bichord and the first trichord start at
+    /// (n−1)/n of the tension, so the load does not jump from the key below.
+    /// At full tension the first bichords lost their first 15 dB 2–2.5 times
+    /// faster than on eight real grands (F#1–C2), the first trichords
+    /// 1.4–2 times (A2–A3). 36: bench 1.14 → 1.09; 24 did nearly as well
+    /// (1.10) and the user heard both alike (docs/bass_metal.md).
+    pub load_ramp: f64,
 }
 
 impl UnisonLaw {
@@ -259,7 +282,7 @@ impl UnisonLaw {
     /// Salamander (docs/long_sustain.md; 0.35 cent left it 10 dB too weak
     /// and the notes died after 1 s); hit spread ±20 % set on the
     /// aftersound level of the treble (docs/sustain.md).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4 };
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 
@@ -271,6 +294,17 @@ impl UnisonLaw {
         } else {
             1
         }
+    }
+
+    /// Share of the scale's tension each string of the key carries.
+    pub fn tension_share(&self, note: u8) -> f64 {
+        let n = self.strings(note);
+        if n == 1 || self.load_ramp <= 0.0 {
+            return 1.0;
+        }
+        let from = if n == 3 { self.trichord_from } else { self.bichord_from };
+        let t = ((note as f64 - from as f64) / self.load_ramp).clamp(0.0, 1.0);
+        (n as f64 - 1.0 + t) / n as f64
     }
 
     pub fn width(&self, note: u8) -> f64 {
@@ -633,13 +667,21 @@ pub struct SympatheticLaw {
     /// −19.3 dB re the partials against −19.7, treble −24.1 against −21.8),
     /// and the chord's own partials sustain as on the Disklavier (no
     /// growth at the octaves); 0.25 left the halo 7–13 dB short.
+    /// The coupling is one-way: a string ringing at its own frequency does
+    /// not brake the bridge there, as real strings do, the more so where
+    /// several share it (octaves). Once the free strings kept their load on
+    /// the board (docs/pedal_drone.md), 1 left the middle's pedal halo
+    /// 3.9 dB over the Disklavier's and B5 ringing 7 dB louder with the
+    /// pedal in Chopin op. 10 no. 3; 0.6 matches the middle (+16.2 dB
+    /// against +15.5). It costs the undamped top's sound below its
+    /// fundamentals (bench 1.07 → 1.13).
     pub gain: f64,
     /// Cancel each key's own contribution to its bridge input.
     pub self_cancel: bool,
 }
 
 impl SympatheticLaw {
-    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 1.0, self_cancel: true };
+    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 0.6, self_cancel: true };
 }
 
 /// Partial frequency of a stiff string: f_k = k·f0·sqrt(1 + B·k²).
@@ -953,7 +995,7 @@ impl PianoModel {
     pub fn note(&self, note: u8) -> NoteParams {
         let f0 = note_freq(note, self.a4) * 2f64.powf((self.stretch.cents(note) + self.temperament.cents(note)) / 1200.0);
         let length = self.scale.length(note);
-        let tension = self.scale.tension;
+        let tension = self.scale.tension * self.unison.tension_share(note);
         let mu = tension / (2.0 * length * f0).powi(2);
         // ≈1/8 of the length up to C6, closer to the agraffe in the high treble.
         let m = note as f64;
