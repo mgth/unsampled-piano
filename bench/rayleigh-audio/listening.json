@@ -1,0 +1,61 @@
+{
+ "file": "/home/user/.codex/worktrees/piano-main-revalidation/piano/out/rayleigh-audio/comparison.wav",
+ "common_gain": 2.0,
+ "end_fade_ms": 20,
+ "sequence": [
+  {
+   "start_seconds": 0.0,
+   "note": 102,
+   "velocity": 45,
+   "variant": "balanced"
+  },
+  {
+   "start_seconds": 1.5000208333333334,
+   "note": 102,
+   "velocity": 45,
+   "variant": "guarded"
+  },
+  {
+   "start_seconds": 3.0000416666666667,
+   "note": 102,
+   "velocity": 45,
+   "variant": "driven"
+  },
+  {
+   "start_seconds": 4.5000625,
+   "note": 102,
+   "velocity": 100,
+   "variant": "balanced"
+  },
+  {
+   "start_seconds": 6.000083333333333,
+   "note": 102,
+   "velocity": 100,
+   "variant": "guarded"
+  },
+  {
+   "start_seconds": 7.5014375,
+   "note": 102,
+   "velocity": 100,
+   "variant": "driven"
+  },
+  {
+   "start_seconds": 9.001458333333334,
+   "note": 108,
+   "velocity": 100,
+   "variant": "balanced"
+  },
+  {
+   "start_seconds": 10.501479166666666,
+   "note": 108,
+   "velocity": 100,
+   "variant": "guarded"
+  },
+  {
+   "start_seconds": 12.0015,
+   "note": 108,
+   "velocity": 100,
+   "variant": "driven"
+  }
+ ]
+}

@@ -390,6 +390,16 @@ impl SoundboardParams {
         Path { front: (at(z), direct), back: (at(z + self.back_depth), self.back_gain), wall, image: image.unwrap_or((1.0, 0.0)) }
     }
 
+    /// Acoustic paths for offline radiation diagnostics: distance (m), signed
+    /// gain, and whether the path passes through the front case panel.
+    /// Front/lid are positive; back/wall are negative. The frequency-dependent
+    /// case gain is deliberately left to the caller. Does not alter rendering.
+    pub fn radiation_paths(&self, cell: [f64; 3], mic: [f64; 3]) -> [(f64, f64, bool); 4] {
+        let p = self.path(Lid::new(self).as_ref(), cell, mic);
+        [(p.front.0, p.front.1, true), (p.back.0, -p.back.1, false),
+         (p.wall.0, -p.wall.1, false), (p.image.0, p.image.1, true)]
+    }
+
     /// Mean (infinite-plate) mobility 1/(8√(D·ρh)) with D = H.
     pub fn mean_mobility(&self) -> f64 {
         1.0 / (8.0 * (self.h() * self.rho_h).sqrt())

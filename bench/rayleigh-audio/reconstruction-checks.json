@@ -1,0 +1,3142 @@
+{
+ "attack": {
+  "93:45": {
+   "rms_error_db": -112.0032156779161,
+   "peak_error": 3.480360703047875e-07,
+   "peak_old": 0.08181211352348328,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "93:56": {
+   "rms_error_db": -111.79441551361742,
+   "peak_error": 5.071983567930816e-07,
+   "peak_old": 0.1331740766763687,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "93:100": {
+   "rms_error_db": -111.60990645279554,
+   "peak_error": 1.783662860566776e-06,
+   "peak_old": 0.4997378885746002,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "94:45": {
+   "rms_error_db": -115.19098798663333,
+   "peak_error": 1.5122440112300128e-07,
+   "peak_old": 0.0631607323884964,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "94:56": {
+   "rms_error_db": -115.63460005844014,
+   "peak_error": 2.856430705334978e-07,
+   "peak_old": 0.10238185524940491,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "94:100": {
+   "rms_error_db": -116.15650214602391,
+   "peak_error": 1.0148732554893236e-06,
+   "peak_old": 0.4082031846046448,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "95:45": {
+   "rms_error_db": -110.82435766180403,
+   "peak_error": 2.2519359607967027e-07,
+   "peak_old": 0.06376250088214874,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "95:56": {
+   "rms_error_db": -110.82349483526843,
+   "peak_error": 3.9814073760774393e-07,
+   "peak_old": 0.11005061864852905,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "95:100": {
+   "rms_error_db": -110.99208460937024,
+   "peak_error": 1.6768452460597105e-06,
+   "peak_old": 0.4680039882659912,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "96:45": {
+   "rms_error_db": -111.18629980904275,
+   "peak_error": 8.71109824647151e-08,
+   "peak_old": 0.03561288118362427,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "96:56": {
+   "rms_error_db": -112.24257177625358,
+   "peak_error": 1.5420254165926517e-07,
+   "peak_old": 0.05352342128753662,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "96:100": {
+   "rms_error_db": -113.09001745959847,
+   "peak_error": 7.596893633193824e-07,
+   "peak_old": 0.2432326078414917,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:45": {
+   "rms_error_db": -109.07496108695496,
+   "peak_error": 1.1551411378471488e-07,
+   "peak_old": 0.040695663541555405,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:56": {
+   "rms_error_db": -109.30350099401068,
+   "peak_error": 1.7011418085993713e-07,
+   "peak_old": 0.05673271790146828,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:100": {
+   "rms_error_db": -109.82050476644291,
+   "peak_error": 5.978747298768239e-07,
+   "peak_old": 0.16579262912273407,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "98:45": {
+   "rms_error_db": -112.19787837667945,
+   "peak_error": 1.3353313084094043e-07,
+   "peak_old": 0.045716293156147,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "98:56": {
+   "rms_error_db": -112.71666116908796,
+   "peak_error": 2.3040657085027227e-07,
+   "peak_old": 0.07564379274845123,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "98:100": {
+   "rms_error_db": -112.79767061847815,
+   "peak_error": 1.078933962020412e-06,
+   "peak_old": 0.30273619294166565,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:45": {
+   "rms_error_db": -110.89554316679974,
+   "peak_error": 1.5966003370435078e-07,
+   "peak_old": 0.05354296416044235,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:56": {
+   "rms_error_db": -111.22923735909635,
+   "peak_error": 2.553928485846124e-07,
+   "peak_old": 0.0948692113161087,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:100": {
+   "rms_error_db": -111.37133791914064,
+   "peak_error": 1.1069855282153096e-06,
+   "peak_old": 0.4071412682533264,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "100:45": {
+   "rms_error_db": -114.41199401351108,
+   "peak_error": 1.5289077025595899e-07,
+   "peak_old": 0.05992559716105461,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "100:56": {
+   "rms_error_db": -114.34579188287594,
+   "peak_error": 2.5916542218187844e-07,
+   "peak_old": 0.10128460824489594,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "100:100": {
+   "rms_error_db": -114.70728661903875,
+   "peak_error": 1.0098015004386673e-06,
+   "peak_old": 0.41998451948165894,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "101:45": {
+   "rms_error_db": -115.27577973819311,
+   "peak_error": 1.4851171353021803e-07,
+   "peak_old": 0.05250202864408493,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "101:56": {
+   "rms_error_db": -115.53549370728646,
+   "peak_error": 2.0842530904646717e-07,
+   "peak_old": 0.0848560482263565,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "101:100": {
+   "rms_error_db": -115.76308749866989,
+   "peak_error": 6.797226055760275e-07,
+   "peak_old": 0.3284018337726593,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:45": {
+   "rms_error_db": -111.06968597631473,
+   "peak_error": 7.022017649033901e-08,
+   "peak_old": 0.03212575986981392,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:56": {
+   "rms_error_db": -111.26009721375527,
+   "peak_error": 1.1319395147764422e-07,
+   "peak_old": 0.05006539821624756,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:100": {
+   "rms_error_db": -111.53963780976044,
+   "peak_error": 5.17594865218074e-07,
+   "peak_old": 0.18222668766975403,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "103:45": {
+   "rms_error_db": -114.7823291698718,
+   "peak_error": 6.118702928353814e-08,
+   "peak_old": 0.03733464702963829,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "103:56": {
+   "rms_error_db": -116.84128398294817,
+   "peak_error": 8.119713177517918e-08,
+   "peak_old": 0.05794287100434303,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "103:100": {
+   "rms_error_db": -118.53367602033148,
+   "peak_error": 4.5149923051657215e-07,
+   "peak_old": 0.2525935471057892,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "104:45": {
+   "rms_error_db": -113.75682263052666,
+   "peak_error": 4.988197183000004e-08,
+   "peak_old": 0.023236840963363647,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "104:56": {
+   "rms_error_db": -115.56717027029302,
+   "peak_error": 8.916780738950358e-08,
+   "peak_old": 0.03807462379336357,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "104:100": {
+   "rms_error_db": -116.99633375603243,
+   "peak_error": 3.5494828184989835e-07,
+   "peak_old": 0.16470277309417725,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "105:45": {
+   "rms_error_db": -115.57455047287354,
+   "peak_error": 5.118681970211342e-08,
+   "peak_old": 0.028270650655031204,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "105:56": {
+   "rms_error_db": -117.69657268507575,
+   "peak_error": 6.701132540531951e-08,
+   "peak_old": 0.04426288604736328,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "105:100": {
+   "rms_error_db": -119.61227396118419,
+   "peak_error": 2.9344631198580107e-07,
+   "peak_old": 0.1758800894021988,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "106:45": {
+   "rms_error_db": -110.2035578226298,
+   "peak_error": 4.89244697792629e-08,
+   "peak_old": 0.021230703219771385,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "106:56": {
+   "rms_error_db": -111.60194860630206,
+   "peak_error": 6.714198716537695e-08,
+   "peak_old": 0.03409571200609207,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "106:100": {
+   "rms_error_db": -113.15308708511634,
+   "peak_error": 3.0148540793376033e-07,
+   "peak_old": 0.15166674554347992,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "107:45": {
+   "rms_error_db": -108.94827168945851,
+   "peak_error": 3.880781847942884e-08,
+   "peak_old": 0.018933571875095367,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "107:56": {
+   "rms_error_db": -110.8612376952157,
+   "peak_error": 5.620701604928252e-08,
+   "peak_old": 0.033030763268470764,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "107:100": {
+   "rms_error_db": -114.01172264268972,
+   "peak_error": 2.4293325525878706e-07,
+   "peak_old": 0.14745788276195526,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:45": {
+   "rms_error_db": -110.2289289768352,
+   "peak_error": 4.040012903283228e-08,
+   "peak_old": 0.021151334047317505,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:56": {
+   "rms_error_db": -111.76517562162424,
+   "peak_error": 6.44051144733579e-08,
+   "peak_old": 0.03665296733379364,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:100": {
+   "rms_error_db": -113.28424201599364,
+   "peak_error": 3.2172268836852536e-07,
+   "peak_old": 0.16799220442771912,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  }
+ },
+ "dense": {
+  "97:28": {
+   "rms_error_db": -107.92570223402231,
+   "peak_error": 5.258476251787311e-08,
+   "peak_old": 0.02181452512741089,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:29": {
+   "rms_error_db": -108.01385586505596,
+   "peak_error": 6.080773731764744e-08,
+   "peak_old": 0.02281188778579235,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:30": {
+   "rms_error_db": -108.00891475816272,
+   "peak_error": 6.075432588958929e-08,
+   "peak_old": 0.023774247616529465,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:31": {
+   "rms_error_db": -108.48572461159276,
+   "peak_error": 6.241872360038953e-08,
+   "peak_old": 0.024689815938472748,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:32": {
+   "rms_error_db": -108.2926955201929,
+   "peak_error": 6.389226282765836e-08,
+   "peak_old": 0.02577877603471279,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:33": {
+   "rms_error_db": -108.37285815371459,
+   "peak_error": 6.732552844390671e-08,
+   "peak_old": 0.026768775656819344,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:34": {
+   "rms_error_db": -108.33341134467206,
+   "peak_error": 6.785619385742819e-08,
+   "peak_old": 0.027772972360253334,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:35": {
+   "rms_error_db": -108.6978085487999,
+   "peak_error": 7.756047121047771e-08,
+   "peak_old": 0.02891205996274948,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:36": {
+   "rms_error_db": -108.62132299123225,
+   "peak_error": 8.061038314199215e-08,
+   "peak_old": 0.029960662126541138,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:37": {
+   "rms_error_db": -108.77718068730124,
+   "peak_error": 8.74793522707279e-08,
+   "peak_old": 0.03098328411579132,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:38": {
+   "rms_error_db": -108.76724720003165,
+   "peak_error": 8.874617362167325e-08,
+   "peak_old": 0.032214753329753876,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:39": {
+   "rms_error_db": -108.8514272976014,
+   "peak_error": 9.847043043985371e-08,
+   "peak_old": 0.0333753265440464,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:40": {
+   "rms_error_db": -108.89999672773547,
+   "peak_error": 9.845991369959728e-08,
+   "peak_old": 0.03446090966463089,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:41": {
+   "rms_error_db": -108.85191890968497,
+   "peak_error": 8.946972816781251e-08,
+   "peak_old": 0.035676259547472,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:42": {
+   "rms_error_db": -109.04380502206541,
+   "peak_error": 9.663460157072201e-08,
+   "peak_old": 0.03698015213012695,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:43": {
+   "rms_error_db": -108.75603276570163,
+   "peak_error": 1.1075710123521765e-07,
+   "peak_old": 0.038215890526771545,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:44": {
+   "rms_error_db": -108.90269894587058,
+   "peak_error": 1.0970198449037488e-07,
+   "peak_old": 0.03937987983226776,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:45": {
+   "rms_error_db": -109.06153770857429,
+   "peak_error": 1.1551411378124543e-07,
+   "peak_old": 0.040695663541555405,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:46": {
+   "rms_error_db": -109.02052607970876,
+   "peak_error": 1.1024963484512762e-07,
+   "peak_old": 0.04209787771105766,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:47": {
+   "rms_error_db": -108.99458030591391,
+   "peak_error": 1.2438449325906376e-07,
+   "peak_old": 0.043437857180833817,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:48": {
+   "rms_error_db": -109.11317536199925,
+   "peak_error": 1.2284682696095395e-07,
+   "peak_old": 0.04473474249243736,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:49": {
+   "rms_error_db": -109.11198995754,
+   "peak_error": 1.1934458542077475e-07,
+   "peak_old": 0.046009983867406845,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:50": {
+   "rms_error_db": -109.2715464500313,
+   "peak_error": 1.305640973565947e-07,
+   "peak_old": 0.04756070300936699,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:51": {
+   "rms_error_db": -108.87092419357307,
+   "peak_error": 1.6196916489616409e-07,
+   "peak_old": 0.04908062517642975,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:52": {
+   "rms_error_db": -109.13093579933602,
+   "peak_error": 1.509168809296635e-07,
+   "peak_old": 0.050561994314193726,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:53": {
+   "rms_error_db": -109.28460782736303,
+   "peak_error": 1.4996559542790333e-07,
+   "peak_old": 0.052013177424669266,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:54": {
+   "rms_error_db": -109.24685744007063,
+   "peak_error": 1.5867003120770273e-07,
+   "peak_old": 0.0534156858921051,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:55": {
+   "rms_error_db": -109.35612676146451,
+   "peak_error": 1.606118862247652e-07,
+   "peak_old": 0.05504370480775833,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:56": {
+   "rms_error_db": -109.29535955885345,
+   "peak_error": 1.7011418085993713e-07,
+   "peak_old": 0.05673271790146828,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:57": {
+   "rms_error_db": -109.21163019344888,
+   "peak_error": 1.834546102461032e-07,
+   "peak_old": 0.058421820402145386,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:58": {
+   "rms_error_db": -109.30140424519657,
+   "peak_error": 1.8221839608034696e-07,
+   "peak_old": 0.06007710471749306,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:59": {
+   "rms_error_db": -109.52501925240348,
+   "peak_error": 1.9003246624904602e-07,
+   "peak_old": 0.06170410290360451,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:60": {
+   "rms_error_db": -109.48890118390977,
+   "peak_error": 1.804729266446925e-07,
+   "peak_old": 0.06327248364686966,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:61": {
+   "rms_error_db": -109.04907877564376,
+   "peak_error": 2.1860121519542974e-07,
+   "peak_old": 0.0651141032576561,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:62": {
+   "rms_error_db": -109.4591668385928,
+   "peak_error": 2.032869304245677e-07,
+   "peak_old": 0.06699012219905853,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:63": {
+   "rms_error_db": -109.76348418113908,
+   "peak_error": 2.1375935144521407e-07,
+   "peak_old": 0.0688633918762207,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:64": {
+   "rms_error_db": -109.08724708226801,
+   "peak_error": 2.415171894976087e-07,
+   "peak_old": 0.07070714980363846,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:65": {
+   "rms_error_db": -109.26034705906127,
+   "peak_error": 2.3574322213434917e-07,
+   "peak_old": 0.07251100987195969,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:66": {
+   "rms_error_db": -109.23933006409699,
+   "peak_error": 2.7711351610094914e-07,
+   "peak_old": 0.07431310415267944,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:67": {
+   "rms_error_db": -109.73825303762618,
+   "peak_error": 2.2773140867168862e-07,
+   "peak_old": 0.07618870586156845,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:68": {
+   "rms_error_db": -109.12693892724266,
+   "peak_error": 2.563945677366841e-07,
+   "peak_old": 0.07830964773893356,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:69": {
+   "rms_error_db": -109.72436495744296,
+   "peak_error": 2.5947463386591374e-07,
+   "peak_old": 0.08040554076433182,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:70": {
+   "rms_error_db": -109.60900944641118,
+   "peak_error": 2.5986695217222744e-07,
+   "peak_old": 0.08247203379869461,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:71": {
+   "rms_error_db": -109.58294972525022,
+   "peak_error": 2.5526248619012204e-07,
+   "peak_old": 0.08452203869819641,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:72": {
+   "rms_error_db": -109.60596487374195,
+   "peak_error": 2.7085123774361897e-07,
+   "peak_old": 0.08652129769325256,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:73": {
+   "rms_error_db": -109.53984244115065,
+   "peak_error": 2.9003179506659205e-07,
+   "peak_old": 0.08845803886651993,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:74": {
+   "rms_error_db": -109.5191461133175,
+   "peak_error": 3.052335335942957e-07,
+   "peak_old": 0.09068338572978973,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:75": {
+   "rms_error_db": -109.52936691720967,
+   "peak_error": 3.094659579774839e-07,
+   "peak_old": 0.09302503615617752,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:76": {
+   "rms_error_db": -109.45904754352476,
+   "peak_error": 3.0701478635764e-07,
+   "peak_old": 0.09539121389389038,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:77": {
+   "rms_error_db": -109.41336680724446,
+   "peak_error": 3.110758587179796e-07,
+   "peak_old": 0.09768269211053848,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:78": {
+   "rms_error_db": -109.69071774829713,
+   "peak_error": 3.2147375456439975e-07,
+   "peak_old": 0.09993487596511841,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:79": {
+   "rms_error_db": -109.73506965803787,
+   "peak_error": 3.2480414856317363e-07,
+   "peak_old": 0.10219668596982956,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:80": {
+   "rms_error_db": -109.40061055126782,
+   "peak_error": 4.02534220636519e-07,
+   "peak_old": 0.10439465939998627,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:81": {
+   "rms_error_db": -109.68062445239991,
+   "peak_error": 3.470524207183079e-07,
+   "peak_old": 0.10699383914470673,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:82": {
+   "rms_error_db": -109.72911349347692,
+   "peak_error": 3.4536855916811326e-07,
+   "peak_old": 0.10962222516536713,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:83": {
+   "rms_error_db": -109.73843723783486,
+   "peak_error": 3.7360497829458383e-07,
+   "peak_old": 0.11224006861448288,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:84": {
+   "rms_error_db": -109.22793468149173,
+   "peak_error": 4.155256149371289e-07,
+   "peak_old": 0.11481541395187378,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:85": {
+   "rms_error_db": -109.67440419093192,
+   "peak_error": 4.5024028841669783e-07,
+   "peak_old": 0.1175784170627594,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:86": {
+   "rms_error_db": -109.74800299033168,
+   "peak_error": 4.2111915769804664e-07,
+   "peak_old": 0.12034870684146881,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:87": {
+   "rms_error_db": -109.48590839710398,
+   "peak_error": 4.1841674282630525e-07,
+   "peak_old": 0.12307783961296082,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:88": {
+   "rms_error_db": -109.54859224376685,
+   "peak_error": 4.3206930389755316e-07,
+   "peak_old": 0.12579815089702606,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:89": {
+   "rms_error_db": -109.76571882061712,
+   "peak_error": 4.887546483922645e-07,
+   "peak_old": 0.12855049967765808,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:90": {
+   "rms_error_db": -110.26446836510729,
+   "peak_error": 4.1411347040387625e-07,
+   "peak_old": 0.13173268735408783,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:91": {
+   "rms_error_db": -109.5070751757202,
+   "peak_error": 4.545976654193179e-07,
+   "peak_old": 0.13513605296611786,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:92": {
+   "rms_error_db": -109.37063594965367,
+   "peak_error": 4.928496609921118e-07,
+   "peak_old": 0.13851556181907654,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:93": {
+   "rms_error_db": -109.62598026602365,
+   "peak_error": 4.916359170881179e-07,
+   "peak_old": 0.14184461534023285,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:94": {
+   "rms_error_db": -109.53643668538348,
+   "peak_error": 5.575776825944567e-07,
+   "peak_old": 0.14515043795108795,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:95": {
+   "rms_error_db": -109.71642084849678,
+   "peak_error": 6.057634977033044e-07,
+   "peak_old": 0.14842183887958527,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:96": {
+   "rms_error_db": -109.43798036331187,
+   "peak_error": 5.160302887219359e-07,
+   "peak_old": 0.1516672670841217,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:97": {
+   "rms_error_db": -109.7004559271671,
+   "peak_error": 5.650961319852987e-07,
+   "peak_old": 0.15488505363464355,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:98": {
+   "rms_error_db": -109.16799929479559,
+   "peak_error": 6.123850546727039e-07,
+   "peak_old": 0.15809588134288788,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:99": {
+   "rms_error_db": -109.4951999238061,
+   "peak_error": 6.297160606780206e-07,
+   "peak_old": 0.16171613335609436,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:100": {
+   "rms_error_db": -109.82800615259863,
+   "peak_error": 5.978747298907017e-07,
+   "peak_old": 0.16579262912273407,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:101": {
+   "rms_error_db": -109.57880404722323,
+   "peak_error": 6.462061556966603e-07,
+   "peak_old": 0.16981825232505798,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:102": {
+   "rms_error_db": -109.76054858949759,
+   "peak_error": 5.985799249805246e-07,
+   "peak_old": 0.1738145351409912,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:103": {
+   "rms_error_db": -109.6109678425011,
+   "peak_error": 7.189289240733254e-07,
+   "peak_old": 0.17778527736663818,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:104": {
+   "rms_error_db": -109.72555817139289,
+   "peak_error": 7.104082476311335e-07,
+   "peak_old": 0.18176798522472382,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:105": {
+   "rms_error_db": -109.76206673612413,
+   "peak_error": 6.951818824069145e-07,
+   "peak_old": 0.18568594753742218,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:106": {
+   "rms_error_db": -109.6387149624158,
+   "peak_error": 7.285907183129936e-07,
+   "peak_old": 0.18963460624217987,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:107": {
+   "rms_error_db": -110.15267223283288,
+   "peak_error": 6.222383533982523e-07,
+   "peak_old": 0.19352439045906067,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:108": {
+   "rms_error_db": -109.82808718567964,
+   "peak_error": 6.567036013316319e-07,
+   "peak_old": 0.19744598865509033,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:109": {
+   "rms_error_db": -109.52088222519981,
+   "peak_error": 8.218786493804919e-07,
+   "peak_old": 0.2013348788022995,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:110": {
+   "rms_error_db": -109.70169082107489,
+   "peak_error": 7.906008468311354e-07,
+   "peak_old": 0.20591306686401367,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:111": {
+   "rms_error_db": -109.4308599723031,
+   "peak_error": 8.962599351847178e-07,
+   "peak_old": 0.2109510749578476,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:112": {
+   "rms_error_db": -109.49379336242373,
+   "peak_error": 7.556236783293202e-07,
+   "peak_old": 0.21595759689807892,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:113": {
+   "rms_error_db": -109.55776747915098,
+   "peak_error": 7.666512413795346e-07,
+   "peak_old": 0.2209859937429428,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:114": {
+   "rms_error_db": -109.82540279048541,
+   "peak_error": 8.07906214747578e-07,
+   "peak_old": 0.22598674893379211,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:115": {
+   "rms_error_db": -109.62540873411201,
+   "peak_error": 9.214872657425932e-07,
+   "peak_old": 0.23098857700824738,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:116": {
+   "rms_error_db": -109.85085569418828,
+   "peak_error": 9.142529853525816e-07,
+   "peak_old": 0.2359905242919922,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:117": {
+   "rms_error_db": -109.34669204559454,
+   "peak_error": 9.416062105513379e-07,
+   "peak_old": 0.24097800254821777,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:118": {
+   "rms_error_db": -109.9944098503485,
+   "peak_error": 1.0471034001674484e-06,
+   "peak_old": 0.24598072469234467,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:119": {
+   "rms_error_db": -109.90095075749176,
+   "peak_error": 9.55475347660939e-07,
+   "peak_old": 0.25098171830177307,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:120": {
+   "rms_error_db": -109.69409173956193,
+   "peak_error": 8.729070564150732e-07,
+   "peak_old": 0.25598007440567017,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:121": {
+   "rms_error_db": -109.61333466229802,
+   "peak_error": 1.039031320537731e-06,
+   "peak_old": 0.2609868347644806,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:122": {
+   "rms_error_db": -109.73391451340662,
+   "peak_error": 9.463443027546425e-07,
+   "peak_old": 0.2660076320171356,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:123": {
+   "rms_error_db": -109.75543809316,
+   "peak_error": 1.0645846420867522e-06,
+   "peak_old": 0.27103880047798157,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:124": {
+   "rms_error_db": -109.54218646509874,
+   "peak_error": 1.012399291649979e-06,
+   "peak_old": 0.27606794238090515,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:125": {
+   "rms_error_db": -109.7739150648442,
+   "peak_error": 1.088061161710896e-06,
+   "peak_old": 0.2819046974182129,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:126": {
+   "rms_error_db": -109.68271091387741,
+   "peak_error": 1.0637129261026335e-06,
+   "peak_old": 0.28845831751823425,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "97:127": {
+   "rms_error_db": -109.81809510085665,
+   "peak_error": 1.0771144564117319e-06,
+   "peak_old": 0.29501959681510925,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:28": {
+   "rms_error_db": -110.65147330122322,
+   "peak_error": 5.1197418333460976e-08,
+   "peak_old": 0.015720665454864502,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:29": {
+   "rms_error_db": -110.58191054112964,
+   "peak_error": 5.35598087634398e-08,
+   "peak_old": 0.017123205587267876,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:30": {
+   "rms_error_db": -110.7444270246949,
+   "peak_error": 5.661041237430692e-08,
+   "peak_old": 0.01840275339782238,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:31": {
+   "rms_error_db": -110.70369983597769,
+   "peak_error": 6.705000217370471e-08,
+   "peak_old": 0.0198992770165205,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:32": {
+   "rms_error_db": -110.69771109082852,
+   "peak_error": 6.582912951292458e-08,
+   "peak_old": 0.021504810079932213,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:33": {
+   "rms_error_db": -110.78079038088003,
+   "peak_error": 8.275947948992168e-08,
+   "peak_old": 0.023251183331012726,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:34": {
+   "rms_error_db": -110.87493191210756,
+   "peak_error": 7.436672163317615e-08,
+   "peak_old": 0.025262907147407532,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:35": {
+   "rms_error_db": -110.56128066860902,
+   "peak_error": 8.808809230653747e-08,
+   "peak_old": 0.027482077479362488,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:36": {
+   "rms_error_db": -110.92538711394049,
+   "peak_error": 9.482190391728318e-08,
+   "peak_old": 0.029526617377996445,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:37": {
+   "rms_error_db": -110.89526270324471,
+   "peak_error": 9.013298374847822e-08,
+   "peak_old": 0.03166979178786278,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:38": {
+   "rms_error_db": -110.754719411216,
+   "peak_error": 1.0051830366328285e-07,
+   "peak_old": 0.03429354354739189,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:39": {
+   "rms_error_db": -110.97246994336942,
+   "peak_error": 1.0689404772099009e-07,
+   "peak_old": 0.03674956038594246,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:40": {
+   "rms_error_db": -111.12553034866401,
+   "peak_error": 1.1910082923366483e-07,
+   "peak_old": 0.038986239582300186,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:41": {
+   "rms_error_db": -111.08734785744689,
+   "peak_error": 1.1707311129566245e-07,
+   "peak_old": 0.04184812679886818,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:42": {
+   "rms_error_db": -110.85523519731737,
+   "peak_error": 1.582942844614854e-07,
+   "peak_old": 0.04483173042535782,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:43": {
+   "rms_error_db": -111.06907970937881,
+   "peak_error": 1.422093600066121e-07,
+   "peak_old": 0.047622937709093094,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:44": {
+   "rms_error_db": -111.19236372253502,
+   "peak_error": 1.641714451813825e-07,
+   "peak_old": 0.05020000785589218,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:45": {
+   "rms_error_db": -110.87978674010407,
+   "peak_error": 1.5966003370088133e-07,
+   "peak_old": 0.05354296416044235,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:46": {
+   "rms_error_db": -111.12423928763045,
+   "peak_error": 1.7333193262983326e-07,
+   "peak_old": 0.057027000933885574,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:47": {
+   "rms_error_db": -111.05171583659711,
+   "peak_error": 1.7323833068766392e-07,
+   "peak_old": 0.060310106724500656,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:48": {
+   "rms_error_db": -111.34883713973113,
+   "peak_error": 1.8207918300178205e-07,
+   "peak_old": 0.0634017065167427,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:49": {
+   "rms_error_db": -111.41130602025804,
+   "peak_error": 1.85072364099724e-07,
+   "peak_old": 0.06667719781398773,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:50": {
+   "rms_error_db": -110.84628625031812,
+   "peak_error": 2.0571142274328214e-07,
+   "peak_old": 0.07080130279064178,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:51": {
+   "rms_error_db": -110.98066311555002,
+   "peak_error": 2.129297851337364e-07,
+   "peak_old": 0.07469194382429123,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:52": {
+   "rms_error_db": -111.16421048255793,
+   "peak_error": 2.259317120958948e-07,
+   "peak_old": 0.07840732485055923,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:53": {
+   "rms_error_db": -111.16651792080543,
+   "peak_error": 2.3375324682134435e-07,
+   "peak_old": 0.08179908990859985,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:54": {
+   "rms_error_db": -111.23953708176195,
+   "peak_error": 2.6420030397461547e-07,
+   "peak_old": 0.08573796600103378,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:55": {
+   "rms_error_db": -111.45903994405016,
+   "peak_error": 2.740851130222932e-07,
+   "peak_old": 0.09044590592384338,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:56": {
+   "rms_error_db": -111.23307203903332,
+   "peak_error": 2.5539284857073463e-07,
+   "peak_old": 0.0948692113161087,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:57": {
+   "rms_error_db": -111.20961596393312,
+   "peak_error": 2.7123252802768727e-07,
+   "peak_old": 0.09912563115358353,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:58": {
+   "rms_error_db": -111.4063498729965,
+   "peak_error": 2.647237990691109e-07,
+   "peak_old": 0.10310346633195877,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:59": {
+   "rms_error_db": -111.5337157517325,
+   "peak_error": 2.917730142770747e-07,
+   "peak_old": 0.10681192576885223,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:60": {
+   "rms_error_db": -111.2693716904539,
+   "peak_error": 3.182204012450174e-07,
+   "peak_old": 0.11227672547101974,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:61": {
+   "rms_error_db": -111.18865032280584,
+   "peak_error": 3.546478190494251e-07,
+   "peak_old": 0.1174916923046112,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:62": {
+   "rms_error_db": -111.17054905995069,
+   "peak_error": 3.311867084743181e-07,
+   "peak_old": 0.12254983931779861,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:63": {
+   "rms_error_db": -111.29100802443013,
+   "peak_error": 3.56920050410825e-07,
+   "peak_old": 0.12738709151744843,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:64": {
+   "rms_error_db": -111.38997375821467,
+   "peak_error": 3.641099091400424e-07,
+   "peak_old": 0.1319703608751297,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:65": {
+   "rms_error_db": -111.1925655454753,
+   "peak_error": 4.164985265286969e-07,
+   "peak_old": 0.13637489080429077,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:66": {
+   "rms_error_db": -111.13029936144974,
+   "peak_error": 4.3943173656108003e-07,
+   "peak_old": 0.1422249972820282,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:67": {
+   "rms_error_db": -111.66079857376008,
+   "peak_error": 4.2020207617621264e-07,
+   "peak_old": 0.14833344519138336,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:68": {
+   "rms_error_db": -111.43831738005036,
+   "peak_error": 4.601482087862596e-07,
+   "peak_old": 0.15431095659732819,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:69": {
+   "rms_error_db": -111.51818770684265,
+   "peak_error": 4.3203920534196083e-07,
+   "peak_old": 0.1601112186908722,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:70": {
+   "rms_error_db": -111.50811066026476,
+   "peak_error": 5.251512839726802e-07,
+   "peak_old": 0.16572943329811096,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:71": {
+   "rms_error_db": -111.29676877163925,
+   "peak_error": 4.823111448837292e-07,
+   "peak_old": 0.17107932269573212,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:72": {
+   "rms_error_db": -111.33542778752428,
+   "peak_error": 4.91730443932803e-07,
+   "peak_old": 0.17627942562103271,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:73": {
+   "rms_error_db": -111.13562353244704,
+   "peak_error": 5.86288663631529e-07,
+   "peak_old": 0.18250314891338348,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:74": {
+   "rms_error_db": -111.11031752460731,
+   "peak_error": 5.499174456219391e-07,
+   "peak_old": 0.1897173374891281,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:75": {
+   "rms_error_db": -111.45395758024699,
+   "peak_error": 5.548567938995497e-07,
+   "peak_old": 0.19678422808647156,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:76": {
+   "rms_error_db": -111.2427835720915,
+   "peak_error": 6.248569978800633e-07,
+   "peak_old": 0.20370721817016602,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:77": {
+   "rms_error_db": -111.30675835039361,
+   "peak_error": 6.064286236229233e-07,
+   "peak_old": 0.21048521995544434,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:78": {
+   "rms_error_db": -111.16769917068939,
+   "peak_error": 7.192686871798637e-07,
+   "peak_old": 0.2170916199684143,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:79": {
+   "rms_error_db": -111.3365968373748,
+   "peak_error": 6.866317268788835e-07,
+   "peak_old": 0.22352717816829681,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:80": {
+   "rms_error_db": -111.15582506349993,
+   "peak_error": 6.783706273660872e-07,
+   "peak_old": 0.22965462505817413,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:81": {
+   "rms_error_db": -111.05140495270072,
+   "peak_error": 7.059302885165097e-07,
+   "peak_old": 0.2361382693052292,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:82": {
+   "rms_error_db": -111.17956050248166,
+   "peak_error": 6.800880700541523e-07,
+   "peak_old": 0.24473458528518677,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:83": {
+   "rms_error_db": -111.16135168900382,
+   "peak_error": 7.738067966944762e-07,
+   "peak_old": 0.25324657559394836,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:84": {
+   "rms_error_db": -111.13210377063284,
+   "peak_error": 8.036101010883145e-07,
+   "peak_old": 0.2615254819393158,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:85": {
+   "rms_error_db": -111.04590420833546,
+   "peak_error": 8.482074091709091e-07,
+   "peak_old": 0.26977941393852234,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:86": {
+   "rms_error_db": -111.1498918636743,
+   "peak_error": 7.477355090101945e-07,
+   "peak_old": 0.2779085338115692,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:87": {
+   "rms_error_db": -111.1475874615362,
+   "peak_error": 9.295296855005297e-07,
+   "peak_old": 0.28588011860847473,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:88": {
+   "rms_error_db": -111.16897551633039,
+   "peak_error": 8.990911697925874e-07,
+   "peak_old": 0.2937077283859253,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:89": {
+   "rms_error_db": -111.07498711971999,
+   "peak_error": 9.089291909125663e-07,
+   "peak_old": 0.3012465834617615,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:90": {
+   "rms_error_db": -111.6119888754961,
+   "peak_error": 8.384756922941161e-07,
+   "peak_old": 0.308702290058136,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:91": {
+   "rms_error_db": -111.10499422727605,
+   "peak_error": 1.011188534336127e-06,
+   "peak_old": 0.31698891520500183,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:92": {
+   "rms_error_db": -111.43953490532894,
+   "peak_error": 8.934193607423868e-07,
+   "peak_old": 0.3273797929286957,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:93": {
+   "rms_error_db": -111.37505400148777,
+   "peak_error": 9.597512164727373e-07,
+   "peak_old": 0.33767998218536377,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:94": {
+   "rms_error_db": -111.44427446178243,
+   "peak_error": 9.53696377009594e-07,
+   "peak_old": 0.3478984236717224,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:95": {
+   "rms_error_db": -111.32650667298547,
+   "peak_error": 9.604998865708758e-07,
+   "peak_old": 0.3578947186470032,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:96": {
+   "rms_error_db": -111.1468591204361,
+   "peak_error": 1.1807290807019921e-06,
+   "peak_old": 0.36793309450149536,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:97": {
+   "rms_error_db": -111.64866867849514,
+   "peak_error": 9.833874972664525e-07,
+   "peak_old": 0.3778785169124603,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:98": {
+   "rms_error_db": -111.36726587425527,
+   "peak_error": 1.0246881228526128e-06,
+   "peak_old": 0.3877415657043457,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:99": {
+   "rms_error_db": -111.4824570616359,
+   "peak_error": 1.0389959160528317e-06,
+   "peak_old": 0.3974829912185669,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:100": {
+   "rms_error_db": -111.37699417794676,
+   "peak_error": 1.1069855281597984e-06,
+   "peak_old": 0.4071412682533264,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:101": {
+   "rms_error_db": -111.3584782570525,
+   "peak_error": 1.1855155031548215e-06,
+   "peak_old": 0.41668856143951416,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:102": {
+   "rms_error_db": -111.52234943448673,
+   "peak_error": 1.1551507572427067e-06,
+   "peak_old": 0.4259944260120392,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:103": {
+   "rms_error_db": -111.47036235237624,
+   "peak_error": 1.2449165644190519e-06,
+   "peak_old": 0.4354381263256073,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:104": {
+   "rms_error_db": -111.04861212816417,
+   "peak_error": 1.2359858886090702e-06,
+   "peak_old": 0.44827720522880554,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:105": {
+   "rms_error_db": -111.73368350913012,
+   "peak_error": 1.3200516351119518e-06,
+   "peak_old": 0.46104323863983154,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:106": {
+   "rms_error_db": -111.28620826712671,
+   "peak_error": 1.3756809848497475e-06,
+   "peak_old": 0.4738697409629822,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:107": {
+   "rms_error_db": -111.10700259959215,
+   "peak_error": 1.3732838825553095e-06,
+   "peak_old": 0.4865967333316803,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:108": {
+   "rms_error_db": -110.98449043305888,
+   "peak_error": 1.4268311202270123e-06,
+   "peak_old": 0.49940282106399536,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:109": {
+   "rms_error_db": -111.46868727099131,
+   "peak_error": 1.3639213301830377e-06,
+   "peak_old": 0.5121303200721741,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:110": {
+   "rms_error_db": -111.51053896427618,
+   "peak_error": 1.5535027557411762e-06,
+   "peak_old": 0.5246239304542542,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:111": {
+   "rms_error_db": -111.23932531619332,
+   "peak_error": 1.6518004536947295e-06,
+   "peak_old": 0.5372739434242249,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:112": {
+   "rms_error_db": -111.30089181551236,
+   "peak_error": 1.4956106604291364e-06,
+   "peak_old": 0.5499769449234009,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:113": {
+   "rms_error_db": -111.43551187963881,
+   "peak_error": 1.574623417655019e-06,
+   "peak_old": 0.5626236200332642,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:114": {
+   "rms_error_db": -111.39358128885658,
+   "peak_error": 1.7227533939123685e-06,
+   "peak_old": 0.5752179622650146,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:115": {
+   "rms_error_db": -111.48646601697452,
+   "peak_error": 1.6063641092023406e-06,
+   "peak_old": 0.587857186794281,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:116": {
+   "rms_error_db": -111.61707733594324,
+   "peak_error": 1.629415949111479e-06,
+   "peak_old": 0.600447416305542,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:117": {
+   "rms_error_db": -111.36171234674745,
+   "peak_error": 1.796892916627879e-06,
+   "peak_old": 0.6131057143211365,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:118": {
+   "rms_error_db": -111.66221248923988,
+   "peak_error": 1.5658631541404233e-06,
+   "peak_old": 0.6254600882530212,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:119": {
+   "rms_error_db": -111.20435886067115,
+   "peak_error": 1.8945017869198555e-06,
+   "peak_old": 0.638005793094635,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:120": {
+   "rms_error_db": -111.22013363401543,
+   "peak_error": 1.806002394744155e-06,
+   "peak_old": 0.6536955237388611,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:121": {
+   "rms_error_db": -111.22855583169277,
+   "peak_error": 1.9832341716374824e-06,
+   "peak_old": 0.6702144145965576,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:122": {
+   "rms_error_db": -111.3645151991846,
+   "peak_error": 1.893823716681009e-06,
+   "peak_old": 0.686753511428833,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:123": {
+   "rms_error_db": -111.4662004619987,
+   "peak_error": 1.993274824640956e-06,
+   "peak_old": 0.7033655047416687,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:124": {
+   "rms_error_db": -111.19907395704338,
+   "peak_error": 2.050382351570512e-06,
+   "peak_old": 0.7202011942863464,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:125": {
+   "rms_error_db": -111.3645096525333,
+   "peak_error": 1.9633252408279844e-06,
+   "peak_old": 0.7369727492332458,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:126": {
+   "rms_error_db": -111.16183115463755,
+   "peak_error": 2.2846563108025464e-06,
+   "peak_old": 0.75386643409729,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "99:127": {
+   "rms_error_db": -111.42723367400299,
+   "peak_error": 2.2101461734092e-06,
+   "peak_old": 0.7709348201751709,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:28": {
+   "rms_error_db": -108.50152496782819,
+   "peak_error": 2.6283202743566936e-08,
+   "peak_old": 0.012815268710255623,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:29": {
+   "rms_error_db": -108.77498108094841,
+   "peak_error": 2.8721501519127224e-08,
+   "peak_old": 0.013743455521762371,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:30": {
+   "rms_error_db": -109.01309424246088,
+   "peak_error": 2.7277706259563883e-08,
+   "peak_old": 0.014560910873115063,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:31": {
+   "rms_error_db": -109.51162995464698,
+   "peak_error": 3.061107978295091e-08,
+   "peak_old": 0.015632465481758118,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:32": {
+   "rms_error_db": -109.74047236953479,
+   "peak_error": 3.701511702702831e-08,
+   "peak_old": 0.016581958159804344,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:33": {
+   "rms_error_db": -109.66185977757516,
+   "peak_error": 3.4880784787003766e-08,
+   "peak_old": 0.017505178228020668,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:34": {
+   "rms_error_db": -109.9649356185995,
+   "peak_error": 3.6135199094674414e-08,
+   "peak_old": 0.01865352876484394,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:35": {
+   "rms_error_db": -110.41021702541742,
+   "peak_error": 3.860608134001117e-08,
+   "peak_old": 0.019678765907883644,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:36": {
+   "rms_error_db": -110.46559337750317,
+   "peak_error": 4.0499497961418024e-08,
+   "peak_old": 0.020634034648537636,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:37": {
+   "rms_error_db": -110.11788679917694,
+   "peak_error": 4.6733676858055906e-08,
+   "peak_old": 0.02191299945116043,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:38": {
+   "rms_error_db": -110.45254410511042,
+   "peak_error": 4.941433237246051e-08,
+   "peak_old": 0.023074503988027573,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:39": {
+   "rms_error_db": -110.44615787859934,
+   "peak_error": 5.4667779711935205e-08,
+   "peak_old": 0.02410040609538555,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:40": {
+   "rms_error_db": -110.68303714222708,
+   "peak_error": 5.1239826152904566e-08,
+   "peak_old": 0.025390878319740295,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:41": {
+   "rms_error_db": -110.73899822879127,
+   "peak_error": 6.128634440737135e-08,
+   "peak_old": 0.02675057016313076,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:42": {
+   "rms_error_db": -110.81959039202383,
+   "peak_error": 5.7646002729963564e-08,
+   "peak_old": 0.027986912056803703,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:43": {
+   "rms_error_db": -111.13731961353544,
+   "peak_error": 6.687425037517347e-08,
+   "peak_old": 0.02908385545015335,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:44": {
+   "rms_error_db": -110.89642201087564,
+   "peak_error": 6.712818653720198e-08,
+   "peak_old": 0.030614517629146576,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:45": {
+   "rms_error_db": -111.07007280292459,
+   "peak_error": 7.022017648860429e-08,
+   "peak_old": 0.03212575986981392,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:46": {
+   "rms_error_db": -111.44032382897164,
+   "peak_error": 7.017348464984086e-08,
+   "peak_old": 0.033515650779008865,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:47": {
+   "rms_error_db": -111.08531216405598,
+   "peak_error": 8.49831405368845e-08,
+   "peak_old": 0.03476940095424652,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:48": {
+   "rms_error_db": -111.3943790185424,
+   "peak_error": 8.563291175114895e-08,
+   "peak_old": 0.03632713854312897,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:49": {
+   "rms_error_db": -111.23754876942202,
+   "peak_error": 9.84418979492474e-08,
+   "peak_old": 0.038072045892477036,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:50": {
+   "rms_error_db": -111.14938771665322,
+   "peak_error": 8.953376938588761e-08,
+   "peak_old": 0.03970469906926155,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:51": {
+   "rms_error_db": -111.62195168706094,
+   "peak_error": 8.9785473685218e-08,
+   "peak_old": 0.041211217641830444,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:52": {
+   "rms_error_db": -111.10758353803234,
+   "peak_error": 1.1960193972704314e-07,
+   "peak_old": 0.04257846996188164,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:53": {
+   "rms_error_db": -111.16394088505137,
+   "peak_error": 1.0049952275980115e-07,
+   "peak_old": 0.04450080543756485,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:54": {
+   "rms_error_db": -111.38992799466988,
+   "peak_error": 1.1779180133890399e-07,
+   "peak_old": 0.046468887478113174,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:55": {
+   "rms_error_db": -111.25423326738847,
+   "peak_error": 1.3776225053947766e-07,
+   "peak_old": 0.04832793027162552,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:56": {
+   "rms_error_db": -111.26152027396542,
+   "peak_error": 1.1319395147504213e-07,
+   "peak_old": 0.05006539821624756,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:57": {
+   "rms_error_db": -111.57203094251506,
+   "peak_error": 1.3005751511169228e-07,
+   "peak_old": 0.05166904628276825,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:58": {
+   "rms_error_db": -111.83653894909827,
+   "peak_error": 1.1477331240353911e-07,
+   "peak_old": 0.0535360723733902,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:59": {
+   "rms_error_db": -111.43727882594185,
+   "peak_error": 1.421793725626605e-07,
+   "peak_old": 0.05584097281098366,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:60": {
+   "rms_error_db": -111.44722315362003,
+   "peak_error": 1.3356248940166182e-07,
+   "peak_old": 0.058048948645591736,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:61": {
+   "rms_error_db": -111.40217603528866,
+   "peak_error": 1.4064874033145602e-07,
+   "peak_old": 0.06014828756451607,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:62": {
+   "rms_error_db": -111.33998970799021,
+   "peak_error": 1.5682467344180218e-07,
+   "peak_old": 0.0621272511780262,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:63": {
+   "rms_error_db": -111.45158575025663,
+   "peak_error": 1.5660526556104948e-07,
+   "peak_old": 0.06397483497858047,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:64": {
+   "rms_error_db": -111.62010451505834,
+   "peak_error": 1.5759979044016603e-07,
+   "peak_old": 0.06596735864877701,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:65": {
+   "rms_error_db": -111.3279052881412,
+   "peak_error": 1.8117165482417485e-07,
+   "peak_old": 0.06864707171916962,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:66": {
+   "rms_error_db": -111.75579719749193,
+   "peak_error": 1.708845066162451e-07,
+   "peak_old": 0.07124005258083344,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:67": {
+   "rms_error_db": -111.58007918192631,
+   "peak_error": 1.811737414189607e-07,
+   "peak_old": 0.07373577356338501,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:68": {
+   "rms_error_db": -111.41044952278429,
+   "peak_error": 1.9118279219812462e-07,
+   "peak_old": 0.07612407207489014,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:69": {
+   "rms_error_db": -111.416125699041,
+   "peak_error": 2.0284184346769374e-07,
+   "peak_old": 0.07839415967464447,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:70": {
+   "rms_error_db": -111.60915255526828,
+   "peak_error": 2.2957296617626827e-07,
+   "peak_old": 0.08053690940141678,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:71": {
+   "rms_error_db": -111.3117371735984,
+   "peak_error": 2.3262560513645503e-07,
+   "peak_old": 0.08274869620800018,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:72": {
+   "rms_error_db": -111.49213926944958,
+   "peak_error": 2.3348529299554999e-07,
+   "peak_old": 0.08583177626132965,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:73": {
+   "rms_error_db": -111.66278176428855,
+   "peak_error": 2.390564174323262e-07,
+   "peak_old": 0.08888711035251617,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:74": {
+   "rms_error_db": -111.43323308523853,
+   "peak_error": 2.2364645189780485e-07,
+   "peak_old": 0.09185758233070374,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:75": {
+   "rms_error_db": -111.84557711976176,
+   "peak_error": 2.175676473911703e-07,
+   "peak_old": 0.09473462402820587,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:76": {
+   "rms_error_db": -111.51038995589997,
+   "peak_error": 2.4795321740787857e-07,
+   "peak_old": 0.09750908613204956,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:77": {
+   "rms_error_db": -111.55745824570391,
+   "peak_error": 2.454725353748244e-07,
+   "peak_old": 0.10017260909080505,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:78": {
+   "rms_error_db": -111.71813069667198,
+   "peak_error": 2.5219706964452193e-07,
+   "peak_old": 0.10271674394607544,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:79": {
+   "rms_error_db": -111.77616108115721,
+   "peak_error": 2.778365020272844e-07,
+   "peak_old": 0.1052321195602417,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:80": {
+   "rms_error_db": -111.6984505137625,
+   "peak_error": 2.6139176865364044e-07,
+   "peak_old": 0.10845980793237686,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:81": {
+   "rms_error_db": -111.66003858420227,
+   "peak_error": 2.7064901951187603e-07,
+   "peak_old": 0.11209596693515778,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:82": {
+   "rms_error_db": -111.45395404094316,
+   "peak_error": 3.1962832771834093e-07,
+   "peak_old": 0.11566467583179474,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:83": {
+   "rms_error_db": -111.31520974754066,
+   "peak_error": 3.329242625853268e-07,
+   "peak_old": 0.11915779113769531,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:84": {
+   "rms_error_db": -111.50528376388962,
+   "peak_error": 3.1269780661515034e-07,
+   "peak_old": 0.12256773561239243,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:85": {
+   "rms_error_db": -111.77605932343612,
+   "peak_error": 2.8004232332026757e-07,
+   "peak_old": 0.1258874386548996,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:86": {
+   "rms_error_db": -111.59566201619022,
+   "peak_error": 3.455346601483056e-07,
+   "peak_old": 0.12911014258861542,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:87": {
+   "rms_error_db": -111.73411236856313,
+   "peak_error": 3.3626499846423075e-07,
+   "peak_old": 0.1322288066148758,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:88": {
+   "rms_error_db": -111.45981917985637,
+   "peak_error": 3.8077751656623304e-07,
+   "peak_old": 0.13523481786251068,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:89": {
+   "rms_error_db": -111.73798340891175,
+   "peak_error": 3.918817762307847e-07,
+   "peak_old": 0.13812701404094696,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:90": {
+   "rms_error_db": -111.47105494549515,
+   "peak_error": 3.825209368146787e-07,
+   "peak_old": 0.14197273552417755,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:91": {
+   "rms_error_db": -111.65671162521944,
+   "peak_error": 4.094980793310776e-07,
+   "peak_old": 0.1462986171245575,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:92": {
+   "rms_error_db": -111.6454032787253,
+   "peak_error": 3.8929860000577743e-07,
+   "peak_old": 0.15057210624217987,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:93": {
+   "rms_error_db": -111.4359291779099,
+   "peak_error": 4.067152913622696e-07,
+   "peak_old": 0.15478768944740295,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:94": {
+   "rms_error_db": -111.85525368900164,
+   "peak_error": 4.40027423529582e-07,
+   "peak_old": 0.15893863141536713,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:95": {
+   "rms_error_db": -111.45571021085104,
+   "peak_error": 4.64906863561175e-07,
+   "peak_old": 0.1630154699087143,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:96": {
+   "rms_error_db": -111.77216409989481,
+   "peak_error": 5.202514091195987e-07,
+   "peak_old": 0.1670224368572235,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:97": {
+   "rms_error_db": -111.73491156170024,
+   "peak_error": 5.062921731996406e-07,
+   "peak_old": 0.1709505319595337,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:98": {
+   "rms_error_db": -111.95235675996034,
+   "peak_error": 5.444967998285977e-07,
+   "peak_old": 0.17479592561721802,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:99": {
+   "rms_error_db": -111.55651269554033,
+   "peak_error": 5.080670039611657e-07,
+   "peak_old": 0.17855636775493622,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:100": {
+   "rms_error_db": -111.54287064417684,
+   "peak_error": 5.175948652041962e-07,
+   "peak_old": 0.18222668766975403,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:101": {
+   "rms_error_db": -111.52208459325445,
+   "peak_error": 5.429570838020453e-07,
+   "peak_old": 0.18580332398414612,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:102": {
+   "rms_error_db": -111.79050133287141,
+   "peak_error": 5.267605926173591e-07,
+   "peak_old": 0.18976947665214539,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:103": {
+   "rms_error_db": -111.696326385077,
+   "peak_error": 5.383605173013561e-07,
+   "peak_old": 0.19496484100818634,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:104": {
+   "rms_error_db": -111.72605519882667,
+   "peak_error": 5.291152964034818e-07,
+   "peak_old": 0.20013028383255005,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:105": {
+   "rms_error_db": -111.47866297373278,
+   "peak_error": 5.940484289930492e-07,
+   "peak_old": 0.2052549570798874,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:106": {
+   "rms_error_db": -111.45949890535937,
+   "peak_error": 6.096763925517168e-07,
+   "peak_old": 0.2103465050458908,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:107": {
+   "rms_error_db": -111.79500697254988,
+   "peak_error": 6.625026653800381e-07,
+   "peak_old": 0.21539698541164398,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:108": {
+   "rms_error_db": -111.62836419995556,
+   "peak_error": 6.02342841785064e-07,
+   "peak_old": 0.2204052209854126,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:109": {
+   "rms_error_db": -111.7938069062909,
+   "peak_error": 7.184491553485772e-07,
+   "peak_old": 0.22537073493003845,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:110": {
+   "rms_error_db": -111.9096480255756,
+   "peak_error": 6.453133093147628e-07,
+   "peak_old": 0.23029133677482605,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:111": {
+   "rms_error_db": -111.86580304026593,
+   "peak_error": 6.248096232341904e-07,
+   "peak_old": 0.23517189919948578,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:112": {
+   "rms_error_db": -111.72288104201922,
+   "peak_error": 8.08836332646945e-07,
+   "peak_old": 0.24000254273414612,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:113": {
+   "rms_error_db": -111.82528219306857,
+   "peak_error": 6.144460010099051e-07,
+   "peak_old": 0.24479089677333832,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:114": {
+   "rms_error_db": -112.11733052338124,
+   "peak_error": 7.574346021221867e-07,
+   "peak_old": 0.24953332543373108,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:115": {
+   "rms_error_db": -111.58057052391642,
+   "peak_error": 7.539423563240888e-07,
+   "peak_old": 0.2542288899421692,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:116": {
+   "rms_error_db": -111.71483631010177,
+   "peak_error": 7.344994698704754e-07,
+   "peak_old": 0.2588787078857422,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:117": {
+   "rms_error_db": -111.78754486444367,
+   "peak_error": 7.276846313436502e-07,
+   "peak_old": 0.2634761929512024,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:118": {
+   "rms_error_db": -111.59090862746629,
+   "peak_error": 8.187069817366943e-07,
+   "peak_old": 0.26821786165237427,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:119": {
+   "rms_error_db": -111.91980699043353,
+   "peak_error": 7.169820645386293e-07,
+   "peak_old": 0.2745298743247986,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:120": {
+   "rms_error_db": -112.13402479208177,
+   "peak_error": 7.865146771923737e-07,
+   "peak_old": 0.2808445394039154,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:121": {
+   "rms_error_db": -111.72055708886325,
+   "peak_error": 8.510882981010992e-07,
+   "peak_old": 0.2871578633785248,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:122": {
+   "rms_error_db": -111.37135545506723,
+   "peak_error": 9.087516410211105e-07,
+   "peak_old": 0.29347220063209534,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:123": {
+   "rms_error_db": -112.04430194958272,
+   "peak_error": 8.823749969161243e-07,
+   "peak_old": 0.2997889518737793,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:124": {
+   "rms_error_db": -111.91291662190785,
+   "peak_error": 9.592377577111177e-07,
+   "peak_old": 0.30610594153404236,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:125": {
+   "rms_error_db": -111.81668701968944,
+   "peak_error": 1.1296527218790375e-06,
+   "peak_old": 0.31242823600769043,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:126": {
+   "rms_error_db": -111.51847356922757,
+   "peak_error": 9.176873675825759e-07,
+   "peak_old": 0.3191002905368805,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "102:127": {
+   "rms_error_db": -111.44828713505672,
+   "peak_error": 1.0111442867444254e-06,
+   "peak_old": 0.3257681429386139,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:28": {
+   "rms_error_db": -107.30100530920734,
+   "peak_error": 2.058211461767462e-08,
+   "peak_old": 0.00807575136423111,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:29": {
+   "rms_error_db": -107.39520938848672,
+   "peak_error": 2.305503242375044e-08,
+   "peak_old": 0.008523243479430676,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:30": {
+   "rms_error_db": -107.52162800163617,
+   "peak_error": 2.271037488979239e-08,
+   "peak_old": 0.008979378268122673,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:31": {
+   "rms_error_db": -107.80183681304234,
+   "peak_error": 2.7508297907878794e-08,
+   "peak_old": 0.009544648230075836,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:32": {
+   "rms_error_db": -107.80247777997013,
+   "peak_error": 2.4136658048767184e-08,
+   "peak_old": 0.01014304906129837,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:33": {
+   "rms_error_db": -107.9369774191054,
+   "peak_error": 2.1275121146139414e-08,
+   "peak_old": 0.010762312449514866,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:34": {
+   "rms_error_db": -108.0740202380945,
+   "peak_error": 2.6510606047436616e-08,
+   "peak_old": 0.011395256035029888,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:35": {
+   "rms_error_db": -108.53656441242393,
+   "peak_error": 2.5374337601783217e-08,
+   "peak_old": 0.012032857164740562,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:36": {
+   "rms_error_db": -108.44727281217395,
+   "peak_error": 2.6741645902652808e-08,
+   "peak_old": 0.012665200978517532,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:37": {
+   "rms_error_db": -108.73813711193044,
+   "peak_error": 2.608934864412743e-08,
+   "peak_old": 0.01346808671951294,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:38": {
+   "rms_error_db": -108.87374824967418,
+   "peak_error": 2.653617414217005e-08,
+   "peak_old": 0.014333226718008518,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:39": {
+   "rms_error_db": -109.19725320855251,
+   "peak_error": 3.26467379008254e-08,
+   "peak_old": 0.015211081132292747,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:40": {
+   "rms_error_db": -109.36989979049292,
+   "peak_error": 3.1461530609703245e-08,
+   "peak_old": 0.0160929374396801,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:41": {
+   "rms_error_db": -109.56648020912476,
+   "peak_error": 3.589148927086831e-08,
+   "peak_old": 0.016968989744782448,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:42": {
+   "rms_error_db": -109.56707227895016,
+   "peak_error": 3.4900083056149667e-08,
+   "peak_old": 0.017828786745667458,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:43": {
+   "rms_error_db": -109.85842911830473,
+   "peak_error": 3.590894864010513e-08,
+   "peak_old": 0.018744297325611115,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:44": {
+   "rms_error_db": -110.04802565439336,
+   "peak_error": 4.0817504077216016e-08,
+   "peak_old": 0.019941186532378197,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:45": {
+   "rms_error_db": -110.19801146280676,
+   "peak_error": 4.04001290324257e-08,
+   "peak_old": 0.021151334047317505,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:46": {
+   "rms_error_db": -110.34132214020602,
+   "peak_error": 4.200681291439273e-08,
+   "peak_old": 0.022362902760505676,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:47": {
+   "rms_error_db": -110.62710857455086,
+   "peak_error": 4.349069493620773e-08,
+   "peak_old": 0.023567242547869682,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:48": {
+   "rms_error_db": -110.74636691009528,
+   "peak_error": 4.333011405927012e-08,
+   "peak_old": 0.024754609912633896,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:49": {
+   "rms_error_db": -110.9704094724122,
+   "peak_error": 4.6808933971097255e-08,
+   "peak_old": 0.025914393365383148,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:50": {
+   "rms_error_db": -111.09985667324278,
+   "peak_error": 4.9179390289311176e-08,
+   "peak_old": 0.02703556977212429,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:51": {
+   "rms_error_db": -111.19989324138943,
+   "peak_error": 5.817214820394087e-08,
+   "peak_old": 0.028476279228925705,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:52": {
+   "rms_error_db": -111.28357858377016,
+   "peak_error": 5.9447756895099346e-08,
+   "peak_old": 0.030128145590424538,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:53": {
+   "rms_error_db": -111.4618017684912,
+   "peak_error": 6.900901365798628e-08,
+   "peak_old": 0.031782448291778564,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:54": {
+   "rms_error_db": -111.41003915503174,
+   "peak_error": 5.839700540927889e-08,
+   "peak_old": 0.033428341150283813,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:55": {
+   "rms_error_db": -111.78492178488193,
+   "peak_error": 6.340463392935213e-08,
+   "peak_old": 0.03505634143948555,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:56": {
+   "rms_error_db": -111.75254960965208,
+   "peak_error": 6.440511446902109e-08,
+   "peak_old": 0.03665296733379364,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:57": {
+   "rms_error_db": -111.93070110843095,
+   "peak_error": 7.020439099936909e-08,
+   "peak_old": 0.038208458572626114,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:58": {
+   "rms_error_db": -112.03840590317908,
+   "peak_error": 7.414140605708358e-08,
+   "peak_old": 0.03971128538250923,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:59": {
+   "rms_error_db": -112.1812519681983,
+   "peak_error": 7.418729353492887e-08,
+   "peak_old": 0.04115016758441925,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:60": {
+   "rms_error_db": -112.24590205590647,
+   "peak_error": 8.564838164094955e-08,
+   "peak_old": 0.043213579803705215,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:61": {
+   "rms_error_db": -112.16148235584313,
+   "peak_error": 9.417077323232298e-08,
+   "peak_old": 0.04544892907142639,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:62": {
+   "rms_error_db": -112.32175054311044,
+   "peak_error": 9.678879434905918e-08,
+   "peak_old": 0.04767587035894394,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:63": {
+   "rms_error_db": -112.34310224278346,
+   "peak_error": 8.762040916519137e-08,
+   "peak_old": 0.049880899488925934,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:64": {
+   "rms_error_db": -112.15270350810194,
+   "peak_error": 9.606861209321416e-08,
+   "peak_old": 0.05205735191702843,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:65": {
+   "rms_error_db": -112.21896255410898,
+   "peak_error": 1.0642597686807975e-07,
+   "peak_old": 0.05419601500034332,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:66": {
+   "rms_error_db": -112.44009045168261,
+   "peak_error": 1.179058232835678e-07,
+   "peak_old": 0.05627453327178955,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:67": {
+   "rms_error_db": -112.56348544887686,
+   "peak_error": 1.0081049208300955e-07,
+   "peak_old": 0.05830252170562744,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:68": {
+   "rms_error_db": -112.63988081258104,
+   "peak_error": 1.0012977124176925e-07,
+   "peak_old": 0.06026086583733559,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:69": {
+   "rms_error_db": -112.7281060108186,
+   "peak_error": 1.139850560180275e-07,
+   "peak_old": 0.06214199215173721,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:70": {
+   "rms_error_db": -112.54027879472035,
+   "peak_error": 1.1660509614819237e-07,
+   "peak_old": 0.06443988531827927,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:71": {
+   "rms_error_db": -112.82092198270473,
+   "peak_error": 1.287069461525063e-07,
+   "peak_old": 0.06741385161876678,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:72": {
+   "rms_error_db": -113.06430477649724,
+   "peak_error": 1.276289322185275e-07,
+   "peak_old": 0.0703694298863411,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:73": {
+   "rms_error_db": -112.45345704206242,
+   "peak_error": 1.4700241640023398e-07,
+   "peak_old": 0.07331614941358566,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:74": {
+   "rms_error_db": -112.78918855849271,
+   "peak_error": 1.1685979037744099e-07,
+   "peak_old": 0.07622965425252914,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:75": {
+   "rms_error_db": -112.7434855645727,
+   "peak_error": 1.4270131718169612e-07,
+   "peak_old": 0.07909375429153442,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:76": {
+   "rms_error_db": -112.88723441089397,
+   "peak_error": 1.4513425793138447e-07,
+   "peak_old": 0.08192511647939682,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:77": {
+   "rms_error_db": -112.67594747881122,
+   "peak_error": 1.6277806815997997e-07,
+   "peak_old": 0.08470331877470016,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:78": {
+   "rms_error_db": -112.73453782537302,
+   "peak_error": 1.712790007727706e-07,
+   "peak_old": 0.08741053193807602,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:79": {
+   "rms_error_db": -112.82632253754824,
+   "peak_error": 1.7458583288819732e-07,
+   "peak_old": 0.09006280452013016,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:80": {
+   "rms_error_db": -112.7060919672492,
+   "peak_error": 1.730323829938693e-07,
+   "peak_old": 0.09264221787452698,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:81": {
+   "rms_error_db": -112.98225973048628,
+   "peak_error": 1.697620809985173e-07,
+   "peak_old": 0.09513872861862183,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:82": {
+   "rms_error_db": -113.03915186216304,
+   "peak_error": 1.9069634403165447e-07,
+   "peak_old": 0.09755741059780121,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:83": {
+   "rms_error_db": -113.03617874103617,
+   "peak_error": 1.8308555295443174e-07,
+   "peak_old": 0.10135730355978012,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:84": {
+   "rms_error_db": -113.08251349531767,
+   "peak_error": 2.1225802445193342e-07,
+   "peak_old": 0.10528435558080673,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:85": {
+   "rms_error_db": -112.86672585931615,
+   "peak_error": 2.4338871498948145e-07,
+   "peak_old": 0.10921502113342285,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:86": {
+   "rms_error_db": -113.07320943175272,
+   "peak_error": 2.1323185574618347e-07,
+   "peak_old": 0.1131124272942543,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:87": {
+   "rms_error_db": -113.17399890727478,
+   "peak_error": 1.9399913704122584e-07,
+   "peak_old": 0.11699730157852173,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:88": {
+   "rms_error_db": -113.01583700793601,
+   "peak_error": 2.1868314936321354e-07,
+   "peak_old": 0.12085789442062378,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:89": {
+   "rms_error_db": -113.24564090513286,
+   "peak_error": 2.2855736495942802e-07,
+   "peak_old": 0.12466644495725632,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:90": {
+   "rms_error_db": -112.99112173985765,
+   "peak_error": 2.637130593514947e-07,
+   "peak_old": 0.1284487545490265,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:91": {
+   "rms_error_db": -112.97982034960293,
+   "peak_error": 2.47259572136449e-07,
+   "peak_old": 0.13218358159065247,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:92": {
+   "rms_error_db": -113.24470245489792,
+   "peak_error": 2.4209815977123406e-07,
+   "peak_old": 0.13588032126426697,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:93": {
+   "rms_error_db": -113.01512819834846,
+   "peak_error": 2.7716479500484244e-07,
+   "peak_old": 0.13952547311782837,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:94": {
+   "rms_error_db": -113.11613531535534,
+   "peak_error": 2.9718379617892e-07,
+   "peak_old": 0.14311827719211578,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:95": {
+   "rms_error_db": -113.13705614194781,
+   "peak_error": 2.676607124378616e-07,
+   "peak_old": 0.14665694534778595,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:96": {
+   "rms_error_db": -112.92651434028173,
+   "peak_error": 2.842453784008929e-07,
+   "peak_old": 0.15013447403907776,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:97": {
+   "rms_error_db": -113.06172958354719,
+   "peak_error": 2.872736985549962e-07,
+   "peak_old": 0.15354864299297333,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:98": {
+   "rms_error_db": -113.13467457302914,
+   "peak_error": 3.1805189657299615e-07,
+   "peak_old": 0.15733978152275085,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:99": {
+   "rms_error_db": -112.9469790847065,
+   "peak_error": 3.1848730968914857e-07,
+   "peak_old": 0.1626623272895813,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:100": {
+   "rms_error_db": -113.27941554633034,
+   "peak_error": 3.217226883650559e-07,
+   "peak_old": 0.16799220442771912,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:101": {
+   "rms_error_db": -113.11104371833672,
+   "peak_error": 3.1805353312326645e-07,
+   "peak_old": 0.1733292043209076,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:102": {
+   "rms_error_db": -113.26302287901655,
+   "peak_error": 2.9461807240713234e-07,
+   "peak_old": 0.17868627607822418,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:103": {
+   "rms_error_db": -112.98965571434694,
+   "peak_error": 3.4390815728882473e-07,
+   "peak_old": 0.18401117622852325,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:104": {
+   "rms_error_db": -112.92899946782097,
+   "peak_error": 3.6855822005237016e-07,
+   "peak_old": 0.1893663853406906,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:105": {
+   "rms_error_db": -113.1765687854286,
+   "peak_error": 3.899252352629161e-07,
+   "peak_old": 0.19469191133975983,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:106": {
+   "rms_error_db": -113.11300718240494,
+   "peak_error": 4.2681379645338746e-07,
+   "peak_old": 0.2000352293252945,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:107": {
+   "rms_error_db": -113.28450271909318,
+   "peak_error": 3.7889507983022985e-07,
+   "peak_old": 0.20535579323768616,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:108": {
+   "rms_error_db": -113.16408553238375,
+   "peak_error": 3.507578558815472e-07,
+   "peak_old": 0.2106795758008957,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:109": {
+   "rms_error_db": -113.21205816312653,
+   "peak_error": 4.999561413277301e-07,
+   "peak_old": 0.2159850001335144,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:110": {
+   "rms_error_db": -113.23136878230535,
+   "peak_error": 4.546560745406075e-07,
+   "peak_old": 0.22127999365329742,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:111": {
+   "rms_error_db": -113.16823705311066,
+   "peak_error": 4.804778180253488e-07,
+   "peak_old": 0.22655771672725677,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:112": {
+   "rms_error_db": -113.09785247385291,
+   "peak_error": 4.603087330468103e-07,
+   "peak_old": 0.23181231319904327,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:113": {
+   "rms_error_db": -113.19241411682184,
+   "peak_error": 4.784161671614329e-07,
+   "peak_old": 0.23705227673053741,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:114": {
+   "rms_error_db": -113.27574572285133,
+   "peak_error": 4.400651942154665e-07,
+   "peak_old": 0.24226945638656616,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:115": {
+   "rms_error_db": -113.07532223597244,
+   "peak_error": 4.990406100441325e-07,
+   "peak_old": 0.24745532870292664,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:116": {
+   "rms_error_db": -113.21468104723084,
+   "peak_error": 5.484299071753518e-07,
+   "peak_old": 0.2526104748249054,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:117": {
+   "rms_error_db": -113.05764202010437,
+   "peak_error": 4.698832072602688e-07,
+   "peak_old": 0.2577371895313263,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:118": {
+   "rms_error_db": -113.40127177758204,
+   "peak_error": 4.6170365836095684e-07,
+   "peak_old": 0.2628239095211029,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:119": {
+   "rms_error_db": -113.32415213080486,
+   "peak_error": 4.995584911519219e-07,
+   "peak_old": 0.2694058418273926,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:120": {
+   "rms_error_db": -113.33636918281462,
+   "peak_error": 5.129709521808912e-07,
+   "peak_old": 0.27703315019607544,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:121": {
+   "rms_error_db": -113.46272549072938,
+   "peak_error": 5.336105568711641e-07,
+   "peak_old": 0.28470009565353394,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:122": {
+   "rms_error_db": -112.98672660824056,
+   "peak_error": 6.136702339169797e-07,
+   "peak_old": 0.292422890663147,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:123": {
+   "rms_error_db": -113.32817925802935,
+   "peak_error": 5.532215097275861e-07,
+   "peak_old": 0.3001980781555176,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:124": {
+   "rms_error_db": -113.1567244752719,
+   "peak_error": 6.21104153591262e-07,
+   "peak_old": 0.3080117404460907,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:125": {
+   "rms_error_db": -113.14474664333002,
+   "peak_error": 6.368168911363714e-07,
+   "peak_old": 0.3158840835094452,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:126": {
+   "rms_error_db": -113.06706790092137,
+   "peak_error": 7.027381240462538e-07,
+   "peak_old": 0.32380202412605286,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  },
+  "108:127": {
+   "rms_error_db": -113.13644009415762,
+   "peak_error": 6.784376379992407e-07,
+   "peak_old": 0.3317614197731018,
+   "control_max_error": 0.0,
+   "reconstruction_pass": true
+  }
+ }
+}

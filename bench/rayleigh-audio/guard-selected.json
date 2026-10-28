@@ -1,0 +1,33 @@
+{
+ "maximum": 0.13,
+ "start": 88,
+ "end": 100,
+ "shape": "linear",
+ "dips": [
+  1.2818574610051172,
+  1.3864179973479906
+ ],
+ "late_dip": 0.002612846558449178,
+ "delta": {
+  "45": [
+   0.0,
+   0.0
+  ],
+  "56": [
+   0.0,
+   0.0
+  ],
+  "100": [
+   2.8241724869815243e-06,
+   -1.4504017300143488
+  ]
+ },
+ "note": 102,
+ "unchanged_below_or_at": 88,
+ "cutoff_hz": 7500,
+ "taps": 129,
+ "latency_samples": 64,
+ "classification": "Targeted velocity-dependent voicing crossfade; not a physical radiation law.",
+ "selected_on": "Dense model guard and previous mean forte excess. Same calibration notes, no held-out test.",
+ "criteria": "P2/P3 maximum dips grow <0.01 dB; no new late drawdown >0.01 dB over 88..127; P2 forte changes <0.01 dB; all other notes and v<=88 bypass."
+}

@@ -572,6 +572,11 @@ impl Engine {
         &self.region[r]
     }
 
+    /// Sympathetic bridge force over the last full sub-block (diagnostics).
+    pub fn sympathetic_bridge_force(&self, r: usize) -> &[f32] {
+        &self.region_sym[r]
+    }
+
     pub fn bridge_velocity(&self, r: usize) -> &[f32] {
         &self.disp[r]
     }
