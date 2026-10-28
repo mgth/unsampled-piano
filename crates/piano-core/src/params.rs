@@ -262,6 +262,15 @@ pub struct UnisonLaw {
     /// a 2–3 ms contact, so the strings' partials barely part
     /// (docs/release.md).
     pub height_spread: f64,
+    /// Semitones over which the strings of a new unison come up to the full
+    /// tension (0: full from the first key). A key's strings load the bridge
+    /// with Σ √(T·μ); the first bichord and the first trichord start at
+    /// (n−1)/n of the tension, so the load does not jump from the key below.
+    /// At full tension the first bichords lost their first 15 dB 2–2.5 times
+    /// faster than on eight real grands (F#1–C2), the first trichords
+    /// 1.4–2 times (A2–A3). 36: bench 1.14 → 1.09; 24 did nearly as well
+    /// (1.10) and the user heard both alike (docs/bass_metal.md).
+    pub load_ramp: f64,
 }
 
 impl UnisonLaw {
@@ -272,7 +281,7 @@ impl UnisonLaw {
     /// Salamander (docs/long_sustain.md; 0.35 cent left it 10 dB too weak
     /// and the notes died after 1 s); hit spread ±20 % set on the
     /// aftersound level of the treble (docs/sustain.md).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4 };
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 
@@ -284,6 +293,17 @@ impl UnisonLaw {
         } else {
             1
         }
+    }
+
+    /// Share of the scale's tension each string of the key carries.
+    pub fn tension_share(&self, note: u8) -> f64 {
+        let n = self.strings(note);
+        if n == 1 || self.load_ramp <= 0.0 {
+            return 1.0;
+        }
+        let from = if n == 3 { self.trichord_from } else { self.bichord_from };
+        let t = ((note as f64 - from as f64) / self.load_ramp).clamp(0.0, 1.0);
+        (n as f64 - 1.0 + t) / n as f64
     }
 
     pub fn width(&self, note: u8) -> f64 {
@@ -970,7 +990,7 @@ impl PianoModel {
     pub fn note(&self, note: u8) -> NoteParams {
         let f0 = note_freq(note, self.a4) * 2f64.powf((self.stretch.cents(note) + self.temperament.cents(note)) / 1200.0);
         let length = self.scale.length(note);
-        let tension = self.scale.tension;
+        let tension = self.scale.tension * self.unison.tension_share(note);
         let mu = tension / (2.0 * length * f0).powi(2);
         // ≈1/8 of the length up to C6, closer to the agraffe in the high treble.
         let m = note as f64;

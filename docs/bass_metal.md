@@ -75,6 +75,23 @@ The user heard no difference with the 220 Hz hollow: the blur is elsewhere. Lead
 
 Bench: `loss_low_corner` 200 scores 1.14, 300 1.15 (baseline 1.14). With 300 the early T60 of partials 1–4 shortens, bass z −0.8 → −1.4 and middle −0.5 → −1.0. A/B in out/ab_flou (Beethoven 22–32 s with the pedal: recording, now, 200, 300): the user picked 200, now the default.
 
+## The first pulse, and the unisons' load
+
+The pulse-train lead does not hold. Each note of Liang's recording opens with 25–30 ms of low noise (the action, −20 to −40 dB re the string's attack); aligned on the string's own arrival, the model's first 1–6 kHz pulse is no stronger than the recording's (+0.7 dB on the mean of 13 keys, A0–D3).
+
+What the bench does flag in the bass is the early decay (the first 15 dB): partials 5–12 at 3.7 s against 6.2 on eight grands, the only bass measure off. By key, F#1–C2 lose their first 15 dB 2–2.5 times too fast, every partial range, and A2–A3 1.4–2 times; A0–D#1 and C4 up are right. The edge loss, the windings, the frame, the rim and the sympathetic strings each move it by less than 10 % (F#1–A1's partial 1 aside, edge loss). Single strings up to E2 bring F#1–C2 to the grands.
+
+The scale gave every string 750 N: a key's load on the bridge, Σ √(T·μ), doubled at the first bichord (E1) and rose by half at the first trichord (A2), and the in-phase unison mode lost its energy that much faster. `unison.load_ramp` starts each new unison at (n−1)/n of the tension, so the load does not jump, and brings it to full over that many semitones:
+
+| `load_ramp` | bench | better / worse (\|Δz\| ≥ 0.5) | bass p1–4 / p5–12 early T60 (grands 8.2 / 6.2 s) |
+|---|---|---|---|
+| 0 | 1.14 | | 6.1 / 3.7 s |
+| 12 | 1.11 | 2 / 0 | 9.0 / 4.3 s |
+| 24 | 1.10 | 12 / 0 | 9.4 / 5.2 s |
+| 36 (default) | 1.09 | 19 / 1 | 9.4 / 5.2 s |
+
+36 also brings the middle's partials 4–12 and centroid towards the grands; the top's balance gets 0.5 z worse (+1.3). On the Beethoven passage (out/ab_tension: recording, 0, 24, 36) the user heard 24 and 36 a little better than before and alike, and the whole still far from the recording.
+
 ## Still open
 
 - **C2–A2 lacks body.** Relative to the strongest partial, partials 4–6 lie 10–13 dB under the recording in the sustain (−1 to −5 at the attack): they decay at −14 dB/s against −9. The edge loss is not it (off: −12). The bench's eight grands agree: the bass's partials 4–12 are 4–8 dB weak in the sustain. The bridge's conductance at 300–800 Hz is next.

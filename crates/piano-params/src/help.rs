@@ -393,6 +393,15 @@ const HELP: &[(&str, &str, &str)] = &[
         "Height spread (m) of a unison's strings: string j takes no hammer force until \
          h_j·spread/v (h_j in 0…1, irregular per key, v the hammer speed) (docs/release.md).",
     ),
+    (
+        "unison.load_ramp",
+        "Where a key gets a second or a third string, the strings start a little slacker and \
+         reach their full tension over this many keys. More: the first double and triple \
+         strings of the bass ring longer.",
+        "Semitones; the first bichord and trichord carry (n−1)/n of the scale's tension per \
+         string, so the key's load on the bridge, Σ √(T·μ), does not jump. 0: full tension \
+         everywhere (docs/bass_metal.md).",
+    ),
     ("unison.soft_speed", "Hammer speed at which the unevenness is `hit_spread`; slower blows are more uneven.", "Reference speed (m/s) of the soft-blow law."),
     (
         "bridge.g_1k",
