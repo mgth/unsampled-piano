@@ -206,6 +206,34 @@ pub struct SoundboardParams {
     /// modes (Rayleigh–Ritz on the rectangle's, [`Soundboard::new`]);
     /// above, the rectangle's, radiating from inside the outline only.
     pub outline_below: f64,
+    /// Ribs glued under the board, parallel to its short side and equally
+    /// spaced along its length: their spacing (m; 0: a plain plate) and
+    /// the share of `dy` they carry. The plate keeps its smeared stiffness
+    /// `dy`; the ribs' bending stiffness is added where they lie and taken
+    /// away between them, nothing on the long waves, which confines the
+    /// modes above the frequency where half a bending wave fits between
+    /// two ribs, as on a real board (docs/board_radiation.md). They act on
+    /// the outlined board's own modes, below `outline_below`.
+    pub rib_spacing: f64,
+    pub rib_share: f64,
+    /// What lies over the board (strings, frame, dampers, bridges)
+    /// scatters its sound in every direction, where the board itself, a
+    /// plate, sends its high frequencies straight up and almost nothing
+    /// along its surface, towards a listener at the keyboard. A layer of
+    /// secondary sources `scatter_step` m apart, at heights spread about
+    /// `scatter_height` m, each re-radiating the board's velocity under
+    /// it with the efficiency (f/scatter_corner)²/(1 + (f/scatter_corner)²)
+    /// of small obstacles, times `scatter` (0: none). Their spread in
+    /// height makes them add in power rather than in phase above
+    /// ≈ 2 kHz (docs/board_radiation.md).
+    pub scatter: f64,
+    pub scatter_corner: f64,
+    pub scatter_step: f64,
+    pub scatter_height: f64,
+    /// What the layer scatters it first takes from the board's direct
+    /// sound: the share of the direct field's power the layer intercepts
+    /// at full scattering (the same frequency law), 0–1.
+    pub scatter_shadow: f64,
 }
 
 /// Vertices of [`SoundboardParams::outline`].
@@ -338,6 +366,13 @@ impl SoundboardParams {
         // outline makes the attack coherent in every band (docs/bass_metal.md).
         outline: Self::GRAND_OUTLINE,
         outline_below: 1500.0,
+        rib_spacing: 0.0,
+        rib_share: 0.0,
+        scatter: 0.0,
+        scatter_corner: 1500.0,
+        scatter_step: 0.1,
+        scatter_height: 0.05,
+        scatter_shadow: 0.0,
     };
 
     /// A grand's outline for the 2 m board: straight front edge (x = 0) and
@@ -715,6 +750,28 @@ impl Soundboard {
             self.basis.iter().map(|&(m, n, _)| norm * sx[m as usize] * sy[n as usize]).collect()
         });
         self.held = held.into_iter().flatten().collect();
+        // The ribs: a beam of stiffness EI along y at x_r adds
+        // EI·∫Φ_i,yy·Φ_j,yy dy = EI·(nπ/b)⁴·(b/2)·norm²·sin(m_i·πx_r/a)·
+        // sin(m_j·πx_r/a) for n_i = n_j; the same stiffness smeared over the
+        // plate, EI/s on dy, is already in `dy`: it is taken out again,
+        // (a/2s)·δ_ij, so that the long waves see nothing and the short ones
+        // the ribs' period.
+        let ribs: Vec<Vec<f64>> = if p.rib_spacing > 0.0 && p.rib_share > 0.0 {
+            let n_ribs = (p.a / p.rib_spacing).floor().max(1.0) as usize;
+            let margin = 0.5 * (p.a - (n_ribs as f64 - 1.0) * p.rib_spacing);
+            (0..n_ribs)
+                .map(|r| {
+                    let mut sx = Vec::new();
+                    sines(PI * (margin + r as f64 * p.rib_spacing) / p.a, mm as usize, &mut sx);
+                    sx
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let ei = p.rib_share * p.dy * p.rib_spacing;
+        let rib_gain = 2.0 * ei / (p.rho_h * p.a);
+        let smeared = p.a / (2.0 * p.rib_spacing.max(1e-9));
         // A = diag(ω²) + ω_g²·G, G_ij = ρh·Σ_cells Φ_i·Φ_j·area.
         let rows: Vec<Vec<f64>> = crate::par::map(nb, |i| {
             let mut row = vec![0.0; nb];
@@ -726,6 +783,17 @@ impl Soundboard {
                 }
             }
             row[i] += basis[i].2 * basis[i].2;
+            if !ribs.is_empty() {
+                let (mi, ni, _) = basis[i];
+                let k4 = (ni as f64 * PI / p.b).powi(4);
+                for (j, &(mj, nj, _)) in basis.iter().enumerate() {
+                    if nj != ni {
+                        continue;
+                    }
+                    let s: f64 = ribs.iter().map(|sx| sx[mi as usize] * sx[mj as usize]).sum();
+                    row[j] += rib_gain * k4 * (s - if mi == mj { smeared } else { 0.0 });
+                }
+            }
             row
         });
         let a: Vec<f64> = rows.into_iter().flatten().collect();
@@ -930,10 +998,26 @@ impl Soundboard {
         self.field(&mics, p.grid_step, self.modes.len()).into_iter().map(|v| [v[0], v[1]]).collect()
     }
 
+    /// The radiation weights of every mode evaluated at one driving
+    /// frequency `omega` instead of each mode's own: what the modes' sum
+    /// radiates when driven there (the direct field of a point force is a
+    /// sum of modes off resonance). Diagnostics.
+    pub fn radiation_at(&self, omega: f64) -> Vec<[C64; 2]> {
+        let p = &self.params;
+        let mics = p.mics.map(|(x, y, z)| [x, y, z]);
+        self.field_with(&mics, p.grid_step, self.modes.len(), Some(omega)).into_iter().map(|v| [v[0], v[1]]).collect()
+    }
+
     /// Pressure per unit modal velocity of the first `n_modes` modes at
     /// `points` (board coordinates, z < 0 below or behind the board), on
     /// a radiation grid of `step` m.
     fn field(&self, points: &[[f64; 3]], step: f64, n_modes: usize) -> Vec<Vec<C64>> {
+        self.field_with(points, step, n_modes, None)
+    }
+
+    /// [`Self::field`] with the Rayleigh integral taken at `omega` for
+    /// every mode when given, else at each mode's own frequency.
+    fn field_with(&self, points: &[[f64; 3]], step: f64, n_modes: usize, omega: Option<f64>) -> Vec<Vec<C64>> {
         let p = &self.params;
         let nx = (p.a / step).ceil() as usize;
         let ny = (p.b / step).ceil() as usize;
@@ -959,11 +1043,40 @@ impl Soundboard {
             (0..=count).map(|m| (0..cells).map(|i| (m as f64 * PI * (i as f64 + 0.5) * d / len).sin()).collect()).collect()
         };
         let (bx, by) = if self.ritz.is_empty() { (Vec::new(), Vec::new()) } else { (tab(mm, nx, dx, p.a), tab(nm, ny, dy, p.b)) };
+        // The scattering layer: (x, y, z, area) of its sources, on a grid
+        // inside the outline, their heights spread by a fixed pseudo-random
+        // sequence (the same layer for every build).
+        let scat: Vec<(f64, f64, f64, f64, f64)> = if p.scatter > 0.0 && p.scatter_step > 0.0 {
+            let (sx, sy) = ((p.a / p.scatter_step).ceil().max(1.0) as usize, (p.b / p.scatter_step).ceil().max(1.0) as usize);
+            let (ex, ey) = (p.a / sx as f64, p.b / sy as f64);
+            let mut seed = 0x9E37_79B9u32;
+            let mut out = Vec::new();
+            for i in 0..sx {
+                for j in 0..sy {
+                    seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    let u = (seed >> 8) as f64 / (1u32 << 24) as f64;
+                    seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    let v = (seed >> 8) as f64 / (1u32 << 24) as f64;
+                    let (x, y) = ((i as f64 + 0.5) * ex, (j as f64 + 0.5) * ey);
+                    let inside = self.outline.as_ref().map_or(1.0, |o| o.coverage(x, y, ex, ey));
+                    if inside > 0.5 {
+                        // Each obstacle scatters with a phase of its own
+                        // (its shape, its height, its stiffness): the layer
+                        // adds in power, not in phase.
+                        out.push((x, y, p.scatter_height * (0.4 + 1.2 * u), ex * ey, TAU * v));
+                    }
+                }
+            }
+            out
+        } else {
+            Vec::new()
+        };
         crate::par::map(n_modes, |i| {
             let md = &self.modes[i];
-            let k = md.omega / C0;
-            let pre = C64::new(0.0, md.omega * RHO0 / TAU);
-            let case = p.case_gain(md.omega);
+            let w = omega.unwrap_or(md.omega);
+            let k = w / C0;
+            let pre = C64::new(0.0, w * RHO0 / TAU);
+            let case = p.case_gain(w);
             // Separable mode shape: tabulate the sines once per mode.
             let piston = md.m == 0;
             let sx: Vec<f64> = (0..nx)
@@ -991,6 +1104,14 @@ impl Soundboard {
                 }
                 grid
             });
+            // The scattering layer shadows the direct sound of a point above
+            // the board by the share of power it intercepts.
+            let shade = if p.scatter > 0.0 && p.scatter_shadow > 0.0 {
+                let r = (w / (TAU * p.scatter_corner.max(1.0))).powi(2);
+                (1.0 - p.scatter_shadow.clamp(0.0, 1.0) * r / (1.0 + r)).sqrt()
+            } else {
+                1.0
+            };
             let mut acc = vec![C64::ZERO; np];
             for (c, g) in geo.chunks(np).enumerate() {
                 // (Same operation order as without an outline: bit-identical.)
@@ -998,16 +1119,37 @@ impl Soundboard {
                 if let Some(w) = &cover {
                     phi *= w[c];
                 }
-                for (a, pt) in acc.iter_mut().zip(g) {
+                for ((a, pt), m) in acc.iter_mut().zip(g).zip(points) {
                     // Front face (through the case) and its lid image in
                     // phase, back face and its wall image in antiphase.
-                    *a += C64::polar(case * pt.front.1 * phi / pt.front.0, -k * pt.front.0)
+                    let front = if m[2] >= 0.0 { shade } else { 1.0 };
+                    *a += C64::polar(front * case * pt.front.1 * phi / pt.front.0, -k * pt.front.0)
                         - C64::polar(pt.back.1 * phi / pt.back.0, -k * pt.back.0);
                     if pt.wall.1 != 0.0 {
                         *a += C64::polar(-pt.wall.1 * phi / pt.wall.0, -k * pt.wall.0);
                     }
                     if pt.image.1 != 0.0 {
-                        *a += C64::polar(case * pt.image.1 * phi / pt.image.0, -k * pt.image.0);
+                        *a += C64::polar(front * case * pt.image.1 * phi / pt.image.0, -k * pt.image.0);
+                    }
+                }
+            }
+            if !scat.is_empty() {
+                // Rayleigh scattering below the corner (∝ f² in amplitude),
+                // geometric above (the scattered pressure follows the
+                // obstacle's incident pressure, ∝ the velocity, not its
+                // time derivative as the direct field does: ω_c/ω takes
+                // the prefactor's ω out).
+                let wc = TAU * p.scatter_corner.max(1.0);
+                let r = (w / wc).powi(2);
+                let sigma = p.scatter * r / (1.0 + r) * (wc / w);
+                for &(x, y, z, area, phase) in &scat {
+                    let phi = self.shape(md, x, y) * area * sigma;
+                    for (a, m) in acc.iter_mut().zip(points) {
+                        if m[2] < 0.0 {
+                            continue;
+                        }
+                        let d = ((m[0] - x).powi(2) + (m[1] - y).powi(2) + (m[2] - z).powi(2)).sqrt().max(0.05);
+                        *a += C64::polar(phi / d, phase - k * d);
                     }
                 }
             }

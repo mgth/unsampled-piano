@@ -62,6 +62,10 @@ The lid: at the player's position the model's lid at 35° changes the radiation 
 - One velocity per key, chosen on the sustain's bridge level; the model's velocity law and the real forte do not have to agree at the attack.
 - Isolated notes only. A passage would need the engine to write the bridge force of every key apart, and a real board response per key: the same machinery, more plumbing.
 
+## A correction (2026-10-28, later)
+
+Every file and measure below this line up to "The corner tried" was made with `presets/default.toml` as the model, which was a stale dump: the rectangular board with its old calibration, not the outlined default. The file is regenerated (docs/board_radiation.md). The true default's own files are in `out/ab_swap_outline/`, and its measures are the same in kind: real board estimate checks 0.6–2.6 dB rms, the model's 0.0–0.1; B re the model 3.9/7.0/5.1/5.9 dB rms on A0/A1/D2/A2; M − A (the bell) A2 12.3 dB rms with partials 4, 7, 9 at +10, +14, +9, A1 13.8 dB with partials 8–20 at +8 to +27. The verdicts stand to be heard again on the right files.
+
 ## Heard (2026-10-28)
 
 The user, on the four keys: the real piano is the closest to the truth in every case, **B is always the worst** (the real strings through the model's board sound less like a piano than the model itself), A in between. In A there are often "whistles, like in overtone singing": the real piano has them too; in A2 they are much too strong, in D2 light, in A0 absent, in A1 weaker than in the real piano.

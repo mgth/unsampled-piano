@@ -57,19 +57,19 @@ Plath's dataset holds, for every key of a concert grand in an anechoic chamber, 
 
 | third octave | real, median | real, spread (p75 − p25) | model, median | model, spread | model − real |
 |---|---|---|---|---|---|
-| 125 Hz | −23.3 dB | 5.0 | −24.8 | 4.6 | −1.5 |
-| 250 | −25.2 | 5.5 | −30.5 | 7.6 | −5.3 |
-| 400 | −35.3 | 8.7 | −27.1 | 12.8 | **+8.1** |
-| 500–800 | −34 | 4.5–6.4 | −30 | 9–11.5 | +4 to +5 |
-| 1000 | −36.4 | 6.9 | −35.5 | 10.8 | +0.9 |
-| 1260–2520 | −38 to −52 | 6.6–10.4 | −45 to −56 | 5.6–8.1 | −4 to −7 |
-| 3175–5040 | −49 to −54 | 11–13 | −60 to −66 | 5–7 | **−11 to −13** |
-| 6350–8000 | −63 to −68 | 15 | −70 | 7–8 | −3 to −7 |
+| 125 Hz | −23.3 dB | 5.0 | −24.4 | 2.7 | −1.1 |
+| 250 | −25.2 | 5.5 | −35.4 | 9.0 | **−10.2** |
+| 400 | −35.3 | 8.7 | −28.4 | 10.8 | **+6.9** |
+| 500–800 | −34 | 4.5–6.4 | −29 | 7–10 | +5 |
+| 1000 | −36.4 | 6.9 | −35.9 | 11.0 | +0.5 |
+| 1260–2520 | −38 to −52 | 6.6–10.4 | −43 to −55 | 5.5–8 | −2.5 to −5 |
+| 3175–5040 | −49 to −54 | 11–13 | −58 to −66 | 5–7.5 | **−9 to −13** |
+| 6350–8000 | −63 to −68 | 15 | −70 | 8–10 | −3 to −7 |
 
-(dB re (Pa per m/s²)²; the level over 200 Hz–4 kHz is within 1.8 dB of the real piano, in SI units, with nothing fitted.) Two readings:
+(dB re (Pa per m/s²)²; the level over 200 Hz–4 kHz is within 1.8 dB of the real piano, in SI units, with nothing fitted. The table was first computed on `presets/default.toml`, then a stale dump of the rectangular board; it is now the outlined default's, within a decibel or two of the rectangle's at every band: docs/board_radiation.md.) Two readings:
 
 - **Shape.** Per unit of bridge motion, the model's board and radiation give 4–8 dB too much at 400–800 Hz and 11–13 dB too little at 3–5 kHz. The first is the register of the "lumps" heard at 200–400 Hz in the Beethoven passage; the second is the treble darkness that the bench's bands keep flagging, now located in the board and its radiation rather than in the strings or the hammer. The damping law η = 0.02·(1 + f/2500) is the first suspect: at 3–5 kHz the model's board (η 0.044–0.06) confines the vibration near the driving point, and a confined patch radiates less per unit point velocity than a board that rings as a whole.
-- **Fine structure.** The spread of the samples within a third octave is the board's colouring from key to key and partial to partial. Below 1 kHz the model is *more* uneven than the real piano (12.8 against 8.7 dB at 400 Hz, 11.5 against 6.4 at 800 Hz): the key-to-key evenness problem, seen from the bridge. Above 2 kHz it is *less* (5–8 against 11–15 dB): the rectangle's regular modes, where a real board's ribs localise the vibration (Ege 2013: waveguides between the ribs above ≈ 1.1 kHz) and make every bridge point hear a different board. Both read "ribs and two bridges", with a number to hit.
+- **Fine structure.** The spread of the samples within a third octave is the board's colouring from key to key and partial to partial. Below 1 kHz the model is *more* uneven than the real piano (10.8 against 8.7 dB at 400 Hz, 11 against 7 at 1 kHz): the key-to-key evenness problem, seen from the bridge. Above 2 kHz it is *less* (5–8 against 11–15 dB): the rectangle's regular modes, where a real board's ribs localise the vibration (Ege 2013: waveguides between the ribs above ≈ 1.1 kHz) and make every bridge point hear a different board. Both read "ribs and two bridges", with a number to hit.
 
 Caveats: the dummy head (HSU 3.2) has its own frequency response at the ear, unknown equalisation, worth a few dB above 2 kHz; the accelerometer's exact spot is "at the bridge, at the hitch pins". The setup photos show a Steinway concert grand with its lid taken off; the model's lid at 35° changes nothing at the player's position (no cell shadowed, few reflections reach the ears), so the table holds with or without it. The real piano's own spread (4–15 dB) is the yardstick.
 

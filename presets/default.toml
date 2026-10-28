@@ -111,9 +111,9 @@ hammer_tilt = 0.05
 [soundboard]
 a = 1.7
 b = 1.3
-rho_h = 7.0
-dx = 3825.0
-dy = 1700.0
+rho_h = 8.4
+dx = 4590.0
+dy = 2040.0
 loss_factor = 0.02
 loss_corner = 2500.0
 loss_low_corner = 200.0
@@ -125,8 +125,8 @@ series_stiffness = 20000000.0
 bridge_stiffness = 470.0
 bridge_line_mass = 0.6
 bridge_spread = 0.3
-impedance_slope = 0.02
-impedance_slope_bass = 0.0
+impedance_slope = 0.0024
+impedance_slope_bass = 0.0076
 f_max = 20000.0
 piston_freq = 40.0
 piston_loss = 0.7
@@ -215,43 +215,45 @@ outline = [
     0.0,
 ],
     [
-    0.0,
-    0.0,
-],
-    [
-    0.0,
+    0.12,
     0.0,
 ],
     [
-    0.0,
-    0.0,
+    0.3,
+    0.1,
+],
+    [
+    0.5,
+    0.21,
+],
+    [
+    0.7,
+    0.28,
+],
+    [
+    0.85,
+    0.3,
+],
+    [
+    0.95,
+    0.33,
+],
+    [
+    1.0,
+    0.4,
+],
+    [
+    1.0,
+    1.0,
 ],
     [
     0.0,
-    0.0,
-],
-    [
-    0.0,
-    0.0,
-],
-    [
-    0.0,
-    0.0,
-],
-    [
-    0.0,
-    0.0,
-],
-    [
-    0.0,
-    0.0,
-],
-    [
-    0.0,
-    0.0,
+    1.0,
 ],
 ]
 outline_below = 1500.0
+rib_spacing = 0.0
+rib_share = 0.0
 
 [damper]
 position = 0.14
