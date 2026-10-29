@@ -21,9 +21,9 @@ These two parts are heavy and stiff. They move much less than the soundboard and
   - Stiffness chosen for a first mode around 155 Hz; 247 modes up to 12 kHz.
   - The frame is about 40 times less mobile than the soundboard.
 - **Radiation.** It is a perforated plate. Only the metal fraction radiates (`solidity` 0.4), and its two faces short-circuit each other through the holes (`back_gain` 0.9 at 5 cm).
-- **Damping.** η = 1 %. Bare cast iron is at 0.1–0.5 %, but once installed it is bolted to the pinblock and the rim, and loaded by 230 strings and their felts. **This is an estimate**, with no published measurement.
+- **Damping.** η = 2 % (1 % until 2026-10-29, see [Two ways](#two-ways)). Bare cast iron is at 0.1–0.5 %, but once installed it is bolted to the pinblock and the rim, and loaded by 230 strings and their felts. **This is an estimate**, with no published measurement.
 - **Agraffes.** They are placed 5 cm from the front edge, above the bolted pinblock. They face the bridge point of each region, since the strings run along x. The bass string crossing is ignored.
-- **One way.** The frame's motion sends nothing back to the strings, which is negligible given its low mobility. The “listening” strings (sympathetic resonance) do not excite it.
+- **Two ways** (`frame.coupling`, 1 by default, since 2026-10-29): the frame's driving-point admittance at each key's agraffe is added to the bridge's in the strings' coupled modes, as the board's is. The “listening” strings (sympathetic resonance) do not excite it.
 
 ### Rim (`RimParams`)
 
@@ -63,6 +63,22 @@ Frame level re the note, 0.5–1.5 s, velocity 100, every other key from C4 to C
 The bench does not move (1.10 → 1.11, no measure by 0.3 z or more).
 
 At C7 one of the frame's modes falls on the fundamental (2093 Hz), and the frame rings as loud as the note in its sustain. The frame is one way: it takes the agraffe's force and gives nothing back, so a mode that coincides with a partial is driven at resonance without draining the string, as a real frame coupled both ways would. Its level and damping are not calibrated either.
+
+## Two ways
+
+At C7 a frame mode rang within 4 dB of the note in its sustain (see [The outline](#the-outline)), and the frame then gave nothing back to the strings. Now the strings' modes take the frame's admittance at their agraffes beside the bridge's (`FrameAdmittance`): a partial loses energy to the frame as it does to the board. The total damping of a key's modes grows (test `the_frame_takes_energy_from_the_strings`). One coupled mode of a unison may lose a little less, since the frame's admittance mixes them differently.
+
+The frame takes little: its conductance at the agraffe is 11–24 dB under the board's at the bridge over C6–C7's partials (`examples/frame_drain.rs`), 17 dB at C7's fundamental. The coupling changes the frame's level by less than a decibel (C7: −3.2 → −3.7 dB), and the bench not at all (1.11).
+
+What sets that peak is the frame's own damping: a mode with η = 1 % is a narrow resonance, and C7's fundamental sits on one. Frame level re the note, 0.5–1.5 s, every other key from C4 to C8:
+
+| η | loudest (C7) | mean (power) | bench |
+|---|---|---|---|
+| 1 % | −3.7 dB | −16.9 dB | 1.11 |
+| 2 % | −8.7 dB | −20.9 dB | 1.11, no measure moved by 0.3 z |
+| 3 % | −13.0 dB | −23.5 dB | 1.11; the treble's sustain partial 6 z −0.6 → −1.9 |
+
+At 3 % the frame's sheen leaves the treble's sustain partial 6, which the real grands have. The default is 2 %.
 
 ## Levels
 

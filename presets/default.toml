@@ -89,6 +89,7 @@ bichord_from = 28
 trichord_from = 45
 width_mid = 1.0
 width_treble = 5.0
+width_curve = 4.0
 hit_spread = 0.2
 soft_exponent = 1.0
 soft_speed = 2.75
@@ -330,12 +331,13 @@ agraffe_x = 0.05
 height = 0.08
 rho_h = 110.0
 stiffness = 250000.0
-loss_factor = 0.01
+loss_factor = 0.02
 back_depth = 0.05
 back_gain = 0.9
 solidity = 0.4
 f_max = 12000.0
 gain = 1.0
+coupling = 1.0
 
 [rim]
 enabled = true

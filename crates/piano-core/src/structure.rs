@@ -57,6 +57,10 @@ pub struct FrameParams {
     pub f_max: f64,
     /// Scales the radiated pressure (1 = physical).
     pub gain: f64,
+    /// The frame's admittance at each key's agraffes in the strings' modes
+    /// (1 = physical, 0 = one way): a partial that falls on a frame mode
+    /// gives it its energy, as it does to the board at the bridge.
+    pub coupling: f64,
 }
 
 impl Default for FrameParams {
@@ -72,7 +76,9 @@ impl FrameParams {
     /// ([`FrameParams::outline`]); stiffness set for a first mode near 150 Hz
     /// on the rectangle. Bare cast
     /// iron has η ≈ 0.1–0.5 %; installed (bolted to the rim and pin block,
-    /// loaded by 230 strings and their felts) it is taken at 1 % (estimate).
+    /// loaded by 230 strings and their felts) it is taken at 2 % (estimate:
+    /// at 1 % a frame mode on C7's fundamental rang within 4 dB of the
+    /// note, docs/frame_rim.md).
     /// The agraffes stand above the pin block, near the bolted front edge.
     pub const GRAND_2M: Self = Self {
         enabled: true,
@@ -83,12 +89,13 @@ impl FrameParams {
         height: 0.08,
         rho_h: 110.0,
         stiffness: 2.5e5,
-        loss_factor: 0.01,
+        loss_factor: 0.02,
         back_depth: 0.05,
         back_gain: 0.9,
         solidity: 0.4,
         f_max: 12_000.0,
         gain: 1.0,
+        coupling: 1.0,
     };
 
     /// The frame's outline in its own normalised coordinates: the case's,
@@ -154,6 +161,29 @@ impl FrameParams {
 /// modes). The stiff iron plate has few modes: 23 ms to build up to 3 kHz
 /// (9 ms at 1.5 kHz, 130 ms at 6 kHz, 1 s at 12 kHz).
 const FRAME_OWN_MODES_BELOW: f64 = 3000.0;
+
+/// The frame as a key's strings see it at their agraffes: its
+/// driving-point admittance there, which the strings' modes take beside the
+/// bridge's (two-way coupling, [`FrameParams::coupling`]).
+pub struct FrameAdmittance {
+    plate: Soundboard,
+    agraffe_x: f64,
+    b: f64,
+    coupling: f64,
+}
+
+impl FrameAdmittance {
+    /// None when the frame is off or one way.
+    pub fn new(frame: &FrameParams, board: &SoundboardParams) -> Option<Self> {
+        (frame.enabled && frame.coupling > 0.0).then(|| Self { plate: Soundboard::new(frame.plate(board)), agraffe_x: frame.agraffe_x, b: frame.b, coupling: frame.coupling })
+    }
+
+    /// Admittance (s/kg) at the agraffe of the key whose bridge point is at
+    /// `y` across the board (the strings run along x), at ω.
+    pub fn at(&self, y: f64, omega: f64) -> C64 {
+        self.plate.admittance(self.agraffe_x, y.clamp(0.0, self.b), omega).scale(self.coupling)
+    }
+}
 
 /// Frame modes: inputs at the agraffes, outputs at the mics.
 pub fn frame_modes(frame: &FrameParams, board: &SoundboardParams, sample_rate: f64) -> Vec<BoardMode> {

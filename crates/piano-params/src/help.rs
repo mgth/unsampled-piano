@@ -372,6 +372,12 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("unison.width_treble", "Mistuning spread of the strings at the top key (C8).", "Spread (cents) at C8; calibrated on the ESPRIT statistics of Salamander."),
     (
+        "unison.width_curve",
+        "How the strings' mistuning grows from the middle to the top key: higher keeps the octaves \
+         above C4 truer and the top as wide.",
+        "Exponent of width_mid + (width_treble − width_mid)·t^curve, t from 0 at C4 to 1 at C8 (2: quadratic).",
+    ),
+    (
         "unison.hit_spread",
         "The hammer never hits the strings of a key exactly evenly. The uneven part sets them \
          swinging against each other, which feeds the long aftersound.",
@@ -898,6 +904,13 @@ const HELP: &[(&str, &str, &str)] = &[
          too, adding metallic colour.",
         "Isotropic clamped plate (same modal machinery as the board), driven at the agraffes by \
          the strings' force and radiating from its own height; one-way.",
+    ),
+    (
+        "frame.coupling",
+        "Whether the strings feel the iron frame at their far end. A partial that falls on one of the \
+         frame's resonances gives it its energy and rings shorter. 0: the frame only listens.",
+        "Factor on the frame's admittance at each key's agraffe, added to the bridge's in the strings' \
+         coupled modes (1 = physical).",
     ),
     ("frame.a", "Length of the iron frame.", "Plate size (m); it starts at `offset_x` in board coordinates, over the pin block."),
     ("frame.b", "Width of the iron frame.", "Plate size (m)."),

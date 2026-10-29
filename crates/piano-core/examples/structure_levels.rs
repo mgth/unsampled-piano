@@ -32,6 +32,14 @@ fn main() {
     let mut base = EngineConfig::default();
     base.model.room.enabled = false;
     base.model.noise = NoiseLaw::OFF;
+    // FRAME_COUPLING=c: the frame's two-way coupling (1 by default).
+    if let Some(c) = std::env::var("FRAME_COUPLING").ok().and_then(|v| v.parse().ok()) {
+        base.model.frame.coupling = c;
+    }
+    // FRAME_LOSS=η: the frame's loss factor.
+    if let Some(v) = std::env::var("FRAME_LOSS").ok().and_then(|v| v.parse().ok()) {
+        base.model.frame.loss_factor = v;
+    }
 
     let sb = Soundboard::new(base.model.soundboard.unwrap());
     let rim = RimModel::new(&base.model.rim, &sb, sb.modes.len(), sr);
