@@ -1,0 +1,215 @@
+{
+ "dips": {
+  "control": {
+   "p2": {
+    "db": 0.40771294990926776,
+    "from_velocity": 44,
+    "to_velocity": 56
+   },
+   "p3": {
+    "db": 0.5357205003589556,
+    "from_velocity": 79,
+    "to_velocity": 87
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  },
+  "strike0.108_h0.15": {
+   "p2": {
+    "db": 0.219211319758692,
+    "from_velocity": 47,
+    "to_velocity": 57
+   },
+   "p3": {
+    "db": 0.2711467075541094,
+    "from_velocity": 84,
+    "to_velocity": 95
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  },
+  "strike0.108_h0.2": {
+   "p2": {
+    "db": 0.41057494122425453,
+    "from_velocity": 46,
+    "to_velocity": 60
+   },
+   "p3": {
+    "db": 0.8278511928037346,
+    "from_velocity": 83,
+    "to_velocity": 100
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  },
+  "strike0.108_h0.25": {
+   "p2": {
+    "db": 0.6653230165530246,
+    "from_velocity": 46,
+    "to_velocity": 62
+   },
+   "p3": {
+    "db": 1.2932322749122704,
+    "from_velocity": 83,
+    "to_velocity": 99
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  },
+  "strike0.109_h0.2": {
+   "p2": {
+    "db": 0.558100959791787,
+    "from_velocity": 47,
+    "to_velocity": 62
+   },
+   "p3": {
+    "db": 0.8110277161082422,
+    "from_velocity": 85,
+    "to_velocity": 104
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  },
+  "strike0.109_h0.25": {
+   "p2": {
+    "db": 0.8421315237650759,
+    "from_velocity": 47,
+    "to_velocity": 64
+   },
+   "p3": {
+    "db": 1.5897845060358051,
+    "from_velocity": 85,
+    "to_velocity": 106
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  },
+  "strike0.11_h0.2": {
+   "p2": {
+    "db": 0.7114558950734917,
+    "from_velocity": 47,
+    "to_velocity": 65
+   },
+   "p3": {
+    "db": 0.7758218356799418,
+    "from_velocity": 87,
+    "to_velocity": 107
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  },
+  "freq375_h0.2": {
+   "p2": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   },
+   "p3": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  },
+  "freq375_h0.25": {
+   "p2": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   },
+   "p3": {
+    "db": 0.1656384465889147,
+    "from_velocity": 89,
+    "to_velocity": 101
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  },
+  "mass1.1_h0.2": {
+   "p2": {
+    "db": 0.4611742244329591,
+    "from_velocity": 49,
+    "to_velocity": 64
+   },
+   "p3": {
+    "db": 0.6028588985701262,
+    "from_velocity": 87,
+    "to_velocity": 105
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  },
+  "mass1.1_h0.25": {
+   "p2": {
+    "db": 0.72367455250631,
+    "from_velocity": 48,
+    "to_velocity": 66
+   },
+   "p3": {
+    "db": 1.371714941530108,
+    "from_velocity": 87,
+    "to_velocity": 109
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  },
+  "hysteresis_0.15": {
+   "p2": {
+    "db": 0.013589445075318451,
+    "from_velocity": 47,
+    "to_velocity": 49
+   },
+   "p3": {
+    "db": 0.3307262700526721,
+    "from_velocity": 78,
+    "to_velocity": 89
+   },
+   "level": {
+    "db": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28
+   }
+  }
+ },
+ "passed": [
+  "strike0.108_h0.15",
+  "freq375_h0.2",
+  "freq375_h0.25",
+  "mass1.1_h0.2",
+  "hysteresis_0.15"
+ ]
+}

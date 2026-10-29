@@ -1,0 +1,46 @@
+{
+ "control": {},
+ "strike0.108_h0.15": {
+  "strike_ratio": 0.108,
+  "hysteresis": 0.15
+ },
+ "strike0.108_h0.2": {
+  "strike_ratio": 0.108,
+  "hysteresis": 0.2
+ },
+ "strike0.108_h0.25": {
+  "strike_ratio": 0.108,
+  "hysteresis": 0.25
+ },
+ "strike0.109_h0.2": {
+  "strike_ratio": 0.109,
+  "hysteresis": 0.2
+ },
+ "strike0.109_h0.25": {
+  "strike_ratio": 0.109,
+  "hysteresis": 0.25
+ },
+ "strike0.11_h0.2": {
+  "strike_ratio": 0.11,
+  "hysteresis": 0.2
+ },
+ "freq375_h0.2": {
+  "shank_freq": 375,
+  "hysteresis": 0.2
+ },
+ "freq375_h0.25": {
+  "shank_freq": 375,
+  "hysteresis": 0.25
+ },
+ "mass1.1_h0.2": {
+  "hammer_mass_scale": 1.1,
+  "hysteresis": 0.2
+ },
+ "mass1.1_h0.25": {
+  "hammer_mass_scale": 1.1,
+  "hysteresis": 0.25
+ },
+ "hysteresis_0.15": {
+  "hysteresis": 0.15
+ }
+}

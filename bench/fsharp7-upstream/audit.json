@@ -1,0 +1,24 @@
+{
+  "source_commit": "0dfd311a2ecdc099643a789e19de47b7e17d4bb5",
+  "physics_fingerprint": "d2d9e13bb28f0f7d",
+  "control_vs_upstream": {
+    "attack": {
+      "count": 48,
+      "bit_identical_to_upstream": 48
+    },
+    "validation-dense": {
+      "count": 400,
+      "bit_identical_to_upstream": 400
+    }
+  },
+  "binary_sha256": "39b492483585c4922fe60a8fc06689b80f3578c81e519954c7ff963f7abb216e",
+  "bundle_sha256": "02b90947ccd1b7521fde74714c9d434460c478fd8389ccb71b3ecae636201352",
+  "filters_sha256": "fca62a420553a60faf91413973eb9deb8da8187a498904eca5f9fc4cfde3f3dc",
+  "default_sha256": "56293dffbdee7a814a0347be7179c257155ae672c48b81ea968ab35687a250e6",
+  "selected": null,
+  "production_changes": false,
+  "ui_changed": false,
+  "variants_including_control": 119,
+  "final_profiles": 5,
+  "final_wavs": 2240
+}

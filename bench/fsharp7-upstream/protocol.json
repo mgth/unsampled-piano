@@ -1,0 +1,21 @@
+{
+  "engine": "frozen upstream-4a00f00 binaries, physics fingerprint d2d9e13bb28f0f7d",
+  "listening": "close microphones and studio, exactly upstream bench bundle",
+  "change_scope": "contact parameters of note 102 only; no frame, unison, room or radiation changes",
+  "target": "reduce absolute signed P3/P1 forte error; report per-source errors and absolute P1/P3 levels too",
+  "screen": "one-field ablations at velocities 45,56,100; exponent compensated to preserve force at 0.2 mm",
+  "selection_guards": {
+    "pp_mf_per_layer_mae_max_worsening_db": 0.05,
+    "pp_mf_onset_level_and_1_2k_max_loss_db": 0.25,
+    "fsharp_global_mae_max_worsening_db": 0.05,
+    "max_dip_increase_p2_p3_or_level_db": 0.1,
+    "min_improvement_abs_forte_p3_bias_db": 0.5,
+    "pp_mf_held_partial_mae_max_worsening_db": 0.05
+  },
+  "guard_meaning": "research screening tolerances, not calibrated perceptual or global realism acceptance thresholds",
+  "final_coverage": "48 attacks (93-108 x 45,56,100), 400 dense strikes (97,99,102,108 x 28-127), frozen 459 attack + 71 held-partial observations",
+  "unchanged_notes": "verify all 45 non-F#7 attack WAV and 300 non-F#7 dense WAV against newly rendered control; include C8",
+  "sustain": "0.5-1.0 s while key held; report fixed support, no low-SNR candidate removal",
+  "promotion": "none; leave default and active UI unchanged",
+  "sustain_guard_added": "After the first full validation exposed stronger held P2. This tightens selection; no data are removed."
+}

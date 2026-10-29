@@ -1,0 +1,158 @@
+{
+ "control": {
+  "45": {
+   "note": 102.0,
+   "velocity": 45.0,
+   "duration_ms": 0.9666666666666667,
+   "peak_n": 25.867993193130527,
+   "compression_mm": 0.20399342388485325,
+   "samples": 239.0
+  },
+  "56": {
+   "note": 102.0,
+   "velocity": 56.0,
+   "duration_ms": 0.8083333333333333,
+   "peak_n": 35.033070672062784,
+   "compression_mm": 0.20803619251384553,
+   "samples": 232.0
+  },
+  "100": {
+   "note": 102.0,
+   "velocity": 100.0,
+   "duration_ms": 0.5,
+   "peak_n": 96.79568527414112,
+   "compression_mm": 0.23355318511800557,
+   "samples": 217.0
+  }
+ },
+ "hysteresis_0.2": {
+  "45": {
+   "note": 102.0,
+   "velocity": 45.0,
+   "duration_ms": 0.9458333333333333,
+   "peak_n": 26.243387900305695,
+   "compression_mm": 0.20460491217843327,
+   "samples": 238.0
+  },
+  "56": {
+   "note": 102.0,
+   "velocity": 56.0,
+   "duration_ms": 0.7750000000000001,
+   "peak_n": 35.542189616685405,
+   "compression_mm": 0.20863867386864143,
+   "samples": 230.0
+  },
+  "100": {
+   "note": 102.0,
+   "velocity": 100.0,
+   "duration_ms": 0.49583333333333335,
+   "peak_n": 97.94625434069363,
+   "compression_mm": 0.2341841388558899,
+   "samples": 217.0
+  }
+ },
+ "freq375_only": {
+  "45": {
+   "note": 102.0,
+   "velocity": 45.0,
+   "duration_ms": 1.0291666666666668,
+   "peak_n": 26.25229334922015,
+   "compression_mm": 0.2045371924607542,
+   "samples": 242.0
+  },
+  "56": {
+   "note": 102.0,
+   "velocity": 56.0,
+   "duration_ms": 0.8916666666666667,
+   "peak_n": 35.508629360467566,
+   "compression_mm": 0.20852126191890102,
+   "samples": 236.0
+  },
+  "100": {
+   "note": 102.0,
+   "velocity": 100.0,
+   "duration_ms": 0.5166666666666667,
+   "peak_n": 97.75954578911538,
+   "compression_mm": 0.2339584974227628,
+   "samples": 218.0
+  }
+ },
+ "freq375_h0.2": {
+  "45": {
+   "note": 102.0,
+   "velocity": 45.0,
+   "duration_ms": 1.0083333333333333,
+   "peak_n": 26.632452833124805,
+   "compression_mm": 0.2051288172916205,
+   "samples": 241.0
+  },
+  "56": {
+   "note": 102.0,
+   "velocity": 56.0,
+   "duration_ms": 0.875,
+   "peak_n": 36.003537248800484,
+   "compression_mm": 0.20911788824570238,
+   "samples": 235.0
+  },
+  "100": {
+   "note": 102.0,
+   "velocity": 100.0,
+   "duration_ms": 0.5125000000000001,
+   "peak_n": 98.8812830259166,
+   "compression_mm": 0.23456082848307985,
+   "samples": 217.0
+  }
+ },
+ "strike0.108_h0.15": {
+  "45": {
+   "note": 102.0,
+   "velocity": 45.0,
+   "duration_ms": 0.9375000000000001,
+   "peak_n": 26.057041961177852,
+   "compression_mm": 0.20425965003035007,
+   "samples": 238.0
+  },
+  "56": {
+   "note": 102.0,
+   "velocity": 56.0,
+   "duration_ms": 0.7666666666666667,
+   "peak_n": 35.22007211989473,
+   "compression_mm": 0.2081191720432571,
+   "samples": 230.0
+  },
+  "100": {
+   "note": 102.0,
+   "velocity": 100.0,
+   "duration_ms": 0.49583333333333335,
+   "peak_n": 96.36505117948313,
+   "compression_mm": 0.23323133901353715,
+   "samples": 217.0
+  }
+ },
+ "hysteresis_0.15": {
+  "45": {
+   "note": 102.0,
+   "velocity": 45.0,
+   "duration_ms": 0.9375000000000001,
+   "peak_n": 26.448152766410146,
+   "compression_mm": 0.2049113981586416,
+   "samples": 238.0
+  },
+  "56": {
+   "note": 102.0,
+   "velocity": 56.0,
+   "duration_ms": 0.7583333333333334,
+   "peak_n": 35.810404717513784,
+   "compression_mm": 0.2089474752461437,
+   "samples": 229.0
+  },
+  "100": {
+   "note": 102.0,
+   "velocity": 100.0,
+   "duration_ms": 0.49166666666666675,
+   "peak_n": 98.55589776700192,
+   "compression_mm": 0.23449441297798904,
+   "samples": 217.0
+  }
+ }
+}

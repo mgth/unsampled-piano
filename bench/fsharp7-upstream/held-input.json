@@ -1,0 +1,242 @@
+{
+ "s0.096_h0.2_m1": {
+  "strike_ratio": 0.096,
+  "hysteresis": 0.2,
+  "hammer_mass_scale": 1
+ },
+ "s0.096_h0.2_m1.05": {
+  "strike_ratio": 0.096,
+  "hysteresis": 0.2,
+  "hammer_mass_scale": 1.05
+ },
+ "s0.096_h0.2_m1.1": {
+  "strike_ratio": 0.096,
+  "hysteresis": 0.2,
+  "hammer_mass_scale": 1.1
+ },
+ "s0.096_h0.3_m1": {
+  "strike_ratio": 0.096,
+  "hysteresis": 0.3,
+  "hammer_mass_scale": 1
+ },
+ "s0.096_h0.3_m1.05": {
+  "strike_ratio": 0.096,
+  "hysteresis": 0.3,
+  "hammer_mass_scale": 1.05
+ },
+ "s0.096_h0.3_m1.1": {
+  "strike_ratio": 0.096,
+  "hysteresis": 0.3,
+  "hammer_mass_scale": 1.1
+ },
+ "s0.098_h0.2_m1": {
+  "strike_ratio": 0.098,
+  "hysteresis": 0.2,
+  "hammer_mass_scale": 1
+ },
+ "s0.098_h0.2_m1.05": {
+  "strike_ratio": 0.098,
+  "hysteresis": 0.2,
+  "hammer_mass_scale": 1.05
+ },
+ "s0.098_h0.2_m1.1": {
+  "strike_ratio": 0.098,
+  "hysteresis": 0.2,
+  "hammer_mass_scale": 1.1
+ },
+ "s0.098_h0.3_m1": {
+  "strike_ratio": 0.098,
+  "hysteresis": 0.3,
+  "hammer_mass_scale": 1
+ },
+ "s0.098_h0.3_m1.05": {
+  "strike_ratio": 0.098,
+  "hysteresis": 0.3,
+  "hammer_mass_scale": 1.05
+ },
+ "s0.098_h0.3_m1.1": {
+  "strike_ratio": 0.098,
+  "hysteresis": 0.3,
+  "hammer_mass_scale": 1.1
+ },
+ "s0.1_h0.2_m1": {
+  "strike_ratio": 0.1,
+  "hysteresis": 0.2,
+  "hammer_mass_scale": 1
+ },
+ "s0.1_h0.2_m1.05": {
+  "strike_ratio": 0.1,
+  "hysteresis": 0.2,
+  "hammer_mass_scale": 1.05
+ },
+ "s0.1_h0.2_m1.1": {
+  "strike_ratio": 0.1,
+  "hysteresis": 0.2,
+  "hammer_mass_scale": 1.1
+ },
+ "s0.1_h0.3_m1": {
+  "strike_ratio": 0.1,
+  "hysteresis": 0.3,
+  "hammer_mass_scale": 1
+ },
+ "s0.1_h0.3_m1.05": {
+  "strike_ratio": 0.1,
+  "hysteresis": 0.3,
+  "hammer_mass_scale": 1.05
+ },
+ "s0.1_h0.3_m1.1": {
+  "strike_ratio": 0.1,
+  "hysteresis": 0.3,
+  "hammer_mass_scale": 1.1
+ },
+ "m1.05_f200_h0.2": {
+  "hammer_mass_scale": 1.05,
+  "shank_freq": 200,
+  "hysteresis": 0.2
+ },
+ "m1.05_f200_h0.3": {
+  "hammer_mass_scale": 1.05,
+  "shank_freq": 200,
+  "hysteresis": 0.3
+ },
+ "m1.05_f225_h0.2": {
+  "hammer_mass_scale": 1.05,
+  "shank_freq": 225,
+  "hysteresis": 0.2
+ },
+ "m1.05_f225_h0.3": {
+  "hammer_mass_scale": 1.05,
+  "shank_freq": 225,
+  "hysteresis": 0.3
+ },
+ "m1.05_f250_h0.2": {
+  "hammer_mass_scale": 1.05,
+  "shank_freq": 250,
+  "hysteresis": 0.2
+ },
+ "m1.05_f250_h0.3": {
+  "hammer_mass_scale": 1.05,
+  "shank_freq": 250,
+  "hysteresis": 0.3
+ },
+ "m1.1_f200_h0.2": {
+  "hammer_mass_scale": 1.1,
+  "shank_freq": 200,
+  "hysteresis": 0.2
+ },
+ "m1.1_f200_h0.3": {
+  "hammer_mass_scale": 1.1,
+  "shank_freq": 200,
+  "hysteresis": 0.3
+ },
+ "m1.1_f225_h0.2": {
+  "hammer_mass_scale": 1.1,
+  "shank_freq": 225,
+  "hysteresis": 0.2
+ },
+ "m1.1_f225_h0.3": {
+  "hammer_mass_scale": 1.1,
+  "shank_freq": 225,
+  "hysteresis": 0.3
+ },
+ "m1.1_f250_h0.2": {
+  "hammer_mass_scale": 1.1,
+  "shank_freq": 250,
+  "hysteresis": 0.2
+ },
+ "m1.1_f250_h0.3": {
+  "hammer_mass_scale": 1.1,
+  "shank_freq": 250,
+  "hysteresis": 0.3
+ },
+ "m1.15_f200_h0.2": {
+  "hammer_mass_scale": 1.15,
+  "shank_freq": 200,
+  "hysteresis": 0.2
+ },
+ "m1.15_f200_h0.3": {
+  "hammer_mass_scale": 1.15,
+  "shank_freq": 200,
+  "hysteresis": 0.3
+ },
+ "m1.15_f225_h0.2": {
+  "hammer_mass_scale": 1.15,
+  "shank_freq": 225,
+  "hysteresis": 0.2
+ },
+ "m1.15_f225_h0.3": {
+  "hammer_mass_scale": 1.15,
+  "shank_freq": 225,
+  "hysteresis": 0.3
+ },
+ "m1.15_f250_h0.2": {
+  "hammer_mass_scale": 1.15,
+  "shank_freq": 250,
+  "hysteresis": 0.2
+ },
+ "m1.15_f250_h0.3": {
+  "hammer_mass_scale": 1.15,
+  "shank_freq": 250,
+  "hysteresis": 0.3
+ },
+ "s0.108_f200_h0.2": {
+  "strike_ratio": 0.108,
+  "shank_freq": 200,
+  "hysteresis": 0.2
+ },
+ "s0.108_f200_h0.3": {
+  "strike_ratio": 0.108,
+  "shank_freq": 200,
+  "hysteresis": 0.3
+ },
+ "s0.108_f225_h0.2": {
+  "strike_ratio": 0.108,
+  "shank_freq": 225,
+  "hysteresis": 0.2
+ },
+ "s0.108_f225_h0.3": {
+  "strike_ratio": 0.108,
+  "shank_freq": 225,
+  "hysteresis": 0.3
+ },
+ "s0.108_f250_h0.2": {
+  "strike_ratio": 0.108,
+  "shank_freq": 250,
+  "hysteresis": 0.2
+ },
+ "s0.108_f250_h0.3": {
+  "strike_ratio": 0.108,
+  "shank_freq": 250,
+  "hysteresis": 0.3
+ },
+ "s0.11_f200_h0.2": {
+  "strike_ratio": 0.11,
+  "shank_freq": 200,
+  "hysteresis": 0.2
+ },
+ "s0.11_f200_h0.3": {
+  "strike_ratio": 0.11,
+  "shank_freq": 200,
+  "hysteresis": 0.3
+ },
+ "s0.11_f225_h0.2": {
+  "strike_ratio": 0.11,
+  "shank_freq": 225,
+  "hysteresis": 0.2
+ },
+ "s0.11_f225_h0.3": {
+  "strike_ratio": 0.11,
+  "shank_freq": 225,
+  "hysteresis": 0.3
+ },
+ "s0.11_f250_h0.2": {
+  "strike_ratio": 0.11,
+  "shank_freq": 250,
+  "hysteresis": 0.2
+ },
+ "s0.11_f250_h0.3": {
+  "strike_ratio": 0.11,
+  "shank_freq": 250,
+  "hysteresis": 0.3
+ }
+}

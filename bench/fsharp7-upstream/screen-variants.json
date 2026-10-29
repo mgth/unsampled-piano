@@ -1,0 +1,112 @@
+{
+ "control": {},
+ "hardness_0.24": {
+  "hardness": 0.24
+ },
+ "hardness_0.27": {
+  "hardness": 0.27
+ },
+ "hardness_0.33": {
+  "hardness": 0.33
+ },
+ "hardness_0.36": {
+  "hardness": 0.36
+ },
+ "hysteresis_0.2": {
+  "hysteresis": 0.2
+ },
+ "hysteresis_0.25": {
+  "hysteresis": 0.25
+ },
+ "hysteresis_0.35": {
+  "hysteresis": 0.35
+ },
+ "hysteresis_0.4": {
+  "hysteresis": 0.4
+ },
+ "hammer_mass_scale_0.9": {
+  "hammer_mass_scale": 0.9
+ },
+ "hammer_mass_scale_0.95": {
+  "hammer_mass_scale": 0.95
+ },
+ "hammer_mass_scale_1.05": {
+  "hammer_mass_scale": 1.05
+ },
+ "hammer_mass_scale_1.1": {
+  "hammer_mass_scale": 1.1
+ },
+ "strike_ratio_0.095": {
+  "strike_ratio": 0.095
+ },
+ "strike_ratio_0.1": {
+  "strike_ratio": 0.1
+ },
+ "strike_ratio_0.11": {
+  "strike_ratio": 0.11
+ },
+ "strike_ratio_0.115": {
+  "strike_ratio": 0.115
+ },
+ "shank_freq_200": {
+  "shank_freq": 200
+ },
+ "shank_freq_250": {
+  "shank_freq": 250
+ },
+ "shank_freq_350": {
+  "shank_freq": 350
+ },
+ "shank_freq_400": {
+  "shank_freq": 400
+ },
+ "shank_loss_1": {
+  "shank_loss": 1
+ },
+ "shank_loss_1.5": {
+  "shank_loss": 1.5
+ },
+ "shank_loss_2.5": {
+  "shank_loss": 2.5
+ },
+ "shank_loss_3": {
+  "shank_loss": 3
+ },
+ "contact_width_scale_0.8": {
+  "contact_width_scale": 0.8
+ },
+ "contact_width_scale_0.9": {
+  "contact_width_scale": 0.9
+ },
+ "contact_width_scale_1.1": {
+  "contact_width_scale": 1.1
+ },
+ "contact_width_scale_1.2": {
+  "contact_width_scale": 1.2
+ },
+ "core_hardness_0": {
+  "core_hardness": 0
+ },
+ "core_hardness_10": {
+  "core_hardness": 10
+ },
+ "core_hardness_50": {
+  "core_hardness": 50
+ },
+ "exponent_-0.5": {
+  "p_offset": -0.5,
+  "hardness": 0.13416407864998736
+ },
+ "exponent_-0.25": {
+  "p_offset": -0.25,
+  "hardness": 0.2006220914929266
+ },
+ "exponent_0.25": {
+  "p_offset": 0.25,
+  "hardness": 0.44860463436636616
+ },
+ "exponent_0.5": {
+  "p_offset": 0.5,
+  "hardness": 0.6708203932499369
+ }
+}
