@@ -243,6 +243,9 @@ pub struct UnisonLaw {
     /// (quadratic in between).
     pub width_mid: f64,
     pub width_treble: f64,
+    /// Exponent of the curve from C4 to C8: width_mid + (width_treble −
+    /// width_mid)·t^curve, t = (key − C4)/4 octaves (2: quadratic).
+    pub width_curve: f64,
     /// The hammer never strikes the strings of a unison equally (uneven
     /// felt, strings not quite level): relative spread of the force each
     /// string receives (0 = equal). The uneven part directly excites the
@@ -281,8 +284,14 @@ impl UnisonLaw {
     /// the prompt sound and 13–17 dB below it, as in the commercial piano, Iowa and
     /// Salamander (docs/long_sustain.md; 0.35 cent left it 10 dB too weak
     /// and the notes died after 1 s); hit spread ±20 % set on the
-    /// aftersound level of the treble (docs/sustain.md).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, hit_spread: 0.2, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0 };
+    /// aftersound level of the treble (docs/sustain.md). The curve from C4
+    /// to C8 is t⁴ since the board has its outline: the outlined board takes
+    /// 3–8 dB less of the treble's fundamentals (C5–F#6), the strings of a
+    /// unison no longer decay together and the quadratic curve's 1.8 cents
+    /// at A5 left its tail beating at −21 dB re the attack from 0.6 to 2 s
+    /// (real grands −27 to −33); t⁴ gives A5 1.3 cents, keeps C8's 5
+    /// (docs/treble_tail.md).
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, width_curve: 4.0, hit_spread: 0.2, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 
@@ -309,7 +318,7 @@ impl UnisonLaw {
 
     pub fn width(&self, note: u8) -> f64 {
         let t = ((note as f64 - 60.0) / 48.0).max(0.0);
-        (self.width_mid + (self.width_treble - self.width_mid) * t * t).max(Self::MIN_SPREAD)
+        (self.width_mid + (self.width_treble - self.width_mid) * t.powf(self.width_curve.max(0.5))).max(Self::MIN_SPREAD)
     }
 
     /// Detuning of each string (cents), deterministic but irregular per key.

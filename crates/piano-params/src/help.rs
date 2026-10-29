@@ -372,6 +372,12 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("unison.width_treble", "Mistuning spread of the strings at the top key (C8).", "Spread (cents) at C8; calibrated on the ESPRIT statistics of Salamander."),
     (
+        "unison.width_curve",
+        "How the strings' mistuning grows from the middle to the top key: higher keeps the octaves \
+         above C4 truer and the top as wide.",
+        "Exponent of width_mid + (width_treble − width_mid)·t^curve, t from 0 at C4 to 1 at C8 (2: quadratic).",
+    ),
+    (
         "unison.hit_spread",
         "The hammer never hits the strings of a key exactly evenly. The uneven part sets them \
          swinging against each other, which feeds the long aftersound.",
@@ -589,6 +595,52 @@ const HELP: &[(&str, &str, &str)] = &[
          a × b rectangle; unused points repeat the last one. The rim holds the board along it: \
          its resonances below `outline_below` are the outlined plate's own (docs/outline.md).",
     ),
+    (
+        "soundboard.rib_spacing",
+        "Distance between the ribs glued under the soundboard, across its length. 0: no ribs, a \
+         plain plate. With ribs, the high resonances stay between two ribs instead of spreading \
+         over the whole board, and reach the player's ears from every angle.",
+        "Ribs parallel to the short side, equally spaced along the length (m). Their stiffness \
+         is added where they lie and taken away between them (the smeared share is already in \
+         `dy`): nothing changes for the long waves; the modes above the frequency where half a \
+         bending wave fits between two ribs are confined (docs/board_radiation.md). Acts on the \
+         outlined board's own modes, below `outline_below`.",
+    ),
+    (
+        "soundboard.rib_share",
+        "How much of the soundboard's stiffness across its length sits in the ribs rather than in \
+         the wood between them. 0: no ribs.",
+        "Share of `dy` carried by the ribs: each rib's bending stiffness is `rib_share` × `dy` × \
+         `rib_spacing` (N·m²).",
+    ),
+    (
+        "soundboard.bridge_beam",
+        "The bridges as beams glued on the soundboard: their weight and stiffness along their \
+         curve make neighbouring points of a bridge move together. 0: off.",
+        "Factor on `bridge_stiffness` (EI, N·m²) and `bridge_line_mass` (kg/m) added along the main \
+         and the bass bridge in the outlined board's own modes, below `outline_below`.",
+    ),
+    (
+        "soundboard.rib_jitter",
+        "How irregular the ribs are: a real board's ribs are not equally spaced nor alike, which \
+         confines its high vibrations between them. 0: equally spaced and alike.",
+        "Each rib moves by up to ± half this share of `rib_spacing` and its stiffness varies by up \
+         to ± this share (a fixed pseudo-random sequence, mean kept).",
+    ),
+    (
+        "soundboard.scatter",
+        "How much of the soundboard's sound is scattered in every direction by what lies over it: \
+         the strings, the iron frame, the dampers and the bridges. The board alone sends its highs \
+         straight up; a listener at the keyboard hears them scattered. 0: none.",
+        "Gain of a layer of secondary sources over the board, each re-radiating the board's \
+         velocity under it as a small obstacle does, (f/scatter_corner)² / (1 + (f/scatter_corner)²), \
+         at heights spread about `scatter_height` so that they add in power above ≈ 2 kHz \
+         (docs/board_radiation.md).",
+    ),
+    ("soundboard.scatter_corner", "Frequency above which the scattering is full.", "Hz: the obstacles' size against the wavelength, (f/fc)²/(1 + (f/fc)²)."),
+    ("soundboard.scatter_step", "Spacing of the scattering sources over the board.", "m; 0.1 gives about 180 sources on a 2 m grand."),
+    ("soundboard.scatter_height", "Mean height of the scattering layer over the board.", "m; the heights are spread from 0.4 to 1.6 times it."),
+    ("soundboard.scatter_shadow", "How much of the board's direct sound the scattering layer takes away above it, to send it elsewhere.", "Share of the direct field's power intercepted at full scattering (same frequency law), 0–1; the front face and its lid image of a point above the board are scaled by √(1 − share)."),
     (
         "soundboard.outline_below",
         "Up to this frequency the soundboard resonates with its own shape (see Outline); above, \
@@ -852,6 +904,13 @@ const HELP: &[(&str, &str, &str)] = &[
          too, adding metallic colour.",
         "Isotropic clamped plate (same modal machinery as the board), driven at the agraffes by \
          the strings' force and radiating from its own height; one-way.",
+    ),
+    (
+        "frame.coupling",
+        "Whether the strings feel the iron frame at their far end. A partial that falls on one of the \
+         frame's resonances gives it its energy and rings shorter. 0: the frame only listens.",
+        "Factor on the frame's admittance at each key's agraffe, added to the bridge's in the strings' \
+         coupled modes (1 = physical).",
     ),
     ("frame.a", "Length of the iron frame.", "Plate size (m); it starts at `offset_x` in board coordinates, over the pin block."),
     ("frame.b", "Width of the iron frame.", "Plate size (m)."),

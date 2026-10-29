@@ -7,6 +7,7 @@ use std::path::Path;
 #[serde(deny_unknown_fields)]
 struct Bundle {
     label: String,
+    physics_fingerprint: String,
     base: String,
     impulses: String,
     contacts: Vec<Contact>,
@@ -20,6 +21,9 @@ struct Contact {
 
 pub fn load(path: &Path) -> Result<Experiment, Box<dyn std::error::Error>> {
     let m: Bundle = toml::from_str(&std::fs::read_to_string(path)?)?;
+    if m.physics_fingerprint != physics_fingerprint() {
+        return Err("Rayleigh bundle belongs to another engine revision; regenerate its presets and filters".into());
+    }
     let dir = path.parent().ok_or("bundle needs a parent directory")?;
     let model = crate::load_preset(&dir.join(m.base))?;
     let contacts = m
@@ -43,4 +47,32 @@ pub fn load(path: &Path) -> Result<Experiment, Box<dyn std::error::Error>> {
     }
     let ir = bytes[24..].chunks_exact(8).map(|x| f64::from_le_bytes(x.try_into().unwrap())).collect();
     Ok(Experiment::new(model, contacts, ir, m.label)?)
+}
+
+/// Hash the compiled physics sources, not the working directory. A stale bundle
+/// must not quietly combine old transfer functions with a new instrument.
+pub fn physics_fingerprint() -> String {
+    let sources = [
+        include_str!("../../piano-core/src/engine.rs"),
+        include_str!("../../piano-core/src/experimental.rs"),
+        include_str!("../../piano-core/src/instrument.rs"),
+        include_str!("../../piano-core/src/note_model.rs"),
+        include_str!("../../piano-core/src/params.rs"),
+        include_str!("../../piano-core/src/soundboard.rs"),
+        include_str!("../../piano-core/src/structure.rs"),
+        include_str!("../../piano-core/src/board.rs"),
+        include_str!("../../piano-core/src/eigen.rs"),
+        include_str!("../../piano-core/src/hammer.rs"),
+        include_str!("../../piano-core/src/unison.rs"),
+        include_str!("../../piano-core/src/room.rs"),
+        include_str!("../../piano-core/src/voice.rs"),
+        include_str!("../../piano-core/src/modal.rs"),
+        include_str!("../../piano-core/src/macros.rs"),
+        include_str!("../../piano-core/src/live.rs"),
+    ];
+    let mut hash = 0xcbf29ce484222325u64;
+    for source in sources { for byte in source.bytes().chain([0]) {
+        hash = (hash ^ byte as u64).wrapping_mul(0x100000001b3);
+    }}
+    format!("{hash:016x}")
 }

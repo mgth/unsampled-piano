@@ -32,6 +32,14 @@ fn main() {
     let mut base = EngineConfig::default();
     base.model.room.enabled = false;
     base.model.noise = NoiseLaw::OFF;
+    // FRAME_COUPLING=c: the frame's two-way coupling (1 by default).
+    if let Some(c) = std::env::var("FRAME_COUPLING").ok().and_then(|v| v.parse().ok()) {
+        base.model.frame.coupling = c;
+    }
+    // FRAME_LOSS=η: the frame's loss factor.
+    if let Some(v) = std::env::var("FRAME_LOSS").ok().and_then(|v| v.parse().ok()) {
+        base.model.frame.loss_factor = v;
+    }
 
     let sb = Soundboard::new(base.model.soundboard.unwrap());
     let rim = RimModel::new(&base.model.rim, &sb, sb.modes.len(), sr);
@@ -53,7 +61,10 @@ fn main() {
     let w = |x: &[f32], a: f64, b: f64| rms_db(&x[(a * sr) as usize..((b * sr) as usize).min(x.len())]);
     let diff = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(x, y)| x - y).collect::<Vec<f32>>();
     println!("\nlevels re the note without frame/rim, windows 0–0.2 s | 0.5–1.5 s | 2–4 s");
-    for (note, vel) in [(28u8, 100u8), (45, 100), (60, 100), (72, 100), (84, 100), (96, 100)] {
+    // Keys given on the command line, else six across the keyboard.
+    let keys: Vec<u8> = std::env::args().skip(1).filter_map(|a| a.parse().ok()).collect();
+    let keys = if keys.is_empty() { vec![28, 45, 60, 72, 84, 96] } else { keys };
+    for (note, vel) in keys.into_iter().map(|k| (k, 100u8)) {
         let script = [(0.0, Event::NoteOn { note, velocity: vel })];
         let a = render(none, &script, 4.0);
         let f = diff(&render(fr, &script, 4.0), &a);

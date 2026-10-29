@@ -42,7 +42,7 @@ The board was an orthotropic plate clamped on an a × b rectangle, with analytic
 
 ## The prototype outline
 
-`SoundboardParams::GRAND_OUTLINE`, for the 2 m board: straight front edge (x = 0) and spine (the bass side, y = b). The bentside leaves the treble cheek 20 cm behind the front edge and curves in to 40 % of the width at the tail, which keeps the bass side's 60 %. That is 82 % of the rectangle. The bass bridge's end (A0) lies 16 cm inside it, against 27 cm from the rectangle's edge.
+`SoundboardParams::GRAND_OUTLINE`, for the 2 m board: straight front edge (x = 0) and spine (the bass side, y = b). The bentside leaves the treble cheek 20 cm behind the front edge and curves in to 40 % of the width at the tail, which keeps the bass side's 60 %. That is 82 % of the rectangle. The bass bridge's end nearest it (E1) lies 15 cm inside it; A0's end, furthest back and nearest the spine, 24 cm from the tail.
 
 What changes on the board:
 
@@ -129,6 +129,7 @@ The model's lowest board mode, lightly damped once the pedal is down, makes one 
 - Above `outline_below` the rectangle's modes remain: their mass, and so their mobility, includes the part outside the outline (18 % for the grand). The modal density jumps at the corner.
 - The rim stays the rectangle's ring (its perimeter, radiation and modes); only the forces it receives follow the outline.
 - The lid stays a rectangle as wide as the board.
+- The frame follows the case since 2026-10-28, with its own modes up to 3 kHz ([frame_rim.md](frame_rim.md#the-outline)); it had inherited the board's polygon on its own rectangle by accident.
 - Uprights keep the rectangle.
 
 ## 2026-10-28: on by default

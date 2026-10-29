@@ -18,6 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // separate causal implementation before this prototype can support it.
     assert_eq!(p.case_open, 1.);
     assert_eq!(p.exact_below, 0.);
+    assert_eq!(p.scatter, 0., "causal scattering is not implemented by this exporter");
     let step: f64 = a[3].parse()?;
     let os: usize = a[4].parse()?;
     assert!(step > 0. && step <= 0.02 && (8..=64).contains(&os));

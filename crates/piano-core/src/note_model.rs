@@ -126,15 +126,18 @@ impl NoteModel {
         sample_rate: f64,
         max_modes: usize,
     ) -> Self {
-        Self::build_with(model, board, board_modes, None, note, sample_rate, Resolution { max_modes, ..Resolution::DEFAULT })
+        Self::build_with(model, board, board_modes, None, None, note, sample_rate, Resolution { max_modes, ..Resolution::DEFAULT })
     }
 
-    /// [`Self::build`] at a given [`Resolution`].
+    /// [`Self::build`] at a given [`Resolution`], the frame two way when
+    /// given.
+    #[allow(clippy::too_many_arguments)]
     pub fn build_with(
         model: &PianoModel,
         board: Option<&Soundboard>,
         board_modes: Option<&[BoardMode]>,
         low: Option<&board::LowDrive>,
+        frame: Option<&crate::structure::FrameAdmittance>,
         note: u8,
         sample_rate: f64,
         res: Resolution,
@@ -171,7 +174,12 @@ impl NoteModel {
                 break;
             }
             let eps = match (board, &bridge_shapes) {
-                (Some(b), Some(sh)) => (b.bridge_admittance(sh, tau * fv[0]) + C64::new(b.edge_conductance(note, tau * fv[0]), 0.0)).scale(np.tension / np.length),
+                (Some(b), Some(sh)) => {
+                    // The string's other end: the frame at its agraffe (the
+                    // mode's slope is the same there, (−1)^(k+1)·kπ/L).
+                    let at_frame = frame.map_or(C64::ZERO, |f| f.at(b.params.bridge_point(note).1, tau * fv[0]));
+                    (b.bridge_admittance(sh, tau * fv[0]) + C64::new(b.edge_conductance(note, tau * fv[0]), 0.0) + at_frame).scale(np.tension / np.length)
+                }
                 _ => np.coupling(&model.bridge, fv[0]),
             };
             let dv: Vec<C64> = fv.iter().map(|&f| C64::new(-model.losses.sigma(note, f), tau * f)).collect();
@@ -401,7 +409,7 @@ impl PianoTable {
         sample_rate: f64,
         max_modes: usize,
     ) -> Self {
-        Self::with_resolution(model, board, board_modes, None, sample_rate, Resolution { max_modes, ..Resolution::DEFAULT })
+        Self::with_resolution(model, board, board_modes, None, None, sample_rate, Resolution { max_modes, ..Resolution::DEFAULT })
     }
 
     pub fn with_resolution(
@@ -409,11 +417,12 @@ impl PianoTable {
         board: Option<&Soundboard>,
         board_modes: Option<&[BoardMode]>,
         low: Option<&board::LowDrive>,
+        frame: Option<&crate::structure::FrameAdmittance>,
         sample_rate: f64,
         res: Resolution,
     ) -> Self {
         // Independent keys: built in parallel (≈ 0.5 s on one core).
-        let notes = crate::par::map(88, |i| NoteModel::build_with(model, board, board_modes, low, 21 + i as u8, sample_rate, res));
+        let notes = crate::par::map(88, |i| NoteModel::build_with(model, board, board_modes, low, frame, 21 + i as u8, sample_rate, res));
         Self { notes }
     }
 
@@ -437,6 +446,24 @@ impl PianoTable {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The frame two way: a key's partials lose to the frame at their
+    /// agraffes as well as to the board (in all; one coupled mode of a
+    /// unison may lose a little less, the frame's admittance mixing them
+    /// differently).
+    #[test]
+    fn the_frame_takes_energy_from_the_strings() {
+        let model = PianoModel::default();
+        let board = model.board().unwrap();
+        let frame = crate::structure::FrameAdmittance::new(&model.frame, &board.params).unwrap();
+        let res = Resolution::DEFAULT;
+        for note in [84u8, 96] {
+            let one = NoteModel::build_with(&model, Some(&board), None, None, None, note, 48_000.0, res);
+            let two = NoteModel::build_with(&model, Some(&board), None, None, Some(&frame), note, 48_000.0, res);
+            let rate = |nm: &NoteModel| nm.modes.iter().map(|m| m.sigma).sum::<f64>();
+            assert!(rate(&two) > rate(&one), "key {note}: {} vs {}", rate(&two), rate(&one));
+        }
+    }
 
     /// Every cluster of the default piano diagonalises cleanly.
     #[test]

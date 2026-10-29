@@ -14,14 +14,16 @@ These two parts are heavy and stiff. They move much less than the soundboard and
 ### Frame (`FrameParams`)
 
 - **Excitation.** Each string computes the force it exerts on its agraffe, −T·∂y/∂x at that end. The weights are those of the bridge multiplied by (−1)^(k+1): the fundamental pulls on both ends in the same direction, the second partial in opposite directions. During hammer contact, this force also contains the quasi-static part of the hammer's push. Since the hammer strikes close to the agraffe, it is mostly the agraffe that receives it.
-- **Plate.** It is a clamped isotropic plate of 1.75 × 1.3 m, computed by the same code as the soundboard: Warburton modes and Rayleigh radiation towards the microphones, from 8 cm above the soundboard.
+- **Plate.** It is a clamped isotropic plate, computed by the same code as the soundboard: Rayleigh radiation towards the microphones, from 8 cm above the soundboard.
+  - It spans 1.9 × 1.3 m, from 20 cm in front of the board (over the pin block) to the case's tail, where the hitch pins are.
+  - It follows the case (`FrameParams::outline`): the board's outline, carried forward with a straight front edge. A board without an outline gives the rectangle. See [The outline](#the-outline) below.
   - Surface density 110 kg/m², i.e. about 150 kg of cast iron, holes included.
   - Stiffness chosen for a first mode around 155 Hz; 247 modes up to 12 kHz.
   - The frame is about 40 times less mobile than the soundboard.
 - **Radiation.** It is a perforated plate. Only the metal fraction radiates (`solidity` 0.4), and its two faces short-circuit each other through the holes (`back_gain` 0.9 at 5 cm).
-- **Damping.** η = 1 %. Bare cast iron is at 0.1–0.5 %, but once installed it is bolted to the pinblock and the rim, and loaded by 230 strings and their felts. **This is an estimate**, with no published measurement.
+- **Damping.** η = 2 % (1 % until 2026-10-29, see [Two ways](#two-ways)). Bare cast iron is at 0.1–0.5 %, but once installed it is bolted to the pinblock and the rim, and loaded by 230 strings and their felts. **This is an estimate**, with no published measurement.
 - **Agraffes.** They are placed 5 cm from the front edge, above the bolted pinblock. They face the bridge point of each region, since the strings run along x. The bass string crossing is ignored.
-- **One way.** The frame's motion sends nothing back to the strings, which is negligible given its low mobility. The “listening” strings (sympathetic resonance) do not excite it.
+- **Two ways** (`frame.coupling`, 1 by default, since 2026-10-29): the frame's driving-point admittance at each key's agraffe is added to the bridge's in the strings' coupled modes, as the board's is. The “listening” strings (sympathetic resonance) do not excite it.
 
 ### Rim (`RimParams`)
 
@@ -42,6 +44,42 @@ These two parts are heavy and stiff. They move much less than the soundboard and
   - No reflection from the lid.
 - **One way.** The rim does not move the edges of the soundboard.
 
+## The outline
+
+Until 2026-10-28 the frame was a 1.75 × 1.3 m rectangle. When the board's outline went on by default that day, the frame plate inherited it by accident: the board's normalised polygon, laid on the frame's own rectangle, put its bentside 15–20 cm in front of the case's, and nobody measured it. The interface still drew a rectangle.
+
+Since then the frame has the case's shape on purpose, as a real plate does, and reaches the tail. The interface's Model page and plan draw that outline.
+
+Its outlined plate has its own modes up to 3 kHz (the board's stop at 1.5 kHz), the rectangle's above. Above the corner, the rectangle's modes cut at the outline radiate from its edge, where their cells no longer cancel. With the board's 1.5 kHz the frame came out louder than the note at C7 (+4 dB) and at D7 (−9 dB, against −26 with its own modes). The iron plate is stiff and has few modes: building them takes 23 ms up to 3 kHz (9 ms at 1.5 kHz, 130 ms at 6 kHz, 1 s at 12 kHz).
+
+Frame level re the note, 0.5–1.5 s, velocity 100, every other key from C4 to C8 (`structure_levels 60 62 … 108`):
+
+| | rectangle (before) | inherited by accident | case, to the tail, own modes to 3 kHz |
+|---|---|---|---|
+| mean, C4–C8 (power) | −20.9 dB | −16.9 dB | −16.8 dB |
+| mean without C7 | about −24 dB | about −25 dB | about −27 dB |
+| loudest | −12.0 dB (C7) | −3.8 dB (C7) | −3.2 dB (C7) |
+
+The bench does not move (1.10 → 1.11, no measure by 0.3 z or more).
+
+At C7 one of the frame's modes falls on the fundamental (2093 Hz), and the frame rings as loud as the note in its sustain. The frame is one way: it takes the agraffe's force and gives nothing back, so a mode that coincides with a partial is driven at resonance without draining the string, as a real frame coupled both ways would. Its level and damping are not calibrated either.
+
+## Two ways
+
+At C7 a frame mode rang within 4 dB of the note in its sustain (see [The outline](#the-outline)), and the frame then gave nothing back to the strings. Now the strings' modes take the frame's admittance at their agraffes beside the bridge's (`FrameAdmittance`): a partial loses energy to the frame as it does to the board. The total damping of a key's modes grows (test `the_frame_takes_energy_from_the_strings`). One coupled mode of a unison may lose a little less, since the frame's admittance mixes them differently.
+
+The frame takes little: its conductance at the agraffe is 11–24 dB under the board's at the bridge over C6–C7's partials (`examples/frame_drain.rs`), 17 dB at C7's fundamental. The coupling changes the frame's level by less than a decibel (C7: −3.2 → −3.7 dB), and the bench not at all (1.11).
+
+What sets that peak is the frame's own damping: a mode with η = 1 % is a narrow resonance, and C7's fundamental sits on one. Frame level re the note, 0.5–1.5 s, every other key from C4 to C8:
+
+| η | loudest (C7) | mean (power) | bench |
+|---|---|---|---|
+| 1 % | −3.7 dB | −16.9 dB | 1.11 |
+| 2 % | −8.7 dB | −20.9 dB | 1.11, no measure moved by 0.3 z |
+| 3 % | −13.0 dB | −23.5 dB | 1.11; the treble's sustain partial 6 z −0.6 → −1.9 |
+
+At 3 % the frame's sheen leaves the treble's sustain partial 6, which the real grands have. The default is 2 %.
+
 ## Levels
 
 Measured with `cargo run --release -p piano-core --example structure_levels`, dry, with no room or noises, velocity 100. Each contribution is isolated by differencing renders and compared with the note without frame or rim. The three windows are 0–0.2 s | 0.5–1.5 s | 2–4 s.
@@ -55,7 +93,7 @@ Measured with `cargo run --release -p piano-core --example structure_levels`, dr
 | C6 (84) | −18 · −13 · −13 dB | −38 · −35 · −35 dB |
 | C7 (96) | −15 · −25 · −28 dB | −40 · −46 · −42 dB |
 
-These values were remeasured after the sustain recalibration ([sustain.md](sustain.md)). Before, the frame was 3 to 10 dB lower in the treble. Since then, the soundboard, stiffer under the treble, radiates the treble strings less, and they keep their energy longer. The frame is unchanged: proportionally, it therefore weighs more.
+The table below is the rectangular frame's (see [The outline](#the-outline) for the current one). These values were remeasured after the sustain recalibration ([sustain.md](sustain.md)). Before, the frame was 3 to 10 dB lower in the treble. Since then, the soundboard, stiffer under the treble, radiates the treble strings less, and they keep their energy longer. The frame is unchanged: proportionally, it therefore weighs more.
 
 - **The frame** can be heard in the treble as a slight metallic sheen, up to −13 dB at C6. When a partial falls on a frame resonance, the frame can prolong that partial a little.
 - **The rim** stays 36 to 45 dB below the note: a barely perceptible low background.

@@ -869,10 +869,13 @@ pub fn plan(ui: &mut Ui, model: &PianoModel, lit: &[Part], key: &mut u8, width: 
 
     // Frame and agraffes.
     if f.enabled {
-        let frame = rect_m((f.offset_x, 0.0), (f.offset_x + f.a, f.b));
+        // Its outline as the engine has it (the case's, over the pin block).
+        let mut frame: Vec<Pos2> = crate::model::scene::frame_outline(model, &sb).iter().map(|&(x, y)| pl(x, y)).collect();
+        let corner = frame.iter().fold(Pos2::new(f32::INFINITY, f32::INFINITY), |c, q| Pos2::new(c.x.min(q.x), c.y.min(q.y)));
+        frame.push(frame[0]);
         let fs = if lit(Part::Frame) { line(2.0, HIGHLIGHT) } else { line(1.0, weak) };
-        p.extend(Shape::dashed_line(&[frame.left_top(), frame.right_top(), frame.right_bottom(), frame.left_bottom(), frame.left_top()], fs, 4.0, 3.0));
-        label(frame.left_top() + Vec2::new(3.0, 2.0) * k, Align2::LEFT_TOP, "Frame", Some(Part::Frame));
+        p.extend(Shape::dashed_line(&frame, fs, 4.0, 3.0));
+        label(corner + Vec2::new(3.0, 2.0) * k, Align2::LEFT_TOP, "Frame", Some(Part::Frame));
     }
     let ag = if lit(Part::Agraffes) { line(2.5, HIGHLIGHT) } else { line(1.0, ink) };
     p.line_segment([pl(agraffe, 0.0), pl(agraffe, sb.b)], ag);

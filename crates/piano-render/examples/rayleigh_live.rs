@@ -44,6 +44,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use piano_core::{Engine, EngineConfig, Event, TimedEvent, experimental::LATENCY};
     use std::{path::Path, sync::Arc, time::Instant};
     let a: Vec<String> = std::env::args().collect();
+    if a.get(1).is_some_and(|x| x == "--fingerprint") {
+        println!("{}", piano_host::experimental::physics_fingerprint());
+        return Ok(());
+    }
     let e = Box::leak(Box::new(piano_host::experimental::load(Path::new(&a[1]))?));
     let stress = a[3] == "stress";
     let block: usize = a[if stress { 4 } else { 7 }].parse()?;

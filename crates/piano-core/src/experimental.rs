@@ -35,6 +35,9 @@ impl Experiment {
         if !sb.radiate || sb.exact_below != 0.0 || sb.string_load_free != 1.0 || sb.case_open != 1.0 {
             return Err("Rayleigh test requires radiating board, exact_below=0, string_load_free=1, case_open=1".into());
         }
+        if sb.scatter != 0.0 {
+            return Err("Integral Rayleigh test does not yet implement the causal scattering layer; scatter must be zero".into());
+        }
         if impulses.len() != REGIONS * 2 * TAPS || impulses.iter().any(|x| !x.is_finite()) {
             return Err("Rayleigh test: expected finite 16 × 2 × 65536 impulse samples".into());
         }
@@ -64,6 +67,7 @@ impl Experiment {
         let mut inst = Instrument::new(self.model, 48000.0);
         let sb = inst.model.board().expect("validated board");
         let raw = crate::board::board_modes(&sb, 48000.0);
+        let frame = crate::structure::FrameAdmittance::new(&inst.model.frame, &sb.params);
         for &(note, source) in &self.contacts {
             let model = source.with_macros();
             let model = PianoModel {
@@ -72,7 +76,7 @@ impl Experiment {
             };
             inst.table.replace(
                 note,
-                NoteModel::build_with(&model, Some(&sb), Some(&raw), None, note, 48000.0, Resolution::DEFAULT),
+                NoteModel::build_with(&model, Some(&sb), Some(&raw), None, frame.as_ref(), note, 48000.0, Resolution::DEFAULT),
             );
         }
         inst

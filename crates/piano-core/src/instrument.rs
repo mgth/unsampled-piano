@@ -46,7 +46,13 @@ impl Instrument {
             .zip(modes.as_ref())
             .filter(|(s, _)| s.params.exact_below > 0.0)
             .and_then(|(s, m)| board::LowDrive::new(s, m, s.params.exact_below, sample_rate));
-        let table = PianoTable::with_resolution(&model, sb.as_ref(), modes.as_deref(), low.as_ref(), sample_rate, res);
+        // The frame two way: its admittance at the agraffes in the strings'
+        // modes (with the rendered board, as the frame's radiation).
+        let frame_y = sb
+            .as_ref()
+            .filter(|s| s.params.radiate && model.frame.enabled)
+            .and_then(|s| crate::structure::FrameAdmittance::new(&model.frame, &s.params));
+        let table = PianoTable::with_resolution(&model, sb.as_ref(), modes.as_deref(), low.as_ref(), frame_y.as_ref(), sample_rate, res);
         let rendered = sb.as_ref().zip(modes.as_ref());
         let frame = rendered
             .filter(|_| model.frame.enabled)

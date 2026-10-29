@@ -23,7 +23,7 @@
 
 use crate::board::{self, BoardMode, MICS, REGIONS};
 use crate::complex::C64;
-use crate::soundboard::{PlateMode, Soundboard, SoundboardParams};
+use crate::soundboard::{PlateMode, Soundboard, SoundboardParams, OUTLINE_POINTS};
 use std::f64::consts::{PI, TAU};
 
 const RHO0: f64 = 1.2;
@@ -57,6 +57,10 @@ pub struct FrameParams {
     pub f_max: f64,
     /// Scales the radiated pressure (1 = physical).
     pub gain: f64,
+    /// The frame's admittance at each key's agraffes in the strings' modes
+    /// (1 = physical, 0 = one way): a partial that falls on a frame mode
+    /// gives it its energy, as it does to the board at the bridge.
+    pub coupling: f64,
 }
 
 impl Default for FrameParams {
@@ -66,31 +70,54 @@ impl Default for FrameParams {
 }
 
 impl FrameParams {
-    /// About 150 kg of cast iron over 1.75 × 1.3 m (holes included in the
-    /// surface mass), stiffness set for a first mode near 150 Hz. Bare cast
+    /// About 150 kg of cast iron over 1.9 × 1.3 m (holes included in the
+    /// surface mass), from 20 cm in front of the board over the pin block to
+    /// the case's tail (the hitch pins), within the case's outline
+    /// ([`FrameParams::outline`]); stiffness set for a first mode near 150 Hz
+    /// on the rectangle. Bare cast
     /// iron has η ≈ 0.1–0.5 %; installed (bolted to the rim and pin block,
-    /// loaded by 230 strings and their felts) it is taken at 1 % (estimate).
+    /// loaded by 230 strings and their felts) it is taken at 2 % (estimate:
+    /// at 1 % a frame mode on C7's fundamental rang within 4 dB of the
+    /// note, docs/frame_rim.md).
     /// The agraffes stand above the pin block, near the bolted front edge.
     pub const GRAND_2M: Self = Self {
         enabled: true,
-        a: 1.75,
+        a: 1.9,
         b: 1.3,
         offset_x: -0.2,
         agraffe_x: 0.05,
         height: 0.08,
         rho_h: 110.0,
         stiffness: 2.5e5,
-        loss_factor: 0.01,
+        loss_factor: 0.02,
         back_depth: 0.05,
         back_gain: 0.9,
         solidity: 0.4,
         f_max: 12_000.0,
         gain: 1.0,
+        coupling: 1.0,
     };
+
+    /// The frame's outline in its own normalised coordinates: the case's,
+    /// as the board's outline draws it, carried forward over the pin block
+    /// with a straight front edge (the plate covers the case and the pin
+    /// block in front of the board). A board without an outline gives the
+    /// rectangle. Points beyond the plate's length are clamped to it.
+    pub fn outline(&self, board: &SoundboardParams) -> [(f64, f64); OUTLINE_POINTS] {
+        if crate::soundboard::Outline::new(board).is_none() {
+            return [(0.0, 0.0); OUTLINE_POINTS];
+        }
+        board.outline.map(|(u, v)| {
+            let x = if u <= 1e-9 { self.offset_x } else { u * board.a };
+            (((x - self.offset_x) / self.a).clamp(0.0, 1.0), (v * board.b / self.b).clamp(0.0, 1.0))
+        })
+    }
 
     /// The frame as a plate, in its own coordinates.
     pub fn plate(&self, board: &SoundboardParams) -> SoundboardParams {
         SoundboardParams {
+            outline: self.outline(board),
+            outline_below: FRAME_OWN_MODES_BELOW,
             a: self.a,
             b: self.b,
             rho_h: self.rho_h,
@@ -103,6 +130,7 @@ impl FrameParams {
             edge_depth: 0.2,
             edge_corner: 200.0,
             bridge_mass: 0.0,
+            bridge_beam: 0.0,
             series_stiffness: f64::INFINITY,
             f_max: self.f_max,
             mics: board.mics.map(|(x, y, z)| (x - self.offset_x, y, z - self.height)),
@@ -123,6 +151,37 @@ impl FrameParams {
         (0..REGIONS)
             .map(|r| (self.agraffe_x, board.bridge_point(board::region_center_note(r)).1.clamp(0.0, self.b)))
             .collect()
+    }
+}
+
+/// The frame has its outline's own modes up to here (Hz), the rectangle's
+/// above. The rectangle's modes cut at the outline radiate from its edge,
+/// where their cells no longer cancel: at the board's 1.5 kHz the frame came
+/// out louder than the note at C7 (+4 dB) and D7 (−9 dB, −26 with its own
+/// modes). The stiff iron plate has few modes: 23 ms to build up to 3 kHz
+/// (9 ms at 1.5 kHz, 130 ms at 6 kHz, 1 s at 12 kHz).
+const FRAME_OWN_MODES_BELOW: f64 = 3000.0;
+
+/// The frame as a key's strings see it at their agraffes: its
+/// driving-point admittance there, which the strings' modes take beside the
+/// bridge's (two-way coupling, [`FrameParams::coupling`]).
+pub struct FrameAdmittance {
+    plate: Soundboard,
+    agraffe_x: f64,
+    b: f64,
+    coupling: f64,
+}
+
+impl FrameAdmittance {
+    /// None when the frame is off or one way.
+    pub fn new(frame: &FrameParams, board: &SoundboardParams) -> Option<Self> {
+        (frame.enabled && frame.coupling > 0.0).then(|| Self { plate: Soundboard::new(frame.plate(board)), agraffe_x: frame.agraffe_x, b: frame.b, coupling: frame.coupling })
+    }
+
+    /// Admittance (s/kg) at the agraffe of the key whose bridge point is at
+    /// `y` across the board (the strings run along x), at ω.
+    pub fn at(&self, y: f64, omega: f64) -> C64 {
+        self.plate.admittance(self.agraffe_x, y.clamp(0.0, self.b), omega).scale(self.coupling)
     }
 }
 
@@ -598,6 +657,28 @@ mod tests {
             let scale = omega_ss(&p, m, n).powi(2) * p.rho_h;
             assert!((net - want).abs() < 2e-3 * scale, "({m},{n}): {net} vs {want}");
         }
+    }
+
+    /// The frame follows the case: in board coordinates its outline is the
+    /// board's, its front edge straight over the pin block; on a rectangular
+    /// board it is the rectangle.
+    #[test]
+    fn the_frame_follows_the_case() {
+        let f = FrameParams::GRAND_2M;
+        let board = SoundboardParams { outline: SoundboardParams::GRAND_OUTLINE, ..SoundboardParams::GRAND_2M };
+        for (&(u, v), &(fu, fv)) in board.outline.iter().zip(&f.outline(&board)) {
+            let (x, y) = (f.offset_x + fu * f.a, fv * f.b);
+            if u <= 1e-9 {
+                assert!((x - f.offset_x).abs() < 1e-12, "front edge at {x}");
+            } else {
+                assert!((x - u * board.a).abs() < 1e-9 && (y - v * board.b).abs() < 1e-9, "({x}, {y}) vs ({u}, {v})");
+            }
+        }
+        // The plate reaches the tail.
+        assert!(f.offset_x + f.a >= board.a - 1e-9);
+        assert!(Soundboard::new(f.plate(&board)).outline.is_some());
+        let rectangle = SoundboardParams { outline: [(0.0, 0.0); OUTLINE_POINTS], ..SoundboardParams::GRAND_2M };
+        assert!(Soundboard::new(f.plate(&rectangle)).outline.is_none());
     }
 
     /// An outlined board's own modes push on the rim (shared edges and the
