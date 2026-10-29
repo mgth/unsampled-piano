@@ -1,6 +1,6 @@
 # Test bench: scoring the model against real pianos
 
-Status as of 2026-10-24.
+Bench updated 2026-10-29; historical results below are dated separately.
 
 Until now each change was measured with the script written for it (`tools/band_score.py`, `tools/hammer_score.py`, `tools/set_metrics.py`…), and what it moved elsewhere was found later: the release-ring gain of the treble cost its mf sustain at 3 s. The bench measures everything at every change, with one fixed set of measures, and against real pianos only. The commercial modelled piano used so far as a reference is itself a model: its biases would become ours. It is still measured, as information, and never enters the targets.
 
@@ -11,11 +11,11 @@ Until now each change was measured with the script written for it (`tools/band_s
     cargo xtask bench --name trial --reuse  # measure out/bench/trial/notes again
     cargo xtask bench --save-baseline       # make this run the reference for the next ones
 
-`cargo xtask bench` runs `tools/bench.py run`. It renders every third key from A0 at velocities 45, 56 and 100 (the layers 4, 8 and 13 of the references, pp/mf/ff: the velocities BiVib's Disklavier recorded), each note held 20 s, one note per render so that no other string rings, then measures the notes and `piano-survey`'s partial analysis. About 35 s on a 16-core machine.
+`cargo xtask bench` runs `tools/bench.py run`. It renders every third key from A0 at velocities 45, 56 and 100 (the layers 4, 8 and 13 of the references, pp/mf/ff: the velocities BiVib's Disklavier recorded), each note held 20 s, one note per render, then measures the notes and `piano-survey`'s partial analysis. It also renders the intervening keys, held 1.5 s, in `harmonic_notes/`: the local harmonic comparison covers all 88 keys at all three velocities. The historical register score continues to use only `notes/`, so the additional keys do not change its sampling or its baseline.
 
 The model is heard as the references were recorded: close microphones in a studio (`presets/listening/Microphones/close.toml` and `Room/studio.toml`; `--listening <file>` to choose others, `--listening none` for the engine's own). The engine's default listening, a concert hall heard from 1.5 m, put its reverberation in every decay and between the partials: the first runs, made with it, scored 1.15 where the close microphones give 1.66, and some of their findings were the hall's (see the results below).
 
-It writes `out/bench/<name>/scorecard.md` (the summary, the changes against the baseline, then every measure) and `result.json`, and prints one line:
+It writes `out/bench/<name>/scorecard.md` (the summary, local harmonic alerts, changes against the baseline, then every register measure), `result.json`, and `harmonic_profiles.csv`. It prints the historical score followed by the local alert and coverage counts. Historical score example:
 
     score 1.60, 74 % within the real pianos, 23 off — attack 1.05, brightness 2.34, dynamics 0.56, sustain 2.38, decay 1.23, tuning 0.51
 
@@ -28,6 +28,103 @@ z = (model − target) / max(spread, floor)
 A gap as large as the one between two real pianos is therefore not a fault. The floor (3 dB for most levels, 0.15 for log ratios) keeps a measure on which the references happen to agree from becoming impossible to meet. |z| ≤ 1 is within the real pianos, ≤ 2 is close, beyond is off. The score is the RMS of all z (lower is better), also given per family and per register.
 
 The baseline, `bench/baseline.json`, holds the measures of the run saved with `--save-baseline`; they are scored against the current references, so that adding a reference does not break the comparison. Each run lists the measures whose |z| moved by 0.5 or more, worse first. A change is accepted when it improves what it targets without a list of new reds elsewhere; the baseline is saved again with the commit that keeps it.
+
+## Harmonic profiles, note by note
+
+The local comparison retains each key, velocity layer and time window separately. It measures partials **2–8 relative to partial 1**, in dB, at the attack (0–60 ms) and in the sustain (0.5–1 s). Since specification v2, the channels' FFT powers are averaged rather than summing their waveforms; the onset uses their RMS amplitude too. Both operations preserve a note whose channels oppose in phase. The same search windows and 12 kHz/noise exclusions apply to the model and recordings. Missing recordings and unreadable partials remain missing, never zero. A weak fundamental can raise all the ratios: the warning identifies a spectral imbalance, not its physical cause or a perceptual diagnosis of “nasality”. The historical register metrics remain unchanged and still use the original mono analysis.
+
+For each component, the targets are real pianos with a recording of **that exact key and layer**. No neighbouring-key interpolation is used, and sources marked `info` never enter the targets. At least two usable reference values are required. The target is their mean; z uses their standard deviation with a 4 dB minimum tolerance. Layers 4/8/13 correspond to the model's MIDI velocities 45/56/100, but only BiVib's velocities are calibrated to that exact scale; the other pianos supply corresponding soft/medium/loud layers. Their own variation remains in the tolerance.
+
+Specification **v3** adds eightfold FFT zero padding: the short attack's narrow
+H1 search band no longer falls between FFT bins on A0, A♯0, B0, D♯1, E1 and
+G♯1. This samples the existing spectrum more finely; it does not improve the
+physical resolution of a 60 ms window or guarantee that weak bass H1 is
+separable from H2. All eight harmonic reference caches were regenerated.
+Profiles are measured with four workers. Full recordings are retained because
+the onset threshold depends on their global peak and attacks may start after
+1.2 s; a fixed prefix trim would change the measurement.
+
+After a specification change, partial `refs NAME=directory` updates are refused
+before either reference file is modified. First run `refs --harmonics-only`
+with all target corpora available. If that full measurement fails, the old
+harmonic cache is preserved. Once the cache matches, partial updates keep the
+other targets.
+
+Each note/layer/window is classified independently:
+
+- **OFF**: at least one usable partial has |z| > 2.
+- **WATCH**: at least two partials deviate in the same direction by both |z| > 1 and at least 6 dB. This catches a coherent spectral tilt that no single component would flag strongly.
+- **ok**: neither warning rule fires and at least two partials can be compared. This means no alert under these rules, not that every partial is within one spread.
+- **insufficient**: fewer than two partials can be compared and no OFF component is present.
+
+These thresholds apply to the entire keyboard, not specifically to D#4. The scorecard lists all 88 keys with six cells each; alerts cannot cancel against the opposite error on another key. Each cell shows the worst |z| component and its signed deviation in dB. `harmonic_profiles.csv` includes every component, its value, target, deviation, z, reference count and named reference values. `result.json` also preserves raw profiles, scores, coverage and alert counts. The historical RMS score is unchanged; local alert counts are an additional diagnostic printed on every run.
+
+The scorecard also checks each real piano against the other real pianos, excluding it from its own targets. These held-out checks trigger many alerts too: individual-note spectra vary much more than register averages, and some keys/layers have only two reference pianos. The thresholds therefore surface local discrepancies; they are not a calibrated pass/fail test of audible realism. The report makes the reference alert counts and comparable coverage visible alongside the model's results.
+
+`bench/harmonic_references.json` stores the measured reference profiles, without audio, with a versioned measurement specification. `tools/bench.py refs ...` updates the selected sources' profiles along with their historical measures. To rebuild only the profiles of all registered target sources from their original note sets:
+
+    python3 tools/bench.py refs --harmonics-only
+
+A normal run needs this checked-in JSON, not the reference recordings. Missing or outdated reference specifications stop the run with the refresh command. `--reuse` reads the existing long and short note folders without rendering; on an older run that has only every third key, the missing keys are explicitly reported as insufficient. Run again without `--reuse` to obtain full coverage.
+
+`--save-baseline` saves the raw harmonic profiles too, but refuses to overwrite
+the baseline if any recording is missing (including an old `--reuse` directory
+without the intermediate keys). Re-render without `--reuse` first. Unreadable
+partials in present recordings remain explicitly insufficient. Subsequent runs
+rescore profiles against current references, report the comparable coverage
+and missing baseline recordings, and count newly alerted and cleared profiles
+only within that coverage. Older baselines or different harmonic specifications
+display “no harmonic profiles saved yet”.
+
+Tests of cancellation, velocity separation, sparse references, missing/noisy values, gain invariance, time windows and target filtering:
+
+    python3 -m unittest discover -s tools -p 'test_bench.py'
+
+### Review validation, stereo profiles v3 (2026-10-29)
+
+All eight reference collections and the 528 profiles of the existing `4a00f00`
+render were remeasured after the FFT fix. No recordings are missing; 19
+profiles have insufficient usable comparisons. The six formerly empty bass
+attacks now compare all seven upper partials at all three velocities. The
+summary is 359 OFF, 63 WATCH and 87 ok: these are spectral warnings, not
+counts of audible defects. D♯4 remains OFF in the sustain at all velocities.
+
+### First complete run, superseded mono profiles (2026-10-29)
+
+The numbers in this subsection describe specification v1, retained to document the initial finding. Do not compare them with the current v3 local profiles: mono summing suppressed E4's H2 by about 29 dB in the sustain. The original graph based on those profiles is likewise superseded. Rebuilding references and rerunning `--reuse` corrects this without rendering again; older harmonic baselines must be measured again before comparison.
+
+On the default model at commit `4a00f00`, the historical score remains **1.11**. The 528 local profiles (88 × 3 × 2) have no missing recordings; 36 have insufficient usable partial comparisons, split equally between the lowest and highest octaves. D#4 (MIDI 63) is flagged in the sustain at all three velocities:
+
+| MIDI velocity | status | p2 deviation | p4 deviation | p6 deviation |
+|---|---|---|---|---|
+| 45 | OFF | +16.1 dB | +24.2 dB | +18.3 dB |
+| 56 | WATCH | +16.8 dB | +23.0 dB | +16.6 dB |
+| 100 | WATCH | +14.8 dB | +19.1 dB | +13.1 dB |
+
+Values are deviations from the exact-key reference mean, each partial relative to p1, at 0.5–1 s. D#4 has five reference pianos at 45/56 and seven at 100. This exposes the imbalance that the middle register's average hid, without asserting that all notes above D#4 share the same cause. The complete local report flags many other keys as well (348 OFF profiles, 54 WATCH, on 87 keys); use the per-note evidence and the held-out reference checks, not this count as a count of audible defects.
+
+### Separating overtone shape from decay
+
+`tools/harmonic_diagnostic.py --run out/bench/harmonic_local --keys 60 61 62 63 64 66 67 68 69` compares C4 through E4 and F#4 through A4 at all three velocities and writes `harmonic_diagnostic.json`. These nine keys are the default; C4/C#4 provide nearby listening controls. It uses the stereo-power extractor for both model and real recordings. Its complementary views are:
+
+- **Overtone shape:** each harmonic peak relative to the sum of the peak powers H2–H6 in the same window. H1 does not enter the denominator. All five anchor partials must be measurable, or the profile is unavailable. H7/H8 and H1 can be inspected against that same anchor. This is a distribution of spectral peak powers, not an integrated full-band energy or loudness measure.
+- **Decay:** each partial relative to the strongest H1–H8 peak in the first 60 ms, a single fixed anchor for the whole recording. A falling fundamental cannot lift all the later measurements. Recording gain cancels.
+- **Own-partial decay (`decay_self`):** each partial relative to its own peak in the first 60 ms. Every usable curve begins at 0 dB, isolating its loss over time from the initial spectral balance. If that partial is unreadable at the attack, its whole curve is unavailable. This is the default view for the fundamental hypothesis; the earlier common attack anchor remains selectable.
+
+Add `--prototype-run out/bench/experimental_b3b2808` to include an independently rendered experimental engine. Both run directories provide `result.json` provenance and `notes/` or `harmonic_notes/` WAV files in the bench naming convention. Missing requested model notes are errors. The output separates `models` from real recordings; neither model may enter the real-piano mean or min–max band.
+
+The 2026-10-29 comparison uses main `4a00f00` and the `b3b2808` Rayleigh integral prototype from `codex/piano-main-revalidation`, with the retained per-key contacts and verified `upstream-4a00f00/close` bundle. Their base presets match: close microphones, studio room and Disklavier playback velocity law, 48 kHz, full quality, 128-frame blocks. The prototype renderer removes its known 128-frame latency. Main was rebuilt independently: all 27 WAVs match the earlier graphed files byte for byte. The prototype covers nine keys × three velocities, held 1.5 seconds; the plotted windows end at 1.2 seconds. Render commands, binary and bundle hashes are retained under `out/bench/` in `render_comparison.py` and each run's `result.json`. No application settings or production defaults were changed for this comparison.
+
+That experimental study is now kept on a separate archive branch; see the
+[results summary and immutable archive links](fundamental_sustain.md). Its
+historical measurements use the earlier spectral specification, while new
+diagnostic exports identify v3 and FFT padding ×8 in their metadata. The
+autonomous diagnostic can analyze externally supplied prototype WAVs; it
+does not require or ship the experimental renderer.
+
+Windows cover 0–60 ms, 60–200 ms, then 200 ms steps through 1.2 s; a separate 0.5–1 s window matches the bench's sustain. The diagnostic retains individual reference pianos, so means and min–max ranges can be computed after normalising each recording separately. It does not rank nasality. A useful perceptual detector still requires listening labels on additional notes and velocities, with separate examples for validation; this small group alone is not enough to fit and validate it.
+
+At velocity 100, H1's loss from its own attack to the 0.6–0.8 s window is 5.1 dB on C4, 11.8 on C#4, 46.0 on D4, 25.4 on D#4 and 39.1 on E4. The corresponding real-piano means are 15.0, 15.0, 10.7, 13.2 and 16.5 dB. The sharp change starts at D4, whose fundamental drops more than those of the two notes described as nasal: fast fundamental loss is a measurable lead, but cannot alone explain the reported perceptual ordering. These windowed levels are not monotonic decay fits or estimates of T60.
 
 ## The measures
 
