@@ -160,11 +160,11 @@ treble_bridge = [
 bass_bridge = [
     [
     0.72,
-    0.62,
+    0.4,
 ],
     [
     0.86,
-    0.4,
+    0.62,
 ],
 ]
 main_bridge_from = 29

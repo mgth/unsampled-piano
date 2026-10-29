@@ -709,6 +709,24 @@ mod tests {
     }
 
     #[test]
+    fn the_strings_of_a_bridge_do_not_cross_each_other() {
+        let m = PianoModel::default();
+        let sb = m.soundboard.unwrap().resolved();
+        // Two segments cross when each one's ends lie on either side of the other.
+        let crosses = |(p, q): ((f64, f64), (f64, f64)), (r, s): ((f64, f64), (f64, f64))| {
+            cross2(p, q, r) * cross2(p, q, s) < 0.0 && cross2(r, s, p) * cross2(r, s, q) < 0.0
+        };
+        for (lo, hi) in [(21, sb.main_bridge_from), (sb.main_bridge_from, 109)] {
+            for i in lo..hi {
+                for j in i + 1..hi {
+                    let (a, b) = (string_ends(&m, &sb, i), string_ends(&m, &sb, j));
+                    assert!(!crosses((a.0, a.1), (b.0, b.1)), "keys {i} and {j} cross");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn an_outlined_board_is_drawn_within_its_outline() {
         let mut m = PianoModel::default();
         let sb = m.soundboard.as_mut().unwrap();

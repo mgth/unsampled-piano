@@ -345,7 +345,10 @@ impl SoundboardParams {
         // y the key's place across the 1.2 m wide string band. The treble
         // end sits in the board's clamped corner, as on real grands.
         treble_bridge: [(0.035, 0.077), (0.07, 0.28), (0.21, 0.50), (0.62, 0.71), (0.78, 0.92)],
-        bass_bridge: [(0.72, 0.62), (0.86, 0.40)],
+        // The bass strings cross over the tenor towards the middle of the
+        // board but keep their keys' order, as on real grands: A0, the
+        // longest, ends furthest back and nearest the spine.
+        bass_bridge: [(0.72, 0.40), (0.86, 0.62)],
         main_bridge_from: 29,
         mics: [(0.45, 0.35, 1.5), (1.15, 0.85, 1.5)],
         // 1.5 m in front of an upright's board, the left one on the bass side.
@@ -394,7 +397,7 @@ impl SoundboardParams {
     /// spine (the bass side, y = b); the bentside leaves the treble cheek
     /// 20 cm behind the front edge and curves in towards the tail, which
     /// keeps the bass side's 60 %: 82 % of the rectangle. The bass bridge's
-    /// end (A0) lies 16 cm inside it (27 cm from the rectangle's edge).
+    /// end nearest it (E1) lies 15 cm inside it.
     pub const GRAND_OUTLINE: [(f64, f64); OUTLINE_POINTS] = [
         (0.0, 0.0),
         (0.12, 0.0),
