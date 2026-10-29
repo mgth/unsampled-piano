@@ -1,0 +1,55 @@
+{
+ "physics_fingerprint": "d2d9e13bb28f0f7d",
+ "contacts": {
+  "102": {
+   "params": {
+    "q": 1.0,
+    "h": 0.3,
+    "p": 0,
+    "w": 1,
+    "d": 0.0001
+   },
+   "extra": {
+    "strike_ratio": 0.105,
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 2.0
+   }
+  },
+  "108": {
+   "params": {
+    "q": 0.3,
+    "h": 0.6,
+    "p": -1.0,
+    "w": 1.0,
+    "d": 1.5e-05
+   },
+   "extra": {
+    "shank_share": 0.45,
+    "shank_freq": 300,
+    "shank_loss": 0.05
+   }
+  }
+ },
+ "files": {
+  "base.toml": "b72bc637961215082dfbb265821dac22a1a6986698a0100cf7f8b7f76d65b2fc",
+  "n93.toml": "a2d9d19058d98620006c082f8d3547c92ed7a77269946b29f7ccadbca0cb4107",
+  "n94.toml": "ea3752702863e4b4a821e7510c7f177e13f1f909ba5ccb6676d63199c275fcc8",
+  "n95.toml": "009cc0c4ade14341e8730fb3302002c86b79e532fb421cfe351cdea1d40b961e",
+  "n96.toml": "e49d2e3c7848fe4376109a1db63b61f8bfea9e87d7b28f1fdd7946ec4cd33b30",
+  "n97.toml": "a2d9d19058d98620006c082f8d3547c92ed7a77269946b29f7ccadbca0cb4107",
+  "n98.toml": "4d1ad87cee745ba0ced4ce5625374d7aef2f8340ed0507a8a6340bb87711c364",
+  "n99.toml": "a2d9d19058d98620006c082f8d3547c92ed7a77269946b29f7ccadbca0cb4107",
+  "n100.toml": "cd4e078ed2313f80e2c99138f03ab5d72734ec2c486e23090cb37511c91a6760",
+  "n101.toml": "6f83d1a00b7deb41032ef96073b5ce8b96c7d59d645eb88f5ace07d4d46668f8",
+  "n102.toml": "4cff5e473f817765e0428da7166ba92465c1a76c4170f4b8b91207f7df894a3e",
+  "n103.toml": "35a8b62df20a30c44e51168b8fce8d9467132a3661acbe31313c15463c1143c3",
+  "n104.toml": "de20a2e495fe03b369fbb48205079edad03c6b1451e2df687e07d5adce457192",
+  "n105.toml": "4d05da9abe17705a351086489f0def6b90f7e032e5905cc4f493a1fb96b03315",
+  "n106.toml": "9ed821625c3f7313068a2eb3d83770f0922b3f7da7c9543365197910164efa6e",
+  "n107.toml": "cf943118d915dcdefaddf0233d638582d29ed562193a59b2ee77ba9b02e7abf2",
+  "n108.toml": "2844095b485ca5f0c1a3550d0a0cde0e165c2f53275cb336f8ff79885329c536",
+  "responses.f64": "fca62a420553a60faf91413973eb9deb8da8187a498904eca5f9fc4cfde3f3dc",
+  "bundle.toml": "02b90947ccd1b7521fde74714c9d434460c478fd8389ccb71b3ecae636201352"
+ }
+}

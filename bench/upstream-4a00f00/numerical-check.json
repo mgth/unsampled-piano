@@ -1,0 +1,194 @@
+{
+ "close/97/45": {
+  "reconstruction": {
+   "rms_error_db": -109.03998590506349,
+   "peak_error": 1.197869801024265e-07,
+   "peak_old": 0.04069321230053902
+  },
+  "live_error_db": -150.4247140721162
+ },
+ "close/97/56": {
+  "reconstruction": {
+   "rms_error_db": -109.28448972078829,
+   "peak_error": 1.675133764270087e-07,
+   "peak_old": 0.056729309260845184
+  },
+  "live_error_db": -150.2367180386408
+ },
+ "close/97/100": {
+  "reconstruction": {
+   "rms_error_db": -109.59278669164179,
+   "peak_error": 5.986846977196203e-07,
+   "peak_old": 0.16576805710792542
+  },
+  "live_error_db": -149.9434146335716
+ },
+ "close/99/45": {
+  "reconstruction": {
+   "rms_error_db": -119.3687621626829,
+   "peak_error": 8.654888444120656e-08,
+   "peak_old": 0.05361218750476837
+  },
+  "live_error_db": -150.02577147240297
+ },
+ "close/99/56": {
+  "reconstruction": {
+   "rms_error_db": -119.15060163115017,
+   "peak_error": 1.823587306411592e-07,
+   "peak_old": 0.0949079692363739
+  },
+  "live_error_db": -150.26747535019416
+ },
+ "close/99/100": {
+  "reconstruction": {
+   "rms_error_db": -119.72864591339544,
+   "peak_error": 6.874335187617708e-07,
+   "peak_old": 0.40763986110687256
+  },
+  "live_error_db": -150.51880608278555
+ },
+ "close/102/45": {
+  "reconstruction": {
+   "rms_error_db": -110.05247929597722,
+   "peak_error": 9.727971876823116e-08,
+   "peak_old": 0.03876487910747528
+  },
+  "live_error_db": -149.68882432190247
+ },
+ "close/102/56": {
+  "reconstruction": {
+   "rms_error_db": -110.16474801514019,
+   "peak_error": 1.470649904460053e-07,
+   "peak_old": 0.058554746210575104
+  },
+  "live_error_db": -150.09210361542952
+ },
+ "close/102/100": {
+  "reconstruction": {
+   "rms_error_db": -110.32366147870783,
+   "peak_error": 6.133209126506223e-07,
+   "peak_old": 0.19706296920776367
+  },
+  "live_error_db": -150.0088575495716
+ },
+ "close/108/45": {
+  "reconstruction": {
+   "rms_error_db": -112.85525605462564,
+   "peak_error": 4.212673143308421e-08,
+   "peak_old": 0.024807937443256378
+  },
+  "live_error_db": -150.435383469228
+ },
+ "close/108/56": {
+  "reconstruction": {
+   "rms_error_db": -116.43421898120037,
+   "peak_error": 5.7786607996976325e-08,
+   "peak_old": 0.04417150840163231
+  },
+  "live_error_db": -150.45549168073717
+ },
+ "close/108/100": {
+  "reconstruction": {
+   "rms_error_db": -120.38918255055492,
+   "peak_error": 1.9525225651226275e-07,
+   "peak_old": 0.1882154941558838
+  },
+  "live_error_db": -150.4771136846885
+ },
+ "player_actual/97/45": {
+  "reconstruction": {
+   "rms_error_db": -106.95848893763154,
+   "peak_error": 4.879593704619489e-08,
+   "peak_old": 0.009467002935707569
+  },
+  "live_error_db": -141.40355258397383
+ },
+ "player_actual/97/56": {
+  "reconstruction": {
+   "rms_error_db": -108.03867307684582,
+   "peak_error": 7.253833480625263e-08,
+   "peak_old": 0.013665400445461273
+  },
+  "live_error_db": -141.50081109414953
+ },
+ "player_actual/97/100": {
+  "reconstruction": {
+   "rms_error_db": -112.17429630920057,
+   "peak_error": 1.720924663779766e-07,
+   "peak_old": 0.04455859959125519
+  },
+  "live_error_db": -141.4479082648607
+ },
+ "player_actual/99/45": {
+  "reconstruction": {
+   "rms_error_db": -106.07257255152757,
+   "peak_error": 4.4202666639372307e-08,
+   "peak_old": 0.008451737463474274
+  },
+  "live_error_db": -141.82026752640166
+ },
+ "player_actual/99/56": {
+  "reconstruction": {
+   "rms_error_db": -107.8845369587205,
+   "peak_error": 5.8502652009254086e-08,
+   "peak_old": 0.013194476254284382
+  },
+  "live_error_db": -142.3915094778996
+ },
+ "player_actual/99/100": {
+  "reconstruction": {
+   "rms_error_db": -111.18182468680132,
+   "peak_error": 1.6374062096133346e-07,
+   "peak_old": 0.04838823527097702
+  },
+  "live_error_db": -144.01653351923392
+ },
+ "player_actual/102/45": {
+  "reconstruction": {
+   "rms_error_db": -103.53613125318147,
+   "peak_error": 2.8587782873595868e-08,
+   "peak_old": 0.005014712456613779
+  },
+  "live_error_db": -140.91725118320014
+ },
+ "player_actual/102/56": {
+  "reconstruction": {
+   "rms_error_db": -105.0785487560014,
+   "peak_error": 4.1097370431414956e-08,
+   "peak_old": 0.007872206158936024
+  },
+  "live_error_db": -141.0847322785494
+ },
+ "player_actual/102/100": {
+  "reconstruction": {
+   "rms_error_db": -109.54750220193131,
+   "peak_error": 9.691941786323446e-08,
+   "peak_old": 0.029682917520403862
+  },
+  "live_error_db": -141.59377583887553
+ },
+ "player_actual/108/45": {
+  "reconstruction": {
+   "rms_error_db": -98.03400443386136,
+   "peak_error": 2.3818450851826624e-08,
+   "peak_old": 0.002189651597291231
+  },
+  "live_error_db": -141.86840949483621
+ },
+ "player_actual/108/56": {
+  "reconstruction": {
+   "rms_error_db": -99.52998442601779,
+   "peak_error": 2.9654553055876755e-08,
+   "peak_old": 0.0031618408393114805
+  },
+  "live_error_db": -141.5777569073529
+ },
+ "player_actual/108/100": {
+  "reconstruction": {
+   "rms_error_db": -104.97594173468784,
+   "peak_error": 6.964214095453425e-08,
+   "peak_old": 0.012463337741792202
+  },
+  "live_error_db": -140.88599678780832
+ }
+}

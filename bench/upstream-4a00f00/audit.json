@@ -1,0 +1,15 @@
+{
+  "integration_commit": "cdbc3a6f008d5c893dcd8dc759882bacf62cef61",
+  "upstream": "4a00f00",
+  "experimental_contacts_retuned": false,
+  "default_equals_upstream_file": true,
+  "top_wavs": 2688,
+  "full_wavs": 180,
+  "fixed_attack_observations": 459,
+  "fixed_sustain_observations": 71,
+  "fixed_full_components": 191,
+  "runtime": "stress block=512 threads=2 mean_load=0.1680 p99_load=0.3553 max_load=0.3944 overruns=0 peak=0.38650 voices=88",
+  "binary_sha256": "8342e7e3abc5b6e5bbc47e31a115a72744698eb34409a0edc024f1d10408ae48",
+  "service": "piano-rayleigh-test-ui.service",
+  "screenshot": "/tmp/piano-rayleigh-ui/upstream-ui.png"
+}

@@ -21,4 +21,4 @@ def export(geom):
  (P/f'{geom}-bundle.json').write_text(json.dumps(meta,indent=2)+'\n')
  print(d/'bundle.toml')
 if __name__=='__main__':
- for geom in ['close','player_actual']:export(geom)
+ raise SystemExit('Historical exporter for 63109f8 only. After upstream integration, build the new tools and use bench/upstream-4a00f00/prepare.py; old kernels are incompatible.')

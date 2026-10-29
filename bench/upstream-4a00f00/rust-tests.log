@@ -1,0 +1,239 @@
+   Compiling zerocopy-derive v0.8.63
+   Compiling serde v1.0.229
+   Compiling zvariant_utils v4.2.0
+   Compiling enumflags2 v0.7.12
+   Compiling zcheapstr v1.1.0
+   Compiling piano-core v0.2.1 (/home/user/.codex/worktrees/piano-main-revalidation/piano/crates/piano-core)
+   Compiling tinytemplate v1.2.1
+   Compiling zerocopy v0.8.63
+   Compiling zvariant_derive v5.15.1
+   Compiling piano-params v0.2.1 (/home/user/.codex/worktrees/piano-main-revalidation/piano/crates/piano-params)
+   Compiling piano-host v0.2.1 (/home/user/.codex/worktrees/piano-main-revalidation/piano/crates/piano-host)
+   Compiling piano-control v0.2.1 (/home/user/.codex/worktrees/piano-main-revalidation/piano/crates/piano-control)
+   Compiling piano-mcp v0.2.1 (/home/user/.codex/worktrees/piano-main-revalidation/piano/crates/piano-mcp)
+   Compiling zvariant v5.15.1
+   Compiling zbus_names v4.3.5
+   Compiling half v2.7.1
+   Compiling ahash v0.8.12
+   Compiling epaint v0.37.0
+   Compiling winit v0.30.13
+   Compiling ciborium-ll v0.2.2
+   Compiling zbus_xml v5.2.1
+   Compiling ciborium v0.2.2
+   Compiling zbus_macros v5.19.0
+   Compiling criterion v0.8.2
+   Compiling zbus-lockstep v0.5.2
+   Compiling egui v0.37.0
+   Compiling zbus-lockstep-macros v0.5.2
+   Compiling glutin-winit v0.5.0
+   Compiling zbus v5.19.0
+   Compiling egui_glow v0.37.0
+   Compiling piano-ui v0.2.1 (/home/user/.codex/worktrees/piano-main-revalidation/piano/crates/piano-ui)
+   Compiling atspi-common v0.13.0
+   Compiling atspi-proxies v0.13.0
+   Compiling accesskit_atspi_common v0.21.0
+   Compiling atspi v0.29.0
+   Compiling accesskit_unix v0.24.0
+   Compiling accesskit_winit v0.34.1
+   Compiling egui-winit v0.37.0
+   Compiling eframe v0.37.0
+   Compiling piano-play v0.2.1 (/home/user/.codex/worktrees/piano-main-revalidation/piano/crates/piano-play)
+    Finished `test` profile [optimized + debuginfo] target(s) in 21.58s
+     Running unittests src/lib.rs (target/debug/deps/piano_control-cc38bb8399c35b76)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/limiter.rs (target/debug/deps/limiter-bc3e1eedbe3f9992)
+
+running 2 tests
+test the_limiter_switches_live ... ok
+test the_limiter_keeps_the_output_under_its_ceiling ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s
+
+     Running tests/observe.rs (target/debug/deps/observe-d4da5a81029bb350)
+
+running 1 test
+test a_struck_key_shows_in_the_observation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/swap.rs (target/debug/deps/swap-f309bc8768122548)
+
+running 6 tests
+test mismatched_channels_are_refused - should panic ... ok
+test live_edits_do_not_rebuild ... ok
+test midi_learn_routes_a_controller ... ok
+test a_burst_of_edits_builds_once ... ok
+test swap_on_two_threads_keeps_held_notes ... ok
+test swap_keeps_held_notes_and_never_allocates ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.99s
+
+     Running unittests src/lib.rs (target/debug/deps/piano_core-2e16caeb7174bd9e)
+
+running 60 tests
+test eigen::tests::decomposes_a_symmetric_matrix ... ok
+test eigen::tests::generalized_solves_k_v_equals_lambda_m_v ... ok
+test hammer::tests::contact_shortens_and_force_grows_with_velocity ... ok
+test eigen::tests::ql_matches_jacobi ... ok
+test hammer::tests::complex_state_round_trips ... ok
+test hammer::tests::heavy_string_matches_rigid_surface_contact ... ok
+test hammer::tests::lossless_contact_conserves_energy ... ok
+test live::tests::paths_round_trip ... ok
+test macros::tests::touch_keeps_mezzo_forte_and_stretch_reaches_equal_temperament ... ok
+test modal::tests::impulse_response_matches_analytic ... ok
+test modal::tests::loading_a_table_equals_setting_the_modes ... ok
+test macros::tests::neutral_controls_change_nothing_and_apply_once ... ok
+test modal::tests::shrinking_mode_count_silences_dropped_modes ... ok
+test modal::tests::second_output_matches_a_separate_bank ... ok
+test hammer::tests::level_strings_make_the_single_felt ... ok
+test modal::tests::two_inputs_superpose_and_damping_is_exact ... ok
+test params::tests::gamma_known_values ... ok
+test params::tests::temperaments_keep_a_and_move_with_their_key ... ok
+test modal::tests::all_isas_and_groups_are_bit_identical ... ok
+test limiter::tests::nothing_leaves_above_the_ceiling_and_the_gain_comes_back ... ok
+test soundboard::tests::an_upright_uses_its_own_microphones ... ok
+test params::tests::stulov_contact_time_matches_paper ... ok
+test params::tests::salamander_laws_match_survey ... ok
+test params::tests::rigaud_b_values ... ok
+test modal::tests::exp_neg_is_accurate ... ok
+test hammer::tests::flexible_shank_energy_never_grows ... ok
+test params::tests::temperaments_match_their_tables ... ok
+test unison::tests::detuned_strings_beat_with_shared_damping ... ok
+test hammer::tests::uneven_strings_energy_never_grows ... ok
+test unison::tests::nearly_identical_strings_split_into_prompt_and_aftersound ... ok
+test par::tests::pool_runs_every_item_once ... ok
+test unison::tests::polarised_trichord_and_single_string ... ok
+test structure::tests::edge_reactions_balance_the_plate ... ok
+test upsample::tests::delays_by_its_latency ... ok
+test unison::tests::trichords_diagonalise ... ok
+test note_model::tests::every_key_has_two_decay_rates ... ok
+test hammer::tests::lossy_contact_energy_never_grows ... ok
+test par::tests::keeps_order ... ok
+test room::tests::an_upright_stands_against_its_wall ... ok
+test note_model::tests::whole_table_is_well_conditioned ... ok
+test hammer::tests::uneven_strings_fill_the_spectral_dips ... ok
+test soundboard::tests::an_outline_without_area_is_the_rectangle ... ok
+test upsample::tests::keeps_the_band_and_removes_the_images ... ok
+test structure::tests::the_frame_follows_the_case ... ok
+test soundboard::tests::a_shorter_outline_has_the_shorter_boards_modes ... ok
+test soundboard::tests::conductance_is_positive_everywhere ... ok
+test structure::tests::rim_modes_are_sane ... ok
+test room::tests::tail_decays_at_the_sabine_rate ... ok
+test soundboard::tests::modal_density_and_mean_mobility_match_measurements ... ok
+test structure::tests::outlined_edge_forces_balance_the_plate ... ok
+test experimental::tests::partitioned_response_matches_direct_with_common_delay ... ok
+test note_model::tests::the_frame_takes_energy_from_the_strings ... ok
+test experimental::tests::streaming_overlap_and_residual_keep_phase_across_arbitrary_blocks ... ok
+test board::tests::all_isas_are_bit_identical ... ok
+test board::tests::low_drive_rebuilds_each_key ... ok
+test soundboard::tests::wall_reflects_only_the_back_face ... ok
+test board::tests::lifted_dampers_remove_the_string_load ... ok
+test board::tests::transfer_matches_mobility_and_rendering ... ok
+test note_model::tests::full_instrument_is_passive ... ok
+test soundboard::tests::a_grand_outline_holds_its_board ... ok
+
+test result: ok. 60 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+
+     Running tests/live.rs (target/debug/deps/live-6389231d98741955)
+
+running 1 test
+test output_gain_is_live_and_smooth ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+     Running tests/macros_live.rs (target/debug/deps/macros_live-dab533684ce8f710)
+
+running 1 test
+test live_controls_match_a_rebuild ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.10s
+
+     Running tests/midi_doubles.rs (target/debug/deps/midi_doubles-5af38d435acf81f6)
+
+running 2 tests
+test no_strike_while_the_hammer_presses_the_string ... ok
+test a_doubled_note_on_strikes_once ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.78s
+
+     Running tests/pedals.rs (target/debug/deps/pedals-a1077e980f65b216)
+
+running 8 tests
+test a_restruck_key_is_struck_with_its_damper_lifted ... ok
+test upright_repeats_slower_than_a_grand ... ok
+test sostenuto_holds_only_the_keys_down_when_pressed ... ok
+test pedal_lets_the_octave_resonate_more_than_the_semitone ... ok
+test upright_soft_pedal_and_practice_mute ... ok
+test dampers_stop_mid_notes_faster_than_bass_and_skip_the_top ... ok
+test half_pedal_damps_partially ... ok
+test una_corda_is_darker_and_keeps_its_sustain ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.72s
+
+     Running tests/quality.rs (target/debug/deps/quality-b260e3d6c85c094a)
+
+running 3 tests
+test levels_reduce_the_model_only ... ok
+test a_light_engine_plays ... ok
+test overkill_listens_on_every_string ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+
+     Running tests/realtime.rs (target/debug/deps/realtime-9169093aa9bf8796)
+
+running 4 tests
+test threads_do_not_change_the_exact_drive ... ok
+test threads_do_not_change_the_output ... ok
+test whole_keyboard_restrikes_stay_bounded ... ok
+test no_allocation_bounded_and_deterministic ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.60s
+
+     Running unittests src/lib.rs (target/debug/deps/piano_host-e9664a154498feeb)
+
+running 4 tests
+test tests::decodes_channel_messages ... ok
+test tests::preset_round_trips_and_partial_presets_keep_defaults ... ok
+test tests::listening_overlay_keeps_the_instrument ... ok
+test tests::listening_and_touch_presets_are_laid_over_the_sound ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/unsampled_piano-a408be79b2b153bf)
+
+running 10 tests
+test audio::tests::switches_while_playing ... ignored, needs a running PipeWire (JACK API) server: cargo test -p piano-play -- --ignored
+test audio::tests::outputs_group_their_channels ... ok
+test player::tests::engine_rate_stays_at_48_khz ... ok
+test player::tests::keyboard_channel_and_pedal ... ok
+test audio::tests::settings_keep_the_rest_of_the_file ... ok
+test tests::the_last_sound_is_saved_once_settled ... ok
+test audio::tests::voice_workers_are_real_time ... ok
+test player::tests::upsampled_output_does_not_depend_on_the_buffers ... ok
+test player::tests::upsampled_output_is_the_engine_at_48_khz ... ok
+test player::tests::flight_recorder_keeps_what_was_played ... ok
+
+test result: ok. 9 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.74s
+
+   Doc-tests piano_control
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests piano_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests piano_host
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

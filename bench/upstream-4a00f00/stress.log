@@ -1,0 +1,1 @@
+stress block=512 threads=2 mean_load=0.1680 p99_load=0.3553 max_load=0.3944 overruns=0 peak=0.38650 voices=88

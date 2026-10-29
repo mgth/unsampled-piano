@@ -1,0 +1,56 @@
+{
+ "upstream": "4a00f00de0738f63f05dc7cccd3251643a783162",
+ "head": "63109f81e2a88ee0884b6aa9143a5d74fef7294c",
+ "physics_fingerprint": "d2d9e13bb28f0f7d",
+ "binaries": {
+  "unsampled-piano": "8342e7e3abc5b6e5bbc47e31a115a72744698eb34409a0edc024f1d10408ae48",
+  "unsampled-piano-render": "e292e22dac904bd26113cc7cbf991fd5789d665575f588cd7cfbe874d7df5a26",
+  "piano-survey": "7f74922b8b586c69b4d31104af643a4ea0a5542be186e3d144447f4b9893c3f2",
+  "contact_batch": "a7718421daed44dac4a6115e5e9a55a723c7adb53e3c9a413e8e354959866fbb",
+  "top_probe": "e213d4e2d0c2a969823dc5c04598f20c3ed44d61e808384fde3c0da18872b94b",
+  "rayleigh_kernel": "2cf3994ef66af96e4f19c796d43edc49974243cca46c3695c05bbd66c44b9184",
+  "rayleigh_capture": "d4ea3c2d04fe2b1ccf88fbc05a91c91a1cf314daa05ec89b8a9b954a0925a943",
+  "rayleigh_live": "39b492483585c4922fe60a8fc06689b80f3578c81e519954c7ff963f7abb216e"
+ },
+ "reference_files": {
+  "bench/references.json": "9407ea8d7855f37cb943919c6b0e448e83a2574809872285ee3262320a356a75",
+  "bench/main-revalidation/references.json": "7182ecd702687cb1e3841b84eb84c796713d3f5c7141850a01bba07215f04813",
+  "tools/bench.py": "ea1057ed501e94c152c783a741c6a14170dae112aa5e33385672662c8deb4ca0",
+  "tools/plath_set.py": "deff0335df8d2295de23313868087fbb9f839a4735fd905104b77e786f7310f8"
+ },
+ "source_files": {
+  "crates/piano-core/src/action.rs": "55024091cf7c1e6d94c55546b501d9ba4e7de67139aeada9920c98201104e685",
+  "crates/piano-core/src/board.rs": "d9db52aac5a16d73e5115c8bb19e4998c132cd7e678d2d37f8bffc3b14917062",
+  "crates/piano-core/src/complex.rs": "31d512a57e1dd6b77eaa283a459fa119db1f77060bcf1f565a9d326d3ed1a62d",
+  "crates/piano-core/src/denormal.rs": "705788ded54e0fd7c37b34867226e8601834ccf81e626c76f949c8aed444ab85",
+  "crates/piano-core/src/eigen.rs": "e77b8ff88e8cdcd1c3ad1504ef5fda6824573f181f8dcad3fbdba92d98d9f2a8",
+  "crates/piano-core/src/engine.rs": "fa7940127c88b4e000fdc1d4ad4457b60ddfcb515ac390556399c899e7f9facb",
+  "crates/piano-core/src/hammer.rs": "dbe041c7ea2b957c9a2bb65210cdcba21ba1d277a44dc8106bcfcb84eb36f1ba",
+  "crates/piano-core/src/instrument.rs": "9fe8b1a9ad326edf72eb312f06eadfe7d5ce2c0d654dd77334312a454916b559",
+  "crates/piano-core/src/lib.rs": "36c5a5197db090451ffe521dd8e39e84f4fa259b32c9a31d900304bbf614e4bb",
+  "crates/piano-core/src/limiter.rs": "ac2436840f8df83299bfbf978cb081a0c419a8f4c37ac35f7aad85f9c9b88b55",
+  "crates/piano-core/src/live.rs": "fa9f8f8960ff28a2349495cc2d1f1d585b9d6cd6237642c4cbf984f064eeda89",
+  "crates/piano-core/src/macros.rs": "2c48f7503afb6e78a28ff451b4377b7bd61a3263dcf34bafb88926d1e60fa618",
+  "crates/piano-core/src/modal.rs": "c4677dcaac8ea1aadea017cb08d4e191bff1acb3c03885f96401d41146aa1165",
+  "crates/piano-core/src/note_model.rs": "08a728370fbce4a92bd7029bc400ba70a248799ae92f4f52b6da277c8d31a1d1",
+  "crates/piano-core/src/observe.rs": "d777a3ecbcd6bd1e722266eec9abb3cf65438b938280b6313a6ea15f39a23f4f",
+  "crates/piano-core/src/par.rs": "a2b3a3dfc076d9d0c41f6788b1638c29b2f4b90083a1f46b4d128c0825718621",
+  "crates/piano-core/src/params.rs": "bd0db0d4dd520e6e5b65497440ebe1faa51b5e88846d0742ad01483b27302eaa",
+  "crates/piano-core/src/room.rs": "6c3640ae3db8c91385fe6401bcc2a6244e21610b5557a0c4b205e5a56fe09a07",
+  "crates/piano-core/src/simd.rs": "de0e35d78ed6ae39c68d040be63cd6ebbe4566ffbc66967c89cde83ba8da008f",
+  "crates/piano-core/src/soundboard.rs": "4e840cc23943c50550bb3bf73446eb93f41762bb1d4f7b878bdba076c3d3c000",
+  "crates/piano-core/src/structure.rs": "c954e6c582456ca80ac99e4877abee7656ead6df598c9aad58d178887634a69a",
+  "crates/piano-core/src/unison.rs": "f3f0b32f5deda1773cf9c14b502dc95aa98e628fa8eff6a71e45cad4a2566c11",
+  "crates/piano-core/src/upsample.rs": "cadbd1b9068450c2cb52be7deb376f5b92bfe3cf36699b412b326b01f18a18fe",
+  "crates/piano-core/src/voice.rs": "1228eda8ce17372385ead3795414e169072a3c25ffe713d47e564b2dc6daae5f",
+  "crates/piano-core/src/experimental.rs": "d79ba57edb95ccb9928d92895311f24bd6ba7e5aba39f32084d523fda49deda9"
+ },
+ "integration_commit": "cdbc3a6f008d5c893dcd8dc759882bacf62cef61",
+ "built_from_merge_working_tree": true,
+ "listening_and_touch_inputs": {
+  "presets/listening/Microphones/close.toml": "69b08aa90a7005c5706dce99a0e2da63acf720842ff2b5ba358c5b4f65069997",
+  "presets/listening/Microphones/player.toml": "560255331e38ea1fc3965ef821c94da4916d0f1a8b46688e2d25e6a52f1c3200",
+  "presets/listening/Room/studio.toml": "5dc20cd8b7df346b2b403848eef990de31ae0c1ccff13d66851c2deb7bdaf4d5",
+  "presets/touch/disklavier_playback.toml": "c7dd54c6677b7a23ad3ec2a55a81abb03d807cc7b44dc78d04a64219a530c965"
+ }
+}

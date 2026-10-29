@@ -1,5 +1,7 @@
 # UI de test : contacts retenus et rayonnement intégral
 
+> Après intégration upstream `4a00f00`, cette page décrit le premier portage historique. Le lanceur utilise désormais les bundles régénérés ; voir [la revalidation upstream](upstream_4a00f00.md). Les anciens bundles sont refusés par le nouveau moteur.
+
 29 octobre 2026, dans `codex/piano-main-revalidation`, après `02a7005`.
 
 La version de test joue maintenant le **rayonnement intégral en temps réel**, avec les contacts par touche retenus dans [l’étude Do8 au pianiste](rayleigh_c8_player.md). L’UI affiche un bandeau **TEST — Rayleigh intégral · contacts retenus · pianiste, couvercle 35°, studio**. Le défaut, les presets livrés et la configuration habituelle restent inchangés. La nouvelle fonction est compilée seulement avec la feature `experimental-rayleigh` et activée seulement avec `--experimental-rayleigh BUNDLE`.
