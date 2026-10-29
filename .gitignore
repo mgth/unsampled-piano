@@ -5,3 +5,5 @@
 /data
 __pycache__/
 .claude/launch.json
+# Local research checkout retained after archiving it outside the main PR.
+/bench/fundamental-sustain/

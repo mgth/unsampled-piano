@@ -80,6 +80,15 @@ Tests of cancellation, velocity separation, sparse references, missing/noisy val
 
     python3 -m unittest discover -s tools -p 'test_bench.py'
 
+### Review validation, stereo profiles v3 (2026-10-29)
+
+All eight reference collections and the 528 profiles of the existing `4a00f00`
+render were remeasured after the FFT fix. No recordings are missing; 19
+profiles have insufficient usable comparisons. The six formerly empty bass
+attacks now compare all seven upper partials at all three velocities. The
+summary is 359 OFF, 63 WATCH and 87 ok: these are spectral warnings, not
+counts of audible defects. D♯4 remains OFF in the sustain at all velocities.
+
 ### First complete run, superseded mono profiles (2026-10-29)
 
 The numbers in this subsection describe specification v1, retained to document the initial finding. Do not compare them with the current v3 local profiles: mono summing suppressed E4's H2 by about 29 dB in the sustain. The original graph based on those profiles is likewise superseded. Rebuilding references and rerunning `--reuse` corrects this without rendering again; older harmonic baselines must be measured again before comparison.
@@ -105,6 +114,13 @@ Values are deviations from the exact-key reference mean, each partial relative t
 Add `--prototype-run out/bench/experimental_b3b2808` to include an independently rendered experimental engine. Both run directories provide `result.json` provenance and `notes/` or `harmonic_notes/` WAV files in the bench naming convention. Missing requested model notes are errors. The output separates `models` from real recordings; neither model may enter the real-piano mean or min–max band.
 
 The 2026-10-29 comparison uses main `4a00f00` and the `b3b2808` Rayleigh integral prototype from `codex/piano-main-revalidation`, with the retained per-key contacts and verified `upstream-4a00f00/close` bundle. Their base presets match: close microphones, studio room and Disklavier playback velocity law, 48 kHz, full quality, 128-frame blocks. The prototype renderer removes its known 128-frame latency. Main was rebuilt independently: all 27 WAVs match the earlier graphed files byte for byte. The prototype covers nine keys × three velocities, held 1.5 seconds; the plotted windows end at 1.2 seconds. Render commands, binary and bundle hashes are retained under `out/bench/` in `render_comparison.py` and each run's `result.json`. No application settings or production defaults were changed for this comparison.
+
+That experimental study is now kept on a separate archive branch; see the
+[results summary and immutable archive links](fundamental_sustain.md). Its
+historical measurements use the earlier spectral specification, while new
+diagnostic exports identify v3 and FFT padding ×8 in their metadata. The
+autonomous diagnostic can analyze externally supplied prototype WAVs; it
+does not require or ship the experimental renderer.
 
 Windows cover 0–60 ms, 60–200 ms, then 200 ms steps through 1.2 s; a separate 0.5–1 s window matches the bench's sustain. The diagnostic retains individual reference pianos, so means and min–max ranges can be computed after normalising each recording separately. It does not rank nasality. A useful perceptual detector still requires listening labels on additional notes and velocities, with separate examples for validation; this small group alone is not enough to fit and validate it.
 
