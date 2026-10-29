@@ -424,6 +424,11 @@ impl PianoTable {
         (self.notes.iter().map(|n| n.modes.len()).max().unwrap_or(0), nl(|l| l.slope.len()), nl(|l| l.long_pole.len()))
     }
 
+    #[cfg(feature = "experimental-rayleigh")]
+    pub(crate) fn replace(&mut self, note: u8, model: NoteModel) {
+        self.notes[(note - 21) as usize] = model;
+    }
+
     pub fn get(&self, note: u8) -> &NoteModel {
         &self.notes[(note.clamp(21, 108) - 21) as usize]
     }

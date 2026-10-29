@@ -12,3 +12,6 @@ piano-core = { workspace = true, features = ["serde"] }
 serde.workspace = true
 toml.workspace = true
 midly.workspace = true
+
+[features]
+experimental-rayleigh = ["piano-core/experimental-rayleigh"]

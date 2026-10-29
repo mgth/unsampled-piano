@@ -7,6 +7,8 @@ pub mod complex;
 pub mod denormal;
 pub mod eigen;
 pub mod engine;
+#[cfg(feature = "experimental-rayleigh")]
+pub mod experimental;
 pub mod hammer;
 pub mod instrument;
 pub mod limiter;

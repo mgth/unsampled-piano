@@ -45,6 +45,11 @@ impl eframe::App for Window {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let mut control = self.control.lock().unwrap();
         control.poll();
+        #[cfg(feature = "experimental-rayleigh")]
+        if let Some(experiment) = crate::EXPERIMENT.get() {
+            ui.colored_label(egui::Color32::from_rgb(240, 175, 70), format!("TEST — {}", experiment.label));
+            ui.label("Rayonnement intégral · contacts par touche · paramètres acoustiques figés · retard commun 2,67 ms");
+        }
         self.ui.show(ui, &mut *control);
         // Voices and CPU load.
         ui.ctx().request_repaint_after(Duration::from_millis(250));

@@ -133,6 +133,7 @@ struct Report {
 
 pub struct Controller {
     model: PianoModel,
+    experimental: bool,
     /// The edited model, for the worker: an engine built from an older
     /// model takes the live parameters edited meanwhile.
     edited: Arc<Mutex<PianoModel>>,
@@ -158,7 +159,7 @@ pub fn new(model: PianoModel, cfg: EngineConfig) -> (Controller, EngineSlot) {
     let pool = Engine::pool_for(&cfg);
     let cfg = EngineConfig { model, threads: 1, ..cfg };
     let t = Instant::now();
-    let engine = Box::new(Engine::with_instrument(cfg, Arc::new(cfg.quality.instrument(&model, cfg.sample_rate))));
+    let engine = Box::new(Engine::with_instrument(cfg, Arc::new(cfg.instrument())));
     let report = Arc::new(Mutex::new(Report { last_build: Some(t.elapsed()), error: None }));
     let shared = Arc::new(Shared::default());
     let (params_tx, params_rx) = rtrb::RingBuffer::new(1024);
@@ -178,6 +179,7 @@ pub fn new(model: PianoModel, cfg: EngineConfig) -> (Controller, EngineSlot) {
     let slot = EngineSlot::new(engine, pool, engine_rx, reclaim_tx, params_rx, routes_rx, cc_tx, shared.clone());
     let controller = Controller {
         model,
+        experimental: cfg.experimental(),
         edited,
         params: params_tx,
         requests: Some(req_tx),
@@ -226,6 +228,10 @@ impl Controller {
 
     /// Updates the edited model only. Returns whether it changed.
     fn update(&mut self, path: &str, value: Value) -> bool {
+        if self.experimental {
+            self.error = Some("Rayleigh test: fixed contact and listening setup; restart with another bundle to change them".into());
+            return false;
+        }
         match piano_params::set(&self.model, path, value) {
             Ok(m) => {
                 self.model = m;
@@ -273,6 +279,10 @@ impl PianoControl for Controller {
     fn end_edit(&mut self, _path: &str) {}
 
     fn load(&mut self, model: PianoModel) {
+        if self.experimental {
+            self.error = Some("Rayleigh test: preset loading is disabled for this fixed comparison".into());
+            return;
+        }
         self.model = model;
         *self.edited.lock().unwrap() = model;
         self.error = None;
@@ -350,7 +360,7 @@ fn worker(
         }
         let t = Instant::now();
         let built = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            let inst = Arc::new(cfg.quality.instrument(&model, cfg.sample_rate));
+            let inst = Arc::new(EngineConfig { model, ..cfg }.instrument());
             Box::new(Engine::with_instrument(EngineConfig { model, ..cfg }, inst))
         }));
         let mut engine = match built {

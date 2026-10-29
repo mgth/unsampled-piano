@@ -43,6 +43,7 @@ audio_thread_priority = { version = "0.35", default-features = false }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console", "Win32_UI_WindowsAndMessaging"] }
 
 [features]
+experimental-rayleigh = ["piano-core/experimental-rayleigh", "piano-host/experimental-rayleigh", "piano-control/experimental-rayleigh"]
 # ASIO output on Windows (`--host asio`). Building it needs the Steinberg
 # ASIO SDK (`CPAL_ASIO_DIR`, else downloaded), libclang and MSVC.
 asio = ["cpal/asio"]

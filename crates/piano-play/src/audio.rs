@@ -247,7 +247,13 @@ impl Audio {
         // Overkill computes at the output's rate too.
         let factor = rate_factor(sr, self.settings.full_rate || self.settings.quality == Quality::Overkill);
         self.engine_rate = sr / factor as f64;
+        #[cfg(feature = "experimental-rayleigh")]
+        if crate::EXPERIMENT.get().is_some() && (self.engine_rate != 48000.0 || self.settings.quality != Quality::Full || self.settings.blackbox) {
+            return Err("Rayleigh test requires 48 kHz engine rate, Full quality and blackbox off".into());
+        }
         let cfg = EngineConfig {
+            #[cfg(feature = "experimental-rayleigh")]
+            experiment: crate::EXPERIMENT.get().copied(),
             sample_rate: self.engine_rate,
             max_block: MAX_BLOCK,
             model,

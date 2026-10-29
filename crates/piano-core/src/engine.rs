@@ -90,6 +90,29 @@ pub struct EngineConfig {
     /// CPU quality: parts of the model left out on smaller machines, applied
     /// to every instrument built ([`Quality::apply`]).
     pub quality: Quality,
+    /// Explicit, immutable research bundle. Absent in normal builds.
+    #[cfg(feature = "experimental-rayleigh")]
+    pub experiment: Option<&'static crate::experimental::Experiment>,
+}
+
+impl EngineConfig {
+    pub fn instrument(&self) -> Instrument {
+        #[cfg(feature = "experimental-rayleigh")]
+        if let Some(e) = self.experiment {
+            assert_eq!(self.quality, Quality::Full, "Rayleigh test requires Full quality");
+            assert_eq!(self.sample_rate, 48000.0, "Rayleigh test requires 48 kHz");
+            assert_eq!(self.model, e.model, "Rayleigh test geometry/contact is frozen");
+            return e.instrument();
+        }
+        self.quality.instrument(&self.model, self.sample_rate)
+    }
+
+    pub fn experimental(&self) -> bool {
+        #[cfg(feature = "experimental-rayleigh")]
+        { return self.experiment.is_some(); }
+        #[cfg(not(feature = "experimental-rayleigh"))]
+        { false }
+    }
 }
 
 impl Default for EngineConfig {
@@ -102,6 +125,8 @@ impl Default for EngineConfig {
             threads: 1,
             worker_init: None,
             quality: Quality::Full,
+            #[cfg(feature = "experimental-rayleigh")]
+            experiment: None,
         }
     }
 }
@@ -329,6 +354,8 @@ pub struct Engine {
     side_out: [[Vec<f32>; MICS]; 2],
     /// Indices of the voices rendered in the current segment.
     busy: Vec<usize>,
+    #[cfg(feature = "experimental-rayleigh")]
+    rayleigh: Option<crate::experimental::Radiator>,
 }
 
 /// Lets the pool's workers reach disjoint voices, banks and buffers.
@@ -342,13 +369,19 @@ const PARALLEL_MIN_VOICES: usize = 4;
 impl Engine {
     /// Builds the instrument (≈ 0.5 s): not for the audio thread.
     pub fn new(cfg: EngineConfig) -> Self {
-        Self::with_instrument(cfg, Arc::new(cfg.quality.instrument(&cfg.model, cfg.sample_rate)))
+        Self::with_instrument(cfg, Arc::new(cfg.instrument()))
     }
 
     /// Engine on a prebuilt (shared) instrument, built by
-    /// `cfg.quality.instrument`; `cfg.model` is ignored.
+    /// `cfg.instrument`; `cfg.model` is ignored outside experimental mode.
     pub fn with_instrument(cfg: EngineConfig, inst: Arc<Instrument>) -> Self {
         assert_eq!(inst.sample_rate, cfg.sample_rate);
+        #[cfg(feature = "experimental-rayleigh")]
+        if let Some(e) = cfg.experiment {
+            assert_eq!(cfg.sample_rate, 48000.0);
+            assert_eq!(cfg.quality, Quality::Full);
+            assert_eq!(inst.source, e.model);
+        }
         let cfg = EngineConfig { polyphony: cfg.quality.polyphony(cfg.polyphony), ..cfg };
         let shortcuts = cfg.quality.shortcuts();
         let capacity = inst.table.capacity();
@@ -432,6 +465,8 @@ impl Engine {
             pool: Self::pool_for(&cfg),
             side_out: std::array::from_fn(|_| std::array::from_fn(|_| vec![0.0; SUB_BLOCK])),
             busy: Vec::with_capacity(cfg.polyphony),
+            #[cfg(feature = "experimental-rayleigh")]
+            rayleigh: cfg.experiment.map(|e| e.radiator()),
         };
         // Strings without dampers always resonate.
         if e.sympathy() {
@@ -503,6 +538,7 @@ impl Engine {
     /// been sent as an [`Event::Param`] (an engine built from an older
     /// model catches up with the edits made meanwhile).
     pub fn set_live(&mut self, model: &PianoModel) {
+        if self.cfg.experimental() { return; }
         for &p in LiveParam::ALL {
             p.set(&mut self.base, p.get(model));
         }
@@ -661,6 +697,8 @@ impl Engine {
         self.render(pos, len);
 
         self.render_knocks(len);
+        #[cfg(feature = "experimental-rayleigh")]
+        if let Some(rad) = self.rayleigh.as_mut() { rad.clear_capture(); }
         left.fill(0.0);
         right.fill(0.0);
         for d in &mut self.disp {
@@ -724,6 +762,8 @@ impl Engine {
                         let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
                         low.process(&self.basis, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
                     }
+                    #[cfg(feature = "experimental-rayleigh")]
+                    if let Some(rad) = self.rayleigh.as_mut() { rad.capture(left, right); }
                     self.board_awake = has_input || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr);
                     if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
                         rim.process(&self.rim_force, len, [&mut *left, &mut *right]);
@@ -732,6 +772,10 @@ impl Engine {
                     for (k, run) in [run_frame, run_sym].into_iter().enumerate() {
                         if run {
                             let [l, r] = &self.side_out[k];
+                            #[cfg(feature = "experimental-rayleigh")]
+                            if k == 1 {
+                                if let Some(rad) = self.rayleigh.as_mut() { rad.add_capture(&l[..len], &r[..len]); }
+                            }
                             for (o, x) in left.iter_mut().zip(&l[..len]).chain(right.iter_mut().zip(&r[..len])) {
                                 *o += x;
                             }
@@ -745,6 +789,8 @@ impl Engine {
                             let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
                             low.process(&self.basis, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
                         }
+                        #[cfg(feature = "experimental-rayleigh")]
+                        if let Some(rad) = self.rayleigh.as_mut() { rad.capture(left, right); }
                         self.board_awake = has_input || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr);
                     }
                     if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
@@ -755,6 +801,16 @@ impl Engine {
                         frame.process(&self.region_agraffe, len, [&mut *left, &mut *right], None, None);
                     }
                     if let Some(bs) = self.board_sym.as_mut().filter(|_| run_sym) {
+                        #[cfg(feature = "experimental-rayleigh")]
+                        if let Some(rad) = self.rayleigh.as_mut() {
+                            let (mut l, mut r) = ([0.; SUB_BLOCK], [0.; SUB_BLOCK]);
+                            bs.process(&self.region_sym, len, [&mut l[..len], &mut r[..len]], None, None);
+                            rad.add_capture(&l[..len], &r[..len]);
+                            for i in 0..len { left[i] += l[i]; right[i] += r[i]; }
+                        } else {
+                            bs.process(&self.region_sym, len, [&mut *left, &mut *right], None, None);
+                        }
+                        #[cfg(not(feature = "experimental-rayleigh"))]
                         bs.process(&self.region_sym, len, [&mut *left, &mut *right], None, None);
                     }
                 }
@@ -782,6 +838,10 @@ impl Engine {
                     self.action.set_time(self.action_time);
                 }
                 self.action.render([&mut *left, &mut *right], out_gain * PRESSURE_GAIN);
+                #[cfg(feature = "experimental-rayleigh")]
+                if let Some(rad) = self.rayleigh.as_mut() {
+                    rad.process(&self.region, &self.region_sym, left, right, out_gain * PRESSURE_GAIN);
+                }
                 if let Some(room) = self.room.as_mut() {
                     room.process(left, right);
                 }
@@ -1029,6 +1089,7 @@ impl Engine {
             }
             Event::Control { .. } => {}
             Event::Param { id, value } => {
+                if self.cfg.experimental() { return; }
                 id.set(&mut self.base, value as f64);
                 self.refresh_live();
             }

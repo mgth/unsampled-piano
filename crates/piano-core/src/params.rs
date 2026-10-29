@@ -790,7 +790,7 @@ impl VelocityLaw {
 }
 
 /// The whole instrument description: laws evaluated per key.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct PianoModel {
     pub a4: f64,

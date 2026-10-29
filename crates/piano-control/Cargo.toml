@@ -14,3 +14,6 @@ rtrb.workspace = true
 
 [dev-dependencies]
 assert_no_alloc.workspace = true
+
+[features]
+experimental-rayleigh = ["piano-core/experimental-rayleigh"]

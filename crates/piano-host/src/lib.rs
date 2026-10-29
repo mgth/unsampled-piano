@@ -269,3 +269,6 @@ mod tests {
         assert_eq!(decode_midi(&[0xF8]), None);
     }
 }
+
+#[cfg(feature = "experimental-rayleigh")]
+pub mod experimental;

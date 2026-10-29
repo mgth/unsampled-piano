@@ -17,3 +17,6 @@ piano-host.workspace = true
 piano-control.workspace = true
 hound.workspace = true
 clap.workspace = true
+
+[features]
+experimental-rayleigh = ["piano-core/experimental-rayleigh", "piano-host/experimental-rayleigh", "piano-control/experimental-rayleigh"]

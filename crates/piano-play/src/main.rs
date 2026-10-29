@@ -22,6 +22,9 @@ mod player;
 mod settings;
 mod window;
 
+#[cfg(feature = "experimental-rayleigh")]
+pub(crate) static EXPERIMENT: std::sync::OnceLock<&'static piano_core::experimental::Experiment> = std::sync::OnceLock::new();
+
 use audio::{Audio, Queue, Settings, Start};
 use clap::Parser;
 use cpal::traits::HostTrait;
@@ -43,6 +46,10 @@ struct Args {
     /// last sound; any other replaces it.
     #[arg(long)]
     preset: Option<PathBuf>,
+    /// Test-only immutable Rayleigh/contact bundle (48 kHz, Full quality).
+    #[cfg(feature = "experimental-rayleigh")]
+    #[arg(long)]
+    experimental_rayleigh: Option<PathBuf>,
     /// MIDI input port to connect: substring of its name (default: the
     /// first hardware port).
     #[arg(long)]
@@ -173,6 +180,15 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     };
+    #[cfg(feature = "experimental-rayleigh")]
+    let model = if let Some(path) = &args.experimental_rayleigh {
+        let experiment = Box::leak(Box::new(piano_host::experimental::load(path)?));
+        eprintln!("EXPERIMENT: {} — integral radiation, per-key contacts, 128 samples common latency", experiment.label);
+        EXPERIMENT.set(experiment).map_err(|_| "experiment already initialized")?;
+        args.preset = None; // The bundle owns the fixed sound, no preset watcher.
+        args.blackbox = false; // The normal replay format does not carry the research bundle.
+        experiment.model
+    } else { model };
     let quality = match args.quality.as_deref() {
         Some(q) => piano_core::Quality::from_name(q).ok_or_else(|| format!("unknown quality {q:?}: overkill, full, balanced or light"))?,
         None => Default::default(),

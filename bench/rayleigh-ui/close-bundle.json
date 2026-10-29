@@ -1,0 +1,58 @@
+{
+  "geometry": "close",
+  "sample_rate": 48000,
+  "taps": 65536,
+  "latency": 128,
+  "contacts": {
+    "102": {
+      "params": {
+        "q": 1.0,
+        "h": 0.3,
+        "p": 0,
+        "w": 1,
+        "d": 0.0001
+      },
+      "extra": {
+        "strike_ratio": 0.105,
+        "shank_share": 0.45,
+        "shank_freq": 300,
+        "shank_loss": 2.0
+      }
+    },
+    "108": {
+      "params": {
+        "q": 0.3,
+        "h": 0.6,
+        "p": -1.0,
+        "w": 1.0,
+        "d": 1.5e-05
+      },
+      "extra": {
+        "shank_share": 0.45,
+        "shank_freq": 300,
+        "shank_loss": 0.05
+      }
+    }
+  },
+  "files": {
+    "base.toml": "f61697dca94bd6a61eef67b80fdd6b3c4aecfb06fac63928cf9031dd66af65ae",
+    "bundle.toml": "3dd6685ddbf951a95990d6fa45765903f4439290fab1a560e192aca037697854",
+    "n100.toml": "c3cfac00694f3c95ab19987bfca7a3a23815eb4bf642a99bdb27643ef5dcaf2a",
+    "n101.toml": "ae63872427a689fd3f6a0a3264b57ad2d49ce09dfe927a0b6d6221220f30b305",
+    "n102.toml": "a01d1d1dae7a75c1b263477445a32017c4c66d0fa736b7df30fb6a3ab39a9f6a",
+    "n103.toml": "449a053ab80c523ed04c0b57cd463eb6fc588fd62cc4eeebfc3c9ed46304507c",
+    "n104.toml": "243f4cb59ccc52c7e72f7e57ab882772cfbc81a0360ca10f753fd62f29c1929e",
+    "n105.toml": "4e06a98d1913699903836737aa5534d76c610ef5b9bf44e05ddde21f31990659",
+    "n106.toml": "4b136fbaa2eb2cb04eea7434bd0997c7092d0a72d7c729f6685466e64345c0aa",
+    "n107.toml": "17e4b28a07b9abfa5dddffd508ac0b50635371444120d0913ac4138d3330b430",
+    "n108.toml": "930b253b704c3d868758b7eb4030f396406fff767c3ef88de6969df75af284e5",
+    "n93.toml": "f61697dca94bd6a61eef67b80fdd6b3c4aecfb06fac63928cf9031dd66af65ae",
+    "n94.toml": "4bb3ac388528eca5603fbf3ec1ef9bc394a5e3b4a1c07612ad3c58fce36f642b",
+    "n95.toml": "ef95ceeac4398ca084165dda5c0a4e3f718769ff248fdf8247ef444bbb59a05b",
+    "n96.toml": "a57781e66ea0d7dc7789b03b7980273a029efc80f175d1a2cfa3c6fc60f00807",
+    "n97.toml": "f61697dca94bd6a61eef67b80fdd6b3c4aecfb06fac63928cf9031dd66af65ae",
+    "n98.toml": "78a862fd302b2e715e1ebe383530a9ebfa0f17d5623297fa0cf0ed963eed2d78",
+    "n99.toml": "f61697dca94bd6a61eef67b80fdd6b3c4aecfb06fac63928cf9031dd66af65ae",
+    "responses.f64": "489333a1d5d1c33e09f0b1fb1f3e125cd128e4da9ec0006e94d5d3131d10245e"
+  }
+}

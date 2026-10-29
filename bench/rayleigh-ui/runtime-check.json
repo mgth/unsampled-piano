@@ -1,0 +1,33 @@
+{
+  "thread_block_check": {
+    "identical_files": [
+      "n97v45.wav",
+      "n97v56.wav",
+      "n97v100.wav",
+      "n99v45.wav",
+      "n99v56.wav",
+      "n99v100.wav",
+      "n102v45.wav",
+      "n102v56.wav",
+      "n102v100.wav",
+      "n108v45.wav",
+      "n108v56.wav",
+      "n108v100.wav"
+    ],
+    "tested": {
+      "block": 128,
+      "threads": 2
+    },
+    "reference": {
+      "block": 512,
+      "threads": 1
+    }
+  },
+  "stress": "stress block=512 threads=2 mean_load=0.2040 p99_load=0.5083 max_load=0.5884 overruns=0 peak=0.37819 voices=88",
+  "binary_sha256": "84a358392c98b9bdc07ac9caec786e86a1a3447a7433b0926f8b9ea944cc86c6",
+  "active_bundle": "out/rayleigh-ui/player_actual/bundle.toml",
+  "normal_defaults_changed": false,
+  "service": "piano-rayleigh-test-ui.service",
+  "configuration": "/tmp/piano-rayleigh-ui/config",
+  "screenshot": "/tmp/piano-rayleigh-ui/test-ui.png"
+}

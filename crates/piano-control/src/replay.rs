@@ -43,7 +43,7 @@ pub fn replay(rec: &Recording) -> [Vec<f32>; 2] {
             }
             if let Some(m) = model {
                 let ecfg = EngineConfig { model: m, threads: 1, ..cfg };
-                slot.inject(Box::new(Engine::with_instrument(ecfg, Arc::new(cfg.quality.instrument(&m, cfg.sample_rate)))));
+                slot.inject(Box::new(Engine::with_instrument(ecfg, Arc::new(ecfg.instrument()))));
             }
             block.clear();
             while next < rec.events.len() && (rec.events[next].0 as usize) < start + len {
