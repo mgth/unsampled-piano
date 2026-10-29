@@ -17,9 +17,11 @@ model) are measured and shown but never enter the targets.
                                             with bench/baseline.json
 
 Note sets are laid out by tools/split_notes.py: <note>v<layer>.{wav,flac},
-every third key from A0, layers 4/8/13 (pp/mf/ff), played by the model at
-velocities 45/56/100. Docs: docs/bench.md."""
-import argparse, json, os, re, subprocess, sys, time
+layers 4/8/13 (pp/mf/ff), played by the model at velocities 45/56/100.
+Register measures use every third key; local harmonic profiles use all
+88 keys, with separate short renders for the intervening keys.
+Docs: docs/bench.md."""
+import argparse, csv, json, os, re, subprocess, sys, time
 from concurrent.futures import ThreadPoolExecutor
 import warnings
 import numpy as np, pandas as pd
@@ -28,6 +30,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REFS = os.path.join(ROOT, "bench", "references.json")
 BASELINE = os.path.join(ROOT, "bench", "baseline.json")
+HARMONIC_REFS = os.path.join(ROOT, "bench", "harmonic_references.json")
 SR = 48000
 NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 REGS = [(21, 47, "bass"), (48, 71, "middle"), (72, 95, "treble"), (96, 108, "top")]
@@ -35,6 +38,14 @@ KEYS = list(range(21, 109, 3))
 # Layer → model velocity: those BiVib recorded (the one reference whose
 # layers are measured MIDI velocities).
 LAYERS = {4: 45, 8: 56, 13: 100}
+# Keep the historical register score on its original keys. The local
+# comparison fills the intervening keys with shorter, separate renders.
+PROFILE_KEYS = list(range(21, 109))
+PROFILE_PARTIALS = list(range(2, 9))
+PROFILE_WINDOWS = {"attack": (0.0, 0.06), "sustain": (0.5, 0.5)}
+PROFILE_SPEC = dict(version=2, channels="mean spectral power; RMS onset", partials=PROFILE_PARTIALS,
+                    windows={k: list(v) for k, v in PROFILE_WINDOWS.items()},
+                    floor_db=4.0, min_refs=2, watch_db=6.0)
 HOLD = 20.0
 # How the model is heard: close microphones in a studio, as the references
 # were recorded (the engine's default is a concert hall heard from 1.5 m,
@@ -79,6 +90,12 @@ def f0(m): return 440 * 2 ** ((m - 69) / 12)
 def load(path):
     raw = subprocess.run(["sox", path, "-t", "f32", "-r", str(SR), "-c", "1", "-"], check=True, capture_output=True).stdout
     return np.frombuffer(raw, dtype=np.float32).astype(float)
+
+def load_stereo(path):
+    """Preserve the two channels for local timbre analysis; mono is duplicated."""
+    raw = subprocess.run(["sox", path, "-t", "f32", "-r", str(SR), "-c", "2", "-"],
+                         check=True, capture_output=True).stdout
+    return np.frombuffer(raw, dtype=np.float32).reshape(-1, 2).astype(float)
 
 def key_of(f):
     m = re.fullmatch(r"([A-G]#?)(-?\d)v\d+\.(wav|flac)", f)
@@ -165,6 +182,200 @@ def hf_share(x):
     s = onset(x); seg = x[s: s + int(0.06 * SR)]
     S = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2; f = np.fft.rfftfreq(len(seg), 1 / SR); tot = S.sum()
     return [10 * np.log10(S[(f >= a) & (f < b)].sum() / tot + 1e-12) for a, b in ((2000, 4000), (4000, 8000))]
+
+def stereo_partial_levels(x, m, t0, duration, ks=range(1, 9)):
+    """Peak amplitudes in dBFS from mean channel powers, never a mono sum.
+
+    A full-scale bin-centred sinusoid in both channels reads 0 dBFS.
+    Both onset and spectrum are invariant to channel polarity changes.
+    Search windows, noise exclusions and the 12 kHz ceiling match partials().
+    """
+    if x.ndim == 1: x = x[:, None]
+    if not len(x) or np.max(np.abs(x)) <= 1e-12:
+        return np.full(len(ks), np.nan)
+    energy = np.sqrt(np.mean(x * x, axis=1))
+    start = onset(energy) + int(t0 * SR)
+    n = int(duration * SR); seg = x[start:start + n]
+    if len(seg) < n: return np.full(len(ks), np.nan)
+    window = np.hanning(n)
+    N = max(n, 4096)
+    power = np.mean(np.abs(np.fft.rfft(seg * window[:, None], N, axis=0)) ** 2, axis=1)
+    power *= (2 / window.sum()) ** 2
+    f = np.fft.rfftfreq(N, 1 / SR)
+    result = []
+    for k in ks:
+        fk = k * f0(m) * np.sqrt(1 + 4e-4 * k * k * (1 if m > 60 else 0.3))
+        w = (f > fk * 0.94) & (f < fk * 1.08)
+        if fk >= 12000 or not w.any():
+            result.append(np.nan); continue
+        peak = 10 * np.log10(power[w].max() + 1e-30)
+        if 0.14 * fk >= 8 * 2 * SR / n and peak - 10 * np.log10(np.median(power[w]) + 1e-30) < NOISE_MARGIN:
+            peak = np.nan
+        result.append(peak)
+    return np.array(result)
+
+def measure_profiles(directories):
+    """Exact-key profiles, with no interpolation or averaging over notes.
+
+    Load one recording at a time; missing/inaudible partials stay null.
+    Earlier directories take precedence (the historical long renders).
+    """
+    profiles = {}
+    for m in PROFILE_KEYS:
+        for layer in LAYERS:
+            path = next((p for d in directories if os.path.isdir(d)
+                         for p in [find(d, m, layer)] if p), None)
+            if path is None: continue
+            x = load_stereo(path)
+            for phase, (start, duration) in PROFILE_WINDOWS.items():
+                levels = stereo_partial_levels(x, m, start, duration, [1] + PROFILE_PARTIALS)
+                values = levels[1:] - levels[0]
+                profiles[f"{m}|{layer}|{phase}"] = [float(v) if np.isfinite(v) else None for v in values]
+    return profiles
+
+def refresh_profile_refs(refs, names=None):
+    old = {}
+    if os.path.exists(HARMONIC_REFS):
+        with open(HARMONIC_REFS) as f: old = json.load(f)
+    if old.get("spec") != PROFILE_SPEC: old = dict(spec=PROFILE_SPEC, sources={})
+    for nm, source in refs["sources"].items():
+        if source["role"] != "target" or (names is not None and nm not in names): continue
+        directory = os.path.join(ROOT, source["dir"])
+        if not os.path.isdir(directory):
+            raise FileNotFoundError(f"harmonic reference {nm}: {directory}")
+        print(f"measuring harmonic profiles: {nm}", file=sys.stderr)
+        old["sources"][nm] = dict(dir=source["dir"], profiles=measure_profiles([directory]))
+    os.makedirs(os.path.dirname(HARMONIC_REFS), exist_ok=True)
+    with open(HARMONIC_REFS, "w") as f:
+        json.dump(old, f, indent=1, allow_nan=False)
+
+def load_profile_refs(refs):
+    if not os.path.exists(HARMONIC_REFS):
+        raise ValueError("Missing harmonic references; run tools/bench.py refs --harmonics-only")
+    with open(HARMONIC_REFS) as f: data = json.load(f)
+    if data.get("spec") != PROFILE_SPEC:
+        raise ValueError("Outdated harmonic references; run tools/bench.py refs --harmonics-only")
+    targets = {}
+    for nm, source in refs["sources"].items():
+        if source["role"] != "target": continue
+        saved = data["sources"].get(nm)
+        if saved is None or saved["dir"] != source["dir"]:
+            raise ValueError(f"Missing/outdated harmonic reference {nm}; run tools/bench.py refs --harmonics-only")
+        targets[nm] = saved["profiles"]
+    return targets
+
+def score_profiles(profiles, targets):
+    """Local warnings survive opposite errors on other keys.
+
+    OFF: any partial beyond 2 spreads. WATCH: at least two partials in
+    the same direction beyond 1 spread AND 6 dB. This is a spectral
+    discrepancy warning, not a perceptual classifier for nasality.
+    """
+    result = {}
+    for m in PROFILE_KEYS:
+        for layer, velocity in LAYERS.items():
+            for phase in PROFILE_WINDOWS:
+                key = f"{m}|{layer}|{phase}"
+                values = profiles.get(key, [None] * len(PROFILE_PARTIALS))
+                components = []
+                for i, k in enumerate(PROFILE_PARTIALS):
+                    rv = {nm: p[key][i] for nm, p in targets.items()
+                          if key in p and p[key][i] is not None and np.isfinite(p[key][i])}
+                    row = dict(partial=k, value=values[i], refs=rv, target=None, delta_db=None, z=None)
+                    if values[i] is not None and np.isfinite(values[i]) and len(rv) >= PROFILE_SPEC["min_refs"]:
+                        target = float(np.mean(list(rv.values())))
+                        tol = max(float(np.std(list(rv.values()))), PROFILE_SPEC["floor_db"])
+                        row.update(target=target, delta_db=values[i] - target, tol=tol,
+                                   z=(values[i] - target) / tol)
+                    components.append(row)
+                scored = [c for c in components if c["z"] is not None]
+                coherent = max((sum(sign * c["z"] > 1 and sign * c["delta_db"] >= PROFILE_SPEC["watch_db"]
+                                    for c in scored) for sign in (-1, 1)), default=0)
+                status = ("OFF" if any(abs(c["z"]) > 2 for c in scored) else
+                          "WATCH" if coherent >= 2 else "ok" if len(scored) >= 2 else "insufficient")
+                result[key] = dict(note=name(m), midi=m, layer=layer, velocity=velocity,
+                                   phase=phase, status=status, measured=key in profiles,
+                                   compared=len(scored), components=components)
+    return result
+
+def profile_summary(rows):
+    counts = {status: sum(r["status"] == status for r in rows.values())
+              for status in ("OFF", "WATCH", "ok", "insufficient")}
+    counts["missing"] = sum(not r["measured"] for r in rows.values())
+    counts["notes_alerted"] = len({r["midi"] for r in rows.values() if r["status"] in ("OFF", "WATCH")})
+    return counts
+
+def profile_reference_checks(targets):
+    """Leave each real piano out before scoring it against the others.
+
+    Local variability and sparse reference support make these alert rates
+    a necessary context, rather than treating every OFF as a model fault.
+    """
+    checks = {}
+    for nm, profiles in targets.items():
+        rows = score_profiles(profiles, {n: p for n, p in targets.items() if n != nm})
+        measured = {k: row for k, row in rows.items() if row["measured"]}
+        checks[nm] = dict(profile_summary(measured), profiles=len(measured))
+    return checks
+
+def profile_report(rows, baseline=None, reference_checks=None):
+    s = profile_summary(rows)
+    lines = ["## Harmonic profiles: every key, three velocities", "",
+             f"**{s['OFF']} OFF, {s['WATCH']} WATCH**, on {s['notes_alerted']} keys. "
+             f"{s['insufficient']} profiles have insufficient usable comparisons; {s['missing']} profiles lack a recording.", "",
+             "Each cell compares p2–p8 / p1 at the same key and layer against real target pianos. "
+             "Channel powers are averaged after the FFT; there is no mono summing cancellation. "
+             "OFF: any |z| > 2. WATCH: at least two partials in the same direction with |z| > 1 and ≥ 6 dB deviation. "
+             "Tolerance: max(reference standard deviation, 4 dB), at least two references per partial. "
+             "These are local spectral warnings, not a diagnosis of nasality; they do not enter the historical register score.", "",
+             "Attack: 0–60 ms; sustain: 0.5–1 s. Velocities 45/56/100 use reference layers 4/8/13 "
+             "(only BiVib has these exact calibrated MIDI velocities). "
+             "Cells show status and the largest |z| component's deviation in dB. "
+             "Insufficient data is never counted as a pass. Full values, z and reference counts: [harmonic_profiles.csv](harmonic_profiles.csv).", ""]
+    if reference_checks:
+        lines += ["Real pianos also trigger local alerts when compared with the others. "
+                  "Below, each reference is excluded from its own targets; coverage differs between sources. "
+                  "High counts here mean the alert thresholds are not selective enough to certify audible defects. "
+                  "Use the local differences and baseline changes for diagnosis, not OFF counts alone.", "",
+                  "| held-out real piano | comparable profiles | OFF | WATCH | insufficient |",
+                  "|---|---|---|---|---|"]
+        for nm, check in reference_checks.items():
+            comparable = check["profiles"] - check["insufficient"]
+            lines.append(f"| {nm} | {comparable} | {check['OFF']} | {check['WATCH']} | {check['insufficient']} |")
+        lines.append("")
+    if baseline is None:
+        lines += ["Baseline: no harmonic profiles saved yet.", ""]
+    else:
+        alerts = {k for k, r in rows.items() if r["status"] in ("OFF", "WATCH")}
+        previous = {k for k, r in baseline.items() if r["status"] in ("OFF", "WATCH")}
+        comparable = {k for k in rows if rows[k]["status"] != "insufficient" and baseline[k]["status"] != "insufficient"}
+        lines += [f"Against baseline: {len((alerts - previous) & comparable)} new alerted profiles, "
+                  f"{len((previous - alerts) & comparable)} cleared (comparable profiles only).", ""]
+    lines += ["| note (MIDI) | 45 attack | 45 sustain | 56 attack | 56 sustain | 100 attack | 100 sustain |",
+              "|---|---|---|---|---|---|---|"]
+    for m in PROFILE_KEYS:
+        cells = []
+        for layer in LAYERS:
+            for phase in PROFILE_WINDOWS:
+                row = rows[f"{m}|{layer}|{phase}"]
+                valid = [c for c in row["components"] if c["z"] is not None]
+                cell = row["status"]
+                if valid:
+                    peak = max(valid, key=lambda c: abs(c["z"]))
+                    cell += f" p{peak['partial']} {peak['delta_db']:+.1f}"
+                cells.append(cell)
+        lines.append(f"| {name(m)} ({m}) | " + " | ".join(cells) + " |")
+    return lines + [""]
+
+def write_profile_csv(rows, path):
+    fields = ["note", "midi", "velocity", "layer", "phase", "status", "partial", "value_db", "target_db", "delta_db", "z", "reference_count", "references"]
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields); writer.writeheader()
+        for row in rows.values():
+            for c in row["components"]:
+                writer.writerow(dict({k: row[k] for k in fields[:6]}, partial=c["partial"],
+                                     value_db=c["value"], target_db=c["target"], delta_db=c["delta_db"], z=c["z"],
+                                     reference_count=len(c["refs"]), references=json.dumps(c["refs"], sort_keys=True)))
 
 # Measures: name → (family, floor of the tolerance, component labels, log
 # scale). Families group them in the summary.
@@ -280,13 +491,13 @@ def survey(d, csv):
 def build():
     subprocess.run(["cargo", "build", "--release", "-q", "-p", "piano-render", "-p", "piano-analysis"], cwd=ROOT, check=True)
 
-def render(out, preset, listening=None):
+def render(out, preset, listening=None, keys=None, hold=HOLD):
     exe = os.path.join(ROOT, "target", "release", "unsampled-piano-render")
     os.makedirs(out, exist_ok=True)
-    jobs = [(m, l, v) for m in KEYS for l, v in LAYERS.items()]
+    jobs = [(m, l, v) for m in (KEYS if keys is None else keys) for l, v in LAYERS.items()]
     def one(j):
         m, l, v = j
-        cmd = [exe, "note", "--note", str(m), "--velocity", str(v), "--hold", str(HOLD), "--tail", "0.5"]
+        cmd = [exe, "note", "--note", str(m), "--velocity", str(v), "--hold", str(hold), "--tail", "0.5"]
         if preset: cmd += ["--preset", preset]
         cmd += listening_args(listening) + playback_args()
         subprocess.run(cmd + [os.path.join(out, f"{name(m)}v{l}.wav")], check=True, capture_output=True)
@@ -325,7 +536,7 @@ def fmt_val(meas, v):
 
 def mark(zv): return "ok" if abs(zv) <= 1 else ("~" if abs(zv) <= 2 else "OFF")
 
-def report(name_, z, info, base, path):
+def report(name_, z, info, base, path, profiles=None, profile_base=None, reference_checks=None):
     s = summary(z)
     L = [f"# Bench: {name_}", "", f"Score (RMS of z, lower is better): **{s['score']:.2f}** — "
          f"{100 * s['within']:.0f} % of the measures within the real pianos, {s['off']} off (|z| > 2).", ""]
@@ -336,6 +547,8 @@ def report(name_, z, info, base, path):
           "| RMS z | " + " | ".join(f"{v:.2f}" for v in s["families"].values()) + " |", "",
           "| register | " + " | ".join(s["registers"]) + " |", "|---|" + "---|" * len(s["registers"]),
           "| RMS z | " + " | ".join(f"{v:.2f}" for v in s["registers"].values()) + " |", ""]
+    if profiles is not None:
+        L += profile_report(profiles, profile_base, reference_checks)
     if base:
         moved = []
         for k, c in z.items():
@@ -370,7 +583,8 @@ def git_commit():
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    a = sub.add_parser("refs"); a.add_argument("sources", nargs="+")
+    a = sub.add_parser("refs"); a.add_argument("sources", nargs="*")
+    a.add_argument("--harmonics-only", action="store_true", help="refresh harmonic profiles of all registered targets, without redoing the historical measures")
     b = sub.add_parser("run")
     b.add_argument("--preset"); b.add_argument("--name", default="model")
     b.add_argument("--listening", action="append", help="listening preset(s) over the instrument (default: close microphones, studio; none: the engine's own)")
@@ -380,6 +594,11 @@ def main():
     b.add_argument("--save-baseline", action="store_true")
     args = ap.parse_args()
     if args.cmd == "refs":
+        if args.harmonics_only:
+            if args.sources: ap.error("--harmonics-only uses registered sources; omit source arguments")
+            refresh_profile_refs(json.load(open(REFS)))
+            return
+        if not args.sources: ap.error("refs requires sources, or --harmonics-only")
         if not os.path.exists(os.path.join(ROOT, "target", "release", "piano-survey")): build()
         old = json.load(open(REFS)) if os.path.exists(REFS) else {"sources": {}}
         work = os.path.join(ROOT, "out", "bench", "refs"); os.makedirs(work, exist_ok=True)
@@ -405,14 +624,22 @@ def main():
                                       dir=os.path.relpath(os.path.abspath(d), ROOT), options=opts, metrics=metrics)
         os.makedirs(os.path.dirname(REFS), exist_ok=True)
         json.dump(old, open(REFS, "w"), indent=1)
+        refresh_profile_refs(old, names={s.split("=", 1)[0] for s in args.sources})
         print(f"wrote {os.path.relpath(REFS, ROOT)}", file=sys.stderr)
         return
     refs = json.load(open(REFS))
+    try:
+        profile_targets = load_profile_refs(refs)
+    except ValueError as e:
+        ap.error(str(e))
     out = os.path.join(args.out, args.name); notes = os.path.join(out, "notes")
+    harmonic_notes = os.path.join(out, "harmonic_notes")
     t = time.time()
     if not args.reuse:
         if not args.no_build: build()
         render(notes, args.preset, args.listening)
+        render(harmonic_notes, args.preset, args.listening,
+               keys=[m for m in PROFILE_KEYS if m not in KEYS], hold=1.5)
     csv = os.path.join(out, "survey.csv"); survey(notes, csv)
     metrics = measure_set(notes, csv)
     z = score(metrics, refs)
@@ -420,16 +647,29 @@ def main():
     base = json.load(open(BASELINE)) if os.path.exists(BASELINE) else None
     # The baseline keeps its measures, scored against today's references.
     if base: base["z"] = score(base["metrics"], refs)
+    profiles = measure_profiles([notes, harmonic_notes])
+    profile_scores = score_profiles(profiles, profile_targets)
+    reference_checks = profile_reference_checks(profile_targets)
+    profile_base = (score_profiles(base["harmonic_profiles"], profile_targets)
+                    if base and base.get("harmonic_spec") == PROFILE_SPEC else None)
+    write_profile_csv(profile_scores, os.path.join(out, "harmonic_profiles.csv"))
     path = os.path.join(out, "scorecard.md")
-    s = report(args.name, z, info, base, path)
-    json.dump(dict(commit=git_commit(), preset=args.preset, listening=args.listening, metrics=metrics, z=z), open(os.path.join(out, "result.json"), "w"), indent=1)
+    s = report(args.name, z, info, base, path, profile_scores, profile_base, reference_checks)
+    json.dump(dict(commit=git_commit(), preset=args.preset, listening=args.listening, metrics=metrics, z=z,
+                   harmonic_spec=PROFILE_SPEC, harmonic_profiles=profiles, harmonic_scores=profile_scores,
+                   harmonic_summary=profile_summary(profile_scores), harmonic_reference_checks=reference_checks),
+              open(os.path.join(out, "result.json"), "w"), indent=1)
     print(f"score {s['score']:.2f}, {100 * s['within']:.0f} % within the real pianos, {s['off']} off — "
           + ", ".join(f"{f} {v:.2f}" for f, v in s["families"].items()))
+    hs = profile_summary(profile_scores)
+    print(f"harmonic profiles: {hs['OFF']} OFF, {hs['WATCH']} WATCH on {hs['notes_alerted']} keys; "
+          f"{hs['insufficient']} insufficient, {hs['missing']} missing")
     if base:
         b = summary(base["z"]); print(f"baseline {base.get('commit', '?')}: score {b['score']:.2f}, {b['off']} off")
     print(f"{os.path.relpath(path, ROOT)} ({time.time() - t:.0f} s)")
     if args.save_baseline:
-        json.dump(dict(commit=git_commit(), preset=args.preset, metrics=metrics), open(BASELINE, "w"), indent=1)
+        json.dump(dict(commit=git_commit(), preset=args.preset, metrics=metrics,
+                       harmonic_spec=PROFILE_SPEC, harmonic_profiles=profiles), open(BASELINE, "w"), indent=1)
         print(f"wrote {os.path.relpath(BASELINE, ROOT)}")
 
 if __name__ == "__main__":
