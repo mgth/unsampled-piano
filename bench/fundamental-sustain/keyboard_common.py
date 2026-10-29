@@ -20,7 +20,7 @@ def save(path,value):
 
 def measure(path,n):
  x=s.b.load_stereo(str(path))
- data={k:s.hd.pack(a) for k,a in s.hd.describe(x,n).items()}
+ data={k:s.hd.pack(a) for k,a in s.hd.describe(x,n,fft_padding=1).items()}
  data.update(path=str(Path(path).resolve()),sha256=sha(path),duration=len(x)/s.b.SR,peak=float(abs(x).max()))
  return data
 

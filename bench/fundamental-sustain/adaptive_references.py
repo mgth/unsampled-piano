@@ -11,14 +11,19 @@ from adaptive_scan import O,FOCUS
 MODEL_NAMES={'main','current','previous','candidate'}
 MAX_SPAN=6
 
-def valid(row):return row is not None and all(z is not None for z in row['curve'])
+def valid(row):return row is not None and bool(row['curve']) and all(z is not None and np.isfinite(z) for z in row['curve'])
+
+def compatible(row,n):
+ expected=[.25,.5,.75,1.1] if n<40 else [.03,.25,.5,.75,1.1]
+ return (valid(row) and len(row['curve'])==len(expected)
+         and row.get('times',expected)==expected and row.get('anchor',expected[0])==expected[0])
 
 def bracket(rows,n,v,piano):
  lower=[];upper=[]
  for m in range(max(21,n-MAX_SPAN),min(108,n+MAX_SPAN)+1):
-  if m==n:continue
+  if m==n or (m<40)!=(n<40):continue
   r=rows.get(f'{m}|{v}',{}).get(piano)
-  if valid(r):(lower if m<n else upper).append(m)
+  if compatible(r,n):(lower if m<n else upper).append(m)
  if not lower or not upper:return None
  lo=max(lower);hi=min(upper)
  if hi-lo>MAX_SPAN:return None

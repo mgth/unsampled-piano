@@ -24,8 +24,8 @@ def job(name,bundle):
  for n in notes:
   for v in vel:
    x=s.b.load_stereo(str(out/f'n{n}v{v}.wav'))
-   rows[f'{n}|{v}']={k:s.hd.pack(a) for k,a in s.hd.describe(x,n).items()}
-   rows[f'{n}|{v}']['late_levels']=s.hd.pack([s.b.stereo_partial_levels(x,n,t,.2) for t in [1.5,2.,3.]])
+   rows[f'{n}|{v}']={k:s.hd.pack(a) for k,a in s.hd.describe(x,n,fft_padding=1).items()}
+   rows[f'{n}|{v}']['late_levels']=s.hd.pack([s.b.stereo_partial_levels(x,n,t,.2,fft_padding=1) for t in [1.5,2.,3.]])
  (out/'metrics.json').write_text(json.dumps(rows,indent=1));return name,rows
 with ThreadPoolExecutor(2) as pool:
  futures=[pool.submit(job,'prototype_base',source/'bundle.toml'),pool.submit(job,'prototype_test',d/'bundle.toml')]

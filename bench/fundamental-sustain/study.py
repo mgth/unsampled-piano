@@ -30,7 +30,7 @@ def job(item):
    rows[f'{n}|{v}']={}
    for stage,suffix in [('audio',''),('force','-force')]:
     x=b.load_stereo(str(d/f'n{n}v{v}{suffix}.wav'))
-    rows[f'{n}|{v}'][stage]={k:hd.pack(a) for k,a in hd.describe(x,n).items()}
+    rows[f'{n}|{v}'][stage]={k:hd.pack(a) for k,a in hd.describe(x,n,fft_padding=1).items()}
  (d/'metrics.json').write_text(json.dumps(rows,indent=1));print('done',name,flush=True);return name,rows
 if __name__=='__main__':
  with ThreadPoolExecutor(4) as pool:results=dict(pool.map(job,VARIANTS.items()))

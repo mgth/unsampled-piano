@@ -4,3 +4,4 @@
 !tests/data/*.wav
 /data
 __pycache__/
+.claude/launch.json

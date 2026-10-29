@@ -35,6 +35,21 @@ The local comparison retains each key, velocity layer and time window separately
 
 For each component, the targets are real pianos with a recording of **that exact key and layer**. No neighbouring-key interpolation is used, and sources marked `info` never enter the targets. At least two usable reference values are required. The target is their mean; z uses their standard deviation with a 4 dB minimum tolerance. Layers 4/8/13 correspond to the model's MIDI velocities 45/56/100, but only BiVib's velocities are calibrated to that exact scale; the other pianos supply corresponding soft/medium/loud layers. Their own variation remains in the tolerance.
 
+Specification **v3** adds eightfold FFT zero padding: the short attack's narrow
+H1 search band no longer falls between FFT bins on A0, A♯0, B0, D♯1, E1 and
+G♯1. This samples the existing spectrum more finely; it does not improve the
+physical resolution of a 60 ms window or guarantee that weak bass H1 is
+separable from H2. All eight harmonic reference caches were regenerated.
+Profiles are measured with four workers. Full recordings are retained because
+the onset threshold depends on their global peak and attacks may start after
+1.2 s; a fixed prefix trim would change the measurement.
+
+After a specification change, partial `refs NAME=directory` updates are refused
+before either reference file is modified. First run `refs --harmonics-only`
+with all target corpora available. If that full measurement fails, the old
+harmonic cache is preserved. Once the cache matches, partial updates keep the
+other targets.
+
 Each note/layer/window is classified independently:
 
 - **OFF**: at least one usable partial has |z| > 2.
@@ -52,7 +67,14 @@ The scorecard also checks each real piano against the other real pianos, excludi
 
 A normal run needs this checked-in JSON, not the reference recordings. Missing or outdated reference specifications stop the run with the refresh command. `--reuse` reads the existing long and short note folders without rendering; on an older run that has only every third key, the missing keys are explicitly reported as insufficient. Run again without `--reuse` to obtain full coverage.
 
-`--save-baseline` saves the raw harmonic profiles too. Subsequent runs rescore them against current references and count newly alerted and cleared profiles, comparing only usable profiles on both sides. Older baselines remain readable and display “no harmonic profiles saved yet”.
+`--save-baseline` saves the raw harmonic profiles too, but refuses to overwrite
+the baseline if any recording is missing (including an old `--reuse` directory
+without the intermediate keys). Re-render without `--reuse` first. Unreadable
+partials in present recordings remain explicitly insufficient. Subsequent runs
+rescore profiles against current references, report the comparable coverage
+and missing baseline recordings, and count newly alerted and cleared profiles
+only within that coverage. Older baselines or different harmonic specifications
+display “no harmonic profiles saved yet”.
 
 Tests of cancellation, velocity separation, sparse references, missing/noisy values, gain invariance, time windows and target filtering:
 
@@ -60,7 +82,7 @@ Tests of cancellation, velocity separation, sparse references, missing/noisy val
 
 ### First complete run, superseded mono profiles (2026-10-29)
 
-The numbers in this subsection describe specification v1, retained to document the initial finding. Do not compare them with the current v2 local profiles: mono summing suppressed E4's H2 by about 29 dB in the sustain. The original graph based on those profiles is likewise superseded. Rebuilding references and rerunning `--reuse` corrects this without rendering again; older harmonic baselines must be measured again before comparison.
+The numbers in this subsection describe specification v1, retained to document the initial finding. Do not compare them with the current v3 local profiles: mono summing suppressed E4's H2 by about 29 dB in the sustain. The original graph based on those profiles is likewise superseded. Rebuilding references and rerunning `--reuse` corrects this without rendering again; older harmonic baselines must be measured again before comparison.
 
 On the default model at commit `4a00f00`, the historical score remains **1.11**. The 528 local profiles (88 × 3 × 2) have no missing recordings; 36 have insufficient usable partial comparisons, split equally between the lowest and highest octaves. D#4 (MIDI 63) is flagged in the sustain at all three velocities:
 

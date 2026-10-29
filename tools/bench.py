@@ -43,7 +43,7 @@ LAYERS = {4: 45, 8: 56, 13: 100}
 PROFILE_KEYS = list(range(21, 109))
 PROFILE_PARTIALS = list(range(2, 9))
 PROFILE_WINDOWS = {"attack": (0.0, 0.06), "sustain": (0.5, 0.5)}
-PROFILE_SPEC = dict(version=2, channels="mean spectral power; RMS onset", partials=PROFILE_PARTIALS,
+PROFILE_SPEC = dict(version=3, channels="mean spectral power; RMS onset", fft_padding=8, partials=PROFILE_PARTIALS,
                     windows={k: list(v) for k, v in PROFILE_WINDOWS.items()},
                     floor_db=4.0, min_refs=2, watch_db=6.0)
 HOLD = 20.0
@@ -183,7 +183,7 @@ def hf_share(x):
     S = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2; f = np.fft.rfftfreq(len(seg), 1 / SR); tot = S.sum()
     return [10 * np.log10(S[(f >= a) & (f < b)].sum() / tot + 1e-12) for a, b in ((2000, 4000), (4000, 8000))]
 
-def stereo_partial_levels(x, m, t0, duration, ks=range(1, 9)):
+def stereo_partial_levels(x, m, t0, duration, ks=range(1, 9), *, fft_padding=8):
     """Peak amplitudes in dBFS from mean channel powers, never a mono sum.
 
     A full-scale bin-centred sinusoid in both channels reads 0 dBFS.
@@ -198,7 +198,7 @@ def stereo_partial_levels(x, m, t0, duration, ks=range(1, 9)):
     n = int(duration * SR); seg = x[start:start + n]
     if len(seg) < n: return np.full(len(ks), np.nan)
     window = np.hanning(n)
-    N = max(n, 4096)
+    N = max(fft_padding * n, 4096)
     power = np.mean(np.abs(np.fft.rfft(seg * window[:, None], N, axis=0)) ** 2, axis=1)
     power *= (2 / window.sum()) ** 2
     f = np.fft.rfftfreq(N, 1 / SR)
@@ -217,27 +217,43 @@ def stereo_partial_levels(x, m, t0, duration, ks=range(1, 9)):
 def measure_profiles(directories):
     """Exact-key profiles, with no interpolation or averaging over notes.
 
-    Load one recording at a time; missing/inaudible partials stay null.
+    Decode at most four recordings concurrently; unreadable partials stay null.
     Earlier directories take precedence (the historical long renders).
     """
-    profiles = {}
+    jobs = []
     for m in PROFILE_KEYS:
         for layer in LAYERS:
             path = next((p for d in directories if os.path.isdir(d)
                          for p in [find(d, m, layer)] if p), None)
             if path is None: continue
-            x = load_stereo(path)
-            for phase, (start, duration) in PROFILE_WINDOWS.items():
-                levels = stereo_partial_levels(x, m, start, duration, [1] + PROFILE_PARTIALS)
-                values = levels[1:] - levels[0]
-                profiles[f"{m}|{layer}|{phase}"] = [float(v) if np.isfinite(v) else None for v in values]
-    return profiles
+            jobs.append((m, layer, path))
+    def measure(job):
+        m, layer, path = job
+        # Keep the full signal: onset is relative to its global peak. A fixed
+        # 1.2 s trim would change that threshold or lose delayed attacks.
+        x = load_stereo(path)
+        profiles = {}
+        for phase, (start, duration) in PROFILE_WINDOWS.items():
+            levels = stereo_partial_levels(x, m, start, duration, [1] + PROFILE_PARTIALS)
+            values = levels[1:] - levels[0]
+            profiles[f"{m}|{layer}|{phase}"] = [float(v) if np.isfinite(v) else None for v in values]
+        return profiles
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        return {key: values for result in pool.map(measure, jobs) for key, values in result.items()}
 
-def refresh_profile_refs(refs, names=None):
+def profile_reference_cache(names=None):
     old = {}
     if os.path.exists(HARMONIC_REFS):
         with open(HARMONIC_REFS) as f: old = json.load(f)
-    if old.get("spec") != PROFILE_SPEC: old = dict(spec=PROFILE_SPEC, sources={})
+    if old.get("spec") != PROFILE_SPEC:
+        if names is not None:
+            raise ValueError("Harmonic specification changed or cache missing; partial refs update refused. "
+                             "Run tools/bench.py refs --harmonics-only with all target corpora available first.")
+        old = dict(spec=PROFILE_SPEC, sources={})
+    return old
+
+def refresh_profile_refs(refs, names=None):
+    old = profile_reference_cache(names)
     for nm, source in refs["sources"].items():
         if source["role"] != "target" or (names is not None and nm not in names): continue
         directory = os.path.join(ROOT, source["dir"])
@@ -350,7 +366,9 @@ def profile_report(rows, baseline=None, reference_checks=None):
         previous = {k for k, r in baseline.items() if r["status"] in ("OFF", "WATCH")}
         comparable = {k for k in rows if rows[k]["status"] != "insufficient" and baseline[k]["status"] != "insufficient"}
         lines += [f"Against baseline: {len((alerts - previous) & comparable)} new alerted profiles, "
-                  f"{len((previous - alerts) & comparable)} cleared (comparable profiles only).", ""]
+                  f"{len((previous - alerts) & comparable)} cleared (comparable profiles only).",
+                  f"Baseline coverage: {len(comparable)}/{len(rows)} profiles comparable; "
+                  f"{sum(not r['measured'] for r in baseline.values())} baseline recordings missing.", ""]
     lines += ["| note (MIDI) | 45 attack | 45 sustain | 56 attack | 56 sustain | 100 attack | 100 sustain |",
               "|---|---|---|---|---|---|---|"]
     for m in PROFILE_KEYS:
@@ -599,6 +617,10 @@ def main():
             refresh_profile_refs(json.load(open(REFS)))
             return
         if not args.sources: ap.error("refs requires sources, or --harmonics-only")
+        try:
+            profile_reference_cache(names={s.split("=", 1)[0] for s in args.sources})
+        except ValueError as e:
+            ap.error(str(e))
         if not os.path.exists(os.path.join(ROOT, "target", "release", "piano-survey")): build()
         old = json.load(open(REFS)) if os.path.exists(REFS) else {"sources": {}}
         work = os.path.join(ROOT, "out", "bench", "refs"); os.makedirs(work, exist_ok=True)
@@ -649,6 +671,9 @@ def main():
     if base: base["z"] = score(base["metrics"], refs)
     profiles = measure_profiles([notes, harmonic_notes])
     profile_scores = score_profiles(profiles, profile_targets)
+    if args.save_baseline and profile_summary(profile_scores)["missing"]:
+        ap.error("Cannot save baseline: harmonic recordings are missing. "
+                 "Render all 88 keys (run without --reuse) before --save-baseline.")
     reference_checks = profile_reference_checks(profile_targets)
     profile_base = (score_profiles(base["harmonic_profiles"], profile_targets)
                     if base and base.get("harmonic_spec") == PROFILE_SPEC else None)

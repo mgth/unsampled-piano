@@ -3,6 +3,8 @@ import json
 import os
 import tempfile
 import unittest
+import io
+import sys
 from unittest.mock import patch
 
 import numpy as np
@@ -12,6 +14,84 @@ import harmonic_diagnostic as hd
 
 
 class HarmonicProfiles(unittest.TestCase):
+    def test_short_attack_has_bins_for_every_low_bass_fundamental(self):
+        t = np.arange(int(.2 * b.SR)) / b.SR
+        for note in [21, 22, 23, 27, 28, 32]:
+            with self.subTest(note=note):
+                x = np.sin(2 * np.pi * b.f0(note) * t)
+                self.assertTrue(np.isfinite(b.stereo_partial_levels(x, note, 0, .06, [1])).all())
+                self.assertTrue(np.isnan(b.stereo_partial_levels(x, note, 0, .06, [1], fft_padding=1)).all())
+
+    def test_partial_reference_refresh_refuses_schema_change_without_erasing_cache(self):
+        with tempfile.TemporaryDirectory() as d:
+            filename = os.path.join(d, 'harmonics.json')
+            original = json.dumps(dict(spec={'version': 2}, sources={'a': {}, 'b': {}}))
+            with open(filename, 'w') as f: f.write(original)
+            with patch.object(b, 'HARMONIC_REFS', filename), patch.object(b, 'measure_profiles') as measure:
+                with self.assertRaisesRegex(ValueError, 'partial refs update refused'):
+                    b.refresh_profile_refs({'sources': {}}, names={'a'})
+                measure.assert_not_called()
+            with open(filename) as f: self.assertEqual(f.read(), original)
+
+    def test_partial_reference_refresh_keeps_other_targets(self):
+        with tempfile.TemporaryDirectory() as d:
+            filename = os.path.join(d, 'harmonics.json')
+            old_b = dict(dir=d, profiles={'60|4|attack': [1.] * 7})
+            with open(filename, 'w') as f:
+                json.dump(dict(spec=b.PROFILE_SPEC, sources={'b': old_b}), f)
+            refs = {'sources': {nm: dict(role='target', dir=d) for nm in ['a','b']}}
+            with patch.object(b, 'HARMONIC_REFS', filename), patch.object(b, 'measure_profiles', return_value={}):
+                b.refresh_profile_refs(refs, names={'a'})
+            with open(filename) as f: result = json.load(f)
+            self.assertEqual(set(result['sources']), {'a','b'})
+            self.assertEqual(result['sources']['b'], old_b)
+
+    def test_failed_full_reference_refresh_keeps_previous_cache(self):
+        with tempfile.TemporaryDirectory() as d:
+            filename = os.path.join(d, 'harmonics.json')
+            original = json.dumps(dict(spec={'version': 2}, sources={'old': {}}))
+            with open(filename, 'w') as f: f.write(original)
+            refs = {'sources': {nm: dict(role='target', dir=d) for nm in ['a','b']}}
+            with patch.object(b, 'HARMONIC_REFS', filename), patch.object(b, 'measure_profiles', side_effect=[{}, RuntimeError('decode failed')]):
+                with self.assertRaisesRegex(RuntimeError, 'decode failed'):
+                    b.refresh_profile_refs(refs)
+            with open(filename) as f: self.assertEqual(f.read(), original)
+
+    def test_reuse_cannot_overwrite_baseline_with_missing_intermediate_keys(self):
+        from contextlib import ExitStack, redirect_stderr
+        with tempfile.TemporaryDirectory() as d, ExitStack() as stack:
+            refs, baseline = os.path.join(d, 'refs.json'), os.path.join(d, 'baseline.json')
+            with open(refs, 'w') as f: json.dump({'sources': {}}, f)
+            original = '{"metrics": {}, "sentinel": "keep me"}'
+            with open(baseline, 'w') as f: f.write(original)
+            old_profiles = {f'{m}|{layer}|{phase}': [-10.] * 7
+                            for m in b.KEYS for layer in b.LAYERS for phase in b.PROFILE_WINDOWS}
+            for key, value in [('REFS', refs), ('BASELINE', baseline)]:
+                stack.enter_context(patch.object(b, key, value))
+            for key, value in [('load_profile_refs', {}), ('survey', None), ('measure_set', {}),
+                               ('score', {}), ('measure_profiles', old_profiles)]:
+                stack.enter_context(patch.object(b, key, return_value=value))
+            stack.enter_context(patch.object(sys, 'argv', ['bench.py', 'run', '--reuse', '--save-baseline', '--out', d]))
+            err = io.StringIO()
+            with redirect_stderr(err), self.assertRaises(SystemExit) as raised: b.main()
+            self.assertEqual(raised.exception.code, 2)
+            self.assertIn('Cannot save baseline', err.getvalue())
+            with open(baseline) as f: self.assertEqual(f.read(), original)
+
+    def test_profiles_keep_delayed_onsets_and_directory_precedence(self):
+        with tempfile.TemporaryDirectory() as d:
+            dirs = [os.path.join(d, name) for name in ['first','second']]
+            for directory in dirs:
+                os.mkdir(directory)
+                open(os.path.join(directory, 'F#7v13.wav'), 'w').close()
+            t = np.arange(b.SR * 2) / b.SR
+            x = np.sin(2*np.pi*3000*t) + .5*np.sin(2*np.pi*6000*t)
+            delayed = np.pad(np.column_stack([x, x]), ((b.SR * 2, 0), (0, 0)))
+            with patch.object(b, 'load_stereo', return_value=delayed) as load:
+                profiles = b.measure_profiles(dirs)
+            load.assert_called_once_with(os.path.join(dirs[0], 'F#7v13.wav'))
+            self.assertAlmostEqual(profiles['102|13|sustain'][0], -6.02, delta=.1)
+
     def test_overtone_shape_is_independent_of_fundamental_and_gain(self):
         t = np.arange(int(1.6 * b.SR)) / b.SR
         upper = sum((.5 ** (k - 2)) * np.sin(2 * np.pi * 300 * k * t) for k in range(2, 9))

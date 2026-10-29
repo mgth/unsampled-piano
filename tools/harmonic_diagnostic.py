@@ -16,8 +16,8 @@ import bench as b
 WINDOWS = [(0, .06), (.06, .14), (.2, .2), (.4, .2), (.6, .2), (.8, .2), (1, .2), (.5, .5)]
 
 
-def describe(x, midi):
-    levels = np.array([b.stereo_partial_levels(x, midi, start, duration) for start, duration in WINDOWS])
+def describe(x, midi, *, fft_padding=8):
+    levels = np.array([b.stereo_partial_levels(x, midi, start, duration, fft_padding=fft_padding) for start, duration in WINDOWS])
     # A fixed set of overtones, excluding H1, anchors the shape. Missing
     # members invalidate the normalisation rather than silently changing it.
     shape = np.full_like(levels, np.nan)
@@ -46,7 +46,7 @@ def main():
     ap.add_argument('--keys', nargs='+', type=int, default=[60, 61, 62, 63, 64, 66, 67, 68, 69])
     args = ap.parse_args()
     with open(b.REFS) as f: sources = json.load(f)['sources']
-    output = dict(spec=dict(channels='mean spectral powers; RMS onset', windows=WINDOWS,
+    output = dict(spec=dict(version=3, fft_padding=8, channels='mean spectral powers; RMS onset', windows=WINDOWS,
                             shape_anchor='sum of peak powers H2-H6; all five required',
                             decay_anchor='strongest H1-H8 peak in first 60 ms',
                             decay_self_anchor='same partial peak in first 60 ms'), notes={}, models={})

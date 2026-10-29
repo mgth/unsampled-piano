@@ -14,8 +14,8 @@ subprocess.run(list(map(str,[exe,p,out,','.join(map(str,notes)),','.join(map(str
 rows={};checks={}
 for n in notes:
  for v in vel:
-  f=out/f'n{n}v{v}.wav';x=s.b.load_stereo(str(f));rows[f'{n}|{v}']={k:s.hd.pack(a) for k,a in s.hd.describe(x,n).items()}
-  rows[f'{n}|{v}']['late_levels']=s.hd.pack([s.b.stereo_partial_levels(x,n,t,.2) for t in [1.5,2,3]])
+  f=out/f'n{n}v{v}.wav';x=s.b.load_stereo(str(f));rows[f'{n}|{v}']={k:s.hd.pack(a) for k,a in s.hd.describe(x,n,fft_padding=1).items()}
+  rows[f'{n}|{v}']['late_levels']=s.hd.pack([s.b.stereo_partial_levels(x,n,t,.2,fft_padding=1) for t in [1.5,2,3]])
   old=s.O/'prototype_test'/f.name
   checks[f'{n}|{v}']=dict(sha256=hashlib.sha256(f.read_bytes()).hexdigest(),previous_sha256=hashlib.sha256(old.read_bytes()).hexdigest(),identical=f.read_bytes()==old.read_bytes())
 (s.O/'early_prototype.json').write_text(json.dumps(dict(notes=notes,velocities=vel,changed_keys=[62,64,69],results=rows,checks=checks),indent=1))

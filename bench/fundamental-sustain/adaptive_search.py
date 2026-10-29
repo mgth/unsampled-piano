@@ -21,7 +21,10 @@ def score(n,rows,refs,base):
 def guard(n,rows,refs,base,old):
  for v in c.VELOCITIES:
   k=f'{n}|{v}';new=rows[k]['adaptive'];previous=base[k]['previous']
-  if any(z is None for z in new['curve']):return 'H1 incomplet'
+  if any(z is None or not np.isfinite(z) for z in new['curve']):return 'H1 incomplet'
+  initial=previous['windows'][0]['level'];updated=new['windows'][0]['level']
+  if initial is None or not np.isfinite(initial):return 'niveau initial H1 témoin illisible'
+  if updated is None or not np.isfinite(updated):return 'niveau initial H1 candidat illisible'
   if abs(new['windows'][0]['level']-previous['windows'][0]['level'])>(1 if n>=40 else 3):return 'niveau initial H1 modifié au-delà du seuil'
   aa=np.array(old[k]['levels'],float);bb=np.array(rows[k]['legacy']['levels'],float)
   mask=np.isfinite(aa[7,1:])&(aa[7,1:]>=np.nanmax(aa[0])-45)
