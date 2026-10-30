@@ -104,15 +104,20 @@ const PIN_BLOCK_TOP: f64 = 0.02;
 const PIN_BLOCK_T: f64 = 0.05;
 const FRONT_T: f64 = 0.02;
 const BELLY_RAIL: f64 = 0.05;
-/// The keyboard: depth of the white keys, keybed under the keys (grand,
-/// z), the floor.
+/// The keyboard: depth of the white keys. A grand's keybed, its underside
+/// flush with the case's, its thickness and the keys' bottom above it; the
+/// keys' top above the floor; the key slip's thickness.
 const KEY_DEPTH: f64 = 0.15;
-const KEY_Z: f64 = -0.02;
-const GRAND_FLOOR: f64 = -0.72;
+const KEYBED_T: f64 = 0.035;
+const KEY_FRAME: f64 = 0.04;
+const KEY_HEIGHT: f64 = 0.72;
+const KEY_SLIP: f64 = 0.018;
 /// An upright's board bottom, keyboard height and distance in front.
 const UPRIGHT_BASE: f64 = 0.2;
 const UPRIGHT_KEYS_Z: f64 = 0.72;
 const UPRIGHT_KEYS_Y: f64 = -0.27;
+/// The pedals' spacing across (m).
+const PEDAL_PITCH: f32 = 0.07;
 
 /// Bends up to this angle (degrees) are shaded as a curve, sharper ones as
 /// corners.
@@ -126,6 +131,8 @@ const PIN: Color32 = Color32::from_rgb(132, 134, 142);
 const CASE: Color32 = Color32::from_rgb(40, 34, 32);
 const IVORY: Color32 = Color32::from_rgb(236, 232, 222);
 const EBONY: Color32 = Color32::from_rgb(28, 26, 26);
+/// The strip of felt behind the keys.
+const FELT: Color32 = Color32::from_rgb(122, 28, 36);
 const MIC: [Color32; 2] = [Color32::from_rgb(70, 140, 220), Color32::from_rgb(220, 80, 90)];
 
 fn rgba(c: Color32, a: f32) -> [f32; 4] {
@@ -319,6 +326,129 @@ impl Builder {
         }
     }
 
+    /// A tube along the world path through the rings' centres, capped at
+    /// both ends: each ring's section a rectangle with rounded corners,
+    /// its half-widths along `side` and across, and its corner radius (as
+    /// large as the smaller half-width throughout: an ellipse). Smooth
+    /// around; along, smooth where the surface bends by less than
+    /// [`SMOOTH_DEG`] (a ring repeated at the same centre makes a step).
+    fn sweep(&mut self, rings: &[(V3, f32, f32, f32)], side: V3, c: Color32) {
+        const ARC: usize = 4;
+        let n = rings.len();
+        if n < 2 {
+            return;
+        }
+        let c = rgba(c, 1.0);
+        let round = rings.iter().all(|&(_, u, v, r)| r >= u.min(v) - 1e-6);
+        // The section: per point, its place and the tangent around (in the
+        // ring's side and across axes) for half-widths (u, v), radius r.
+        let count = if round { 4 * ARC } else { 4 * (ARC + 1) };
+        let section = |u: f32, v: f32, r: f32, k: usize| -> ((f32, f32), (f32, f32)) {
+            if round {
+                let a = std::f32::consts::TAU * k as f32 / count as f32;
+                ((u * a.cos(), v * a.sin()), (-u * a.sin(), v * a.cos()))
+            } else {
+                let r = r.min(0.98 * u.min(v));
+                let (corner, j) = (k / (ARC + 1), k % (ARC + 1));
+                let a = std::f32::consts::FRAC_PI_2 * (corner as f32 + j as f32 / ARC as f32);
+                let (sx, sy) = ([1.0, -1.0, -1.0, 1.0][corner], [1.0, 1.0, -1.0, -1.0][corner]);
+                ((sx * (u - r) + r * a.cos(), sy * (v - r) + r * a.sin()), (-a.sin(), a.cos()))
+            }
+        };
+        // Each ring's frame: the path's tangent, `side` square to it, and
+        // the third axis across.
+        let frames: Vec<(V3, V3, V3)> = (0..n)
+            .map(|i| {
+                let mut t = sub(rings[(i + 1).min(n - 1)].0, rings[i.saturating_sub(1)].0);
+                // At a step (a repeated centre), the next ring's own tangent.
+                let mut j = i;
+                while dot(t, t) < 1e-12 && j + 1 < n {
+                    j += 1;
+                    t = sub(rings[(j + 1).min(n - 1)].0, rings[j.saturating_sub(1)].0);
+                }
+                let t = norm(t);
+                let u = norm(sub(side, scale(t, dot(side, t))));
+                (t, u, cross(t, u))
+            })
+            .collect();
+        let point = |i: usize, k: usize| {
+            let (p, u, v, r) = rings[i];
+            let ((x, y), _) = section(u, v, r, k);
+            let (_, a, b) = frames[i];
+            add(p, add(scale(a, x), scale(b, y)))
+        };
+        let around = |i: usize, k: usize| {
+            let (_, u, v, r) = rings[i];
+            let (_, (x, y)) = section(u, v, r, k);
+            let (_, a, b) = frames[i];
+            add(scale(a, x), scale(b, y))
+        };
+        // Along segment `s`, at its ring `i` and point `k`: the outward
+        // normal, smoothed with the neighbouring segment's at a gentle bend.
+        let along = |s: usize, k: usize| sub(point(s + 1, k), point(s, k));
+        let normal = |s: usize, i: usize, k: usize| {
+            let d = along(s, k);
+            let other = if i == s { s.checked_sub(1) } else { (s + 1 < n - 1).then_some(s + 1) };
+            let d = match other.map(|o| along(o, k)) {
+                Some(e) if dot(norm(d), norm(e)) > SMOOTH_DEG.to_radians().cos() as f32 => add(norm(d), norm(e)),
+                _ => d,
+            };
+            norm(cross(around(i, k), d))
+        };
+        for s in 0..n - 1 {
+            for k in 0..count {
+                let l = (k + 1) % count;
+                let p = [point(s, k), point(s + 1, k), point(s + 1, l), point(s, l)];
+                let nn = [normal(s, s, k), normal(s, s + 1, k), normal(s, s + 1, l), normal(s, s, l)];
+                self.quad_n(p, nn, c);
+            }
+        }
+        for (i, out) in [(0, -1.0), (n - 1, 1.0)] {
+            let centre = rings[i].0;
+            for k in 0..count {
+                let mut t = [centre, point(i, k), point(i, (k + 1) % count)];
+                if out < 0.0 {
+                    t.swap(1, 2);
+                }
+                self.tri(false, t, [c; 3]);
+            }
+        }
+    }
+
+    /// A slab across the keyboard (world x) from `x0` to `x1`, its side
+    /// the polygon `profile` in (y, z), capped by it; its edges shaded
+    /// smooth where the profile bends by less than [`SMOOTH_DEG`].
+    fn slab(&mut self, profile: &[(f32, f32)], x0: f32, x1: f32, c: Color32) {
+        let mut p: Vec<(f64, f64)> = profile.iter().map(|&(y, z)| (y as f64, z as f64)).collect();
+        if signed_area(&p) < 0.0 {
+            p.reverse();
+        }
+        let n = p.len();
+        let col = rgba(c, 1.0);
+        for [i, j, k] in triangulate(&p) {
+            for x in [x0, x1] {
+                self.tri(false, [p[i], p[j], p[k]].map(|(y, z)| [x, y as f32, z as f32]), [col; 3]);
+            }
+        }
+        // Counter-clockwise in (y, z): an edge's outward normal is its
+        // direction turned clockwise.
+        let out = |k: usize| {
+            let (a, b) = (p[k], p[(k + 1) % n]);
+            let l = (b.0 - a.0).hypot(b.1 - a.1).max(1e-12);
+            ((b.1 - a.1) / l, -(b.0 - a.0) / l)
+        };
+        let at = |k: usize, e: usize| {
+            let (o, m) = (out(e), out(if k == e { (e + n - 1) % n } else { (e + 1) % n }));
+            let s = if o.0 * m.0 + o.1 * m.1 > SMOOTH_DEG.to_radians().cos() { (o.0 + m.0, o.1 + m.1) } else { o };
+            norm([0.0, s.0 as f32, s.1 as f32])
+        };
+        for e in 0..n {
+            let f = (e + 1) % n;
+            let w = |k: usize, x: f32| [x, p[k].0 as f32, p[k].1 as f32];
+            self.quad_n([w(e, x0), w(f, x0), w(f, x1), w(e, x1)], [at(e, e), at(f, e), at(f, e), at(e, e)], col);
+        }
+    }
+
     fn line(&mut self, a: V3, b: V3, c: [f32; 4]) {
         for pos in [a, b] {
             self.s.lines.push(Vertex { pos, normal: [0.0, 0.0, 1.0], color: c });
@@ -482,6 +612,134 @@ pub fn string_ends(model: &PianoModel, sb: &SoundboardParams, hx: f64, m: u8) ->
     ((back(hx, bx), back(key_across(sb, m), by)), (bx, by), z)
 }
 
+/// A grand's leg under `top` (world, the case's underside), as most are
+/// made: a moulded block under the case, a square shaft tapering down with
+/// rounded corners and a bead under its neck, a collar and a brass ferrule
+/// at its foot, on a caster of two brass wheels side by side.
+fn leg(b: &mut Builder, top: V3, floor: f32) {
+    let [x, y, zt] = top;
+    let at = |z: f32| [x, y, z];
+    // The wheels roll along y, on an axle across; the fork's cheeks
+    // outside them, its housing above.
+    let (wr, ww) = (0.028, 0.012);
+    let hub = floor + wr;
+    for s in [-1.0, 1.0] {
+        let (x0, x1) = (x + s * 0.003, x + s * (0.003 + ww));
+        let (x0, x1) = (x0.min(x1), x0.max(x1));
+        let wheel = |x: f32, r: f32| ([x, y, hub], r, r, r);
+        b.sweep(&[wheel(x0, wr - 0.004), wheel(x0 + 0.002, wr), wheel(x1 - 0.002, wr), wheel(x1, wr - 0.004)], [0.0, 1.0, 0.0], BRASS);
+        b.cuboid([x + s * 0.019 - 0.0015, y - 0.012, hub - 0.006], [0.003, 0.0, 0.0], [0.0, 0.024, 0.0], [0.0, 0.0, wr + 0.02], BRASS);
+    }
+    let axle = |x: f32| ([x, y, hub], 0.005, 0.005, 0.005);
+    b.sweep(&[axle(x - 0.022), axle(x + 0.022)], [0.0, 1.0, 0.0], STEEL);
+    let zc = hub + wr + 0.014;
+    let ring = |z: f32, w: f32, r: f32| (at(z), w, w, r);
+    b.sweep(&[ring(hub + wr - 0.006, 0.02, 0.019), ring(zc - 0.004, 0.026, 0.025), ring(zc, 0.028, 0.027)], [1.0, 0.0, 0.0], BRASS);
+    // The ferrule, then the shaft up to the block under the case.
+    let f = zc + 0.022;
+    b.sweep(&[ring(zc, 0.03, 0.008), ring(zc + 0.003, 0.033, 0.009), ring(f - 0.003, 0.033, 0.009), ring(f, 0.03, 0.008)], [1.0, 0.0, 0.0], BRASS);
+    let neck = zt - 0.12;
+    let wood = [
+        ring(f, 0.031, 0.008),
+        ring(f, 0.036, 0.01),
+        ring(f + 0.004, 0.04, 0.012),
+        ring(f + 0.018, 0.04, 0.012),
+        ring(f + 0.03, 0.034, 0.01),
+        ring(f + 0.045, 0.034, 0.01),
+        ring(neck, 0.05, 0.014),
+        ring(neck + 0.004, 0.056, 0.016),
+        ring(neck + 0.014, 0.056, 0.016),
+        ring(neck + 0.018, 0.05, 0.014),
+        ring(zt - 0.075, 0.05, 0.014),
+        ring(zt - 0.055, 0.054, 0.014),
+        ring(zt - 0.042, 0.062, 0.014),
+        ring(zt - 0.036, 0.066, 0.012),
+        ring(zt - 0.036, 0.074, 0.01),
+        ring(zt, 0.074, 0.01),
+    ];
+    b.sweep(&wood, [1.0, 0.0, 0.0], CASE);
+}
+
+/// A pedal from the face it comes out of at `y` (world), `x` across,
+/// `z` high, towards the pianist: narrow where it leaves the box, widening
+/// into a foot pad that rises a little to its rounded tip; turned about its
+/// pivot inside the box by `press` (0 at rest … 1 down).
+fn pedal(b: &mut Builder, x: f32, y: f32, z: f32, press: f32, c: Color32) {
+    let (py, pz) = (y + 0.06, z);
+    let (s, co) = (0.1 * press.clamp(0.0, 1.0)).sin_cos();
+    let ring = |d: f32, w: f32, t: f32| {
+        // Out of the face by d, then turned down (towards −z) about the pivot.
+        let (dy, dz) = (y - d - py, 0.006 * (d / 0.13).max(0.0).powi(2));
+        ([x, py + dy * co - dz * s, pz + dy * s + dz * co], w, t, 0.004)
+    };
+    let rings = [
+        ring(-0.01, 0.009, 0.006),
+        ring(0.0, 0.009, 0.006),
+        ring(0.035, 0.011, 0.0056),
+        ring(0.07, 0.017, 0.0052),
+        ring(0.09, 0.02, 0.005),
+        ring(0.112, 0.021, 0.005),
+        ring(0.124, 0.019, 0.0048),
+        ring(0.131, 0.013, 0.0043),
+    ];
+    b.sweep(&rings, [1.0, 0.0, 0.0], c);
+}
+
+/// A grand's pedal lyre centred at `cx` across and `y` along, from the
+/// floor up to the keybed's underside at `top`, as on most grands: a block
+/// screwed under the keybed, two posts bowed outwards like a lyre's arms
+/// with slats between them, the box the pedals come out of at its foot,
+/// and two braces from the box's back up to the belly rail at `brace`
+/// (y, z).
+fn lyre(b: &mut Builder, cx: f32, y: f32, top: f32, floor: f32, brace: (f32, f32), pedals: [(f32, Color32); 3]) {
+    let across = |x0: f32, x1: f32, z: f32, half: (f32, f32), r: f32, ease: f32| {
+        let ring = |x: f32, k: f32| ([x, y, z], half.0 - k, half.1 - k, r);
+        [ring(x0, ease), ring(x0 + ease, 0.0), ring(x1 - ease, 0.0), ring(x1, ease)]
+    };
+    // The box, on a plinth, under a moulded top.
+    let (bz0, bz1) = (floor + 0.04, floor + 0.115);
+    b.sweep(&across(cx - 0.2, cx + 0.2, floor + 0.035, (0.062, 0.008), 0.004, 0.004), [0.0, 1.0, 0.0], CASE);
+    b.sweep(&across(cx - 0.19, cx + 0.19, (bz0 + bz1) / 2.0, (0.055, (bz1 - bz0) / 2.0), 0.012, 0.004), [0.0, 1.0, 0.0], CASE);
+    b.sweep(&across(cx - 0.2, cx + 0.2, bz1 + 0.007, (0.062, 0.008), 0.005, 0.004), [0.0, 1.0, 0.0], CASE);
+    // The block under the keybed, a moulding under it.
+    b.sweep(&across(cx - 0.21, cx + 0.21, top - 0.018, (0.048, 0.018), 0.008, 0.004), [0.0, 1.0, 0.0], CASE);
+    b.sweep(&across(cx - 0.17, cx + 0.17, top - 0.042, (0.038, 0.006), 0.004, 0.003), [0.0, 1.0, 0.0], CASE);
+    // The posts, between the box's top and the moulding.
+    let (p0, p1) = (bz1 + 0.015, top - 0.048);
+    for s in [-1.0f32, 1.0] {
+        let rings: Vec<_> = (0..=16)
+            .map(|i| {
+                let t = i as f32 / 16.0;
+                let bow = 0.045 * (std::f32::consts::PI * t).sin() * (1.0 - 0.35 * t);
+                ([cx + s * (0.1 + bow), y, p0 + (p1 - p0) * t], 0.02, 0.013, 0.006)
+            })
+            .collect();
+        b.sweep(&rings, [0.0, 1.0, 0.0], CASE);
+    }
+    for (x, w) in [(-0.045, 0.006), (0.0, 0.009), (0.045, 0.006)] {
+        let ring = |z: f32| ([cx + x, y, z], 0.01, w, 0.004);
+        b.sweep(&[ring(p0), ring(p1)], [0.0, 1.0, 0.0], CASE);
+    }
+    // The braces: steel rods with brass ends.
+    for s in [-1.0f32, 1.0] {
+        let (a, z) = ([cx + s * 0.15, y + 0.05, bz1 - 0.01], [cx + s * 0.2, brace.0, brace.1]);
+        let d = norm(sub(z, a));
+        let side = norm(cross(d, [1.0, 0.0, 0.0]));
+        let rod = |p: V3, r: f32| (p, r, r, r);
+        b.sweep(&[rod(a, 0.006), rod(z, 0.006)], side, Color32::from_rgb(64, 64, 70));
+        for (p, q) in [(a, add(a, scale(d, 0.03))), (sub(z, scale(d, 0.03)), z)] {
+            b.sweep(&[rod(p, 0.009), rod(q, 0.009)], side, BRASS);
+        }
+    }
+    // The pedals through brass plates on the box's face.
+    let face = y - 0.055;
+    for (i, &(press, c)) in pedals.iter().enumerate() {
+        let x = cx + (i as f32 - 1.0) * PEDAL_PITCH;
+        b.cuboid([x - 0.017, face - 0.002, floor + 0.06], [0.034, 0.0, 0.0], [0.0, 0.002, 0.0], [0.0, 0.0, 0.026], BRASS);
+        pedal(b, x, face, floor + 0.073, press, c);
+    }
+}
+
 pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let sb = model.soundboard.map(|s| s.resolved()).unwrap_or_default();
     let vertical = sb.vertical;
@@ -534,8 +792,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
 
     // The case: the rim's walls along the board's outline, carried forward
     // over the pin block to just in front of the tuning pins (as the frame
-    // is), a panel across its front behind the keys, and the belly rail
-    // under the board's front edge.
+    // is), and the belly rail under the board's front edge.
     let t = if rim.enabled { rim.thickness } else { 0.02 };
     let (z0, z1) = if rim.enabled { (rim.top - rim.height, rim.top) } else { (-0.25, 0.05) };
     let case = pick(Part::Rim, CASE);
@@ -548,7 +805,6 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let sides: Vec<_> = (1..=n).map(|i| forward(outline[(k + i) % n])).collect();
         b.wall(&sides, false, 0.0, t, z0, &|_| z1, case);
         (across_lo, across_hi) = (p.1.min(q.1), p.1.max(q.1));
-        b.plate_box((case_front - FRONT_T, across_lo - t, z0), (case_front, across_hi + t, PIN_BLOCK_TOP), case);
         b.wall(&[p, q], false, -BELLY_RAIL, 0.0, z0, &|_| -0.012, case);
     } else {
         b.wall(&outline, true, 0.0, t, z0, &|_| z1, case);
@@ -707,10 +963,14 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     }
 
     // The keyboard, the keys down pressed in, its back against the case's
-    // front.
+    // front: a grand's on its keybed, at the usual height above the floor.
     let keys_back = case_front - FRONT_T;
     let (klo, khi) = keyboard_span(&sb);
     let white = (khi - klo) / 52.0;
+    let (y_back, kz) = if vertical { (UPRIGHT_KEYS_Y, UPRIGHT_KEYS_Z) } else { (keys_back, z0 + KEYBED_T + KEY_FRAME) };
+    let key_top = kz + 0.022;
+    let floor = if vertical { 0.0 } else { key_top - KEY_HEIGHT };
+    let key_front = y_back - KEY_DEPTH;
     for m in 21..=108u8 {
         let k = obs.map(|o| o.keys[m as usize]);
         let down = k.is_some_and(|k| k.down);
@@ -731,41 +991,83 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         };
         let c = mix(c, sketches::HIGHLIGHT, key_level(m) * 0.4);
         // Keys in world coordinates: x across, the back of the keys at y_back.
-        let (y_back, z) = if vertical { (UPRIGHT_KEYS_Y, UPRIGHT_KEYS_Z) } else { (keys_back, KEY_Z) };
-        let front = y_back - KEY_DEPTH;
-        let o3 = [-y1 as f32, front as f32 + (KEY_DEPTH - depth) as f32, (z + zb + drop) as f32];
+        let o3 = [-y1 as f32, (key_front + KEY_DEPTH - depth) as f32, (kz + zb + drop) as f32];
         b.cuboid(o3, [(y1 - y0) as f32, 0.0, 0.0], [0.0, depth as f32, 0.0], [0.0, 0.0, h as f32], c);
     }
-    let (y_back, kz) = if vertical { (UPRIGHT_KEYS_Y, UPRIGHT_KEYS_Z) } else { (keys_back, KEY_Z) };
-    // The keybed and key slip.
-    b.cuboid([-(khi + 0.06) as f32, (y_back - KEY_DEPTH - 0.02) as f32, (kz - 0.05) as f32], [(khi - klo + 0.12) as f32, 0.0, 0.0], [0.0, (KEY_DEPTH + 0.02) as f32, 0.0], [0.0, 0.0, 0.05], CASE);
-    // The cheeks at both ends of the keys.
-    for x in [-(khi + 0.06), -(klo - 0.01)] {
-        b.cuboid([x as f32, (y_back - KEY_DEPTH) as f32, (kz - 0.01) as f32], [0.05, 0.0, 0.0], [0.0, KEY_DEPTH as f32, 0.0], [0.0, 0.0, 0.06], CASE);
+    let cx = -((klo + khi) / 2.0) as f32;
+    // Under a grand's front legs, their centres (world x, y).
+    let mut front_legs = [[0.0f32; 2]; 2];
+    if vertical {
+        // The keybed and key slip, the cheeks at both ends of the keys.
+        b.cuboid([-(khi + 0.06) as f32, (key_front - 0.02) as f32, (kz - 0.05) as f32], [(khi - klo + 0.12) as f32, 0.0, 0.0], [0.0, (KEY_DEPTH + 0.02) as f32, 0.0], [0.0, 0.0, 0.05], CASE);
+        for x in [-(khi + 0.06), -(klo - 0.01)] {
+            b.cuboid([x as f32, key_front as f32, (kz - 0.01) as f32], [0.05, 0.0, 0.0], [0.0, KEY_DEPTH as f32, 0.0], [0.0, 0.0, 0.06], CASE);
+        }
+    } else {
+        // Its case, as most grands': the keybed under the case's front,
+        // its sides carried forward as arms that come down in a curve from
+        // the rim's top to a little above the keys, rounded at their
+        // front; the cheek blocks between them and the keys' ends, the key
+        // slip along the keys' front, and behind them the fallboard (open)
+        // over a strip of felt. Across (plate y): the case's sides, wider
+        // if the keys are.
+        let (lo, hi) = (across_lo.min(klo - 0.04), across_hi.max(khi + 0.04));
+        let (x_lo, x_hi) = (-(hi + t) as f32, -(lo - t) as f32);
+        let (yf, yb) = ((key_front - KEY_SLIP - 0.002) as f32, (y_back + FRONT_T) as f32);
+        let (z0f, top, bed) = (z0 as f32, key_top as f32, (z0 + KEYBED_T) as f32);
+        b.cuboid([x_lo, yf + 0.004, z0f], [x_hi - x_lo, 0.0, 0.0], [0.0, yb - yf - 0.004, 0.0], [0.0, 0.0, KEYBED_T as f32], case);
+        let arm = top + 0.035;
+        let mut profile = vec![(yf, z0f), (yb, z0f), (yb, z1 as f32)];
+        for i in 1..=10 {
+            let s = i as f32 / 10.0;
+            profile.push((yb - 0.09 * s, arm + (z1 as f32 - arm) * 0.5 * (1.0 + (std::f32::consts::PI * s).cos())));
+        }
+        let r = 0.022;
+        for i in 0..=6 {
+            let a = std::f32::consts::FRAC_PI_2 * i as f32 / 6.0;
+            profile.push((yf + r - r * a.sin(), arm - r + r * a.cos()));
+        }
+        for (x0, x1) in [(x_lo, -hi as f32), (-lo as f32, x_hi)] {
+            b.slab(&profile, x0, x1, case);
+        }
+        for (x0, x1) in [(-hi as f32, -(khi + 0.002) as f32), (-(klo - 0.002) as f32, -lo as f32)] {
+            let block = |y: f32| ([(x0 + x1) / 2.0, y, (bed + top + 0.012) / 2.0], (x1 - x0) / 2.0, (top + 0.012 - bed) / 2.0, 0.008);
+            b.sweep(&[block(yf + KEY_SLIP as f32), block(y_back as f32)], [1.0, 0.0, 0.0], case);
+        }
+        let along = |x0: f32, x1: f32, y: f32, z: (f32, f32), d: f32, r: f32| {
+            let ring = |x: f32| ([x, y, (z.0 + z.1) / 2.0], d / 2.0, (z.1 - z.0) / 2.0, r);
+            [ring(x0), ring(x1)]
+        };
+        b.sweep(&along(-hi as f32, -lo as f32, yf + KEY_SLIP as f32 / 2.0, (z0f, kz as f32 - 0.002), KEY_SLIP as f32, 0.005), [0.0, 1.0, 0.0], case);
+        b.sweep(&along(-hi as f32, -lo as f32, (y_back + FRONT_T / 2.0) as f32, (bed, PIN_BLOCK_TOP as f32), FRONT_T as f32, 0.009), [0.0, 1.0, 0.0], case);
+        b.cuboid([-(khi + 0.002) as f32, y_back as f32 - 0.006, top - 0.004], [(khi - klo + 0.004) as f32, 0.0, 0.0], [0.0, 0.006, 0.0], [0.0, 0.0, 0.012], FELT);
+        // The front legs under the arms, flush with their outsides.
+        let y = yf + 0.1;
+        front_legs = [[x_lo + 0.074, y], [x_hi - 0.074, y]];
     }
-    b.label([-((klo + khi) / 2.0) as f32, (y_back - KEY_DEPTH) as f32, (kz + 0.03) as f32], "Keyboard", "Player");
+    b.label([-((klo + khi) / 2.0) as f32, key_front as f32, (kz + 0.03) as f32], "Keyboard", "Player");
 
     // Pedals: soft, sostenuto, sustain from left to right.
-    let floor = if vertical { 0.0 } else { GRAND_FLOOR };
-    let cx = -((klo + khi) / 2.0) as f32;
     let values = obs.map_or([0.0; 3], |o| [o.soft, if o.sostenuto { 1.0 } else { 0.0 }, o.sustain]);
     let parts = [Part::UnaCorda, Part::UnaCorda, Part::SustainPedal];
-    for (i, v) in values.iter().enumerate() {
-        let x = cx + (i as f32 - 1.0) * 0.07 - 0.02;
-        let y = (y_back - KEY_DEPTH) as f32 - 0.02;
-        let z = floor as f32 + 0.05 - 0.02 * v;
-        let c = if *v > 0.05 || (i != 1 && lit(parts[i])) { sketches::HIGHLIGHT } else { IRON };
-        b.cuboid([x, y - 0.12, z], [0.04, 0.0, 0.0], [0.0, 0.14, 0.0], [0.0, 0.0, 0.012], c);
-    }
-    if !vertical {
-        // The pedals' lyre, and three legs.
-        b.cuboid([cx - 0.12, (y_back - KEY_DEPTH) as f32 + 0.0, floor as f32 + 0.06], [0.24, 0.0, 0.0], [0.0, 0.05, 0.0], [0.0, 0.0, (kz - 0.05 - floor - 0.06) as f32], CASE);
-        for (x, y) in [(0.12, 0.05), (0.12, sb.b - 0.05), (sb.a - 0.12, sb.b * 0.5)] {
-            let p = place.at(x, y, z0);
-            b.cuboid([p[0] - 0.04, p[1] - 0.04, floor as f32], [0.08, 0.0, 0.0], [0.0, 0.08, 0.0], [0.0, 0.0, p[2] - floor as f32], CASE);
+    let pedals: [(f32, Color32); 3] = std::array::from_fn(|i| {
+        let v = values[i];
+        (v, if v > 0.05 || (i != 1 && lit(parts[i])) { sketches::HIGHLIGHT } else { BRASS })
+    });
+    if vertical {
+        for (i, &(v, c)) in pedals.iter().enumerate() {
+            pedal(&mut b, cx + (i as f32 - 1.0) * PEDAL_PITCH, key_front as f32, floor as f32 + 0.06, v, c);
+        }
+    } else {
+        // The lyre under the keybed, in front of the fallboard, braced to
+        // the belly rail; the third leg under the case's tail.
+        lyre(&mut b, cx, y_back as f32 - 0.05, z0 as f32, floor as f32, (-(BELLY_RAIL / 2.0) as f32, z0 as f32), pedals);
+        let tail = place.at(sb.a - 0.12, sb.b * 0.5, z0);
+        for [x, y] in front_legs.into_iter().chain([[tail[0], tail[1]]]) {
+            leg(&mut b, [x, y, z0 as f32], floor as f32);
         }
     }
-    b.label([cx, (y_back - KEY_DEPTH) as f32 - 0.1, floor as f32 + 0.08], "Pedals", "Player");
+    b.label([cx, key_front as f32 - 0.1, floor as f32 + 0.08], "Pedals", "Player");
     b.s.body = b.bounds();
 
     // The microphones and their stands.
@@ -788,7 +1090,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
                     }
                 }
             }
-            let foot = if vertical { [p[0], p[1], 0.0] } else { [p[0], p[1], GRAND_FLOOR as f32] };
+            let foot = [p[0], p[1], floor as f32];
             b.line(p, foot, rgba(c, 0.7));
             b.label(p, if i == 0 { "Mic L" } else { "Mic R" }, "Microphones");
         }
