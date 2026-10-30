@@ -165,7 +165,8 @@ pub fn to_room(p: &RoomParams, sb: &SoundboardParams, (x, y, z): (f64, f64, f64)
 /// Directivity factor Q of the piano towards its microphones, when
 /// [`RoomParams::directivity`] is 0:
 /// - a grand with its lid open beams towards the lid's opening: Q = 3
-///   (directivity index ≈ 4–6 dB, Q ≈ 3–4, at mid and high frequencies);
+///   (directivity index ≈ 4–6 dB, Q ≈ 3–4, at mid and high frequencies),
+///   down to 2 as it shuts (`lid_shut`);
 /// - a grand with the lid closed or removed still radiates mostly up and
 ///   down, its two faces in antiphase: Q = 2;
 /// - an upright against a wall radiates into the half space in front of it:
@@ -181,7 +182,7 @@ pub fn piano_directivity(p: &RoomParams, sb: &SoundboardParams) -> f64 {
     if sb.vertical {
         if sb.wall_distance > 0.0 { 2.0 } else { 1.5 }
     } else if sb.lid_angle > 0.0 && sb.lid_reflection > 0.0 {
-        3.0
+        3.0 - sb.lid_shut.clamp(0.0, 1.0)
     } else {
         2.0
     }
@@ -437,6 +438,8 @@ mod tests {
         let grand = SoundboardParams { lid_angle: 35.0, ..SoundboardParams::GRAND_2M };
         assert_eq!(piano_directivity(&p, &grand), 3.0);
         assert_eq!(piano_directivity(&p, &SoundboardParams { lid_angle: 0.0, ..grand }), 2.0);
+        assert_eq!(piano_directivity(&p, &SoundboardParams { lid_shut: 1.0, ..grand }), 2.0);
+        assert_eq!(piano_directivity(&p, &SoundboardParams { lid_shut: 0.5, ..grand }), 2.5);
         assert_eq!(piano_directivity(&RoomParams { directivity: 4.0, ..p }, &grand), 4.0);
         let mut room = Room::new(&p, &sb, 48_000.0);
         let (mut l, mut r) = (vec![0.0f32; 48_000], vec![0.0f32; 48_000]);

@@ -125,6 +125,8 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("soundboard.lid_hinge_height", "Lid hinge height", "m", 0.05, 0.6, false),
     ("soundboard.lid_reflection", "Lid reflection", "", 0.0, 1.0, false),
     ("soundboard.lid_transmission", "Sound through the lid", "", 0.0, 1.0, false),
+    ("soundboard.lid_shut", "Lid shut", "", 0.0, 1.0, false),
+    ("soundboard.lid_leak", "Sound out of the shut lid", "", 0.0, 1.0, false),
 ];
 
 impl Meta {

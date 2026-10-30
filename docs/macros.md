@@ -25,7 +25,7 @@ Measured with `tools/macro_sweep.py` (close microphones, the default instrument)
 | `unisons` (pure ↔ lively) | unison spread × 3^v (× 1.6^v towards pure), hit spread × 1.5^v | C5 over 1–2 s: −3.7 / −2.3 / +4.5 / +5.7 dB; C4: within 1 dB |
 | `mechanism` (discreet ↔ present) | action knock, keybed, damper and pedal noise × 8^v (defaults 7.5 dB below the real grands' level, which +0.42 reaches) | the knock under C7: −4.7 / −4.0 / +8.0 / +17.0 dB (lower down it sinks under the note's own sound) |
 | `size` (baby ↔ concert grand) | bass string length × 1.25^v (bass inharmonicity ∝ 1/L²), board and frame × 1.12^v, hammer mass × 1.1^v | (by construction) |
-| `lid` (closed ↔ open) | lid angle from the preset's towards 0 or 45° | C4's centroid, engine's set-up: 0 / 0 / +11 / +5 % |
+| `lid` (shut ↔ open) | lid angle from the preset's towards 0 or 45°, its closure (`lid_shut`) towards 1 or 0 | C4's centroid, engine's set-up, open side: +11 / +5 %; shut side: see [lid.md](lid.md) |
 | `space` (close ↔ roomy) | room tail × 3^v | room level after a staccato C4: −6.7 / −3.8 / +4.3 / +8.2 dB |
 | `stretch` (strict ↔ stretched) | stretch law × (1 + v) | equal temperament at −1, twice the preset's stretch at +1 |
 
@@ -34,4 +34,4 @@ Measured with `tools/macro_sweep.py` (close microphones, the default instrument)
 - **Sustain, long side.** The strings' own losses stop counting beyond +0.5: the board's coupling then sets the sustain, and moving it would change the timbre.
 - **Tone in the treble.** C5's attack is dominated by its fundamental, so the measured brightness moves less there. The treble's felt answers little to its hardness. The felt's contact width was tried and does nothing at C5.
 - **Pure unisons.** A third of the spread made C5 lose 12 dB at 1.5 s: the slow modes that carry the sustain need some detuning. The pure side stops at 0.6 of the spread.
-- **Lid.** An angle of 0 is a lid taken away, not a lid shut. With the engine's microphones above the board, the closed side changes nothing on the default instrument.
+- **Lid.** Since 2026-10-30 the closed side shuts the lid ([lid.md](lid.md)): the highs of the board's top face go through the shut case. Halfway, the angle is halved and the closure is at 0.5.

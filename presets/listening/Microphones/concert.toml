@@ -5,6 +5,7 @@
 # Omnidirectional pair (spaced A–B, the usual classical set-up).
 # Level: same loudness as the earlier 1 m set-up.
 [soundboard]
+lid_shut = 0.0
 lid_angle = 35.0
 mics_relative = true
 mics = [[0.323529, -1.230769, 2.0], [0.735294, -1.230769, 2.0]]

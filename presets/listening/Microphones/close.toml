@@ -4,6 +4,7 @@
 # Cardioids aimed at the piano: they hear the room ≈ 5 dB less.
 # Level: close microphones hear the piano ≈ 13 dB louder.
 [soundboard]
+lid_shut = 0.0
 lid_angle = 35.0
 mics_relative = true
 mics = [[0.294118, 0.346154, 0.4], [0.705882, 0.653846, 0.4]]
