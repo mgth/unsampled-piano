@@ -61,6 +61,26 @@ class ChannelPowerTests(unittest.TestCase):
             self.assertTrue(all(n['selected_take'].endswith('M0001.csv') for n in m['notes']))
             self.assertAlmostEqual(float(np.abs(a).max()),.01,delta=.001)
 
+    def test_failed_plath_reimport_keeps_the_previous_set(self):
+        # Peaks of 1 and 2 Pa: 0.6/Pa writes the first note, then clips on
+        # the second. The set imported at 0.01/Pa must stay whole.
+        with tempfile.TemporaryDirectory() as tmp:
+            src=Path(tmp)/'src';dst=Path(tmp)/'out';src.mkdir()
+            t=np.arange(100)/50000
+            for key,amp in [(40,1.),(41,2.)]:
+                y=amp*np.sin(2*np.pi*1000*t)
+                np.savetxt(src/f'D1_PROD08_{key}_0000_M0000.csv',
+                           np.column_stack((t,t*0,t*0,y,-y)),delimiter=';',header='time;force;accel;L;R',comments='')
+            tool=[sys.executable,str(Path(bench.ROOT)/'tools/plath_set.py'),str(src),str(dst)]
+            subprocess.run(tool,check=True,capture_output=True)
+            before={f.name:f.read_bytes() for f in dst.iterdir()}
+            r=subprocess.run(tool+['--gain-per-pa','0.6'],capture_output=True,text=True)
+            self.assertNotEqual(r.returncode,0)
+            self.assertIn('clipping',r.stderr)
+            self.assertEqual({f.name:f.read_bytes() for f in dst.iterdir()},before)
+            self.assertEqual(json.loads((dst/'manifest.json').read_text())['gain_per_pa'],.01)
+            self.assertEqual(sorted(f.name for f in Path(tmp).iterdir()),['out','src'])
+
     def test_old_reference_protocol_is_rejected_before_render(self):
         with tempfile.TemporaryDirectory() as tmp:
             refs=Path(tmp)/'refs.json'

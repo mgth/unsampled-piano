@@ -6,7 +6,7 @@ pressure. One fixed conversion (0.01 full-scale units/Pa by default)
 preserves the levels between keys. Float WAVs and manifest.json retain
 calibration and take provenance. PROD07: the new piano; PROD08: the same after a year on stage.
   tools/plath_set.py <data dir> <out dir> [--state PROD08]"""
-import argparse, glob, json, os, subprocess
+import argparse, glob, json, os, shutil, subprocess, tempfile
 import numpy as np
 
 NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -22,7 +22,29 @@ def main():
         ap.error("--gain-per-pa must be finite and positive")
     manifest = dict(format_version=2, state=a.state, gain_per_pa=a.gain_per_pa,
                     sample_rate=50000, source=os.path.abspath(a.data), notes=[])
-    os.makedirs(a.out, exist_ok=True)
+    out = os.path.abspath(a.out)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    # The whole set is built beside the destination, then swapped in: a
+    # failed import leaves the previous set as it was, never notes at two
+    # gains under a manifest that announces one.
+    tmp = tempfile.mkdtemp(prefix=os.path.basename(out) + ".", dir=os.path.dirname(out))
+    try:
+        build(a, manifest, tmp)
+        os.chmod(tmp, 0o755)
+        old = tmp + ".old" if os.path.exists(out) else None
+        if old: os.rename(out, old)
+        try:
+            os.rename(tmp, out)
+        except OSError:
+            if old: os.rename(old, out)
+            raise
+        if old: shutil.rmtree(old)
+    except BaseException:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    print(len(manifest["notes"]), "files; fixed gain", a.gain_per_pa, "/Pa")
+
+def build(a, manifest, out):
     for key in range(1, 89):
         takes = sorted(glob.glob(os.path.join(a.data, f"D1_{a.state}_{key:02d}_*M*.csv")))
         if not takes: continue
@@ -35,15 +57,14 @@ def main():
         # The recording starts 0.29 s before the key's impact: kept, so the
         # onset is found as in any other set.
         e = e * a.gain_per_pa
-        dst = os.path.join(a.out, f"{name(20 + key)}v13.wav")
+        dst = os.path.join(out, f"{name(20 + key)}v13.wav")
         subprocess.run(["sox", "-t", "f32", "-r", "50000", "-c", "2", "-", "-e", "floating-point", "-b", "32", dst], input=e.tobytes(), check=True)
         manifest["notes"].append(dict(midi=20 + key, file=os.path.basename(dst),
                                       selected_take=os.path.basename(takes[selected]),
                                       takes=len(takes), peak_pa=float(peaks[selected])))
-    with open(os.path.join(a.out, "manifest.json"), "w") as f:
+    with open(os.path.join(out, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2, allow_nan=False)
         f.write("\n")
-    print(len(manifest["notes"]), "files; fixed gain", a.gain_per_pa, "/Pa")
 
 if __name__ == "__main__":
     main()
