@@ -39,7 +39,7 @@ With 0.3 and 300 Hz the strings get +4.5 dB at C8 (ff) and −2 dB at C4. The ga
 | real grands | −3.8 | +1.9 | −2.4 | −4.8 | |
 | before | −8.0 | −0.3 | −10.6 | −16.8 | 1.15 |
 | shank 0.3 / 300 Hz, top slope 0.1 | −7.6 | +1.8 | −3.6 | −9.9 | 1.10 |
-| shank 0.3 / 300 Hz, top slope 0.2 (default) | −7.6 | +2.1 | −1.9 | −5.9 | 1.09 |
+| shank 0.3 / 300 Hz, top slope 0.2 (default until 2026-10-30, 0.15 since: docs/bench.md) | −7.6 | +2.1 | −1.9 | −5.9 | 1.09 |
 | shank 0.3 / 400 Hz, top slope 0.2 | −8.4 | +1.1 | −2.4 | −6.4 | 1.10 |
 
 The bench's score counts `balance` from now on (1.15 before for the same model). Other moves of 0.5 z or more:

@@ -14,7 +14,7 @@ limiter_ceiling_db = -1.0
 hardness = 0.3
 hardness_slope = 0.0
 hardness_slope_bass = 0.02
-hardness_slope_top = 0.2
+hardness_slope_top = 0.15
 core_hardness = 2.0
 core_p = 7.0
 core_depth_bass = 0.0
@@ -74,7 +74,7 @@ b1_floor = 0.0
 wound_until = 48
 top_slope = 0.0
 top_from = 84
-winding = 0.0002
+winding = 0.0001
 winding_until = 40
 
 [scale]
@@ -90,7 +90,7 @@ trichord_from = 45
 width_mid = 1.0
 width_treble = 5.0
 width_curve = 4.0
-hit_spread = 0.2
+hit_spread = 0.3
 soft_exponent = 1.0
 soft_speed = 2.75
 height_spread = 0.0001
