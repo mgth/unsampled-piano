@@ -80,6 +80,12 @@ class ChannelPowerTests(unittest.TestCase):
             self.assertEqual({f.name:f.read_bytes() for f in dst.iterdir()},before)
             self.assertEqual(json.loads((dst/'manifest.json').read_text())['gain_per_pa'],.01)
             self.assertEqual(sorted(f.name for f in Path(tmp).iterdir()),['out','src'])
+            # No take of that state: refused, not an empty set.
+            r=subprocess.run(tool+['--state','PROD09'],capture_output=True,text=True)
+            self.assertNotEqual(r.returncode,0)
+            self.assertIn('no PROD09 takes',r.stderr)
+            self.assertEqual({f.name:f.read_bytes() for f in dst.iterdir()},before)
+            self.assertEqual(sorted(f.name for f in Path(tmp).iterdir()),['out','src'])
 
     def test_old_reference_protocol_is_rejected_before_render(self):
         with tempfile.TemporaryDirectory() as tmp:

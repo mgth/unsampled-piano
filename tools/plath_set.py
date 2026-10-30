@@ -30,6 +30,8 @@ def main():
     tmp = tempfile.mkdtemp(prefix=os.path.basename(out) + ".", dir=os.path.dirname(out))
     try:
         build(a, manifest, tmp)
+        if not manifest["notes"]:
+            raise ValueError(f"{a.data}: no {a.state} takes; the previous set is left as it was")
         os.chmod(tmp, 0o755)
         old = tmp + ".old" if os.path.exists(out) else None
         if old: os.rename(out, old)
