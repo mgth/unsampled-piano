@@ -87,6 +87,27 @@ class ChannelPowerTests(unittest.TestCase):
             self.assertEqual({f.name:f.read_bytes() for f in dst.iterdir()},before)
             self.assertEqual(sorted(f.name for f in Path(tmp).iterdir()),['out','src'])
 
+    def test_hf_even_finds_the_key_that_stands_out(self):
+        # Every key at the same share but F4, 20 dB up in both bands.
+        levels={m:[-30.0+0.1*(m%3),-40.0] for m in bench.EVEN_KEYS}
+        levels[65]=[-10.0,-20.0]
+        rms8,rms11,max8,max11=bench.hf_even(levels)
+        self.assertAlmostEqual(max8,20.0,delta=0.2)
+        self.assertAlmostEqual(max11,20.0,delta=1e-9)
+        self.assertLess(rms11,5.0)
+        # A band read on too few keys is not scored.
+        self.assertEqual(bench.hf_even({m:levels[m] for m in range(60,66)}),[None]*4)
+
+    def test_hf_even_share_reads_channel_power(self):
+        # An 8–11 kHz burst in antiphase: lost in a mono sum, kept here.
+        n=bench.SR;t=np.arange(n)/bench.SR
+        y=np.where(t>0.2,np.sin(2*np.pi*440*t)+0.1*np.sin(2*np.pi*9000*t),0)*np.exp(-np.maximum(t-0.2,0)*3)
+        hi=np.where(t>0.2,0.1*np.sin(2*np.pi*9000*t),0)*np.exp(-np.maximum(t-0.2,0)*3)
+        x=np.column_stack((y,y-2*hi))
+        share=bench.hf_even_share(x)[1]
+        self.assertTrue(np.isfinite(share))
+        self.assertGreater(share,-30)
+
     def test_old_reference_protocol_is_rejected_before_render(self):
         with tempfile.TemporaryDirectory() as tmp:
             refs=Path(tmp)/'refs.json'
