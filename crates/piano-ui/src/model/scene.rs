@@ -572,11 +572,19 @@ pub fn key_across(sb: &SoundboardParams, m: u8) -> f64 {
     hi - (x + w / 2.0) as f64 / 52.0 * (hi - lo)
 }
 
-/// The keyboard's extent across (plate y): the main bridge's ends.
+/// The keyboard's extent across (plate y): C8 and the main bridge's lowest
+/// key in line with their bridge points, the bass keys beyond.
 fn keyboard_span(sb: &SoundboardParams) -> (f64, f64) {
     let y = |m: u8| sb.bridge_point_at(m as f64, true).1;
-    let (a, b) = (y(108), y(sb.main_bridge_from));
-    (a.min(b), a.max(b))
+    let mid = |m: u8| {
+        let (x, w) = sketches::key_span(m);
+        (x + w / 2.0) as f64
+    };
+    let lo_key = sb.main_bridge_from.min(107);
+    let white = (y(lo_key) - y(108)) / (mid(108) - mid(lo_key));
+    let hi = y(108) + mid(108) * white;
+    let lo = hi - 52.0 * white;
+    (lo.min(hi), lo.max(hi))
 }
 
 /// The agraffes' line (plate x), as the plan sketch draws it.

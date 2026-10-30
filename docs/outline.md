@@ -42,7 +42,7 @@ The board was an orthotropic plate clamped on an a × b rectangle, with analytic
 
 ## The prototype outline
 
-`SoundboardParams::GRAND_OUTLINE`, for the 2 m board: straight front edge (x = 0) and spine (the bass side, y = b). The bentside leaves the treble cheek 20 cm behind the front edge and curves in to 40 % of the width at the tail, which keeps the bass side's 60 %. That is 82 % of the rectangle. The bass bridge's end nearest it (E1) lies 15 cm inside it; A0's end, furthest back and nearest the spine, 24 cm from the tail.
+`SoundboardParams::GRAND_OUTLINE`, for the 2 m board: straight front edge (x = 0) and spine (the bass side, y = b). The bentside leaves the treble cheek 20 cm behind the front edge and curves in to 40 % of the width at the tail, which keeps the bass side's 60 %. That is 82 % of the rectangle. The bass bridge's end nearest it (E1) lies 15 cm inside it; A0's end, furthest back and nearest the spine, 24 cm from the tail. (The measures below use that bass bridge, with 8 keys. Since 2026-10-30 it carries 24 keys, placed as on a Steinway D: its G#2 end lies 42 cm inside the rim, A0's 23 cm from the tail; docs/bridges.md.)
 
 What changes on the board:
 

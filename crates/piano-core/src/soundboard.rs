@@ -122,9 +122,15 @@ pub struct SoundboardParams {
     pub crown_freq: f64,
     /// Main bridge: a smooth curve through five points in normalised plate
     /// coordinates, from C8 down to the last note of the main bridge; then
-    /// the bass bridge, straight.
+    /// the bass bridge, from its highest key to A0.
     pub treble_bridge: [(f64, f64); 5],
     pub bass_bridge: [(f64, f64); 2],
+    /// The bass bridge's bow: an arc of a circle through its two ends,
+    /// this far (m) from their chord at its middle, towards the tail when
+    /// positive; its keys at equal steps along it. 0: straight, and what a
+    /// preset saved before the bow existed reads, so that it keeps its bridge.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub bass_bridge_bow: f64,
     /// First note on the main bridge (lower notes are on the bass bridge).
     pub main_bridge_from: u8,
     /// Microphones (m, plate coordinates, z above the board).
@@ -340,17 +346,28 @@ impl SoundboardParams {
         // Set on the third-octave balance of the bass keys (commercial piano, Iowa,
         // Salamander, docs/bass_radiation.md): first mode 61 → 109 Hz.
         crown_freq: 90.0,
-        // Main bridge at equal steps of the main range (C8, ≈ F6, ≈ G#4,
-        // ≈ C#3, F1): x follows the speaking length of the 2 m scale from
+        // Main bridge at equal steps of the main range (C8, ≈ G#6, ≈ E5,
+        // ≈ C#4, A2): x follows the speaking length of the 2 m scale from
         // agraffes 3 cm in front of the board's front edge (C8 kept 6 cm in),
         // y the key's place across the 1.2 m wide string band. The treble
         // end sits in the board's clamped corner, as on real grands.
-        treble_bridge: [(0.035, 0.077), (0.07, 0.28), (0.21, 0.50), (0.62, 0.71), (0.78, 0.92)],
+        treble_bridge: [(0.035, 0.077), (0.051, 0.245), (0.136, 0.413), (0.327, 0.581), (0.666, 0.749)],
         // The bass strings cross over the tenor towards the middle of the
         // board but keep their keys' order, as on real grands: A0, the
-        // longest, ends furthest back and nearest the spine.
-        bass_bridge: [(0.72, 0.40), (0.86, 0.62)],
-        main_bridge_from: 29,
+        // longest, ends furthest back and nearest the spine. The bridge
+        // lies where the IRCAM Steinway D's does, in proportion to the
+        // board (Chabassier 2012): A0 at 87 % of the length and 25 % of the
+        // width from the spine, G#2 at 55 % and 44 %, bowed towards the tail
+        // as the D's (its 4 cm on a 0.69 m chord). From agraffes 3 cm in
+        // front of the board it would want A0 9 cm longer and G#2 17 cm
+        // shorter than the scale: the board and the agraffes are not yet a
+        // 2 m grand's (docs/bridges.md).
+        bass_bridge: [(0.553, 0.562), (0.867, 0.753)],
+        // 24 keys on the bass bridge, as on grands of 2–2.25 m: the long
+        // bridge starts at G#2 on a 225 cm grand, near A#2 on a 200 cm one,
+        // at F2 on 227 and 274 cm concert grands (docs/bridges.md).
+        main_bridge_from: 45,
+        bass_bridge_bow: 0.034,
         mics: [(0.45, 0.35, 1.5), (1.15, 0.85, 1.5)],
         // 1.5 m in front of an upright's board, the left one on the bass side.
         mics_upright: [(0.7, 1.0, 1.5), (0.3, 0.45, 1.5)],
@@ -398,7 +415,7 @@ impl SoundboardParams {
     /// spine (the bass side, y = b); the bentside leaves the treble cheek
     /// 20 cm behind the front edge and curves in towards the tail, which
     /// keeps the bass side's 60 %: 82 % of the rectangle. The bass bridge's
-    /// end nearest it (E1) lies 15 cm inside it.
+    /// ends lie 42 cm (G#2) and 23 cm (A0, from the tail) inside it.
     pub const GRAND_OUTLINE: [(f64, f64); OUTLINE_POINTS] = [
         (0.0, 0.0),
         (0.12, 0.0),
@@ -476,11 +493,38 @@ impl SoundboardParams {
             };
             (cr(p0.0, p1.0, p2.0, p3.0), cr(p0.1, p1.1, p2.1, p3.1))
         } else {
-            let span = (self.main_bridge_from - 21).max(1) as f64;
-            let t = (self.main_bridge_from as f64 - 1.0 - note) / span.max(1.0);
-            lerp(self.bass_bridge[0], self.bass_bridge[1], t.clamp(0.0, 1.0))
+            // 0 at the highest bass key, 1 at A0.
+            let span = (self.main_bridge_from as f64 - 22.0).max(1.0);
+            let t = ((self.main_bridge_from as f64 - 1.0 - note) / span).clamp(0.0, 1.0);
+            if self.bass_bridge_bow == 0.0 {
+                lerp(self.bass_bridge[0], self.bass_bridge[1], t)
+            } else {
+                let (x, y) = self.bass_arc(t);
+                (x / self.a, y / self.b)
+            }
         };
         (u * self.a, v * self.b)
+    }
+
+    /// Point at `t` (0 at the highest bass key, 1 at A0) along the bowed
+    /// bass bridge, in metres: equal steps of `t` are equal arc lengths.
+    fn bass_arc(&self, t: f64) -> (f64, f64) {
+        let [(u0, v0), (u1, v1)] = self.bass_bridge;
+        let (p, q) = ((u0 * self.a, v0 * self.b), (u1 * self.a, v1 * self.b));
+        let c = (q.0 - p.0).hypot(q.1 - p.1).max(1e-9);
+        let d = ((q.0 - p.0) / c, (q.1 - p.1) / c);
+        // The chord's normal towards the tail (+x), and the bow along it.
+        let n = if d.1 >= 0.0 { (d.1, -d.0) } else { (-d.1, d.0) };
+        let s = self.bass_bridge_bow.clamp(-c / 2.0, c / 2.0);
+        let n = if s < 0.0 { (-n.0, -n.1) } else { n };
+        let s = s.abs();
+        // Radius and half angle of the arc; its centre behind the chord.
+        let r = (c * c / 4.0 + s * s) / (2.0 * s);
+        let half = (c / 2.0).atan2(r - s);
+        let mid = ((p.0 + q.0) / 2.0, (p.1 + q.1) / 2.0);
+        let centre = (mid.0 - n.0 * (r - s), mid.1 - n.1 * (r - s));
+        let phi = -half + 2.0 * half * t;
+        (centre.0 + r * (phi.sin() * d.0 + phi.cos() * n.0), centre.1 + r * (phi.sin() * d.1 + phi.cos() * n.1))
     }
 
     /// The main or the bass bridge as a line to draw, in metres.
@@ -489,7 +533,7 @@ impl SoundboardParams {
             let lo = self.main_bridge_from as f64;
             (0..=64).map(|i| self.bridge_point_at(108.0 - (108.0 - lo) * i as f64 / 64.0, true)).collect()
         } else {
-            self.bass_bridge.iter().map(|&(u, v)| (u * self.a, v * self.b)).collect()
+            (0..=32).map(|i| self.bridge_point_at(self.main_bridge_from as f64 - 1.0 - (self.main_bridge_from as f64 - 22.0) * i as f64 / 32.0, false)).collect()
         }
     }
 }
@@ -1310,6 +1354,28 @@ mod tests {
             impedance_slope: 0.02,
             impedance_slope_bass: 0.0,
             ..SoundboardParams::GRAND_2M
+        }
+    }
+
+    #[test]
+    fn the_bowed_bass_bridge_is_an_arc_through_its_ends() {
+        let p = SoundboardParams { bass_bridge_bow: 0.05, ..SoundboardParams::GRAND_2M };
+        let hi = p.main_bridge_from - 1;
+        let end = |u: (f64, f64)| (u.0 * p.a, u.1 * p.b);
+        let (top, a0) = (p.bridge_point(hi), p.bridge_point(21));
+        let (e0, e1) = (end(p.bass_bridge[0]), end(p.bass_bridge[1]));
+        assert!((top.0 - e0.0).hypot(top.1 - e0.1) < 1e-9 && (a0.0 - e1.0).hypot(a0.1 - e1.1) < 1e-9);
+        // The middle lies the bow away from the chord, towards the tail.
+        let m = p.bridge_point_at((hi as f64 + 21.0) / 2.0, false);
+        let mid = ((e0.0 + e1.0) / 2.0, (e0.1 + e1.1) / 2.0);
+        assert!(((m.0 - mid.0).hypot(m.1 - mid.1) - 0.05).abs() < 1e-9 && m.0 > mid.0);
+        // Equal steps between keys.
+        let gap = |n: u8| {
+            let (a, b) = (p.bridge_point(n), p.bridge_point(n + 1));
+            (a.0 - b.0).hypot(a.1 - b.1)
+        };
+        for n in 21..hi {
+            assert!((gap(n) - gap(21)).abs() < 1e-9, "key {n}");
         }
     }
 
