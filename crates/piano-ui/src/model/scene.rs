@@ -874,6 +874,9 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let mut block = vec![(case_front, across_lo), (case_front, across_hi), (back[0].0, across_hi)];
     block.extend(&back);
     block.push((back[back.len() - 1].0, across_lo));
+    // A key past the board's edge (A0, the keyboard being wider than the
+    // board) lands on a corner once clamped: one point, not two.
+    block.dedup_by(|p, q| (p.0 - q.0).hypot(p.1 - q.1) < 1e-9);
     if signed_area(&block) < 0.0 {
         block.reverse();
     }

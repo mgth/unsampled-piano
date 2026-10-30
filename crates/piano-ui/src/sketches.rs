@@ -32,6 +32,8 @@ pub enum Sketch {
     String,
     Plan,
     Room,
+    /// The circle of fifths ([`crate::wheel`]).
+    Temperament,
 }
 
 /// A part of a sketch a parameter acts on.
@@ -121,6 +123,11 @@ pub enum Part {
     AbsorbHigh,
     /// The early reflections computed one by one.
     Reflections,
+    // The temperament wheel.
+    /// The fifths and thirds a temperament tunes.
+    Fifths,
+    /// The note it is laid on.
+    Tonic,
     /// The reverberation's level.
     Tail,
     /// How much the piano beams towards the mics.
@@ -212,12 +219,14 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("noise.pedal", &[PedalKnock]),
         ("noise.knock_time", &[KeybedKnock, PedalKnock]),
     ];
+    const TEMPERAMENT: &[(&str, &[Part])] = &[("temperament.key", &[Tonic]), ("temperament.", &[Fifths])];
     let find = |table: &'static [(&str, &'static [Part])]| table.iter().find(|(p, _)| path.starts_with(p)).map(|(_, parts)| *parts);
     let found = find(STRING)
         .map(|parts| (Sketch::String, parts))
         .or_else(|| find(PLAN).map(|parts| (Sketch::Plan, parts)))
         .or_else(|| find(ROOM).map(|parts| (Sketch::Room, parts)))
-        .or_else(|| find(ACTION).map(|parts| (Sketch::Action, parts)));
+        .or_else(|| find(ACTION).map(|parts| (Sketch::Action, parts)))
+        .or_else(|| find(TEMPERAMENT).map(|parts| (Sketch::Temperament, parts)));
     found.filter(|(_, parts)| !parts.is_empty())
 }
 
@@ -237,6 +246,7 @@ pub fn draw(ui: &mut Ui, sketch: Sketch, model: &PianoModel, path: &str, key: &m
         Sketch::String => string(ui, model, lit, path, key, width),
         Sketch::Plan => plan(ui, model, lit, key, width),
         Sketch::Room => room(ui, model, lit, width),
+        Sketch::Temperament => crate::wheel::draw(ui, model, lit, width),
     }
 }
 

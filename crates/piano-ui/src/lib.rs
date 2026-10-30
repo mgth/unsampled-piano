@@ -11,6 +11,7 @@ pub mod shot;
 mod simple;
 mod sketches;
 mod widgets;
+mod wheel;
 
 use std::path::PathBuf;
 
