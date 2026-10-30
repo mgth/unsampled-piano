@@ -48,6 +48,13 @@ PROFILE_SPEC = dict(version=3, channels="mean spectral power; RMS onset", fft_pa
                     windows={k: list(v) for k, v in PROFILE_WINDOWS.items()},
                     floor_db=4.0, min_refs=2, watch_db=6.0)
 HOLD = 20.0
+# The attack's high band key to key (hf_even) needs every key: C3–B4 and
+# the six keys on either side for their trend, at mf. On the model the keys
+# KEYS lacks come from the harmonic profiles' renders (harmonic_notes), so
+# the other measures keep the same keys on the model as on the references.
+EVEN_SPAN = (48, 71)
+EVEN_KEYS = list(range(EVEN_SPAN[0] - 6, EVEN_SPAN[1] + 7))
+EVEN_LAYER = 8
 # How the model is heard: close microphones in a studio, as the references
 # were recorded (the engine's default is a concert hall heard from 1.5 m,
 # whose reverberation would sit in every decay and between the partials).
@@ -205,6 +212,44 @@ def hf_share(x):
     s = onset(x); seg = x[s: s + int(0.06 * SR)]
     S = spectrum_power(seg); f = np.fft.rfftfreq(len(seg), 1 / SR); tot = S.sum()
     return [10 * np.log10(S[(f >= a) & (f < b)].sum() / tot + 1e-12) for a, b in ((2000, 4000), (4000, 8000))]
+
+def hf_even_share(x, gate=True):
+    """Share (dB) of 4–8 and 8–11.3 kHz in the first 60 ms, as hf_share.
+    With `gate` (recordings), NaN for a band within 6 dB of the recording's
+    noise (the same window before the onset, else over its last second).
+    The model's renders have no recording noise, and what follows their
+    attack depends on how long the key is held: they are read ungated."""
+    s = onset(x); n = int(0.06 * SR); seg = x[s: s + n]
+    if len(seg) < n: return [np.nan, np.nan]
+    f = np.fft.rfftfreq(n, 1 / SR)
+    S = spectrum_power(seg); tot = S.sum()
+    if not gate:
+        return [10 * np.log10(S[(f >= a) & (f < b)].sum() / tot + 1e-30) for a, b in ((4000, 8000), (8000, 11300))]
+    pre = x[: max(s - int(0.01 * SR), 0)]
+    quiet = pre if len(pre) >= int(0.1 * SR) else x[-SR:]
+    k = len(quiet) // n
+    N = np.mean([spectrum_power(quiet[i * n: (i + 1) * n]) for i in range(k)], axis=0) if k else np.full_like(S, np.inf)
+    out = []
+    for a, b in ((4000, 8000), (8000, 11300)):
+        band = (f >= a) & (f < b); e = S[band].sum()
+        out.append(10 * np.log10(e / tot + 1e-30) if e > 4 * N[band].sum() else np.nan)
+    return out
+
+def hf_even(levels):
+    """Key to key: rms and largest gap (dB) of each band's level about its
+    trend (median of the other keys within ±6), over C3–B4. `levels`: key →
+    [4–8k, 8–11k]. None for a band read on fewer than 10 keys."""
+    rms, top = [], []
+    for i in range(2):
+        lv = {m: v[i] for m, v in levels.items() if np.isfinite(v[i])}
+        res = []
+        for m in lv:
+            nb = [lv[j] for j in lv if j != m and abs(j - m) <= 6]
+            if EVEN_SPAN[0] <= m <= EVEN_SPAN[1] and len(nb) >= 6: res.append(lv[m] - np.median(nb))
+        ok = len(res) >= 10
+        rms.append(float(np.sqrt(np.mean(np.square(res)))) if ok else None)
+        top.append(float(np.max(np.abs(res))) if ok else None)
+    return rms + top
 
 def stereo_partial_levels(x, m, t0, duration, ks=range(1, 9), *, fft_padding=8):
     """Peak amplitudes in dBFS from mean channel powers, never a mono sum.
@@ -435,6 +480,11 @@ MEASURES = {
     # their trend (median of the keys within ±6), on the bench's keys from
     # C2 to C7; one figure, filed under the middle.
     "evenness":    ("sustain", 1.5, ["p1", "p2"], False),
+    # Key to key: the attack's 4–8 and 8–11 kHz (share of the first 60 ms,
+    # mf) about their trend, rms and largest gap, every key from C3 to B4;
+    # filed under the middle. The hammer's second impact one period after
+    # the strike made D#4–F4 "fizz" (docs/bench.md).
+    "hf_even":     ("attack", 3.0, ["4-8k rms", "8-11k rms", "4-8k max", "8-11k max"], False),
     "bands_att":   ("brightness", 3.0, ["1k", "2k", "4k", "8k"], False),
     "bands_sus":   ("brightness", 3.0, ["1k", "2k", "4k", "8k"], False),
     "sustain_ff":  ("sustain", 4.0, ["p2", "p3", "p4", "p6", "p8", "p12"], False),
@@ -446,7 +496,10 @@ MEASURES = {
     "stretch":     ("tuning", 5.0, ["cents"], False),
 }
 
-def measure_set(d, survey_csv):
+def measure_set(d, survey_csv, even_dir=None, recorded=True):
+    """Measures of a note set; `even_dir`: further keys, read by hf_even
+    only (the model's harmonic_notes); `recorded`: real recordings, whose
+    noise hf_even leaves out (False for the model's renders)."""
     cache = {}
     def get(m, l):
         if (m, l) not in cache:
@@ -492,6 +545,13 @@ def measure_set(d, survey_csv):
                 res = [lv[m] - np.median([lv[j] for j in lv if abs(j - m) <= 6]) for m in span]
                 ev.append(float(np.sqrt(np.mean(np.square(res)))) if len(res) >= 8 else None)
             r["evenness"] = ev if any(v is not None for v in ev) else None
+            hl = {}
+            for m in EVEN_KEYS:
+                x = get(m, EVEN_LAYER)
+                if x is None and even_dir and find(even_dir, m, EVEN_LAYER): x = load(find(even_dir, m, EVEN_LAYER), stereo=True)
+                if x is not None: hl[m] = hf_even_share(x, gate=recorded)
+            he = hf_even(hl)
+            r["hf_even"] = he if any(v is not None for v in he) else None
         if reg != "middle":
             lv = [reg_level(lo, hi, l) for l in (13, 8)]
             r["balance"] = [None if v is None or mid_level[l] is None else v - mid_level[l] for v, l in zip(lv, (13, 8))]
@@ -700,7 +760,7 @@ def main():
         render(harmonic_notes, args.preset, args.listening,
                keys=[m for m in PROFILE_KEYS if m not in KEYS], hold=1.5)
     csv = os.path.join(out, "survey.csv"); survey(notes, csv)
-    metrics = measure_set(notes, csv)
+    metrics = measure_set(notes, csv, harmonic_notes, recorded=False)
     z = score(metrics, refs)
     info = {n: score(s["metrics"], refs) for n, s in refs["sources"].items() if s["role"] == "info"}
     base = json.load(open(BASELINE)) if os.path.exists(BASELINE) else None
