@@ -369,7 +369,9 @@ impl StringTable {
             [0, 1].map(|kk| {
                 let (om, sg) = (b.omega + b.shift[kk].re, b.sigma + b.shift[kk].im);
                 let audible = om / (2.0 * PI) < self.f_cap;
-                let d = if self.velocity_out { C64::new(-(sg + if self.muted { p.damp_w } else { 0.0 }), om) } else { C64::ONE };
+                // A force output (bridge, piezo) is T·∂y/∂x: it follows the
+                // tension; the pickups' EMF follows the velocity.
+                let d = if self.velocity_out { C64::new(-(sg + if self.muted { p.damp_w } else { 0.0 }), om) } else { C64::new(rho, 0.0) };
                 let w = if audible { (p.e[PERP][kk].scale(self.win[n][PERP]) + p.e[PAR][kk].scale(self.win[n][PAR])) * d } else { C64::ZERO };
                 let w2 = if audible { p.e[PERP][kk].scale(rho * self.force[n]) } else { C64::ZERO };
                 ModeSpec {
@@ -550,6 +552,25 @@ mod tests {
             assert!(sp.freq_hz <= t.f_cap);
             if sp.freq_hz >= t.f_cap {
                 assert_eq!((sp.out_re, sp.out_im), (0.0, 0.0));
+            }
+        }
+    }
+
+    #[test]
+    fn a_bent_force_output_is_the_bent_force() {
+        // Bridge-force output: the main weights are gain × the force
+        // weights, at any tension.
+        let m = GuitarModel::default();
+        let gain = match m.output {
+            Output::BridgeForce { gain } => gain * m.output_gain,
+            _ => unreachable!(),
+        };
+        let t = table(&m, 3, 0);
+        for rho in [1.0, 2.0, 0.7] {
+            let bent: Vec<Bent> = (0..t.len()).map(|n| t.bent(n, rho)).collect();
+            for sp in t.bent_specs(&bent, rho) {
+                let (o, f) = (C64::new(sp.out_re, sp.out_im), C64::new(sp.out2_re, sp.out2_im).scale(gain));
+                assert!((o - f).norm() <= 1e-9 * f.norm(), "ρ = {rho}: {o:?} vs {f:?}");
             }
         }
     }
