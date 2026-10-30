@@ -98,6 +98,16 @@ const PIN_R: f64 = 0.0035;
 const PIN_GAP: f64 = 0.03;
 const PIN_ROW: f64 = 0.014;
 const PIN_ACROSS: f64 = 0.0038;
+/// The hitch pins: their radius, how far they stand inside the case's wall
+/// along the string, the rear lengths (a few cm in the top treble, growing
+/// with the speaking length to some 20 cm in the bass, as on grands) and
+/// how much lower they hold the strings than the bridge.
+const HITCH_R: f64 = 0.0025;
+const HITCH_INSET: f64 = 0.05;
+const HITCH_MIN: f64 = 0.03;
+const HITCH_BASE: f64 = 0.04;
+const HITCH_SHARE: f64 = 0.1;
+const HITCH_DROP: f64 = 0.006;
 /// The pin block's top (under the plate) and thickness; the case's front
 /// panel and the belly rail's thickness.
 const PIN_BLOCK_TOP: f64 = 0.02;
@@ -128,6 +138,7 @@ const COPPER: Color32 = Color32::from_rgb(184, 115, 70);
 const IRON: Color32 = Color32::from_rgb(190, 160, 90);
 const BRASS: Color32 = Color32::from_rgb(222, 184, 98);
 const PIN: Color32 = Color32::from_rgb(132, 134, 142);
+const HITCH: Color32 = Color32::from_rgb(150, 152, 160);
 const CASE: Color32 = Color32::from_rgb(40, 34, 32);
 const IVORY: Color32 = Color32::from_rgb(236, 232, 222);
 const EBONY: Color32 = Color32::from_rgb(28, 26, 26);
@@ -579,6 +590,32 @@ fn keyboard_span(sb: &SoundboardParams) -> (f64, f64) {
     (a.min(b), a.max(b))
 }
 
+/// A string's rear length (m), from its bridge point `p` (plate) on along
+/// its direction `u` to its hitch pin: [`HITCH_BASE`] and [`HITCH_SHARE`]
+/// of its speaking length, but [`HITCH_INSET`] short of the board's
+/// outline (the case's wall), and at least [`HITCH_MIN`].
+pub fn hitch_length(outline: &[(f64, f64)], p: (f64, f64), u: (f64, f64), speaking: f64) -> f64 {
+    let n = outline.len();
+    let mut best = HITCH_BASE + HITCH_SHARE * speaking;
+    for i in 0..n {
+        let (a, b) = (outline[i], outline[(i + 1) % n]);
+        let e = (b.0 - a.0, b.1 - a.1);
+        let denom = u.0 * e.1 - u.1 * e.0;
+        let len = e.0.hypot(e.1);
+        if denom.abs() < 1e-12 || len < 1e-12 {
+            continue;
+        }
+        let w = (a.0 - p.0, a.1 - p.1);
+        let (t, s) = ((w.0 * e.1 - w.1 * e.0) / denom, (w.0 * u.1 - w.1 * u.0) / denom);
+        if t > 0.0 && (0.0..=1.0).contains(&s) {
+            // The inset measured square to the wall, along the string.
+            let cos = (denom / len).abs().max(0.25);
+            best = best.min(t - HITCH_INSET / cos);
+        }
+    }
+    best.max(HITCH_MIN)
+}
+
 /// The agraffes' line (plate x), as the plan sketch draws it.
 pub fn agraffe_x(model: &PianoModel) -> f64 {
     let f = &model.frame;
@@ -863,6 +900,11 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let len = dx.hypot(dy).max(1e-9);
         let (nx, ny) = (-dy / len, dx / len);
         let segments = if level > 0.02 { 16 } else { 1 };
+        // Beyond the bridge, the strings' rear lengths to their hitch pins,
+        // a little lower on the plate.
+        let (ux, uy) = (dx / len, dy / len);
+        let rear = hitch_length(&outline, (bx, by), (ux, uy), len);
+        let tail = if m == o.key { o.ink } else { pick(Part::Frame, HITCH) };
         for s in 0..n.strings {
             let off = (s as f64 - (n.strings as f64 - 1.0) / 2.0) * 0.0025;
             let point = |t: f64| {
@@ -881,12 +923,26 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             // coil at the string's height, and the string's dead end from
             // it to the agraffe.
             let (back, across) = (PIN_GAP + PIN_ROW * (count % 2) as f64, off / 0.0025 * PIN_ACROSS);
-            let (ux, uy) = (dx / len, dy / len);
             let (px, py) = (ax - ux * back + nx * across, ay - uy * back + ny * across);
             b.plate_prism((px, py), PIN_R, 6, 0.0, (PIN_BLOCK_TOP, z + 0.012), PIN);
             b.plate_prism((px, py), PIN_R + 0.001, 6, 0.0, (z - 0.003, z + 0.002), c);
             b.line(place.at(px + ux * PIN_R, py + uy * PIN_R, z), point(0.0), rgba(c, 1.0));
+            // Its rear length, plain wire, round its hitch pin.
+            let (hx, hy) = (bx + ux * rear + nx * off, by + uy * rear + ny * off);
+            b.line(point(1.0), place.at(hx - ux * HITCH_R, hy - uy * HITCH_R, z - HITCH_DROP), rgba(tail, 1.0));
+            b.plate_prism((hx, hy), HITCH_R, 6, 0.0, (z - HITCH_DROP - 0.012, z - HITCH_DROP + 0.004), HITCH);
             count += 1;
+        }
+        // The felt woven through the rear lengths of the strings that have
+        // dampers (the treble's ring free, a duplex).
+        if m <= d.highest_note {
+            let (fx, fy) = (bx + ux * rear * 0.45, by + uy * rear * 0.45);
+            let half = 0.0025 * n.strings as f64 / 2.0 + 0.001;
+            let (zl, zh) = (z - HITCH_DROP * 0.45 - 0.004, z - HITCH_DROP * 0.45 + 0.004);
+            let q = |a: f64, c: f64| place.at(fx + ux * a + nx * c, fy + uy * a + ny * c, 0.0);
+            let (o3, u3, v3) = (q(-0.004, -half), sub(q(0.004, -half), q(-0.004, -half)), sub(q(-0.004, half), q(-0.004, -half)));
+            let o3 = add(o3, scale(place.dir(0.0, 0.0, 1.0), zl as f32));
+            b.cuboid(o3, u3, v3, scale(place.dir(0.0, 0.0, 1.0), (zh - zl) as f32), FELT);
         }
         // The agraffe, a brass stud the unison goes through, turned along
         // it, standing on the pin block (the highest treble's overhang it);
