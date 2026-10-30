@@ -85,6 +85,8 @@ Its A0 end, as far back as the old one, recovers part of A0–E1. Its upper end,
 
 Seen from above (Model page, 3D), the bench's best puts the bass bridge in the back of the board towards the bentside: its G#2 end at 60 % of the width from the spine, the bass strings crossing the whole tenor at 19–21°, and 12–16 cm longer than the scale's. Nothing in it is impossible, but no real grand found looks like it, and a piano built that way would have other bass strings. The D's proportions look like the D, with strings at 12–15°.
 
+Since 2026-10-30 the register measures take the channels' powers instead of their sum: the default scores 1.12 against 1.10 before the break moved, with the same ranking of the variants (docs/bench.md, "Channel power for the register measures").
+
 **The default is the D's proportions, bowed** (1.10 against 1.11 before the break was moved): the realistic geometry, not the bench's best. What is left open:
 - the bass on the bench (0.95 against 0.81 before): A0–G#2 lack 2–4 dB of partials 2–8 against p1, and the bridge's place only hides it;
 - the board, 1.70 m long, a ≈ 2.4 m grand's under a 2 m grand's strings;

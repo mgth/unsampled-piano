@@ -31,6 +31,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REFS = os.path.join(ROOT, "bench", "references.json")
 BASELINE = os.path.join(ROOT, "bench", "baseline.json")
 HARMONIC_REFS = os.path.join(ROOT, "bench", "harmonic_references.json")
+ANALYSIS_VERSION = "channel-power-v2"
 SR = 48000
 NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 REGS = [(21, 47, "bass"), (48, 71, "middle"), (72, 95, "treble"), (96, 108, "top")]
@@ -87,9 +88,33 @@ KNOWN = {
 def name(m): return NAMES[m % 12] + str(m // 12 - 1)
 def f0(m): return 440 * 2 ** ((m - 69) / 12)
 
-def load(path):
-    raw = subprocess.run(["sox", path, "-t", "f32", "-r", str(SR), "-c", "1", "-"], check=True, capture_output=True).stdout
-    return np.frombuffer(raw, dtype=np.float32).astype(float)
+def load(path, *, stereo=False):
+    """Legacy callers keep mono; the note-set bench requests channel power.
+
+    Mono sources are duplicated by SoX for stereo analysis: their power
+    stays the same. No channel averaging is done before the spectrum.
+    """
+    raw = subprocess.run(["sox", path, "-t", "f32", "-r", str(SR), "-c", "2" if stereo else "1", "-"], check=True, capture_output=True).stdout
+    x = np.frombuffer(raw, dtype=np.float32).astype(float)
+    return x.reshape(-1, 2) if stereo else x
+
+def channels(x):
+    return x[:, None] if x.ndim == 1 else x
+
+def power(x):
+    return np.mean(channels(x) ** 2, axis=1)
+
+def spectrum_power(x, n=None):
+    """Mean of channel powers, not power of their mean pressure."""
+    seg = channels(x)
+    S = np.fft.rfft(seg * np.hanning(len(seg))[:, None], n, axis=0)
+    return np.mean(np.abs(S) ** 2, axis=1)
+
+def highpass(x, cutoff):
+    seg = channels(x)
+    X = np.fft.rfft(seg, axis=0)
+    X[np.fft.rfftfreq(len(seg), 1 / SR) < cutoff] = 0
+    return np.fft.irfft(X, len(seg), axis=0)
 
 def load_stereo(path):
     """Preserve the two channels for local timbre analysis; mono is duplicated."""
@@ -107,23 +132,22 @@ def find(d, m, layer):
         if os.path.exists(p): return p
 
 def onset(x):
-    a = np.abs(x); return int(np.argmax(a > 0.1 * a.max()))
+    a = np.sqrt(power(x)); return int(np.argmax(a > 0.1 * a.max()))
 
 def peak_db(x):
-    h = 480; n = len(x) // h; return 10 * np.log10((x[: n * h].reshape(n, h) ** 2).mean(1).max() + 1e-30)
+    h = 480; n = len(x) // h; return 10 * np.log10(power(x[: n * h]).reshape(n, h).mean(1).max() + 1e-30)
 
 def onset_level(x):
     """Peak level (dB, 10 ms frames) of the first 0.2 s above 250 Hz: the
     attack as heard, without the fundamentals of the bass."""
     s = max(onset(x) - int(0.01 * SR), 0); seg = x[s: s + int(0.2 * SR)]
-    X = np.fft.rfft(seg); X[np.fft.rfftfreq(len(seg), 1 / SR) < 250] = 0
-    return peak_db(np.fft.irfft(X, len(seg)))
+    return peak_db(highpass(seg, 250))
 
 def partial_level(x, m, k, t0=0.5, t1=1.5):
     """Level (dB) of partial k between t0 and t1 s after the onset, its
     peak found within ±3 % of k·f0."""
     s = onset(x); seg = x[s + int(t0 * SR): s + int(t1 * SR)]; N = 1 << 18
-    P = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), N)) ** 2; f = np.fft.rfftfreq(N, 1 / SR)
+    P = spectrum_power(seg, N); f = np.fft.rfftfreq(N, 1 / SR)
     g = f0(m) * k; w = (f > g * 0.97) & (f < g * 1.03); fp = f[w][np.argmax(P[w])]
     lv = 10 * np.log10(P[(f > fp * 0.995) & (f < fp * 1.005)].sum() + 1e-30)
     if 0.06 * g < 8 * 2 * SR / len(seg): return lv
@@ -131,9 +155,8 @@ def partial_level(x, m, k, t0=0.5, t1=1.5):
 
 def envelope(x, m, times):
     """Level (dB re the peak) at `times` s after the peak, above 0.7·f0."""
-    X = np.fft.rfft(x); X[np.fft.rfftfreq(len(x), 1 / SR) < 0.7 * f0(m)] = 0
-    y = np.fft.irfft(X, len(x)); h = 960; n = len(y) // h
-    e = 10 * np.log10((y[: n * h].reshape(n, h) ** 2).mean(1) + 1e-30); k = int(np.argmax(e))
+    y = highpass(x, 0.7 * f0(m)); h = 960; n = len(y) // h
+    e = 10 * np.log10(power(y[: n * h]).reshape(n, h).mean(1) + 1e-30); k = int(np.argmax(e))
     # A level within 6 dB of the recording's own noise (its quietest
     # frames after the peak) cannot be read.
     noise = np.percentile(e[k:], 5) + 6
@@ -154,7 +177,7 @@ def partials(x, m, t0, dur, ks, fmax=12000):
     s = onset(x) + int(t0 * SR); n = int(dur * SR); seg = x[s: s + n]
     if len(seg) < n: return [np.nan] * len(ks)
     N = max(n, 4096)
-    S = np.abs(np.fft.rfft(seg * np.hanning(n), N)); f = np.fft.rfftfreq(N, 1 / SR)
+    S = np.sqrt(spectrum_power(seg, N)); f = np.fft.rfftfreq(N, 1 / SR)
     def lev(k):
         fk = k * f0(m) * np.sqrt(1 + 4e-4 * k * k * (1 if m > 60 else 0.3))  # loose inharmonic window
         w = (f > fk * 0.94) & (f < fk * 1.08)
@@ -169,18 +192,18 @@ def partials(x, m, t0, dur, ks, fmax=12000):
 
 def centroid(x, m, t0, dur):
     s = onset(x) + int(t0 * SR); seg = x[s: s + int(dur * SR)]
-    S = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2; f = np.fft.rfftfreq(len(seg), 1 / SR)
+    S = spectrum_power(seg); f = np.fft.rfftfreq(len(seg), 1 / SR)
     sel = f > 0.7 * f0(m)
     return (S[sel] * f[sel]).sum() / S[sel].sum() / f0(m)
 
 def band_levels(x, t, cens, dur):
     s = onset(x) + int(t * SR); seg = x[s: s + int(dur * SR)]
-    S = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2; f = np.fft.rfftfreq(len(seg), 1 / SR)
+    S = spectrum_power(seg); f = np.fft.rfftfreq(len(seg), 1 / SR)
     return np.array([10 * np.log10(S[(f >= c / 1.414) & (f < c * 1.414)].sum() + 1e-30) for c in cens])
 
 def hf_share(x):
     s = onset(x); seg = x[s: s + int(0.06 * SR)]
-    S = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2; f = np.fft.rfftfreq(len(seg), 1 / SR); tot = S.sum()
+    S = spectrum_power(seg); f = np.fft.rfftfreq(len(seg), 1 / SR); tot = S.sum()
     return [10 * np.log10(S[(f >= a) & (f < b)].sum() / tot + 1e-12) for a, b in ((2000, 4000), (4000, 8000))]
 
 def stereo_partial_levels(x, m, t0, duration, ks=range(1, 9), *, fft_padding=8):
@@ -427,7 +450,7 @@ def measure_set(d, survey_csv):
     cache = {}
     def get(m, l):
         if (m, l) not in cache:
-            p = find(d, m, l); cache[(m, l)] = load(p) if p else None
+            p = find(d, m, l); cache[(m, l)] = load(p, stereo=True) if p else None
         return cache[(m, l)]
     out = {}
     sv = pd.read_csv(survey_csv) if survey_csv and os.path.exists(survey_csv) else None
@@ -504,7 +527,9 @@ def measure_set(d, survey_csv):
 
 def survey(d, csv):
     exe = os.path.join(ROOT, "target", "release", "piano-survey")
-    subprocess.run([exe, d, "--out", csv], check=True, capture_output=True)
+    run = subprocess.run([exe, d, "--out", csv, "--channel-power"], check=True, capture_output=True, text=True)
+    with open(csv + ".log", "w") as f:
+        f.write(run.stderr)
 
 def build():
     subprocess.run(["cargo", "build", "--release", "-q", "-p", "piano-render", "-p", "piano-analysis"], cwd=ROOT, check=True)
@@ -603,6 +628,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("refs"); a.add_argument("sources", nargs="*")
     a.add_argument("--harmonics-only", action="store_true", help="refresh harmonic profiles of all registered targets, without redoing the historical measures")
+    a.add_argument("--no-build", action="store_true", help="use an already rebuilt piano-survey")
     b = sub.add_parser("run")
     b.add_argument("--preset"); b.add_argument("--name", default="model")
     b.add_argument("--listening", action="append", help="listening preset(s) over the instrument (default: close microphones, studio; none: the engine's own)")
@@ -621,11 +647,15 @@ def main():
             profile_reference_cache(names={s.split("=", 1)[0] for s in args.sources})
         except ValueError as e:
             ap.error(str(e))
-        if not os.path.exists(os.path.join(ROOT, "target", "release", "piano-survey")): build()
+        if not args.no_build: build()
         old = json.load(open(REFS)) if os.path.exists(REFS) else {"sources": {}}
         work = os.path.join(ROOT, "out", "bench", "refs"); os.makedirs(work, exist_ok=True)
         for s in args.sources:
             nm, rest = s.split("=", 1); d, *opts = rest.split(":")
+            if nm == "plath":
+                manifest_path = os.path.join(d, "manifest.json")
+                if not os.path.isfile(manifest_path) or json.load(open(manifest_path)).get("format_version") != 2:
+                    ap.error("Plath requires a fixed-gain import: rerun tools/plath_set.py into a new directory")
             csv = os.path.join(work, f"{nm}.survey.csv")
             print(f"measuring {nm} ({d})", file=sys.stderr)
             # Cut to the model's length, so that decays are fitted on the
@@ -634,7 +664,7 @@ def main():
             for f in os.listdir(d):
                 stem, ext = os.path.splitext(f)
                 if ext in (".wav", ".flac"):
-                    subprocess.run(["sox", os.path.join(d, f), "-b", "24", os.path.join(cut, stem + ".wav"), "trim", "0", str(HOLD + 0.5)], check=True)
+                    subprocess.run(["sox", os.path.join(d, f), "-e", "floating-point", "-b", "32", os.path.join(cut, stem + ".wav"), "trim", "0", str(HOLD + 0.5)], check=True)
             survey(cut, csv)
             prev = old["sources"].get(nm, {})
             metrics = measure_set(cut, csv)
@@ -643,13 +673,20 @@ def main():
             if "nodyn" in opts:
                 for reg in metrics.values(): reg["dyn"] = None
             old["sources"][nm] = dict(role="info" if "info" in opts else "target", description=prev.get("description") or KNOWN.get(nm, ""),
-                                      dir=os.path.relpath(os.path.abspath(d), ROOT), options=opts, metrics=metrics)
+                                      dir=os.path.relpath(os.path.abspath(d), ROOT), options=opts, metrics=metrics,
+                                      analysis_version=ANALYSIS_VERSION)
+            manifest = os.path.join(d, "manifest.json")
+            if os.path.isfile(manifest):
+                old["sources"][nm]["import_manifest"] = json.load(open(manifest))
         os.makedirs(os.path.dirname(REFS), exist_ok=True)
         json.dump(old, open(REFS, "w"), indent=1)
         refresh_profile_refs(old, names={s.split("=", 1)[0] for s in args.sources})
         print(f"wrote {os.path.relpath(REFS, ROOT)}", file=sys.stderr)
         return
     refs = json.load(open(REFS))
+    outdated = [n for n, s in refs["sources"].items() if s.get("analysis_version") != ANALYSIS_VERSION]
+    if outdated:
+        ap.error("recompute references with this analysis version first: " + ", ".join(outdated))
     try:
         profile_targets = load_profile_refs(refs)
     except ValueError as e:
@@ -668,6 +705,9 @@ def main():
     info = {n: score(s["metrics"], refs) for n, s in refs["sources"].items() if s["role"] == "info"}
     base = json.load(open(BASELINE)) if os.path.exists(BASELINE) else None
     # The baseline keeps its measures, scored against today's references.
+    if base and base.get("analysis_version") != ANALYSIS_VERSION:
+        print("baseline uses an older analysis version; comparison skipped (remeasure before saving a new baseline)", file=sys.stderr)
+        base = None
     if base: base["z"] = score(base["metrics"], refs)
     profiles = measure_profiles([notes, harmonic_notes])
     profile_scores = score_profiles(profiles, profile_targets)
@@ -680,7 +720,7 @@ def main():
     write_profile_csv(profile_scores, os.path.join(out, "harmonic_profiles.csv"))
     path = os.path.join(out, "scorecard.md")
     s = report(args.name, z, info, base, path, profile_scores, profile_base, reference_checks)
-    json.dump(dict(commit=git_commit(), preset=args.preset, listening=args.listening, metrics=metrics, z=z,
+    json.dump(dict(analysis_version=ANALYSIS_VERSION, commit=git_commit(), preset=args.preset, listening=args.listening, metrics=metrics, z=z,
                    harmonic_spec=PROFILE_SPEC, harmonic_profiles=profiles, harmonic_scores=profile_scores,
                    harmonic_summary=profile_summary(profile_scores), harmonic_reference_checks=reference_checks),
               open(os.path.join(out, "result.json"), "w"), indent=1)
@@ -693,7 +733,7 @@ def main():
         b = summary(base["z"]); print(f"baseline {base.get('commit', '?')}: score {b['score']:.2f}, {b['off']} off")
     print(f"{os.path.relpath(path, ROOT)} ({time.time() - t:.0f} s)")
     if args.save_baseline:
-        json.dump(dict(commit=git_commit(), preset=args.preset, metrics=metrics,
+        json.dump(dict(analysis_version=ANALYSIS_VERSION, commit=git_commit(), preset=args.preset, listening=args.listening, metrics=metrics,
                        harmonic_spec=PROFILE_SPEC, harmonic_profiles=profiles), open(BASELINE, "w"), indent=1)
         print(f"wrote {os.path.relpath(BASELINE, ROOT)}")
 
