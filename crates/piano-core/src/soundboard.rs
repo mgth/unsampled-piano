@@ -284,10 +284,15 @@ impl SoundboardParams {
         // outline (82 % of the rectangle): the modes above `outline_below`
         // are the rectangle's, mass-normalised on it, so a fifth of their
         // mass lies outside the outline; the same D/ρh keeps the modal
-        // frequencies and the calibrated mobility (docs/outline.md).
-        rho_h: 8.4,
-        dx: 4590.0,
-        dy: 2040.0,
+        // frequencies and the calibrated mobility (docs/outline.md). Then
+        // × 1.25 more, the same D/ρh: the board's conductance at the
+        // fundamentals C3–C6 averaged 1.48 × the strings' measured decays
+        // (tools/bridge_conductance.py), 1.17 × now; the middle's and the
+        // treble's sustain at 1–2 s come onto the real grands
+        // (docs/board_hump.md).
+        rho_h: 10.5,
+        dx: 5737.5,
+        dy: 2550.0,
         loss_factor: 0.02,
         // Wood and radiation damping grow with frequency: η = 0.02·(1 +
         // f/2500 Hz). The share of its energy the board radiates falls as

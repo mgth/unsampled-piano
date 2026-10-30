@@ -255,7 +255,7 @@ does not require or ship the experimental renderer.
 
 Windows cover 0–60 ms, 60–200 ms, then 200 ms steps through 1.2 s; a separate 0.5–1 s window matches the bench's sustain. The diagnostic retains individual reference pianos, so means and min–max ranges can be computed after normalising each recording separately. It does not rank nasality. A useful perceptual detector still requires listening labels on additional notes and velocities, with separate examples for validation; this small group alone is not enough to fit and validate it.
 
-At velocity 100, H1's loss from its own attack to the 0.6–0.8 s window is 5.1 dB on C4, 11.8 on C#4, 46.0 on D4, 25.4 on D#4 and 39.1 on E4. The corresponding real-piano means are 15.0, 15.0, 10.7, 13.2 and 16.5 dB. The sharp change starts at D4, whose fundamental drops more than those of the two notes described as nasal: fast fundamental loss is a measurable lead, but cannot alone explain the reported perceptual ordering. These windowed levels are not monotonic decay fits or estimates of T60.
+At velocity 100, H1's loss from its own attack to the 0.6–0.8 s window is 5.1 dB on C4, 11.8 on C#4, 46.0 on D4, 25.4 on D#4 and 39.1 on E4. The corresponding real-piano means are 15.0, 15.0, 10.7, 13.2 and 16.5 dB. The sharp change starts at D4, whose fundamental drops more than those of the two notes described as nasal: fast fundamental loss is a measurable lead, but cannot alone explain the reported perceptual ordering. These windowed levels are not monotonic decay fits or estimates of T60. D4–E4's fundamentals sit on a cluster of three board modes ([board_hump.md](board_hump.md)).
 
 ## The measures
 

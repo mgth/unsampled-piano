@@ -116,9 +116,9 @@ slope_from = 130.81
 [soundboard]
 a = 1.7
 b = 1.3
-rho_h = 8.4
-dx = 4590.0
-dy = 2040.0
+rho_h = 10.5
+dx = 5737.5
+dy = 2550.0
 loss_factor = 0.02
 loss_corner = 2500.0
 loss_low_corner = 200.0
