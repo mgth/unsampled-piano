@@ -108,6 +108,16 @@ class ChannelPowerTests(unittest.TestCase):
         self.assertTrue(np.isfinite(share))
         self.assertGreater(share,-30)
 
+    def test_hf_even_of_a_render_does_not_depend_on_its_hold(self):
+        # The same attack held 1.5 s or 20 s: same reading, same coverage,
+        # even for a band far below what follows it.
+        t=np.arange(int(1.5*bench.SR))/bench.SR
+        short=(np.sin(2*np.pi*220*t)+1e-6*np.sin(2*np.pi*9000*t)*(t<.05))*np.exp(-t)
+        long=np.r_[short,np.sin(2*np.pi*220*np.arange(18*bench.SR)/bench.SR)*np.exp(-1.5)]
+        a,b=bench.hf_even_share(short,gate=False),bench.hf_even_share(long,gate=False)
+        self.assertTrue(np.isfinite(a).all())
+        np.testing.assert_array_equal(a,b)
+
     def test_old_reference_protocol_is_rejected_before_render(self):
         with tempfile.TemporaryDirectory() as tmp:
             refs=Path(tmp)/'refs.json'

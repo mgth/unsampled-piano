@@ -213,14 +213,18 @@ def hf_share(x):
     S = spectrum_power(seg); f = np.fft.rfftfreq(len(seg), 1 / SR); tot = S.sum()
     return [10 * np.log10(S[(f >= a) & (f < b)].sum() / tot + 1e-12) for a, b in ((2000, 4000), (4000, 8000))]
 
-def hf_even_share(x):
-    """Share (dB) of 4–8 and 8–11.3 kHz in the first 60 ms, as hf_share;
-    NaN for a band within 6 dB of the recording's noise (the same window
-    before the onset, else over its last second)."""
+def hf_even_share(x, gate=True):
+    """Share (dB) of 4–8 and 8–11.3 kHz in the first 60 ms, as hf_share.
+    With `gate` (recordings), NaN for a band within 6 dB of the recording's
+    noise (the same window before the onset, else over its last second).
+    The model's renders have no recording noise, and what follows their
+    attack depends on how long the key is held: they are read ungated."""
     s = onset(x); n = int(0.06 * SR); seg = x[s: s + n]
     if len(seg) < n: return [np.nan, np.nan]
     f = np.fft.rfftfreq(n, 1 / SR)
     S = spectrum_power(seg); tot = S.sum()
+    if not gate:
+        return [10 * np.log10(S[(f >= a) & (f < b)].sum() / tot + 1e-30) for a, b in ((4000, 8000), (8000, 11300))]
     pre = x[: max(s - int(0.01 * SR), 0)]
     quiet = pre if len(pre) >= int(0.1 * SR) else x[-SR:]
     k = len(quiet) // n
@@ -492,9 +496,10 @@ MEASURES = {
     "stretch":     ("tuning", 5.0, ["cents"], False),
 }
 
-def measure_set(d, survey_csv, even_dir=None):
+def measure_set(d, survey_csv, even_dir=None, recorded=True):
     """Measures of a note set; `even_dir`: further keys, read by hf_even
-    only (the model's harmonic_notes)."""
+    only (the model's harmonic_notes); `recorded`: real recordings, whose
+    noise hf_even leaves out (False for the model's renders)."""
     cache = {}
     def get(m, l):
         if (m, l) not in cache:
@@ -544,7 +549,7 @@ def measure_set(d, survey_csv, even_dir=None):
             for m in EVEN_KEYS:
                 x = get(m, EVEN_LAYER)
                 if x is None and even_dir and find(even_dir, m, EVEN_LAYER): x = load(find(even_dir, m, EVEN_LAYER), stereo=True)
-                if x is not None: hl[m] = hf_even_share(x)
+                if x is not None: hl[m] = hf_even_share(x, gate=recorded)
             he = hf_even(hl)
             r["hf_even"] = he if any(v is not None for v in he) else None
         if reg != "middle":
@@ -755,7 +760,7 @@ def main():
         render(harmonic_notes, args.preset, args.listening,
                keys=[m for m in PROFILE_KEYS if m not in KEYS], hold=1.5)
     csv = os.path.join(out, "survey.csv"); survey(notes, csv)
-    metrics = measure_set(notes, csv, harmonic_notes)
+    metrics = measure_set(notes, csv, harmonic_notes, recorded=False)
     z = score(metrics, refs)
     info = {n: score(s["metrics"], refs) for n, s in refs["sources"].items() if s["role"] == "info"}
     base = json.load(open(BASELINE)) if os.path.exists(BASELINE) else None

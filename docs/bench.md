@@ -88,16 +88,16 @@ The user heard D#4, E4 and F4 "fizz" (*friser*), and no other key (2026-10-29). 
 
 The cause is the hammer. The wave it launches comes back from the agraffe one period later and strikes it again. On D#4–F4 the main contact lasts about one period (2.7–3.1 ms): the hammer has just left the string when the wave returns, and it takes a second, short and hard impact. Below, it is already away; from F#4 up, it is still pressing the string when the wave arrives. The short impact puts the high partials into the string. The examples `strike_shape_scan` (contacts per key) and `strike_force_dump` (the force against time) show it.
 
-`hf_even` reads every key from C3 to B4 at mf: the references' own keys, the model's from `notes/` and `harmonic_notes/` (the harmonic profiles' renders, held 1.5 s). The real grands that can be read there are Helgesson and Splendid in both bands and BiVib below 8 kHz (its 8–11 kHz is noise). They keep each key within 4–5 dB of its neighbours at 8–11 kHz (rms 1.7–2.7 dB), within 9–10 dB at 4–8 kHz. The model, at `03ddb1f`:
+`hf_even` reads every key from C3 to B4 at mf: the references' own keys, the model's from `notes/` and `harmonic_notes/` (the harmonic profiles' renders, held 1.5 s). On a recording, a band within 6 dB of its noise (before the onset, else its last second) is not read. The model's renders have none, and what follows their attack depends on how long the key is held (20 s in `notes/`, 1.5 s in `harmonic_notes/`): they are read whole, whatever the hold. Below C#4 the model's attack has almost nothing at 8–11 kHz (−105 dB of its energy). The real grands that can be read there are Helgesson and Splendid in both bands and BiVib below 8 kHz (its 8–11 kHz is noise). They keep each key within 4–5 dB of its neighbours at 8–11 kHz (rms 1.7–2.7 dB), within 9–10 dB at 4–8 kHz. The model, at `03ddb1f`:
 
 | | model | real grands | z |
 |---|---|---|---|
 | 4–8 kHz rms | 5.4 dB | 4.5–5.4 | +0.2 |
-| 8–11 kHz rms | 6.7 dB | 1.7–2.7 | +1.5 |
+| 8–11 kHz rms | 8.0 dB | 1.7–2.7 | +1.9 |
 | 4–8 kHz largest gap | 16.7 dB (F#4 −16.7, F4 +10.1) | 9.4–9.9 | +2.4 |
-| 8–11 kHz largest gap | 16.9 dB (F4 +16.9, E4 +9.5) | 3.9–4.7 | +4.2 |
+| 8–11 kHz largest gap | 18.8 dB (F4 +18.8, C4 −17.5, A#3 +12.0, E4 +11.4) | 3.9–4.7 | +4.8 |
 
-F4 stood 24 dB above its neighbours on 2026-10-29, under the mono protocol and before the treble hammers changed (048955e); it stands 17 dB above them now. The second impact is still there (above: D4 and D#4 have two contacts at velocity 70). With `hf_even` the score is 1.17 (1.12 without), 15 measures off; no other reference measure moved. First written on 2026-10-29 (`823d60a`, not merged then) with its own `notes_even/` renders and the mono protocol; carried onto the channel-power protocol here.
+F4 stood 24 dB above its neighbours on 2026-10-29, under the mono protocol and before the treble hammers changed (048955e); it stands 19 dB above them now. The second impact is still there (above: D4 and D#4 have two contacts at velocity 70). With `hf_even` the score is 1.18 (1.12 without), 15 measures off; no other reference measure moved. First written on 2026-10-29 (`823d60a`, not merged then) with its own `notes_even/` renders and the mono protocol; carried onto the channel-power protocol here.
 
 ### Channel power for the register measures (2026-10-30)
 
@@ -178,7 +178,7 @@ At velocity 100, H1's loss from its own attack to the 0.6–0.8 s window is 5.1 
 | dynamics | `dyn` | peak ff − pp and ff − mf | 3 dB |
 | dynamics | `balance` | the register's attack peak above 250 Hz re the middle's, ff and mf (median over the keys) | 2 dB |
 | sustain | `evenness` | key to key: rms of the levels of partials 1 and 2 (0.5–1.5 s, ff) about their trend (median of the keys within ±6), C2–C7, filed under the middle | 1.5 dB |
-| attack | `hf_even` | key to key: share of 4–8 and 8–11.3 kHz in the first 60 ms (mf) about its trend (median of the other keys within ±6), rms and largest gap over every key from C3 to B4, filed under the middle; a band within 6 dB of a recording's noise is not read; the model's keys between the bench's come from `harmonic_notes/` | 3 dB |
+| attack | `hf_even` | key to key: share of 4–8 and 8–11.3 kHz in the first 60 ms (mf) about its trend (median of the other keys within ±6), rms and largest gap over every key from C3 to B4, filed under the middle; a band within 6 dB of a recording's noise is not read (the model's renders have no recording noise and are read whole); the model's keys between the bench's come from `harmonic_notes/` | 3 dB |
 | dynamics | `brightening` | centroid ff / pp at the attack | ×1.16 |
 | sustain | `sustain_ff` | partials 2, 3, 4, 6, 8, 12 re partial 1, 0.5–1 s | 4 dB |
 | decay | `env_ff`, `env_mf`, `env_pp` | level above 0.7·f0 at 0.3, 1, 2, 3 s re the peak | 3 dB |

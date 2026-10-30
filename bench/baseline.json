@@ -1,6 +1,6 @@
 {
  "analysis_version": "channel-power-v2",
- "commit": "v0.2.1-77-g03ddb1f-dirty",
+ "commit": "v0.2.1-78-gb16b064-dirty",
  "preset": null,
  "listening": null,
  "metrics": {
@@ -132,9 +132,9 @@
    ],
    "hf_even": [
     5.444627736385365,
-    6.656296641819951,
+    7.979490757139974,
     16.679841652173465,
-    16.907973988255016
+    18.810643117290006
    ],
    "bands_att": [
     -2.108006481857942,
