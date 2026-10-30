@@ -486,11 +486,11 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     // Bridges on the board.
     let main = pick(Part::Bridges, sketches::BRIDGE);
     let bass = if lit(Part::BassBridge) { sketches::HIGHLIGHT } else { main };
-    let tb: Vec<(f64, f64)> = sb.treble_bridge.iter().map(|&(u, v)| (u * sb.a, v * sb.b)).collect();
+    let tb = sb.bridge_line(true);
     b.wall(&tb, false, -0.0125, 0.0125, 0.0, &|_| BRIDGE_H, main);
-    let bb: Vec<(f64, f64)> = sb.bass_bridge.iter().map(|&(u, v)| (u * sb.a, v * sb.b)).collect();
+    let bb = sb.bridge_line(false);
     b.wall(&bb, false, -0.015, 0.015, 0.0, &|_| BRIDGE_H + BASS_RISE, bass);
-    let (lx, ly) = tb[2];
+    let (lx, ly) = tb[tb.len() / 2];
     b.label(place.at(lx, ly, BRIDGE_H), "Bridge", "Soundboard");
     b.label(place.at(bb[0].0, bb[0].1, BRIDGE_H + BASS_RISE), "Bass bridge", "Soundboard");
 

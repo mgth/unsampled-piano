@@ -942,13 +942,14 @@ impl Default for PianoModel {
             output_gain_db: 0.0,
             limiter: 1.0,
             limiter_ceiling_db: -1.0,
-            // Top felt 0.3 × Stulov, slightly harder towards the treble, with
-            // the core shallower at C4 and less hysteresis: the middle's ff
-            // goes further into the core with a steeper pulse (C4 ff: 44 N,
-            // 1.9 ms). 0.2 left the middle dull at 2–8 kHz
-            // (docs/middle_highs.md).
+            // Top felt 0.3 × Stulov, with the core shallower at C4 and less
+            // hysteresis: the middle's ff goes further into the core with a
+            // steeper pulse (C4 ff: 44 N, 1.9 ms). 0.2 left the middle dull
+            // at 2–8 kHz (docs/middle_highs.md). Above C4 the felt follows
+            // Stulov's growth alone: 0.02 more made the treble's partials
+            // 3–6 too strong in the attack once the main bridge was smooth.
             hardness: 0.3,
-            hardness_slope: 0.02,
+            hardness_slope: 0.0,
             hardness_slope_bass: 0.02,
             hardness_slope_top: 0.2,
             p_bass: 0.0,

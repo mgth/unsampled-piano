@@ -450,9 +450,9 @@ impl MicView {
             }
             p.text(keys.center_bottom() + Vec2::new(0.0, 2.0), Align2::CENTER_TOP, "Keyboard", font.clone(), weak);
         }
-        let pts = |poly: &[(f64, f64)]| poly.iter().map(|&(u, v)| map.plan(u * sb.a, v * sb.b)).collect::<Vec<_>>();
-        p.add(Shape::line(pts(&sb.treble_bridge), Stroke::new(3.0, BRIDGE)));
-        p.add(Shape::line(pts(&sb.bass_bridge), Stroke::new(3.0, BRIDGE)));
+        let pts = |main: bool| sb.bridge_line(main).into_iter().map(|(x, y)| map.plan(x, y)).collect::<Vec<_>>();
+        p.add(Shape::line(pts(true), Stroke::new(3.0, BRIDGE)));
+        p.add(Shape::line(pts(false), Stroke::new(3.0, BRIDGE)));
         let (reach, top) = lid_extent(sb);
         if reach > 0.0 {
             p.line_segment([map.plan(0.0, sb.b), map.plan(sb.a, sb.b)], Stroke::new(3.0, LID));

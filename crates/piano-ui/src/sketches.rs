@@ -882,12 +882,12 @@ pub fn plan(ui: &mut Ui, model: &PianoModel, lit: &[Part], key: &mut u8, width: 
     label(pl(agraffe, 0.0) + Vec2::new(3.0 * k, 0.0), Align2::LEFT_CENTER, "Agraffes", Some(Part::Agraffes));
 
     // Bridges.
-    let bridge = |poly: &[(f64, f64)], on: bool| {
-        let pts: Vec<Pos2> = poly.iter().map(|&(u, v)| pl(u * sb.a, v * sb.b)).collect();
+    let bridge = |main: bool, on: bool| {
+        let pts: Vec<Pos2> = sb.bridge_line(main).into_iter().map(|(x, y)| pl(x, y)).collect();
         p.add(Shape::line(pts, line(3.0, if on { HIGHLIGHT } else { BRIDGE })));
     };
-    bridge(&sb.treble_bridge, lit(Part::Bridges));
-    bridge(&sb.bass_bridge, lit(Part::BassBridge) || lit(Part::Bridges));
+    bridge(true, lit(Part::Bridges));
+    bridge(false, lit(Part::BassBridge) || lit(Part::Bridges));
     let (mx, my) = (sb.treble_bridge[2].0 * sb.a, sb.treble_bridge[2].1 * sb.b);
     label(pl(mx, my) + Vec2::new(8.0 * k, 0.0), Align2::LEFT_CENTER, "Bridge", Some(Part::Bridges));
     let (bx, by) = (sb.bass_bridge[0].0 * sb.a, sb.bass_bridge[0].1 * sb.b);
