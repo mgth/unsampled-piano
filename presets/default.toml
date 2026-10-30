@@ -28,6 +28,7 @@ hammer_mass_scale = 1.0
 shank_share = 0.3
 shank_freq = 300.0
 shank_loss = 0.1
+shank_freq_mid = 700.0
 strike_ratio = 0.12
 
 [velocity]

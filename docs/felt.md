@@ -49,3 +49,36 @@ The velocity curve stays within the Disklaviers' (BiVib, velocity 12 re 100: bas
 **Una corda** softened the top felt (Q0 × (1 − 0.6)) and pushed the core 30 % deeper. With no depth, the inner term is softened alike. C2/C4/C6 ff then lose 3.3/2.0/5.4 dB, centroid × 0.81/0.84/0.97, against 3.2/2.2/6.3 dB and × 0.77/0.77/1.00 with the two layers.
 
 The two-layer hammer is still available (`core_depth_* > 0`, `core_p` 2.5, `core_hardness` 30): presets that set the depths keep it.
+
+## The fizz of D#4–F#4: a stiffer shank in the middle
+
+Status as of 2026-10-30.
+
+D#4, E4 and F4 fizz at the attack (heard, and measured by the bench's `hf_even`). At mf their 8–11 kHz share in the first 60 ms stood 10–15 dB over their neighbours', and 8–14 dB over the real grands' at the same keys.
+
+**Not the computation.** Rendered at 48, 96 and 192 kHz and measured alike, the gaps of D#4/E4/F4 stay +10/+11/+15, +11/+12/+18 and +10/+12/+18 dB. The contact is integrated at the sample rate below C6 (no oversampling), so halving the step would have moved a numerical artefact.
+
+**Where it comes from: the end of the contact.** The hammer's force (`cargo run --release -p piano-render --example second_impact`, mf on the playback scale) carries the highs in its first episode; the re-contacts after it stay under 0.1 N. At F4 the force has fallen to 0.5 N at 2.65 ms when the bridge's wave comes back; it rises to 2.6 N at 3.0 ms and is gone at 3.2 ms. At C4 the wave comes back after the force has fallen to nothing; at G4–A4, while the felt is still well compressed, and the bump ends smoothly.
+
+**The real grands are flat.** Their 8–11 kHz share at mf sits near −74 dB from C3 to B4 (Helgesson, Splendid, Salamander), within ±4 dB key to key. The model's ran from −112 dB (A3) to −60 dB (F4).
+
+**What moves it.** The force's 8–11 kHz share key to key over C3–B4 (rms/largest gap, dB; mf):
+
+| | control | `hysteresis` 4 | `contact_width_scale` 3 | `shank_loss` 0.8 | `shank_share` 0.15 | `shank_freq` 200 | 400 | 500 | 700 |
+|---|---|---|---|---|---|---|---|---|---|
+| force | 4.9/12.6 | 3.8/6.4 | 4.1/11.3 | 2.8/6.2 | 2.0/2.5 | 4.9/9.7 | 5.4/11.3 | 3.8/6.3 | 3.4/4.7 |
+
+Most of these move the coincidence to other keys (rendered, `shank_loss` 0.5–1.2 and `shank_share` 0.1 or 0.2 left gaps of 17–30 dB elsewhere; the earlier trials in [bench.md](bench.md) did the same). Hysteresis brightens the whole middle (+20 dB at 8–11 kHz). A shank mode at 700 Hz, three octaves of velocity, rendered (`hf_even` 8–11 kHz, rms/largest gap, dB):
+
+| velocity | 40 | 56 | 75 |
+|---|---|---|---|
+| 300 Hz | 9.4/28.8 | 8.6/17.0 | 5.7/17.5 |
+| 700 Hz | 7.1/15.1 | 4.6/11.4 | 4.7/12.4 |
+
+At mf D#4–F#4 come to −75, −76, −75, −76 dB (−67, −69, −60, −68 before), within the real grands' −71 to −79.
+
+**But not in the top.** At 700 Hz everywhere the top loses the level the supple shank gave it ([top_level.md](top_level.md)): its mf balance falls from −6.6 to −10.6 dB (z −1.9), its mf partials 3–4 by 9 dB, and the treble's mf balance goes to z −2.0. The shank mode is now `shank_freq_mid` (700 Hz) up to C5, geometric to `shank_freq` (300 Hz) at C6.
+
+Bench: 1.14 → 1.14, 11 off. Better: `hf_even` 8–11 kHz largest gap z +3.8 → +2.1, rms +1.9 → +0.7, 4–8 kHz largest gap +1.8 → +0.8; the treble's balance (ff +1.4 → −0.1, mf +1.1 → −0.4); the bass's ff partial 6 (−2.3 → −1.5 sustain, −1.3 → −0.5 attack). Worse: the top's mf balance (−0.7 → −1.6), the treble's mf partial 3 (+0.4 → +1.5) and its ff early decay of partials 5–12 (−0.1 → +1.3), the bass between the partials (−0.8/−0.5 → −1.5/−1.3).
+
+Still open: below C4 the model's attack has 20–35 dB less at 8–11 kHz than the real grands (−98 to −109 dB at C3–A3), and the step up to C4 is now `hf_even`'s largest gap.

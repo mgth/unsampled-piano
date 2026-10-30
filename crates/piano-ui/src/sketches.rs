@@ -1221,10 +1221,10 @@ fn soft_pedal(p: &egui::Painter, at: &dyn Fn(f32, f32) -> Pos2, model: &PianoMod
     }
 }
 
-/// The shank under the head: rigid, or its spring's frequency.
+/// The shank under the head: rigid, or its spring's frequency (middle–top).
 fn shank_text(model: &PianoModel) -> String {
     if model.shank_share > 0.0 {
-        format!("Flexible shank, {:.0} Hz", model.shank_freq)
+        format!("Flexible shank, {:.0}–{:.0} Hz", model.shank_freq_at(60.0), model.shank_freq_at(108.0))
     } else {
         "Rigid shank".to_string()
     }
