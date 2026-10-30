@@ -22,6 +22,8 @@ mod cam;
 #[cfg(feature = "gpu")]
 mod gpu;
 mod paint;
+#[cfg(test)]
+mod raster;
 pub mod scene;
 
 use std::sync::Arc;
@@ -62,6 +64,7 @@ pub struct ModelView {
     /// Upright or grand the orbit was framed for.
     framed_vertical: bool,
     lid: bool,
+    case: bool,
     frame: bool,
     mics: bool,
     labels: bool,
@@ -88,6 +91,7 @@ impl Default for ModelView {
             orbit: None,
             framed_vertical: false,
             lid: true,
+            case: true,
             frame: true,
             mics: true,
             labels: true,
@@ -307,6 +311,7 @@ impl ModelView {
             };
             ui.checkbox(&mut self.labels, "Names");
             ui.checkbox(&mut self.lid, "Lid");
+            ui.checkbox(&mut self.case, "Case");
             ui.checkbox(&mut self.frame, "Frame");
             ui.checkbox(&mut self.mics, "Mics");
         });
@@ -330,7 +335,7 @@ impl ModelView {
         let field = obs.as_ref().and_then(|o| self.board_field(model, o));
         let key_levels = obs.as_ref().map(|o| self.key_levels(o));
         let live = obs.as_ref().map(|o| Live { obs: o, keys: key_levels.as_ref().unwrap(), board: field.as_deref(), time: self.start.elapsed().as_secs_f32() / 8.0 });
-        let options = Options { key: *key, lit, lid: self.lid, frame: self.frame, mics: self.mics, ink: ui.visuals().text_color() };
+        let options = Options { key: *key, lit, lid: self.lid, frame: self.frame, mics: self.mics, case: self.case, ink: ui.visuals().text_color() };
         let scene = Arc::new(scene::build(model, live.as_ref(), &options));
         if self.orbit.is_none() || self.framed_vertical != scene.vertical {
             self.orbit = Some(Orbit::framing(scene.body.0, scene.body.1));
@@ -701,7 +706,7 @@ fn numbers(ui: &mut Ui, model: &PianoModel, counts: &mut Option<(SoundboardParam
     });
     ui.add_space(6.0);
     ui.label(
-        RichText::new("Board and case follow the model's outline (a rectangle unless one is set); legs, keyboard and pedals only situate the instrument. Click a name to open its page.")
+        RichText::new("Board and case follow the model's outline (a rectangle unless one is set); legs, keyboard, a grand's action and pedals only situate the instrument (untick Case to see the action). Click a name to open its page.")
             .small()
             .weak(),
     );
