@@ -69,6 +69,9 @@ pub struct ModelView {
     gpu: Option<gpu::Gpu>,
     levels: Levels,
     shapes: Option<BoardShapes>,
+    /// The board's modes as the numbers count them, for its parameters
+    /// (building them takes longer than a frame).
+    board_counts: Option<(SoundboardParams, BoardCounts)>,
     /// The handle being dragged, and the plan's matrix and rect when the
     /// drag began (the plan refits to the edited instrument only after).
     drag: Option<(usize, Mat4, Rect)>,
@@ -92,6 +95,7 @@ impl Default for ModelView {
             gpu: None,
             levels: Levels::default(),
             shapes: None,
+            board_counts: None,
             drag: None,
             handles_shown: Vec::new(),
             start: Instant::now(),
@@ -369,13 +373,13 @@ impl ModelView {
                             if self.mode == Mode::Live {
                                 live_numbers(ui, obs.as_ref(), model);
                             } else {
-                                numbers(ui, model);
+                                numbers(ui, model, &mut self.board_counts);
                             }
                         });
                     }
                 });
                 if avail <= 700.0 {
-                    if self.mode == Mode::Live { live_numbers(ui, obs.as_ref(), model) } else { numbers(ui, model) }
+                    if self.mode == Mode::Live { live_numbers(ui, obs.as_ref(), model) } else { numbers(ui, model, &mut self.board_counts) }
                 }
             }
         }
@@ -630,8 +634,28 @@ fn geometry_rows(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], con
     shown
 }
 
+/// The board's modes: under 1 kHz, in all, and the first one's frequency.
+#[derive(Clone, Copy)]
+struct BoardCounts {
+    below_1k: usize,
+    all: usize,
+    first: f64,
+}
+
+impl BoardCounts {
+    fn new(sb: SoundboardParams) -> Self {
+        let board = Soundboard::new(sb);
+        let hz = |m: &piano_core::soundboard::PlateMode| m.omega / std::f64::consts::TAU;
+        Self {
+            below_1k: board.modes.iter().filter(|m| hz(m) < 1000.0).count(),
+            all: board.modes.len(),
+            first: board.modes.iter().find(|m| m.m > 0).map_or(0.0, hz),
+        }
+    }
+}
+
 /// The model in numbers, beside the static view.
-fn numbers(ui: &mut Ui, model: &PianoModel) {
+fn numbers(ui: &mut Ui, model: &PianoModel, counts: &mut Option<(SoundboardParams, BoardCounts)>) {
     ui.label(RichText::new("In numbers").strong());
     egui::Grid::new("model-numbers").num_columns(2).spacing([10.0, 3.0]).show(ui, |ui| {
         let mut row = |name: &str, value: String| {
@@ -646,11 +670,12 @@ fn numbers(ui: &mut Ui, model: &PianoModel) {
                     Some(o) => row("Outline", format!("{:.0} % of the rectangle, own modes under {:.0} Hz", 100.0 * o.area() / (sb.a * sb.b), sb.outline_below)),
                     None => row("Outline", "the full rectangle".into()),
                 }
-                let board = Soundboard::new(sb);
-                let below = |f: f64| board.modes.iter().filter(|m| m.omega / std::f64::consts::TAU < f).count();
-                let first = board.modes.iter().find(|m| m.m > 0).map_or(0.0, |m| m.omega / std::f64::consts::TAU);
-                row("Board modes", format!("{} under 1 kHz ({} in all)", below(1000.0), board.modes.len()));
-                row("First board mode", format!("{first:.0} Hz"));
+                if counts.as_ref().is_none_or(|c| c.0 != sb) {
+                    *counts = Some((sb, BoardCounts::new(sb)));
+                }
+                let c = counts.as_ref().map(|c| c.1).unwrap();
+                row("Board modes", format!("{} under 1 kHz ({} in all)", c.below_1k, c.all));
+                row("First board mode", format!("{:.0} Hz", c.first));
                 row("Bass bridge", format!("A0 to {}", sketches::note_name(sb.main_bridge_from - 1)));
                 if sb.lid_angle > 0.0 && !sb.vertical {
                     row("Lid", format!("open {:.0}°", sb.lid_angle));

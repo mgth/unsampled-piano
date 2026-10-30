@@ -89,6 +89,21 @@ pub const BOARD_GRID: (usize, usize) = (36, 28);
 const BRIDGE_H: f64 = 0.03;
 const STRING_Z: f64 = 0.035;
 const BASS_RISE: f64 = 0.02;
+/// A grand's hammer line in front of its board (half a hammer and a gap).
+const HAMMER_CLEAR: f64 = 0.015;
+/// The tuning pins (7 mm), one per string in two staggered rows in front
+/// of the agraffes: the first row's distance, the rows' spacing, a key's
+/// pins' spacing across (wider than its strings', which fan out to them).
+const PIN_R: f64 = 0.0035;
+const PIN_GAP: f64 = 0.03;
+const PIN_ROW: f64 = 0.014;
+const PIN_ACROSS: f64 = 0.0038;
+/// The pin block's top (under the plate) and thickness; the case's front
+/// panel and the belly rail's thickness.
+const PIN_BLOCK_TOP: f64 = 0.02;
+const PIN_BLOCK_T: f64 = 0.05;
+const FRONT_T: f64 = 0.02;
+const BELLY_RAIL: f64 = 0.05;
 /// The keyboard: depth of the white keys, keybed under the keys (grand,
 /// z), the floor.
 const KEY_DEPTH: f64 = 0.15;
@@ -106,6 +121,8 @@ const SMOOTH_DEG: f64 = 40.0;
 const STEEL: Color32 = Color32::from_rgb(170, 172, 178);
 const COPPER: Color32 = Color32::from_rgb(184, 115, 70);
 const IRON: Color32 = Color32::from_rgb(190, 160, 90);
+const BRASS: Color32 = Color32::from_rgb(222, 184, 98);
+const PIN: Color32 = Color32::from_rgb(132, 134, 142);
 const CASE: Color32 = Color32::from_rgb(40, 34, 32);
 const IVORY: Color32 = Color32::from_rgb(236, 232, 222);
 const EBONY: Color32 = Color32::from_rgb(28, 26, 26);
@@ -282,6 +299,26 @@ impl Builder {
         self.cuboid(o, u, v, w, c);
     }
 
+    /// A prism standing on the plate point `c`, from plate z `z.0` to
+    /// `z.1`: `sides` flat faces, its corners `r` from the axis, the first
+    /// at the plate angle `turn`; capped at both ends.
+    fn plate_prism(&mut self, c: (f64, f64), r: f64, sides: usize, turn: f64, z: (f64, f64), col: Color32) {
+        let p = self.place;
+        let corner = |k: usize, z: f64| {
+            let a = turn + std::f64::consts::TAU * k as f64 / sides as f64;
+            p.at(c.0 + r * a.cos(), c.1 + r * a.sin(), z)
+        };
+        let col = rgba(col, 1.0);
+        for k in 0..sides {
+            self.quad(false, [corner(k, z.0), corner(k + 1, z.0), corner(k + 1, z.1), corner(k, z.1)], col);
+        }
+        for h in [z.0, z.1] {
+            for k in 1..sides - 1 {
+                self.tri(false, [corner(0, h), corner(k, h), corner(k + 1, h)], [col; 3]);
+            }
+        }
+    }
+
     fn line(&mut self, a: V3, b: V3, c: [f32; 4]) {
         for pos in [a, b] {
             self.s.lines.push(Vertex { pos, normal: [0.0, 0.0, 1.0], color: c });
@@ -419,11 +456,30 @@ pub fn agraffe_x(model: &PianoModel) -> f64 {
     fx + if f.enabled { f.agraffe_x } else { 0.25 }
 }
 
+/// The hammers' line (plate x): straight across the keyboard, as the
+/// action's rail holds them. Each key's agraffe stands in front of it by
+/// its strike point's share of the string, so that the agraffes run on a
+/// diagonal, the bass's (the longest strings) frontmost, on the agraffe
+/// line, the treble's just in front of the hammers. A grand's hammers
+/// rise in front of its board, though: there the line stops short of the
+/// board's edge, and the bass's agraffes come forward of the agraffe line.
+pub fn hammer_x(model: &PianoModel, sb: &SoundboardParams) -> f64 {
+    let ag = agraffe_x(model);
+    let x = (21..=108u8).map(|m| ag + model.note(m).strike_pos * (sb.bridge_point(m).0 - ag)).fold(f64::MIN, f64::max);
+    if sb.vertical { x } else { x.min(-HAMMER_CLEAR) }
+}
+
 /// A key's string in plate coordinates: from its agraffe to its bridge
-/// point, at its height.
-pub fn string_ends(model: &PianoModel, sb: &SoundboardParams, m: u8) -> ((f64, f64), (f64, f64), f64) {
+/// point, at its height. Its hammer strikes it on the hammers' line `hx`
+/// ([`hammer_x`]), in line with its key; the agraffe lies on the string's
+/// line beyond, the more to the side the more the string slants (the
+/// overstrung bass's, towards the bass end).
+pub fn string_ends(model: &PianoModel, sb: &SoundboardParams, hx: f64, m: u8) -> ((f64, f64), (f64, f64), f64) {
     let z = STRING_Z + if m < sb.main_bridge_from { BASS_RISE } else { 0.0 };
-    ((agraffe_x(model), key_across(sb, m)), sb.bridge_point(m), z)
+    let (bx, by) = sb.bridge_point(m);
+    let s = model.note(m).strike_pos;
+    let back = |hit: f64, bridge: f64| (hit - s * bridge) / (1.0 - s);
+    ((back(hx, bx), back(key_across(sb, m), by)), (bx, by), z)
 }
 
 pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
@@ -470,16 +526,56 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     }
     b.label(place.at(sb.a * 0.45, sb.b * 0.7, 0.0), "Soundboard", "Soundboard");
 
-    // The case: the rim's walls along the board's outline (the front one
-    // lower, under the keys' end).
+    // The strings' ends: their agraffes on a diagonal in front of the
+    // hammers ([`hammer_x`]), their tuning pins in front of those.
+    let hx = hammer_x(model, &sb);
+    let ends: Vec<_> = (21..=108u8).map(|m| string_ends(model, &sb, hx, m)).collect();
+    let case_front = ends.iter().map(|e| e.0.0).fold(f64::MAX, f64::min) - PIN_GAP - PIN_ROW - PIN_R - 0.008;
+
+    // The case: the rim's walls along the board's outline, carried forward
+    // over the pin block to just in front of the tuning pins (as the frame
+    // is), a panel across its front behind the keys, and the belly rail
+    // under the board's front edge.
     let t = if rim.enabled { rim.thickness } else { 0.02 };
     let (z0, z1) = if rim.enabled { (rim.top - rim.height, rim.top) } else { (-0.25, 0.05) };
     let case = pick(Part::Rim, CASE);
-    let front = |k: usize| {
-        let (p, q) = (outline[k], outline[(k + 1) % outline.len()]);
-        p.0.abs() < 1e-6 && q.0.abs() < 1e-6
-    };
-    b.wall(&outline, true, 0.0, t, z0, &|k| if front(k) { z1.min(0.0) } else { z1 }, case);
+    let n = outline.len();
+    let front = (0..n).find(|&k| outline[k].0.abs() < 1e-6 && outline[(k + 1) % n].0.abs() < 1e-6);
+    let (mut across_lo, mut across_hi) = (0.0, sb.b);
+    if let Some(k) = front {
+        let (p, q) = (outline[k], outline[(k + 1) % n]);
+        let forward = |p: (f64, f64)| if p.0.abs() < 1e-6 { (case_front, p.1) } else { p };
+        let sides: Vec<_> = (1..=n).map(|i| forward(outline[(k + i) % n])).collect();
+        b.wall(&sides, false, 0.0, t, z0, &|_| z1, case);
+        (across_lo, across_hi) = (p.1.min(q.1), p.1.max(q.1));
+        b.plate_box((case_front - FRONT_T, across_lo - t, z0), (case_front, across_hi + t, PIN_BLOCK_TOP), case);
+        b.wall(&[p, q], false, -BELLY_RAIL, 0.0, z0, &|_| -0.012, case);
+    } else {
+        b.wall(&outline, true, 0.0, t, z0, &|_| z1, case);
+    }
+
+    // The pin block under the plate, from the case's front to just behind
+    // the agraffes, short of the hammers.
+    let block_back = |ax: f64| (ax + 0.008).min(hx - HAMMER_CLEAR);
+    let mut back: Vec<(f64, f64)> = ends.iter().map(|&((ax, ay), _, _)| (block_back(ax), ay.clamp(across_lo, across_hi))).collect();
+    back.sort_by(|p, q| q.1.total_cmp(&p.1));
+    let mut block = vec![(case_front, across_lo), (case_front, across_hi), (back[0].0, across_hi)];
+    block.extend(&back);
+    block.push((back[back.len() - 1].0, across_lo));
+    if signed_area(&block) < 0.0 {
+        block.reverse();
+    }
+    let plate = rgba(pick(Part::Frame, IRON), 1.0);
+    let (bz0, bz1) = (PIN_BLOCK_TOP - PIN_BLOCK_T, PIN_BLOCK_TOP);
+    for [i, j, k] in triangulate(&block) {
+        for z in [bz0, bz1] {
+            b.tri(false, [block[i], block[j], block[k]].map(|(x, y)| place.at(x, y, z)), [plate; 3]);
+        }
+    }
+    for i in 0..block.len() {
+        let (p, q) = (block[i], block[(i + 1) % block.len()]);
+        b.quad(false, [place.at(p.0, p.1, bz0), place.at(q.0, q.1, bz0), place.at(q.0, q.1, bz1), place.at(p.0, p.1, bz1)], plate);
+    }
     let rim_label = outline.iter().cloned().fold((0.0, 0.0), |m, p| if p.0 > m.0 { p } else { m });
     b.label(place.at(rim_label.0 + t, rim_label.1, z1), if rim.enabled { "Rim" } else { "Case (not modelled)" }, "Frame & rim");
 
@@ -494,12 +590,14 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     b.label(place.at(lx, ly, BRIDGE_H), "Bridge", "Soundboard");
     b.label(place.at(bb[0].0, bb[0].1, BRIDGE_H + BASS_RISE), "Bass bridge", "Soundboard");
 
-    // Strings, hammers and dampers.
-    let ag = agraffe_x(model);
+    // Strings, from their tuning pins across their agraffes, hammers and
+    // dampers.
     let d = &model.damper;
+    // Strings counted from the bass, for the pins' rows.
+    let mut count = 0usize;
     for m in 21..=108u8 {
         let n = model.note(m);
-        let ((ax, ay), (bx, by), z) = string_ends(model, &sb, m);
+        let ((ax, ay), (bx, by), z) = ends[(m - 21) as usize];
         let level = key_level(m);
         let base = if m < sb.main_bridge_from || n.strings == 1 { COPPER } else { STEEL };
         let base = if lit(Part::Length) || lit(Part::Unison) { sketches::HIGHLIGHT } else { base };
@@ -523,15 +621,31 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
                 let (t0, t1) = (k as f64 / segments as f64, (k + 1) as f64 / segments as f64);
                 b.line(point(t0), point(t1), rgba(c, 1.0));
             }
+            // Its tuning pin on the string's line beyond the agraffe, its
+            // coil at the string's height, and the string's dead end from
+            // it to the agraffe.
+            let (back, across) = (PIN_GAP + PIN_ROW * (count % 2) as f64, off / 0.0025 * PIN_ACROSS);
+            let (ux, uy) = (dx / len, dy / len);
+            let (px, py) = (ax - ux * back + nx * across, ay - uy * back + ny * across);
+            b.plate_prism((px, py), PIN_R, 6, 0.0, (PIN_BLOCK_TOP, z + 0.012), PIN);
+            b.plate_prism((px, py), PIN_R + 0.001, 6, 0.0, (z - 0.003, z + 0.002), c);
+            b.line(place.at(px + ux * PIN_R, py + uy * PIN_R, z), point(0.0), rgba(c, 1.0));
+            count += 1;
         }
-        // The agraffe, and the hammer under (an upright's: in front of)
-        // the strings at the strike point.
-        b.plate_box((ax - 0.004, ay - 0.005, z - 0.004), (ax + 0.004, ay + 0.005, z + 0.008), pick(Part::Agraffes, IRON));
+        // The agraffe, a brass stud the unison goes through, turned along
+        // it, standing on the pin block (the highest treble's overhang it);
+        // the hammer under (an upright's: in front of) the strings at
+        // the strike point, all on one line.
+        let turn = dy.atan2(dx);
+        let r = 0.0038 + 0.0008 * (n.strings as f64 - 1.0);
+        let foot = if ax + r <= block_back(ax) { PIN_BLOCK_TOP } else { z - 0.008 };
+        b.plate_prism((ax, ay), r, 6, turn, (foot, z + 0.005), pick(Part::Agraffes, BRASS));
         let k = obs.map(|o| o.keys[m as usize]);
         let down = k.is_some_and(|k| k.down);
         let hammer_on = k.is_some_and(|k| k.hammer);
         let (sx, sy) = (ax + dx * n.strike_pos, ay + dy * n.strike_pos);
-        let gap = if hammer_on { 0.0 } else if down { 0.012 } else { 0.04 };
+        // At rest, their felts just above the belly rail.
+        let gap = if hammer_on { 0.0 } else if down { 0.012 } else { 0.025 };
         let felt = if hammer_on { sketches::HIGHLIGHT } else { pick(Part::Strike, pick(Part::Felt, sketches::FELT)) };
         let w = 0.0045;
         let (h0, h1) = if vertical { (z + 0.002 + gap, z + 0.032 + gap) } else { (z - 0.032 - gap, z - 0.002 - gap) };
@@ -546,14 +660,17 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             b.plate_box((px - 0.01, py - w, d0), (px + 0.01, py + w, d1), felt);
         }
     }
-    let mid = string_ends(model, &sb, 60);
+    let mid = string_ends(model, &sb, hx, 60);
     let n60 = model.note(60);
     let strike = (mid.0.0 + (mid.1.0 - mid.0.0) * n60.strike_pos, mid.0.1 + (mid.1.1 - mid.0.1) * n60.strike_pos);
     b.label(place.at(strike.0, strike.1, if vertical { mid.2 + 0.04 } else { mid.2 - 0.04 }), "Hammers", "Hammer");
     let damp = (mid.0.0 + (mid.1.0 - mid.0.0) * d.position, mid.0.1 + (mid.1.1 - mid.0.1) * d.position);
     b.label(place.at(damp.0, damp.1 + 0.12, mid.2 + 0.03), "Dampers", "Dampers");
     b.label(place.at((mid.0.0 + mid.1.0) / 2.0, mid.0.1 - 0.25, mid.2), "Strings", "Strings");
-    b.label(place.at(ag, sb.b * 0.92, STRING_Z + 0.01), "Agraffes", "Frame & rim");
+    let a0 = string_ends(model, &sb, hx, 21);
+    b.label(place.at(a0.0.0, a0.0.1, a0.2 + 0.01), "Agraffes", "Frame & rim");
+    let c8 = string_ends(model, &sb, hx, 108);
+    b.label(place.at(c8.0.0 - PIN_GAP, c8.0.1, c8.2 + 0.015), "Tuning pins", "Frame & rim");
 
     // The iron frame over the strings' anchoring, see-through.
     if f.enabled && o.frame {
@@ -589,7 +706,9 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         b.label(p1(sb.a * 0.6), format!("Lid, {:.0}°", sb.lid_angle), "Microphones");
     }
 
-    // The keyboard, the keys down pressed in.
+    // The keyboard, the keys down pressed in, its back against the case's
+    // front.
+    let keys_back = case_front - FRONT_T;
     let (klo, khi) = keyboard_span(&sb);
     let white = (khi - klo) / 52.0;
     for m in 21..=108u8 {
@@ -612,12 +731,12 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         };
         let c = mix(c, sketches::HIGHLIGHT, key_level(m) * 0.4);
         // Keys in world coordinates: x across, the back of the keys at y_back.
-        let (y_back, z) = if vertical { (UPRIGHT_KEYS_Y, UPRIGHT_KEYS_Z) } else { (ag - 0.03, KEY_Z) };
+        let (y_back, z) = if vertical { (UPRIGHT_KEYS_Y, UPRIGHT_KEYS_Z) } else { (keys_back, KEY_Z) };
         let front = y_back - KEY_DEPTH;
         let o3 = [-y1 as f32, front as f32 + (KEY_DEPTH - depth) as f32, (z + zb + drop) as f32];
         b.cuboid(o3, [(y1 - y0) as f32, 0.0, 0.0], [0.0, depth as f32, 0.0], [0.0, 0.0, h as f32], c);
     }
-    let (y_back, kz) = if vertical { (UPRIGHT_KEYS_Y, UPRIGHT_KEYS_Z) } else { (ag - 0.03, KEY_Z) };
+    let (y_back, kz) = if vertical { (UPRIGHT_KEYS_Y, UPRIGHT_KEYS_Z) } else { (keys_back, KEY_Z) };
     // The keybed and key slip.
     b.cuboid([-(khi + 0.06) as f32, (y_back - KEY_DEPTH - 0.02) as f32, (kz - 0.05) as f32], [(khi - klo + 0.12) as f32, 0.0, 0.0], [0.0, (KEY_DEPTH + 0.02) as f32, 0.0], [0.0, 0.0, 0.05], CASE);
     // The cheeks at both ends of the keys.
@@ -704,7 +823,7 @@ mod tests {
         assert!((s.max[0] - s.min[0]) as f64 >= sb.b);
         assert!(s.labels.iter().any(|l| l.text == "Soundboard"));
         // Strings cross: the bass ones start across the keyboard's bass end.
-        let ((_, a0), (_, b0), _) = string_ends(&m, &sb, 21);
+        let ((_, a0), (_, b0), _) = string_ends(&m, &sb, hammer_x(&m, &sb), 21);
         assert!(a0 > b0, "A0 from y = {a0} to {b0}");
     }
 
@@ -716,14 +835,39 @@ mod tests {
         let crosses = |(p, q): ((f64, f64), (f64, f64)), (r, s): ((f64, f64), (f64, f64))| {
             cross2(p, q, r) * cross2(p, q, s) < 0.0 && cross2(r, s, p) * cross2(r, s, q) < 0.0
         };
+        let hx = hammer_x(&m, &sb);
         for (lo, hi) in [(21, sb.main_bridge_from), (sb.main_bridge_from, 109)] {
             for i in lo..hi {
                 for j in i + 1..hi {
-                    let (a, b) = (string_ends(&m, &sb, i), string_ends(&m, &sb, j));
+                    let (a, b) = (string_ends(&m, &sb, hx, i), string_ends(&m, &sb, hx, j));
                     assert!(!crosses((a.0, a.1), (b.0, b.1)), "keys {i} and {j} cross");
                 }
             }
         }
+    }
+
+    #[test]
+    fn the_hammers_are_in_line_the_agraffes_on_a_diagonal() {
+        let m = PianoModel::default();
+        let sb = m.soundboard.unwrap().resolved();
+        let hx = hammer_x(&m, &sb);
+        let ends: Vec<_> = (21..=108u8).map(|k| (k, string_ends(&m, &sb, hx, k))).collect();
+        for &(k, ((ax, ay), (bx, by), _)) in &ends {
+            let s = m.note(k).strike_pos;
+            assert!((ax + s * (bx - ax) - hx).abs() < 1e-12, "key {k} struck off the line");
+            assert!((ay + s * (by - ay) - key_across(&sb, k)).abs() < 1e-12, "key {k} struck off its key");
+            assert!(ax < hx, "key {k}'s agraffe at {ax}");
+        }
+        // The hammers in front of the board; the bass's agraffe in front,
+        // the treble's well behind it, just in front of the hammers.
+        let (a0, c8) = (ends[0].1.0.0, ends[87].1.0.0);
+        assert!(hx <= -HAMMER_CLEAR, "{hx}");
+        assert!(ends[0].1.0.1 > key_across(&sb, 21) + 0.03, "A0's agraffe not to the bass side");
+        assert!(c8 - a0 > 0.1 && hx - c8 < 0.01, "A0 at {a0}, C8 at {c8}, hammers at {hx}");
+        // A tuning pin per string, in front of the agraffes and behind the keys.
+        let strings: usize = (21..=108u8).map(|k| m.note(k).strings).sum();
+        let pins = build(&m, None, &options()).tris.iter().filter(|v| v.color == rgba(PIN, 1.0)).count();
+        assert_eq!(pins, strings * (6 * 2 + 2 * 4) * 3);
     }
 
     #[test]
