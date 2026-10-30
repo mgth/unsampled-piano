@@ -180,7 +180,7 @@ pub fn piano_directivity(p: &RoomParams, sb: &SoundboardParams) -> f64 {
     }
     if sb.vertical {
         if sb.wall_distance > 0.0 { 2.0 } else { 1.5 }
-    } else if sb.lid_angle > 0.0 && sb.lid_reflection > 0.0 {
+    } else if sb.lid_angle > 0.0 && sb.lid_reflection > 0.0 && sb.lid_shut < 1.0 {
         3.0
     } else {
         2.0
@@ -437,6 +437,7 @@ mod tests {
         let grand = SoundboardParams { lid_angle: 35.0, ..SoundboardParams::GRAND_2M };
         assert_eq!(piano_directivity(&p, &grand), 3.0);
         assert_eq!(piano_directivity(&p, &SoundboardParams { lid_angle: 0.0, ..grand }), 2.0);
+        assert_eq!(piano_directivity(&p, &SoundboardParams { lid_shut: 1.0, ..grand }), 2.0);
         assert_eq!(piano_directivity(&RoomParams { directivity: 4.0, ..p }, &grand), 4.0);
         let mut room = Room::new(&p, &sb, 48_000.0);
         let (mut l, mut r) = (vec![0.0f32; 48_000], vec![0.0f32; 48_000]);

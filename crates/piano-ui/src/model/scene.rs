@@ -1316,8 +1316,26 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         b.label(q[tail], "Frame", "Frame & rim");
     }
 
-    // The lid, hinged along the bass side.
-    if !vertical && sb.lid_angle > 0.0 && o.lid {
+    // The lid, hinged along the bass side; shut, it lies on the case.
+    if !vertical && sb.lid_shut >= 1.0 && o.lid {
+        // Over the case's outline, carried forward to the case's front.
+        let h = sb.lid_hinge_height;
+        let mut top: Vec<(f64, f64)> = outline.iter().map(|&p| if p.0.abs() < 1e-6 { (case_front, p.1) } else { p }).collect();
+        if signed_area(&top) < 0.0 {
+            top.reverse();
+        }
+        let c = rgba(CASE, 0.25);
+        for [i, j, k] in triangulate(&top) {
+            let p = [top[i], top[j], top[k]].map(|(x, y)| place.at(x, y, h));
+            b.tri(true, p, [c; 3]);
+            b.tri(true, [p[2], p[1], p[0]], [c; 3]);
+        }
+        for i in 0..top.len() {
+            let (p, q) = (top[i], top[(i + 1) % top.len()]);
+            b.line(place.at(p.0, p.1, h), place.at(q.0, q.1, h), rgba(CASE, 0.9));
+        }
+        b.label(place.at(sb.a * 0.6, sb.b * 0.5, h), "Lid, shut", "Microphones");
+    } else if !vertical && sb.lid_angle > 0.0 && o.lid {
         let th = sb.lid_angle.to_radians();
         let (h, len) = (sb.lid_hinge_height, 1.05 * sb.b);
         let p0 = |x: f64| place.at(x, sb.b, h);
