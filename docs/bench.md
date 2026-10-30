@@ -1,6 +1,6 @@
 # Test bench: scoring the model against real pianos
 
-Bench updated 2026-10-30: the register measures follow the `channel-power-v2` protocol (below), as the harmonic profiles already did. Historical results below are dated separately and predate it unless stated.
+Bench updated 2026-10-30: the register measures follow the `channel-power-v3` protocol (channel power, below, as the harmonic profiles already did; v3 adds the partial floor, the two-source rule and the `resonance` family, see "Weak partials, single-source targets and the resonance measures"). Historical results below are dated separately and predate it unless stated.
 
 The register measures now take the mean **power** of the channels, in the Python measures and in the Rust partial tracker and decay fits (`piano-survey --channel-power`). They no longer sum the left and right pressures first: a partial in antiphase between the two microphones is not lost. Plath is imported with one gain per pascal for the whole piano; the old per-note normalisation is refused. Reference and baseline files carry `analysis_version`: references of another version are refused, and a baseline of another version is not scored against the new measures. Codex's controlled before/after comparison, on the model of 2026-10-28: [bench_bias_correction.md](bench_bias_correction.md).
 
@@ -27,7 +27,7 @@ Each measure is averaged per register (bass A0–B2, middle C3–B4, treble C5�
 
 z = (model − target) / max(spread, floor)
 
-A gap as large as the one between two real pianos is therefore not a fault. The floor (3 dB for most levels, 0.15 for log ratios) keeps a measure on which the references happen to agree from becoming impossible to meet. |z| ≤ 1 is within the real pianos, ≤ 2 is close, beyond is off. The score is the RMS of all z (lower is better), also given per family and per register.
+A gap as large as the one between two real pianos is therefore not a fault. The floor (3 dB for most levels, 0.15 for log ratios) keeps a measure on which the references happen to agree from becoming impossible to meet. |z| ≤ 1 is within the real pianos, ≤ 2 is close, beyond is off. A target needs at least two real pianos (one alone has no spread, and the floor would judge the model against that recording's quirks), except `dyn`, which only BiVib's measured velocities give. The score is the RMS of all z (lower is better), also given per family and per register.
 
 The baseline, `bench/baseline.json`, holds the measures of the run saved with `--save-baseline`; they are scored against the current references, so that adding a reference does not break the comparison. Each run lists the measures whose |z| moved by 0.5 or more, worse first. A change is accepted when it improves what it targets without a list of new reds elsewhere; the baseline is saved again with the commit that keeps it.
 
@@ -81,6 +81,50 @@ display “no harmonic profiles saved yet”.
 Tests of cancellation, velocity separation, sparse references, missing/noisy values, gain invariance, time windows and target filtering:
 
     python3 -m unittest discover -s tools -p 'test_bench.py'
+
+### Weak partials, single-source targets and the resonance measures (2026-10-30)
+
+Three of the 13 measures left off by the tuning below were the bench's, not the model's, and the ear's "rounder resonance" was not measured at all. Protocol `channel-power-v3`; all eleven sources measured again (the harmonic references did not change). Every figure below measures the same renders (the default at `ccfd57d`, identical to `b93b27a`), so only the bench differs.
+
+**Weak partials.** The register means average dB over the keys, and a partial lost in the noise was left out. The recordings read 4 of their ~3100 partial levels below −80 dB re partial 1, none below −95; the model's renders, which have no noise, read 12 of ~510 between −80 and −120 dB (spectral notches of the strike), and lost a few others. One key's partial read at −110 or left out moved the register's mean by 10 dB or more: the top's mf attack partial 4 (C7, D#7, F#7) went from z −1.1 to −2.5 on a change that did not touch F#7. Partials below −80 dB now count at −80 dB, and so does a partial lost in a noise that lies below −80 dB (it is at most there); one lost in a noise above the floor stays unread, as before. Applied alike to the recordings and the model.
+
+**Single-source targets.** A target held by one real piano has no spread, so the floor alone judged the model against that recording: the top's 3 s envelope (mf and pp) was read on one source only (the model at the −60 dB floor against its −53). A target now needs two real pianos, except `dyn` (only BiVib's velocities are measured).
+
+| same renders | score | within | off | bass | middle | treble | top |
+|---|---|---|---|---|---|---|---|
+| v2 (before) | 1.094 | 73.3 % | 13 | 0.85 | 0.92 | 0.79 | 1.68 |
+| v3 floor + two sources | 1.052 | 74.1 % | 8 | 0.85 | 0.92 | 0.84 | 1.54 |
+| v3 with the resonance measures | 1.176 | 72.3 % | 12 | 0.85 | 0.94 | 0.92 | 1.85 |
+
+What moved with the floor and the two-source rule (model, target, z):
+
+| measure | v2 | v3 |
+|---|---|---|
+| top attack_mf p4 | −73.9 / −66.3, −2.48 | −62.9 / −68.9, +1.27 |
+| top attack_ff p3 | −34.5 / −45.1, +2.23 | −34.5 / −45.9, +1.75 |
+| top attack_ff p4 | −49.2 / −59.8, +1.56 | −59.5 / −62.5, +0.33 |
+| top sustain_ff p4 | −72.4 / −60.8, −2.06 | −75.0 / −71.5, −0.34 |
+| treble sustain_ff p12 | −67.1 / −66.3, −0.13 | −65.8 / −72.9, +1.75 |
+| treble attack_mf p6 | −57.4 / −56.5, −0.20 | −54.5 / −61.3, +1.06 |
+| top env_mf 3 s, env_pp 3 s | −60 / −53 (one source), −2.33 | not scored |
+
+The targets moved as much as the model: the clean recordings' lost top partials now count at the floor too (top sustain p4: −60.8 → −71.5). The treble's p12 and p6 now read the model 1–2 z too strong, which v2 hid.
+
+**Resonance.** The two axes piloted in `docs/realism_axes.md` enter the score as the `resonance` family: `between` (axis 1, every register) and `lines` (axis 2, filed under the top). Ported to channel power, and with one correction: a partial was taken as found when it stood 8 dB above the median of its own ±1.5 % window; a partial a few bins wide (beating unisons) raised that median, was missed, and its energy counted as between the partials (the model's F#4 read +12 dB, D#3 +8; the pilot, which took medians over the keys, hid it). Prominence is now judged against a ±5 % window (at least ten bins). The real pianos read cleaner with it too: up to 4 dB in the bass and up to 12 dB in the middle (Salamander, BiVib, Helgesson).
+
+| measure | model | real pianos (8) | z |
+|---|---|---|---|
+| bass between early / late | −24.6 / −25.8 | −19.9 to −23.6 / −21.8 to −26.3 | −0.81 / −0.50 |
+| middle between early / late | −32.1 / −29.8 | −22.9 to −29.5 / −23.0 to −34.4 | −1.79 / −0.16 |
+| treble between early / late | −33.4 / −34.1 | −20.1 to −30.5 / −23.7 to −32.1 | **−2.58** / −1.49 |
+| top between early / late | −20.2 / −18.1 | −4.4 to −11.9 / +0.5 to −8.7 | **−4.11 / −4.13** |
+| top lines | −43.3 | −21.3 to −29.3 | **−4.35** |
+
+The model is as clean as the cleanest real piano in the bass and middle, cleaner than any in the treble's attack, and 12 dB cleaner in the top, whose fixed lines sit at the detection limit. This is the same fault as the top's 1–2 kHz bands (the undamped strings' halo, "Tuning the default" below), now measured where the ear hears it in every register; the score rises from 1.05 to 1.18 because the bench sees more of it, not because the model changed. Off after v3: the top's 1–2 kHz bands (4), `between` top early/late and treble early, `lines`, the bass sustain p6/p12, `hf_even` 8–11k max and the top's early T60 of partials 5–12.
+
+A fresh render of `b93b27a` gives every measure the same z to the digit; it is saved as the baseline (1.18, 12 off, 343 OFF / 61 WATCH profiles).
+
+Tests: `python3 -m unittest discover -s tools -p 'test_*.py'` (the floor, a partial lost above and below it, the two-source rule, a halo raising `between`, a line shared by three keys).
 
 ### Tuning the default on the off measures (2026-10-30)
 
@@ -230,8 +274,10 @@ At velocity 100, H1's loss from its own attack to the 0.6–0.8 s window is 5.1 
 | decay | `env_ff`, `env_mf`, `env_pp` | level above 0.7·f0 at 0.3, 1, 2, 3 s re the peak | 3 dB |
 | decay | `t60_ff` | median T60 of partials 1–4 and 5–12 (early decay) and 1–4 (late decay), `piano-survey` | ×1.28 |
 | tuning | `inharm`, `stretch` | median inharmonicity B (log10), tuning re equal temperament (cents) | 0.15, 5 c |
+| resonance | `between` | energy between the partials re the energy on them, 300 Hz–5 kHz, ff, noise subtracted, 0.08–0.6 s and 0.6–1.5 s (`docs/realism_axes.md`, axis 1) | 3 dB |
+| resonance | `lines` | the instrument's fixed lines: median level (dB re the strongest partial) of the three strongest off-partial peaks (0.1–0.5 s, 0.8–6 kHz) shared by at least three of the C6–C8 bench keys, a missing one at the −45 dB detection limit; filed under the top (axis 2) | 4 dB |
 
-Levels below −60 dB re the peak count as −60 dB, and a level within 6 dB of a recording's own noise (its quietest frames after the peak) is not read. Partials above 12 kHz are left out of the partial measures, and so is a partial standing less than 12 dB above the median of its search window (the recording's noise between the partials), when that window spans at least eight resolution cells: the real top notes' sustain (partials 3–8 at about −50 dB) and the treble's partial 8 sat on the recordings' noise, which the model was scored against (treble partial 8 of the sustain: z −4.2 → −1.0; score 1.10 → 1.04). The references are cut to the model's 20.5 s before their decays are fitted. The decays are fitted down to 70 dB below each partial's maximum at most (`piano-survey --range-db`), the recordings' usable range (58–73 dB, median per set): a render has no noise floor, and its partials fell to digital silence, where the late fit took the voice's end. On the top notes, without a damper, this made the late T60 swing from 1 s to 4 s on renders 0.1 dB apart (fit errors near 100 dB).
+Levels below −60 dB re the peak count as −60 dB, partials below −80 dB re partial 1 count as −80 dB (and so does a partial lost in a noise below that floor), and a level within 6 dB of a recording's own noise (its quietest frames after the peak) is not read. Partials above 12 kHz are left out of the partial measures, and so is a partial standing less than 12 dB above the median of its search window (the recording's noise between the partials), when that window spans at least eight resolution cells: the real top notes' sustain (partials 3–8 at about −50 dB) and the treble's partial 8 sat on the recordings' noise, which the model was scored against (treble partial 8 of the sustain: z −4.2 → −1.0; score 1.10 → 1.04). The references are cut to the model's 20.5 s before their decays are fitted. The decays are fitted down to 70 dB below each partial's maximum at most (`piano-survey --range-db`), the recordings' usable range (58–73 dB, median per set): a render has no noise floor, and its partials fell to digital silence, where the late fit took the voice's end. On the top notes, without a damper, this made the late T60 swing from 1 s to 4 s on renders 0.1 dB apart (fit errors near 100 dB).
 
 ## The references
 

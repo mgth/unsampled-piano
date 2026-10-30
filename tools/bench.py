@@ -31,7 +31,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REFS = os.path.join(ROOT, "bench", "references.json")
 BASELINE = os.path.join(ROOT, "bench", "baseline.json")
 HARMONIC_REFS = os.path.join(ROOT, "bench", "harmonic_references.json")
-ANALYSIS_VERSION = "channel-power-v2"
+ANALYSIS_VERSION = "channel-power-v3"
 SR = 48000
 NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 REGS = [(21, 47, "bass"), (48, 71, "middle"), (72, 95, "treble"), (96, 108, "top")]
@@ -177,25 +177,37 @@ def envelope(x, m, times):
 # (the recording's noise between the partials), else it is not measured:
 # the real top notes' sustain sits on the recordings' noise floor.
 NOISE_MARGIN = 12.0
+# Partials below this (dB re partial 1) are counted at it: the recordings
+# read 4 of their ~3100 partials below it (none below −95), the model's
+# notches went down to −120 and moved a register's mean by 10 dB as one
+# key's partial was read or lost (docs/bench.md, "Weak partials").
+PARTIAL_FLOOR_DB = -80.0
 
 def partials(x, m, t0, dur, ks, fmax=12000):
     """Levels of partials `ks` (dB re partial 1) in a window t0 s after the
-    onset; NaN for a partial lost in the noise."""
+    onset, at least PARTIAL_FLOOR_DB; NaN for a partial lost in a noise
+    above that floor (a partial lost below it is at the floor)."""
     s = onset(x) + int(t0 * SR); n = int(dur * SR); seg = x[s: s + n]
     if len(seg) < n: return [np.nan] * len(ks)
     N = max(n, 4096)
     S = np.sqrt(spectrum_power(seg, N)); f = np.fft.rfftfreq(N, 1 / SR)
     def lev(k):
+        """(peak, noise) in dB; noise NaN when the partial stands out."""
         fk = k * f0(m) * np.sqrt(1 + 4e-4 * k * k * (1 if m > 60 else 0.3))  # loose inharmonic window
         w = (f > fk * 0.94) & (f < fk * 1.08)
-        if not w.any() or fk >= fmax: return np.nan
+        if not w.any() or fk >= fmax: return np.nan, np.nan
         peak = 20 * np.log10(S[w].max() + 1e-12)
         # The median is a floor only when the window spans several of the
         # analysis' resolution cells (Hann main lobe ±2·SR/n).
-        if 0.14 * fk < 8 * 2 * SR / n: return peak
-        return peak if peak - 20 * np.log10(np.median(S[w]) + 1e-12) >= NOISE_MARGIN else np.nan
-    p1 = lev(1)
-    return [lev(k) - p1 for k in ks]
+        if 0.14 * fk < 8 * 2 * SR / n: return peak, np.nan
+        noise = 20 * np.log10(np.median(S[w]) + 1e-12)
+        return (peak, np.nan) if peak - noise >= NOISE_MARGIN else (np.nan, noise)
+    p1 = lev(1)[0]
+    def rel(k):
+        peak, noise = lev(k)
+        if np.isfinite(peak): return max(peak - p1, PARTIAL_FLOOR_DB)
+        return PARTIAL_FLOOR_DB if noise - p1 < PARTIAL_FLOOR_DB else np.nan
+    return [rel(k) if np.isfinite(p1) else np.nan for k in ks]
 
 def centroid(x, m, t0, dur):
     s = onset(x) + int(t0 * SR); seg = x[s: s + int(dur * SR)]
@@ -250,6 +262,106 @@ def hf_even(levels):
         rms.append(float(np.sqrt(np.mean(np.square(res)))) if ok else None)
         top.append(float(np.max(np.abs(res))) if ok else None)
     return rms + top
+
+def frame_power(x, s0, s1, W):
+    """Mean power spectrum (channels and half-overlapping Hann frames
+    averaged) of x[s0:s1]; None when shorter than a frame."""
+    seg = channels(x)[s0:s1]; hop = W // 2; n = (len(seg) - W) // hop + 1
+    if n < 1: return None
+    win = np.hanning(W)[:, None]
+    return np.mean([np.mean(np.abs(np.fft.rfft(seg[i * hop: i * hop + W] * win, axis=0)) ** 2, axis=1) for i in range(n)], axis=0)
+
+def quiet_power(x, s, W):
+    """Noise spectrum: before the onset when there is 0.2 s of it, else the
+    quietest 0.3 s after it."""
+    if s >= int(0.2 * SR): return frame_power(x, int(0.02 * SR), s - int(0.02 * SR), W)
+    h = int(0.3 * SR); n = (len(x) - s) // h
+    if n < 2: return np.zeros(W // 2 + 1)
+    i = int(np.argmin(power(x[s: s + n * h]).reshape(n, h).mean(1)))
+    return frame_power(x, s + i * h, s + (i + 1) * h, W)
+
+def found_partials(f, P, m, kmax, fmax, margin=8):
+    """Peak frequencies of the partials standing `margin` dB above their
+    window, the note's inharmonicity fitted on partials 1–6."""
+    f1 = f0(m); pk = {}
+    for k in range(1, 7):
+        g = k * f1; w = (f > g * 0.96) & (f < g * 1.05)
+        if not w.any(): break
+        i = np.argmax(P[w])
+        if 10 * np.log10(P[w][i] / (np.median(P[w]) + 1e-30)) >= margin: pk[k] = f[w][i]
+    f1 = pk.get(1, f1); B = 0.0
+    ks = np.array([k for k in pk if k > 1]); fk = np.array([pk[k] for k in ks])
+    if 1 in pk and len(ks) >= 2:
+        y = (fk / (ks * f1)) ** 2 - 1; B = float(np.clip((y * ks ** 2).sum() / (ks ** 4).sum(), 0, 0.01))
+    out = []; df = f[1] - f[0]
+    for k in range(1, kmax):
+        g = k * f1 * np.sqrt(1 + B * k * k)
+        if g > fmax: break
+        w = (f > g * 0.985 - 2 * df) & (f < g * 1.015 + 2 * df)
+        if not w.any(): continue
+        # Against a wider window: a partial whose unison beats is a few
+        # bins wide and would raise the median of its own narrow window.
+        wide = np.abs(f - g) < max(0.05 * g, 10 * df)
+        i = np.argmax(P[w])
+        if 10 * np.log10(P[w][i] / (np.median(P[wide]) + 1e-30)) >= margin: out.append(f[w][i])
+    return out
+
+def between_partials(x, m, windows=((0.08, 0.6), (0.6, 1.5)), lo=300, hi=5000, W=8192):
+    """Energy between the partials re the energy on them (dB), 300 Hz–5 kHz,
+    noise subtracted, in each window (s after the onset): the halo of the
+    strings and resonators that ring with the note (docs/realism_axes.md,
+    axis 1). NaN when no partial is found in the band."""
+    s = onset(x); f = np.fft.rfftfreq(W, 1 / SR); df = f[1] - f[0]
+    N = quiet_power(x, s, W)
+    ref = frame_power(x, s + int(0.3 * SR), s + int(0.8 * SR), W)
+    peaks = found_partials(f, ref, m, 80, hi * 1.02) if ref is not None else []
+    on = np.zeros_like(f, dtype=bool)
+    for pk in peaks:
+        half = max(2 * df, 0.004 * pk); on |= (f >= pk - half) & (f <= pk + half)
+    band = (f >= lo) & (f < hi)
+    out = []
+    for t0, t1 in windows:
+        P = frame_power(x, s + int(t0 * SR), s + int(t1 * SR), W)
+        if P is None or not (band & on).any(): out.append(np.nan); continue
+        P = np.maximum(P - N, 0.0); e_on = P[band & on].sum()
+        out.append(10 * np.log10((P[band & ~on].sum() + 1e-30) / e_on) if e_on > 0 else np.nan)
+    return out
+
+# Fixed lines: off-partial peaks found at the same frequency on several of
+# the C6–C8 keys, the resonators the instrument rings whatever the key
+# (docs/realism_axes.md, axis 2). Their level counts the three strongest;
+# a missing one counts at the detection limit.
+LINE_KEYS = list(range(84, 109, 3))
+LINE_LIMIT_DB = -45.0
+
+def off_peaks(x, m):
+    """(frequency, dB re the note's strongest partial) of the peaks between
+    the partials, 0.1–0.5 s, 0.8–6 kHz, 12 dB above their ±150 Hz median."""
+    s = onset(x) + int(0.1 * SR); n = int(0.4 * SR); seg = x[s: s + n]
+    if len(seg) < n: return []
+    N = 1 << 16; L = 10 * np.log10(spectrum_power(seg, N) + 1e-30); f = np.fft.rfftfreq(N, 1 / SR)
+    P = 10 ** (L / 10); on = np.zeros_like(f, dtype=bool); top = -1e9
+    for pk in found_partials(f, P, m, 120, 7000, margin=-np.inf):
+        top = max(top, L[np.argmin(np.abs(f - pk))]); on |= (f > pk * 0.985) & (f < pk * 1.015)
+    out = []
+    for i in np.where((f >= 800) & (f <= 6000) & ~on)[0][1:-1]:
+        if L[i] > L[i - 1] and L[i] >= L[i + 1] and L[i] - top > LINE_LIMIT_DB:
+            w = (f > f[i] - 150) & (f < f[i] + 150)
+            if L[i] - np.median(L[w]) >= 12: out.append((f[i], L[i] - top))
+    return out
+
+def fixed_lines(notes, min_notes=3):
+    """Median level (dB re the strongest partial) of the three strongest
+    lines shared (±0.5 %) by at least `min_notes` of `notes` (key → signal);
+    None with fewer than `min_notes` notes."""
+    if len(notes) < min_notes: return None
+    found = {}
+    for m, x in notes.items():
+        for fr, lv in off_peaks(x, m):
+            g = next((g for g in found if abs(g - fr) / fr < 0.005), fr)
+            found.setdefault(g, []).append((m, lv))
+    levels = sorted((float(np.median([l for _, l in v])) for v in found.values() if len({m for m, _ in v}) >= min_notes), reverse=True)
+    return float(np.median((levels + [LINE_LIMIT_DB] * 3)[:3]))
 
 def stereo_partial_levels(x, m, t0, duration, ks=range(1, 9), *, fft_padding=8):
     """Peak amplitudes in dBFS from mean channel powers, never a mono sum.
@@ -488,6 +600,12 @@ MEASURES = {
     "bands_att":   ("brightness", 3.0, ["1k", "2k", "4k", "8k"], False),
     "bands_sus":   ("brightness", 3.0, ["1k", "2k", "4k", "8k"], False),
     "sustain_ff":  ("sustain", 4.0, ["p2", "p3", "p4", "p6", "p8", "p12"], False),
+    # Energy between the partials re on them, 300 Hz–5 kHz, ff, 0.08–0.6
+    # and 0.6–1.5 s after the onset: the halo of what rings with the note,
+    # which the ear hears as a round, rich sound (docs/realism_axes.md).
+    "between":     ("resonance", 3.0, ["early", "late"], False),
+    # The level of the lines the C6–C8 keys share; filed under the top.
+    "lines":       ("resonance", 4.0, ["level"], False),
     "env_ff":      ("decay", 3.0, ["0.3s", "1s", "2s", "3s"], False),
     "env_mf":      ("decay", 3.0, ["0.3s", "1s", "2s", "3s"], False),
     "env_pp":      ("decay", 3.0, ["0.3s", "1s", "2s", "3s"], False),
@@ -566,6 +684,10 @@ def measure_set(d, survey_csv, even_dir=None, recorded=True):
         r["bands_att"] = mean(lambda m, x: bands(m, x, 0.05), [13])
         r["bands_sus"] = mean(lambda m, x: bands(m, x, 0.6), [13])
         r["sustain_ff"] = mean(lambda m, x: partials(x, m, 0.5, 0.5, [2, 3, 4, 6, 8, 12]), [13])
+        r["between"] = mean(lambda m, x: between_partials(x, m), [13])
+        if reg == "top":
+            v = fixed_lines({m: get(m, 13) for m in LINE_KEYS if m in present and get(m, 13) is not None})
+            r["lines"] = None if v is None else [v]
         times = (0.3, 1.0, 2.0, 3.0)
         r["env_ff"] = mean(lambda m, x: envelope(x, m, times), [13])
         r["env_mf"] = mean(lambda m, x: envelope(x, m, times), [8])
@@ -606,6 +728,13 @@ def render(out, preset, listening=None, keys=None, hold=HOLD):
         subprocess.run(cmd + [os.path.join(out, f"{name(m)}v{l}.wav")], check=True, capture_output=True)
     with ThreadPoolExecutor(6) as ex: list(ex.map(one, jobs))
 
+# A target needs this many real pianos: one alone has no spread, and the
+# floor then judges the model against one recording's quirks (the top's
+# 3 s envelope read on one source only). Except `dyn`: only BiVib was
+# recorded at measured velocities.
+MIN_REFS = 2
+SINGLE_SOURCE = {"dyn"}
+
 def score(metrics, refs):
     """z per (register, measure, component) against the real pianos."""
     targets = [s for s in refs["sources"].values() if s["role"] == "target"]
@@ -617,7 +746,7 @@ def score(metrics, refs):
             for i, lab in enumerate(labels):
                 rv = [t["metrics"].get(reg, {}).get(meas) for t in targets]
                 rv = [r[i] for r in rv if r is not None and r[i] is not None]
-                if v[i] is None or not rv: continue
+                if v[i] is None or len(rv) < (1 if meas in SINGLE_SOURCE else MIN_REFS): continue
                 tgt = float(np.mean(rv)); tol = max(float(np.std(rv)), floor)
                 z[f"{reg}|{meas}|{lab}"] = dict(value=v[i], target=tgt, tol=tol, z=(v[i] - tgt) / tol, refs=rv)
     return z

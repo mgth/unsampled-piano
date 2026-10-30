@@ -18,6 +18,8 @@ The pattern: the bench measures the levels and decay rates of the partials of is
 
 ## Axes piloted
 
+Since 2026-10-30 axes 1 and 2 are bench measures (`between`, `lines`, family `resonance`; docs/bench.md, "Weak partials, single-source targets and the resonance measures"), read on channel power and with partials judged against a wider window; the bench's means of the eight grands come within 2 dB of the medians below, and the model's middle reads −32 dB there (it has changed since these pilots).
+
 All the pilots use the bench's keys (every third from A0) at ff (velocity 100 or the references' top layer), the real note sets in `out/bench/sets` and `out/compare`, and the model rendered as the bench renders it. Scripts in `tools/`; about 6 s per set.
 
 ### 1. Energy between the partials
