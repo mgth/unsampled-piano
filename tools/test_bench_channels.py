@@ -165,6 +165,19 @@ class RobustnessTests(unittest.TestCase):
         self.assertLess(clean[0],-30)
         self.assertGreater(halo[0],clean[0]+15)
 
+    def test_between_reads_any_silence_before_the_onset(self):
+        t=np.arange(2*bench.SR)/bench.SR; f=bench.f0(60)
+        x=sum(np.sin(2*np.pi*k*f*t)/k for k in range(1,12))*np.exp(-t)
+        for ms in (0,190,200,205,210,220):
+            with self.subTest(ms=ms):
+                self.assertTrue(np.isfinite(bench.between_partials(np.r_[np.zeros(int(ms*bench.SR/1000)),x],60)).all())
+
+    def test_between_does_not_depend_on_what_follows_its_windows(self):
+        x=self.note(90,dur=6.0); s=bench.onset(x)
+        whole=bench.between_partials(x,90)
+        cut=bench.between_partials(x[:s+int(1.6*bench.SR)],90)
+        np.testing.assert_allclose(whole,cut)
+
     def test_a_line_shared_by_three_keys_is_found_at_its_level(self):
         keys=bench.LINE_KEYS[:4]
         self.assertEqual(bench.fixed_lines({m:self.note(m) for m in keys}),bench.LINE_LIMIT_DB)

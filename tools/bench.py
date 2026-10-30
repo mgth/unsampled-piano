@@ -271,15 +271,6 @@ def frame_power(x, s0, s1, W):
     win = np.hanning(W)[:, None]
     return np.mean([np.mean(np.abs(np.fft.rfft(seg[i * hop: i * hop + W] * win, axis=0)) ** 2, axis=1) for i in range(n)], axis=0)
 
-def quiet_power(x, s, W):
-    """Noise spectrum: before the onset when there is 0.2 s of it, else the
-    quietest 0.3 s after it."""
-    if s >= int(0.2 * SR): return frame_power(x, int(0.02 * SR), s - int(0.02 * SR), W)
-    h = int(0.3 * SR); n = (len(x) - s) // h
-    if n < 2: return np.zeros(W // 2 + 1)
-    i = int(np.argmin(power(x[s: s + n * h]).reshape(n, h).mean(1)))
-    return frame_power(x, s + i * h, s + (i + 1) * h, W)
-
 def found_partials(f, P, m, kmax, fmax, margin=8):
     """Peak frequencies of the partials standing `margin` dB above their
     window, the note's inharmonicity fitted on partials 1–6."""
@@ -308,11 +299,14 @@ def found_partials(f, P, m, kmax, fmax, margin=8):
 
 def between_partials(x, m, windows=((0.08, 0.6), (0.6, 1.5)), lo=300, hi=5000, W=8192):
     """Energy between the partials re the energy on them (dB), 300 Hz–5 kHz,
-    noise subtracted, in each window (s after the onset): the halo of the
-    strings and resonators that ring with the note (docs/realism_axes.md,
-    axis 1). NaN when no partial is found in the band."""
+    in each window (s after the onset): the halo of the strings and
+    resonators that ring with the note (docs/realism_axes.md, axis 1). NaN
+    when no partial is found in the band. No noise is subtracted: only one
+    set has silence before its onsets, and the quietest stretch after one
+    still holds the note, so what it took off depended on the file's
+    length. Without it the attack reads the same on every set (±0.1 dB);
+    the top's sustain, on the recordings' noise, is left out by the caller."""
     s = onset(x); f = np.fft.rfftfreq(W, 1 / SR); df = f[1] - f[0]
-    N = quiet_power(x, s, W)
     ref = frame_power(x, s + int(0.3 * SR), s + int(0.8 * SR), W)
     peaks = found_partials(f, ref, m, 80, hi * 1.02) if ref is not None else []
     on = np.zeros_like(f, dtype=bool)
@@ -323,7 +317,7 @@ def between_partials(x, m, windows=((0.08, 0.6), (0.6, 1.5)), lo=300, hi=5000, W
     for t0, t1 in windows:
         P = frame_power(x, s + int(t0 * SR), s + int(t1 * SR), W)
         if P is None or not (band & on).any(): out.append(np.nan); continue
-        P = np.maximum(P - N, 0.0); e_on = P[band & on].sum()
+        e_on = P[band & on].sum()
         out.append(10 * np.log10((P[band & ~on].sum() + 1e-30) / e_on) if e_on > 0 else np.nan)
     return out
 
@@ -684,7 +678,9 @@ def measure_set(d, survey_csv, even_dir=None, recorded=True):
         r["bands_att"] = mean(lambda m, x: bands(m, x, 0.05), [13])
         r["bands_sus"] = mean(lambda m, x: bands(m, x, 0.6), [13])
         r["sustain_ff"] = mean(lambda m, x: partials(x, m, 0.5, 0.5, [2, 3, 4, 6, 8, 12]), [13])
-        r["between"] = mean(lambda m, x: between_partials(x, m), [13])
+        # The top's sustain between its partials is the recordings' noise
+        # (up to 5 dB of it): attack only there.
+        r["between"] = mean(lambda m, x: between_partials(x, m) if m < 96 else [between_partials(x, m, windows=((0.08, 0.6),))[0], np.nan], [13])
         if reg == "top":
             v = fixed_lines({m: get(m, 13) for m in LINE_KEYS if m in present and get(m, 13) is not None})
             r["lines"] = None if v is None else [v]
