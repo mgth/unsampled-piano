@@ -91,13 +91,46 @@ const STRING_Z: f64 = 0.035;
 const BASS_RISE: f64 = 0.02;
 /// A grand's hammer line in front of its board (half a hammer and a gap).
 const HAMMER_CLEAR: f64 = 0.015;
-/// The tuning pins (7 mm), one per string in two staggered rows in front
-/// of the agraffes: the first row's distance, the rows' spacing, a key's
-/// pins' spacing across (wider than its strings', which fan out to them).
+/// The tuning pins (7 mm), one per string in front of the agraffes (see
+/// [`tuning_pins`]): the first row's distance, the rows' spacing.
 const PIN_R: f64 = 0.0035;
-const PIN_GAP: f64 = 0.03;
-const PIN_ROW: f64 = 0.014;
-const PIN_ACROSS: f64 = 0.0038;
+const PIN_GAP: f64 = 0.025;
+const PIN_ROW: f64 = 0.016;
+/// A pin's lean away from its string's pull (rad, some 4°); its coil
+/// (three turns of wire) below the strings' height, its height and the
+/// wire's thickness; its square head's height, its top above the coil;
+/// the bushing it stands in, radius and height.
+const PIN_LEAN: f64 = 0.07;
+const PIN_COIL_DROP: f64 = 0.007;
+const PIN_COIL_H: f64 = 0.003;
+const PIN_WIRE: f64 = 0.001;
+const PIN_HEAD: f64 = 0.011;
+const PIN_TOP: f64 = 0.02;
+const PIN_BUSH_R: f64 = 0.0055;
+const PIN_BUSH_H: f64 = 0.0015;
+/// An agraffe, as they are made: a hexagonal flange screwed into the
+/// plate, a neck, and a head the unison's strings go through, its flats
+/// facing along them: the head's half-width, and its growth per string
+/// beyond the first; the flange's radius beyond the head's and height;
+/// the head's extent below and above the strings; the holes' radius; the
+/// longest neck, beyond which the agraffe stands on a boss of the plate
+/// (the bass's, its strings higher), and the boss's radius beyond the
+/// flange's.
+const AGRAFFE_HEAD: f64 = 0.0028;
+const AGRAFFE_HEAD_PER: f64 = 0.0009;
+const AGRAFFE_FLANGE: f64 = 0.0012;
+const AGRAFFE_FLANGE_H: f64 = 0.003;
+const AGRAFFE_BELOW: f64 = 0.0045;
+const AGRAFFE_ABOVE: f64 = 0.0035;
+const AGRAFFE_HOLE_R: f64 = 0.0006;
+const AGRAFFE_NECK: f64 = 0.004;
+const AGRAFFE_BOSS: f64 = 0.0025;
+/// The felt strip on the plate under the strings' dead lengths, between
+/// the agraffes and the pins: its middle in front of the agraffes, width
+/// and thickness.
+const UNDER_FELT_AT: f64 = 0.0125;
+const UNDER_FELT_W: f64 = 0.012;
+const UNDER_FELT_T: f64 = 0.004;
 /// The hitch pins: their radius, how far they stand inside the case's wall
 /// along the string, the rear lengths (a few cm in the top treble, growing
 /// with the speaking length to some 20 cm in the bass, as on grands) and
@@ -147,7 +180,8 @@ const STEEL: Color32 = Color32::from_rgb(170, 172, 178);
 const COPPER: Color32 = Color32::from_rgb(184, 115, 70);
 const IRON: Color32 = Color32::from_rgb(190, 160, 90);
 const BRASS: Color32 = Color32::from_rgb(222, 184, 98);
-const PIN: Color32 = Color32::from_rgb(132, 134, 142);
+const PIN: Color32 = Color32::from_rgb(168, 170, 176);
+const BUSHING: Color32 = Color32::from_rgb(150, 104, 72);
 const HITCH: Color32 = Color32::from_rgb(150, 152, 160);
 const BRIDGE_PIN: Color32 = Color32::from_rgb(196, 198, 206);
 const CASE: Color32 = Color32::from_rgb(40, 34, 32);
@@ -155,6 +189,8 @@ const IVORY: Color32 = Color32::from_rgb(236, 232, 222);
 const EBONY: Color32 = Color32::from_rgb(28, 26, 26);
 /// The strip of felt behind the keys.
 const FELT: Color32 = Color32::from_rgb(122, 28, 36);
+/// The one under the strings' dead lengths.
+const UNDER_FELT: Color32 = Color32::from_rgb(176, 48, 36);
 const MIC: [Color32; 2] = [Color32::from_rgb(70, 140, 220), Color32::from_rgb(220, 80, 90)];
 
 fn rgba(c: Color32, a: f32) -> [f32; 4] {
@@ -221,10 +257,10 @@ impl Builder {
     #[allow(clippy::too_many_arguments)]
     fn wall(&mut self, line: &[(f64, f64)], closed: bool, a: f64, b: f64, z0: f64, top: &dyn Fn(usize) -> f64, c: Color32) {
         let n = line.len();
-        let segs = if closed { n } else { n - 1 };
         if n < 2 {
             return;
         }
+        let segs = if closed { n } else { n - 1 };
         let c = rgba(c, 1.0);
         let right = |k: usize| {
             let (p, q) = (line[k], line[(k + 1) % n]);
@@ -345,6 +381,59 @@ impl Builder {
             for k in 1..sides - 1 {
                 self.tri(false, [corner(0, h), corner(k, h), corner(k + 1, h)], [col; 3]);
             }
+        }
+    }
+
+    /// A turned part on the world axis from `base` along the unit `axis`,
+    /// its square sections' flats facing `side`: each ring its height
+    /// along the axis, its radius (a square's half-width) and whether it is
+    /// square (its corners rounded) rather than round; each band between
+    /// two rings its own colour, shaded smooth around a round one and flat
+    /// on a square one or a step; the top capped.
+    fn lathe(&mut self, base: V3, axis: V3, side: V3, rings: &[(f32, f32, bool)], colours: &[Color32]) {
+        const SIDES: usize = 12;
+        let u = norm(sub(side, scale(axis, dot(side, axis))));
+        let v = cross(axis, u);
+        // Around, at unit radius: a round section's points (its normals),
+        // and a square's (a superellipse).
+        let round: [V3; SIDES] = std::array::from_fn(|k| {
+            let (s, c) = (std::f32::consts::TAU * (k as f32 + 0.5) / SIDES as f32).sin_cos();
+            add(scale(u, c), scale(v, s))
+        });
+        let square: [V3; SIDES] = std::array::from_fn(|k| {
+            let (s, c) = (std::f32::consts::TAU * (k as f32 + 0.5) / SIDES as f32).sin_cos();
+            scale(round[k], 1.0 / (c.powi(6) + s.powi(6)).powf(1.0 / 6.0))
+        });
+        let points: Vec<[V3; SIDES]> = rings
+            .iter()
+            .map(|&(h, r, sq)| {
+                let centre = add(base, scale(axis, h));
+                std::array::from_fn(|k| add(centre, scale(if sq { square[k] } else { round[k] }, r)))
+            })
+            .collect();
+        for i in 0..rings.len() - 1 {
+            let c = rgba(colours[i.min(colours.len() - 1)], 1.0);
+            let ((h0, r0, sq0), (h1, r1, sq1)) = (rings[i], rings[i + 1]);
+            let step = (h1 - h0).abs() < 0.2 * (r1 - r0).abs();
+            // The profile's slope tilts a round band's normals off the radius.
+            let slope = |k: usize| norm(sub(scale(round[k % SIDES], h1 - h0), scale(axis, r1 - r0)));
+            for k in 0..SIDES {
+                let l = (k + 1) % SIDES;
+                let p = [points[i][k], points[i][l], points[i + 1][l], points[i + 1][k]];
+                if step || sq0 || sq1 {
+                    let n = norm(cross(sub(p[1], p[0]), sub(p[3], p[0])));
+                    let n = if dot(n, n) > 0.5 { n } else { norm(cross(sub(p[2], p[3]), sub(p[0], p[3]))) };
+                    self.quad_n(p, [n; 4], c);
+                } else {
+                    self.quad_n(p, [slope(k), slope(l), slope(l), slope(k)], c);
+                }
+            }
+        }
+        let last = rings.len() - 1;
+        let top = add(base, scale(axis, rings[last].0));
+        let c = rgba(colours[last.min(colours.len()) - 1], 1.0);
+        for k in 0..SIDES {
+            self.tri(false, [top, points[last][k], points[last][(k + 1) % SIDES]], [c; 3]);
         }
     }
 
@@ -586,12 +675,15 @@ pub fn triangulate(p: &[(f64, f64)]) -> Vec<[usize; 3]> {
     tris
 }
 
-/// Where each key's strings start across the agraffes (m, plate y): the
-/// keys' places along the keyboard, laid over the main bridge's span.
+/// Where each key's hammer strikes its strings across (m, plate y): evenly
+/// from one semitone to the next, as on a grand (whose keys are not: the
+/// action's shanks fan out to the strings), C8 and the main bridge's
+/// lowest key in line with their bridge points as their keys are
+/// ([`keyboard_span`]), the bass beyond at the same pitch.
 pub fn key_across(sb: &SoundboardParams, m: u8) -> f64 {
-    let (lo, hi) = keyboard_span(sb);
-    let (x, w) = sketches::key_span(m);
-    hi - (x + w / 2.0) as f64 / 52.0 * (hi - lo)
+    let y = |m: u8| sb.bridge_point_at(m as f64, true).1;
+    let lo_key = sb.main_bridge_from.min(107);
+    y(108) + (y(lo_key) - y(108)) * (108 - m) as f64 / (108 - lo_key) as f64
 }
 
 /// The keyboard's extent across (plate y): C8 and the main bridge's lowest
@@ -655,6 +747,10 @@ pub fn hammer_x(model: &PianoModel, sb: &SoundboardParams) -> f64 {
     if sb.vertical { x } else { x.min(-HAMMER_CLEAR) }
 }
 
+/// A key's string's ends in plate coordinates (its agraffe, its bridge
+/// point) and its height.
+pub type StringEnds = ((f64, f64), (f64, f64), f64);
+
 /// A key's string in plate coordinates: from its agraffe to its bridge
 /// point, at its height. Its hammer strikes it on the hammers' line `hx`
 /// ([`hammer_x`]), in line with its key; the agraffe lies on the string's
@@ -666,6 +762,149 @@ pub fn string_ends(model: &PianoModel, sb: &SoundboardParams, hx: f64, m: u8) ->
     let s = model.note(m).strike_pos;
     let back = |hit: f64, bridge: f64| (hit - s * bridge) / (1.0 - s);
     ((back(hx, bx), back(key_across(sb, m), by)), (bx, by), z)
+}
+
+/// A string's tuning pin: where it stands on the plate, the agraffe hole
+/// its string runs to from it, and the key's string's direction there.
+#[derive(Clone, Copy, Debug)]
+pub struct TuningPin {
+    pub at: (f64, f64),
+    pub hole: (f64, f64),
+    pub dir: (f64, f64),
+}
+
+/// The tuning pins, one per string from the bass up (each key's strings
+/// across in turn), as grands have them: in the pin block in front of the
+/// agraffes, spread evenly across (each key's share of an even pitch,
+/// whatever the keys' own spacing), a unison's on a diagonal one row
+/// further from the agraffes per string (single strings alternating
+/// between two rows), so that the farther pins' strings pass between the
+/// nearer pins. `ends` are the keys' [`string_ends`] from A0.
+pub fn tuning_pins(model: &PianoModel, sb: &SoundboardParams, ends: &[StringEnds]) -> Vec<TuningPin> {
+    let ay = |m: u8| ends[(m - 21) as usize].0.1;
+    let bass = |m: u8| m < sb.main_bridge_from;
+    let mut pins = Vec::new();
+    for m in 21..=108u8 {
+        let ((ax, _), (bx, by), _) = ends[(m - 21) as usize];
+        // The keys' places across over an octave around it on its bridge,
+        // fitted with a line: its even place and the pitch there.
+        let keys: Vec<f64> = (m.saturating_sub(6).max(21)..=(m + 6).min(108)).filter(|&k| bass(k) == bass(m)).map(f64::from).collect();
+        let n = keys.len() as f64;
+        let (mk, my) = (keys.iter().sum::<f64>() / n, keys.iter().map(|&k| ay(k as u8)).sum::<f64>() / n);
+        let (sxy, sxx) = keys.iter().fold((0.0, 0.0), |(a, b), &k| (a + (k - mk) * (ay(k as u8) - my), b + (k - mk) * (k - mk)));
+        let slope = if sxx > 0.0 { sxy / sxx } else { 0.0 };
+        let (even, pitch) = (my + slope * (m as f64 - mk), slope.abs());
+        // Along the key's strings and across them (the unison's 2.5 mm
+        // apart at the agraffe, as drawn).
+        let (dx, dy) = (bx - ax, by - ay(m));
+        let len = dx.hypot(dy).max(1e-9);
+        let (ux, uy) = (dx / len, dy / len);
+        let (nx, ny) = (-uy, ux);
+        let strings = model.note(m).strings;
+        for s in 0..strings {
+            let mid = s as f64 - (strings as f64 - 1.0) / 2.0;
+            let row = if strings == 1 { (m % 2) as f64 } else { s as f64 };
+            let (back, across) = (PIN_GAP + PIN_ROW * row, mid * pitch / strings as f64);
+            pins.push(TuningPin { at: (ax - ux * back + nx * across, even - uy * back + ny * across), hole: (ax + nx * mid * 0.0025, ay(m) + ny * mid * 0.0025), dir: (ux, uy) });
+        }
+    }
+    pins
+}
+
+/// The `i`th string's tuning pin `p`, for a string at height `z` drawn in
+/// `c`, as they are made: a steel pin in a bushing, leaning a little away
+/// from its string's pull, three turns of the string coiled round it a
+/// little below the strings' height, a square head for the tuning hammer
+/// under a rounded top, its flats turned any way; and the string's dead
+/// length from the coil to its agraffe.
+fn tuning_pin(b: &mut Builder, p: &TuningPin, i: usize, z: f64, c: Color32) {
+    let place = b.place;
+    let hole = place.at(p.hole.0, p.hole.1, z);
+    let (ux, uy) = p.dir;
+    let lean = PIN_LEAN.tan();
+    let base = place.at(p.at.0, p.at.1, PIN_BLOCK_TOP);
+    let axis = place.dir(-ux * lean, -uy * lean, 1.0);
+    // Turned by the golden angle from one pin to the next: no two alike.
+    let turn = i as f64 * 2.399_963;
+    let side = place.dir(turn.cos(), turn.sin(), 0.0);
+    let (r, rb, w) = (PIN_R as f32, PIN_BUSH_R as f32, PIN_WIRE as f32);
+    let (hb, ch) = (PIN_BUSH_H as f32, (PIN_COIL_H / 2.0) as f32);
+    let coil = (z - PIN_COIL_DROP - PIN_BLOCK_TOP) as f32;
+    let top = coil + PIN_TOP as f32;
+    let head = top - PIN_HEAD as f32;
+    #[rustfmt::skip]
+    let rings = [
+        (0.0, rb, false), (hb, rb, false), (hb, r, false),
+        (coil - ch, r, false), (coil - ch, r + w, false), (coil + ch, r + w, false), (coil + ch, r, false),
+        (head, r, false), (head + 0.0008, 0.8 * r, true), (top - 0.0012, 0.72 * r, true),
+        (top - 0.0003, 0.55 * r, false), (top, 0.3 * r, false),
+    ];
+    b.lathe(base, axis, side, &rings, &[BUSHING, BUSHING, PIN, c, c, c, PIN, PIN, PIN, PIN, PIN]);
+    // The coil's turns, up to where the string leaves it towards its
+    // agraffe.
+    let at = |h: f32| add(base, scale(axis, h));
+    let to = sub(hole, at(coil));
+    let e1 = norm(sub(to, scale(axis, dot(to, axis))));
+    let e2 = cross(axis, e1);
+    let (turns, steps) = (3.0, 24);
+    let helix = |k: usize| {
+        let t = k as f32 / steps as f32;
+        let a = -std::f32::consts::TAU * turns * (1.0 - t);
+        let (h, rr) = (coil - ch + w / 2.0 + (2.0 * ch - w) * t, r + w + 0.0001);
+        add(at(h), add(scale(e1, rr * a.cos()), scale(e2, rr * a.sin())))
+    };
+    let groove = rgba(mix(c, Color32::BLACK, 0.45), 1.0);
+    for k in 0..steps {
+        b.line(helix(k), helix(k + 1), groove);
+    }
+    b.line(helix(steps), hole, rgba(c, 1.0));
+}
+
+/// The agraffe at `at` (plate) for a unison of `strings` along `u` at
+/// height `z`, standing on `foot` (see the [`AGRAFFE_HEAD`] constants):
+/// brass `c`, its boss the plate's `plate`; the strings' holes through
+/// its head 2.5 mm apart, as they are drawn.
+#[allow(clippy::too_many_arguments)]
+fn agraffe(b: &mut Builder, at: (f64, f64), u: (f64, f64), z: f64, foot: f64, strings: usize, c: Color32, plate: Color32) {
+    let place = b.place;
+    let hw = AGRAFFE_HEAD + AGRAFFE_HEAD_PER * (strings as f64 - 1.0);
+    let flange = hw + AGRAFFE_FLANGE;
+    let head = z - AGRAFFE_BELOW;
+    let foot = if head - AGRAFFE_NECK - AGRAFFE_FLANGE_H > foot {
+        let top = head - AGRAFFE_NECK - AGRAFFE_FLANGE_H;
+        b.plate_prism(at, flange + AGRAFFE_BOSS, 8, 0.0, (foot, top), plate);
+        top
+    } else {
+        foot
+    };
+    b.plate_prism(at, flange, 6, u.1.atan2(u.0), (foot, foot + AGRAFFE_FLANGE_H), c);
+    let base = place.at(at.0, at.1, foot + AGRAFFE_FLANGE_H);
+    let (h, top, w) = ((head - foot - AGRAFFE_FLANGE_H) as f32, (z + AGRAFFE_ABOVE - foot - AGRAFFE_FLANGE_H) as f32, hw as f32);
+    #[rustfmt::skip]
+    let rings = [
+        (0.0, 0.6 * w, false), (h, 0.6 * w, false), (h, w, true),
+        (top - 0.0012, w, true), (top - 0.0003, 0.8 * w, false), (top, 0.45 * w, false),
+    ];
+    b.lathe(base, place.dir(0.0, 0.0, 1.0), place.dir(u.0, u.1, 0.0), &rings, &[c]);
+    // The holes, on the faces the strings go in and out by.
+    let (n, hole) = ((-u.1, u.0), rgba(Color32::from_rgb(40, 32, 20), 1.0));
+    for s in 0..strings {
+        let off = (s as f64 - (strings as f64 - 1.0) / 2.0) * 0.0025;
+        for side in [-1.0, 1.0] {
+            let d = side * (hw + 0.0001);
+            let (cx, cy) = (at.0 + u.0 * d + n.0 * off, at.1 + u.1 * d + n.1 * off);
+            let rim = |k: usize| {
+                let (sn, cs) = (std::f64::consts::TAU * k as f64 / 6.0).sin_cos();
+                let r = AGRAFFE_HOLE_R;
+                place.at(cx + n.0 * r * cs, cy + n.1 * r * cs, z + r * sn)
+            };
+            let centre = place.at(cx, cy, z);
+            for k in 0..6 {
+                let t = if side > 0.0 { [centre, rim(k), rim(k + 1)] } else { [centre, rim(k + 1), rim(k)] };
+                b.tri(false, t, [hole; 3]);
+            }
+        }
+    }
 }
 
 /// A grand's leg under `top` (world, the case's underside), as most are
@@ -844,7 +1083,8 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     // hammers ([`hammer_x`]), their tuning pins in front of those.
     let hx = hammer_x(model, &sb);
     let ends: Vec<_> = (21..=108u8).map(|m| string_ends(model, &sb, hx, m)).collect();
-    let case_front = ends.iter().map(|e| e.0.0).fold(f64::MAX, f64::min) - PIN_GAP - PIN_ROW - PIN_R - 0.008;
+    let pins = tuning_pins(model, &sb, &ends);
+    let case_front = pins.iter().map(|p| p.at.0).fold(f64::MAX, f64::min) - PIN_BUSH_R - 0.008;
 
     // The case: the rim's walls along the board's outline, carried forward
     // over the pin block to just in front of the tuning pins (as the frame
@@ -891,6 +1131,24 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let (p, q) = (block[i], block[(i + 1) % block.len()]);
         b.quad(false, [place.at(p.0, p.1, bz0), place.at(q.0, q.1, bz0), place.at(q.0, q.1, bz1), place.at(p.0, p.1, bz1)], plate);
     }
+    // The felt strips on it under the strings' dead lengths, along the
+    // agraffes just in front of them: one per bridge's strings.
+    for bass in [true, false] {
+        let mut strip: Vec<(f64, f64)> = (21..=108u8)
+            .zip(&ends)
+            .filter(|&(m, _)| (m < sb.main_bridge_from) == bass)
+            .map(|(_, &((ax, ay), (bx, by), _))| {
+                let l = (bx - ax).hypot(by - ay).max(1e-9);
+                (ax - (bx - ax) / l * UNDER_FELT_AT, ay - (by - ay) / l * UNDER_FELT_AT)
+            })
+            .collect();
+        // No bass strip when the main bridge carries every string.
+        if strip.len() < 2 {
+            continue;
+        }
+        strip.sort_by(|p, q| q.1.total_cmp(&p.1));
+        b.wall(&strip, false, -UNDER_FELT_W / 2.0, UNDER_FELT_W / 2.0, PIN_BLOCK_TOP, &|_| PIN_BLOCK_TOP + UNDER_FELT_T, UNDER_FELT);
+    }
     let rim_label = outline.iter().cloned().fold((0.0, 0.0), |m, p| if p.0 > m.0 { p } else { m });
     b.label(place.at(rim_label.0 + t, rim_label.1, z1), if rim.enabled { "Rim" } else { "Case (not modelled)" }, "Frame & rim");
 
@@ -908,7 +1166,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     // Strings, from their tuning pins across their agraffes, hammers and
     // dampers.
     let d = &model.damper;
-    // Strings counted from the bass, for the pins' rows.
+    // Strings counted from the bass, as their tuning pins are.
     let mut count = 0usize;
     // Where the felt braid crosses each unison's rear length.
     struct Crossing {
@@ -955,14 +1213,9 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
                 let (t0, t1) = (k as f64 / segments as f64, (k + 1) as f64 / segments as f64);
                 b.line(point(t0), point(t1), rgba(c, 1.0));
             }
-            // Its tuning pin on the string's line beyond the agraffe, its
-            // coil at the string's height, and the string's dead end from
-            // it to the agraffe.
-            let (back, across) = (PIN_GAP + PIN_ROW * (count % 2) as f64, off / 0.0025 * PIN_ACROSS);
-            let (px, py) = (ax - ux * back + nx * across, ay - uy * back + ny * across);
-            b.plate_prism((px, py), PIN_R, 6, 0.0, (PIN_BLOCK_TOP, z + 0.012), PIN);
-            b.plate_prism((px, py), PIN_R + 0.001, 6, 0.0, (z - 0.003, z + 0.002), c);
-            b.line(place.at(px + ux * PIN_R, py + uy * PIN_R, z), point(0.0), rgba(c, 1.0));
+            // Its tuning pin, and the string's dead length from the pin's
+            // coil to the agraffe.
+            tuning_pin(&mut b, &pins[count], count, z, c);
             // The bridge pins, and the string between them.
             let (gx, gy) = (bx + ux * pa + nx * (off - pd), by + uy * pa + ny * (off - pd));
             let foot = z - (STRING_Z - BRIDGE_H);
@@ -981,14 +1234,13 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         if m <= d.highest_note {
             braid.push(Crossing { bass: m < sb.main_bridge_from, at: (bx + ux * rear * 0.45, by + uy * rear * 0.45), z: z - HITCH_DROP * 0.45, dir: (ux, uy) });
         }
-        // The agraffe, a brass stud the unison goes through, turned along
-        // it, standing on the pin block (the highest treble's overhang it);
-        // the hammer under (an upright's: in front of) the strings at
-        // the strike point, all on one line.
-        let turn = dy.atan2(dx);
-        let r = 0.0038 + 0.0008 * (n.strings as f64 - 1.0);
+        // The agraffe the unison goes through, standing on the pin block
+        // (the highest treble's overhang it); the hammer under (an
+        // upright's: in front of) the strings at the strike point, all on
+        // one line.
+        let r = AGRAFFE_HEAD + AGRAFFE_HEAD_PER * (n.strings as f64 - 1.0) + AGRAFFE_FLANGE;
         let foot = if ax + r <= block_back(ax) { PIN_BLOCK_TOP } else { z - 0.008 };
-        b.plate_prism((ax, ay), r, 6, turn, (foot, z + 0.005), pick(Part::Agraffes, BRASS));
+        agraffe(&mut b, (ax, ay), (ux, uy), z, foot, n.strings, pick(Part::Agraffes, BRASS), pick(Part::Frame, IRON));
         let k = obs.map(|o| o.keys[m as usize]);
         let down = k.is_some_and(|k| k.down);
         let hammer_on = k.is_some_and(|k| k.hammer);
@@ -1283,10 +1535,12 @@ mod tests {
         assert!(hx <= -HAMMER_CLEAR, "{hx}");
         assert!(ends[0].1.0.1 > key_across(&sb, 21) + 0.03, "A0's agraffe not to the bass side");
         assert!(c8 - a0 > 0.1 && hx - c8 < 0.01, "A0 at {a0}, C8 at {c8}, hammers at {hx}");
-        // A tuning pin per string, in front of the agraffes and behind the keys.
+        // A tuning pin per string, in front of its agraffe.
         let strings: usize = (21..=108u8).map(|k| m.note(k).strings).sum();
         let pins = build(&m, None, &options()).tris.iter().filter(|v| v.color == rgba(PIN, 1.0)).count();
-        assert_eq!(pins, strings * (6 * 2 + 2 * 4) * 3);
+        assert_eq!(pins, strings * (6 * 12 * 2 + 12) * 3);
+        let tuning = tuning_pins(&m, &sb, &ends.iter().map(|e| e.1).collect::<Vec<_>>());
+        assert!(tuning.iter().all(|p| p.at.0 < p.hole.0 - PIN_GAP + 0.001), "a pin behind its agraffe");
     }
 
     #[test]
@@ -1336,6 +1590,50 @@ mod tests {
         assert!(top > perimeter * t && top < perimeter * t + 8.0 * t * t, "{top} vs {}", perimeter * t);
         // Every normal is a unit vector.
         assert!(b.s.tris.iter().all(|v| (dot(v.normal, v.normal) - 1.0).abs() < 1e-4));
+    }
+
+    #[test]
+    fn any_bass_bridge_builds_grand_or_upright() {
+        // Down to none: the main bridge carrying every string from A0.
+        for vertical in [false, true] {
+            for from in [21, 22, 28, 45, 60, 107] {
+                let mut m = PianoModel::default();
+                let sb = m.soundboard.as_mut().unwrap();
+                (sb.vertical, sb.main_bridge_from) = (vertical, from);
+                let s = build(&m, None, &options());
+                assert!(!s.tris.is_empty(), "vertical {vertical}, main bridge from {from}");
+                assert!(s.tris.iter().chain(&s.lines).all(|v| v.pos.iter().all(|x| x.is_finite())), "vertical {vertical}, main bridge from {from}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_strings_pass_between_the_tuning_pins() {
+        let m = PianoModel::default();
+        let sb = m.soundboard.unwrap().resolved();
+        let hx = hammer_x(&m, &sb);
+        let ends: Vec<_> = (21..=108u8).map(|k| string_ends(&m, &sb, hx, k)).collect();
+        let pins = tuning_pins(&m, &sb, &ends);
+        assert_eq!(pins.len(), (21..=108u8).map(|k| m.note(k).strings).sum::<usize>());
+        let coil = PIN_R + PIN_WIRE;
+        let (mut wire_gap, mut pin_gap) = (f64::MAX, f64::MAX);
+        for (i, p) in pins.iter().enumerate() {
+            // From where it leaves its coil to its agraffe.
+            let (dx, dy) = (p.hole.0 - p.at.0, p.hole.1 - p.at.1);
+            let l = dx.hypot(dy);
+            let a = (p.at.0 + dx / l * coil, p.at.1 + dy / l * coil);
+            for (j, q) in pins.iter().enumerate() {
+                if i == j {
+                    continue;
+                }
+                pin_gap = pin_gap.min((q.at.0 - p.at.0).hypot(q.at.1 - p.at.1) - 2.0 * coil);
+                let (ex, ey) = (p.hole.0 - a.0, p.hole.1 - a.1);
+                let t = (((q.at.0 - a.0) * ex + (q.at.1 - a.1) * ey) / (ex * ex + ey * ey)).clamp(0.0, 1.0);
+                wire_gap = wire_gap.min((a.0 + ex * t - q.at.0).hypot(a.1 + ey * t - q.at.1) - PIN_R);
+            }
+        }
+        assert!(wire_gap > 0.0003, "a string touches a pin: {wire_gap}");
+        assert!(pin_gap > 0.001, "two coils touch: {pin_gap}");
     }
 
     #[test]
