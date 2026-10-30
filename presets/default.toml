@@ -103,11 +103,14 @@ b_over_g = 1.5
 
 [polarization]
 enabled = true
-h_coupling = 0.03
-cross = 0.173
+h_coupling = 0.3
+cross = 0.438
 detune_cents = 0.3
 radiation = 0.1
 hammer_tilt = 0.05
+smooth = 0.0
+slope = -1.0
+slope_from = 130.81
 
 [soundboard]
 a = 1.7

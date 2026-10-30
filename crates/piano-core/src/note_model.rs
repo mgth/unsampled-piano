@@ -173,6 +173,11 @@ impl NoteModel {
             if fv.iter().chain(&fh).any(|&f| f >= nyq) {
                 break;
             }
+            // The smooth admittance the sideways motion sees (polarization.smooth).
+            let eps_ref = match board {
+                Some(b) => C64::new(b.params.mean_mobility() * np.tension / np.length, 0.0),
+                None => np.coupling(&model.bridge, fv[0]),
+            };
             let eps = match (board, &bridge_shapes) {
                 (Some(b), Some(sh)) => {
                     // The string's other end: the frame at its agraffe (the
@@ -185,7 +190,8 @@ impl NoteModel {
             let dv: Vec<C64> = fv.iter().map(|&f| C64::new(-model.losses.sigma(note, f), tau * f)).collect();
             let cl = if pol.enabled {
                 let dh: Vec<C64> = fh.iter().map(|&f| C64::new(-model.losses.sigma(note, f), tau * f)).collect();
-                unison::couple_polarised(&dv, &dh, eps, eps.scale(pol.h_coupling), eps.scale(pol.passive_cross()))
+                let (eps_h, eps_x) = pol.sideways(eps, eps_ref, fv[0]);
+                unison::couple_polarised(&dv, &dh, eps, eps_h, eps_x)
             } else {
                 unison::couple(&dv, eps)
             };

@@ -420,21 +420,79 @@ pub struct PolarizationLaw {
     pub radiation: f64,
     /// Share of the hammer force acting horizontally.
     pub hammer_tilt: f64,
+    /// What the sideways admittance follows, 0 to 1: 0, the vertical
+    /// admittance at the key (ε_H = h·ε_V, its board peaks included); 1,
+    /// the board's smooth point mobility (the infinite plate's). Sideways
+    /// the bridge rocks on its foot and slides on the board's plane: neither
+    /// sees the bending modes that make the vertical admittance peak, and a
+    /// key whose fundamental sits on such a peak lost its aftersound with
+    /// its prompt sound (docs/fundamental_sustain.md).
+    pub smooth: f64,
+    /// ε_H grows as (f/C4)^slope: a rocking bridge gives the string the
+    /// plate's moment mobility, ∝ f, where its point mobility is flat.
+    pub slope: f64,
+    /// Below this frequency (Hz) ε_H keeps the slope's value there (0: the
+    /// slope applies down to the lowest partial).
+    pub slope_from: f64,
 }
 
+/// Reference of `PolarizationLaw::slope` (Hz, C4).
+const POLARIZATION_SLOPE_REF: f64 = 261.63;
+
 impl PolarizationLaw {
-    pub const OFF: Self =
-        Self { enabled: false, h_coupling: 0.0, cross: 0.0, detune_cents: 0.0, radiation: 0.0, hammer_tilt: 0.0 };
-    /// Calibrated on the ESPRIT statistics of Salamander with the full
-    /// instrument (tools/decay_grid.py): weak sideways coupling, cross term
-    /// at the passivity limit √h; gives single strings their measured
-    /// aftersound (≈ −27 dB, slow).
+    pub const OFF: Self = Self {
+        enabled: false,
+        h_coupling: 0.0,
+        cross: 0.0,
+        detune_cents: 0.0,
+        radiation: 0.0,
+        hammer_tilt: 0.0,
+        smooth: 0.0,
+        slope: 0.0,
+        slope_from: 0.0,
+    };
+    /// The sideways coupling at C4, h = 0.3, falls as C4/f above C3 and is
+    /// held below (slope −1 from 130.81 Hz); the cross term is 0.8·√h. The
+    /// middle's fundamentals then keep their level at 1 s as the real
+    /// grands do (−6 to −8 dB short before, within 1 dB now), and the
+    /// user preferred it by ear (docs/fundamental_sustain.md). It was
+    /// h = 0.03, cross at √h, from the ESPRIT statistics of Salamander.
     pub const DEFAULT: Self =
-        Self { enabled: true, h_coupling: 0.03, cross: 0.173, detune_cents: 0.3, radiation: 0.1, hammer_tilt: 0.05 };
+        Self {
+            enabled: true,
+            h_coupling: 0.3,
+            cross: 0.438,
+            detune_cents: 0.3,
+            radiation: 0.1,
+            hammer_tilt: 0.05,
+            smooth: 0.0,
+            slope: -1.0,
+            slope_from: 130.81,
+        };
 
     /// Cross coupling actually used: clamped to keep the bridge passive.
     pub fn passive_cross(&self) -> f64 {
         self.cross.min(self.h_coupling.sqrt())
+    }
+
+    /// Sideways and cross couplings (ε_H, ε_X) of a partial at `f` Hz,
+    /// from its vertical coupling ε_V and the smooth one ε_ref (same units).
+    /// ε_X is the geometric mean √(ε_V·ε_H) times the cross share
+    /// cross/√h_coupling, and stays passive: (Re ε_X)² ≤ Re ε_V·Re ε_H.
+    pub fn sideways(&self, eps_v: crate::complex::C64, eps_ref: crate::complex::C64, f: f64) -> (crate::complex::C64, crate::complex::C64) {
+        if self.smooth == 0.0 && self.slope == 0.0 {
+            return (eps_v.scale(self.h_coupling), eps_v.scale(self.passive_cross()));
+        }
+        let s = self.smooth.clamp(0.0, 1.0);
+        let h = self.h_coupling * (f.max(self.slope_from).max(1.0) / POLARIZATION_SLOPE_REF).powf(self.slope);
+        let eps_h = (eps_v.scale(1.0 - s) + eps_ref.scale(s)).scale(h);
+        let share = if self.h_coupling > 0.0 { (self.cross / self.h_coupling.sqrt()).min(1.0) } else { 0.0 };
+        let mut eps_x = (eps_v * eps_h).sqrt().scale(share);
+        let limit = (eps_v.re.max(0.0) * eps_h.re.max(0.0)).sqrt();
+        if eps_x.re.abs() > limit {
+            eps_x = eps_x.scale(limit / eps_x.re.abs());
+        }
+        (eps_h, eps_x)
     }
 }
 
