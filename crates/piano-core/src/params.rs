@@ -215,11 +215,13 @@ impl LossLaw {
     /// losses set against a commercial modelled piano's release ring
     /// (docs/release_ring.md) cut short the slow aftersound that real top
     /// strings keep, −11 to −21 dB/s at C7 after the first 0.4 s on four
-    /// real grands (docs/top_treble.md). Winding losses 2e-4 (A0 → E2):
+    /// real grands (docs/top_treble.md). Winding losses 1e-4 (A0 → E2):
     /// the low bass's partials above 1 kHz no longer ring on, a metallic
-    /// sustain (docs/bass_metal.md).
+    /// sustain (docs/bass_metal.md); 2e-4, set against one Disklavier
+    /// darker than the others, left the bass's 1–8 kHz sustain bands under
+    /// eight real grands (docs/bench.md, 2026-10-30).
     pub const SALAMANDER_STRING: Self =
-        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 2e-4, winding_until: 40 };
+        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 1e-4, winding_until: 40 };
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
         let wound = ((self.wound_until as f64 + 12.0 - note as f64) / 12.0).clamp(0.0, 1.0);
@@ -283,15 +285,16 @@ impl UnisonLaw {
     /// cent: the aftersound of the bass and middle then sits 1–1.5 cent from
     /// the prompt sound and 13–17 dB below it, as in the commercial piano, Iowa and
     /// Salamander (docs/long_sustain.md; 0.35 cent left it 10 dB too weak
-    /// and the notes died after 1 s); hit spread ±20 % set on the
-    /// aftersound level of the treble (docs/sustain.md). The curve from C4
+    /// and the notes died after 1 s); hit spread ±30 % (±20 % set first on
+    /// the aftersound level of the treble, docs/sustain.md; 0.3 on eight
+    /// real grands' middle and treble, docs/bench.md, 2026-10-30). The curve from C4
     /// to C8 is t⁴ since the board has its outline: the outlined board takes
     /// 3–8 dB less of the treble's fundamentals (C5–F#6), the strings of a
     /// unison no longer decay together and the quadratic curve's 1.8 cents
     /// at A5 left its tail beating at −21 dB re the attack from 0.6 to 2 s
     /// (real grands −27 to −33); t⁴ gives A5 1.3 cents, keeps C8's 5
     /// (docs/treble_tail.md).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, width_curve: 4.0, hit_spread: 0.2, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0 };
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, width_curve: 4.0, hit_spread: 0.3, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 
@@ -927,7 +930,9 @@ pub struct PianoModel {
     pub hardness_slope_bass: f64,
     /// Further growth above C6 (key 64): Q0 ×= e^{slope·(n − 64)}. With the
     /// flexible shank the top's fundamentals gain more than its partials
-    /// 2–4; the top hammers are voiced harder (docs/top_level.md).
+    /// 2–4; the top hammers are voiced harder (docs/top_level.md). 0.15:
+    /// at 0.2 the top's mf attack had partials 2–3 10 dB over eight real
+    /// grands (docs/bench.md, 2026-10-30).
     pub hardness_slope_top: f64,
     /// Inner felt: Q_core·(u − depth)^core_p added to the top felt's
     /// Q0·u^p, Q_core relative to Stulov's Q0 of the key (0: single layer),
@@ -1009,7 +1014,7 @@ impl Default for PianoModel {
             hardness: 0.3,
             hardness_slope: 0.0,
             hardness_slope_bass: 0.02,
-            hardness_slope_top: 0.2,
+            hardness_slope_top: 0.15,
             p_bass: 0.0,
             // Graded felt (docs/felt.md): Q0·u^p + 2·Q0_Stulov·u^7, no
             // threshold. The former two-layer hammer (a core 30 × Stulov,

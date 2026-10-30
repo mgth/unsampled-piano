@@ -39,7 +39,7 @@ A term on the share of each partial's energy in bending, B·k²/(1 + B·k²), wa
 | 2·10⁻⁴ | +2.7 / +7.7 / +8.0 dB | 1.14 |
 | 4·10⁻⁴ | −0.6 / −0.1 / −5.8 dB | 1.18 |
 
-The eight grands of the bench have a brighter bass than Liang's Disklavier: at 4·10⁻⁴ the bass's sustain at 1–2 and 8 kHz fell 4–18 dB under them, and its envelopes decayed ≈ 2 dB faster. At 2·10⁻⁴ the bass's 4 kHz sustain lands on their mean (z +1.1 → +0.3). The user heard no difference between 2 and 4·10⁻⁴; 2·10⁻⁴ is the default.
+The eight grands of the bench have a brighter bass than Liang's Disklavier: at 4·10⁻⁴ the bass's sustain at 1–2 and 8 kHz fell 4–18 dB under them, and its envelopes decayed ≈ 2 dB faster. At 2·10⁻⁴ the bass's 4 kHz sustain lands on their mean (z +1.1 → +0.3). The user heard no difference between 2 and 4·10⁻⁴; 2·10⁻⁴ was the default until 2026-10-30, 1·10⁻⁴ since: against the eight grands' channel-power measures 2·10⁻⁴ left the bass's 1–8 kHz sustain bands under them (docs/bench.md, "Tuning the default on the off measures").
 
 ## The 220 Hz line
 

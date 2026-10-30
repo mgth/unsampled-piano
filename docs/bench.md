@@ -82,6 +82,52 @@ Tests of cancellation, velocity separation, sparse references, missing/noisy val
 
     python3 -m unittest discover -s tools -p 'test_bench.py'
 
+### Tuning the default on the off measures (2026-10-30)
+
+Control: the default at `e08fb06` scores 1.17, 74 % within, 16 off, 342 OFF / 65 WATCH profiles, the saved baseline to the digit. Every trial below is a full `bench.py run` with a copy of `presets/default.toml` differing in the named keys only (same close microphones, studio and velocities); an unchanged copy reproduces the control exactly. z are against the control's `result.json`.
+
+**Kept** (one trial each, then together):
+
+| Trial | Score | Off | What it targets, z before → after | Moved ≥ 0.5 elsewhere |
+|---|---|---|---|---|
+| `losses.winding` 2e-4 → 1e-4 | 1.163 | 15 | bass sustain bands 1k −2.16 → −1.90, 2k −0.52 → −0.04, 8k −1.82 → −0.97 | none |
+| `hardness_slope_top` 0.2 → 0.15 | 1.151 | 14 | top mf attack p2 +3.24 → +1.25, p3 +2.26 → +1.26, 4–8 kHz share +2.00 → +1.08; ff p3 +2.48 → +2.20 | top mf attack p4 −1.12 → +3.14 (artefact, below); ff p4 −0.06 → +1.62; late T60 p1–4 +0.60 → +1.42 |
+| `unison.hit_spread` 0.2 → 0.3 | 1.143 | 15 | `hf_even` max 4–8k +2.35 → +1.78, 8–11k +4.83 → +3.77; middle 1.03 → 0.92, treble 0.85 → 0.80 | top mf p2/p3 +0.3/+0.6 |
+| the three together (default) | **1.094** | **13** | bass 0.91 → 0.85, middle 1.03 → 0.92, treble 0.85 → 0.79, top 1.78 → 1.68; profiles 343 OFF / 61 WATCH | top mf attack p4 −1.12 → −2.48 (artefact) |
+
+- **The winding.** 2e-4 was set against Liang's Disklavier alone, whose bass is darker than the other grands' (docs/bass_metal.md: at 4e-4 the bass fell under them). 1e-4 keeps half of the copper's rubbing loss that stopped the metallic ring and lets the bass's sustain above 1 kHz back towards the eight grands' mean; 5e-5 goes a little further (bands 1k −1.76, 8k −0.51, score 1.159) and is left as an option, nearer 0 than what the user heard.
+- **The top hammers.** The top's mf attack had partials 2–3 about 10 dB over the real grands' and its 4–8 kHz share 8 dB: the felt is too hard for the speed (axis 4 of docs/realism_axes.md: the real top's partials 3–5 grow slower with velocity than the fundamental). 0.15 voices C7–C8 a little softer; the top's mf balance moves +0.03 → −0.70 z. 0.17 does half as much (p2 +2.09).
+- **The unison's evenness.** A felt never meets the three strings of a key equally: ±30 % of force from one string to the next at velocity 100 instead of ±20 %, growing at soft blows as before (docs/release.md). Each string's contact then lasts its own time, and the wave returning from the agraffe meets them at different moments: the second, short impact that makes D#4–F4 fizz is less coherent. The same unevenness feeds the aftersound: the treble's and the top's pp/mf envelopes at 1–2 s come up 0.3–0.7 z. 0.4 goes further on `hf_even` (4–8k max +0.70, 8–11k max +3.25, middle 0.84, treble 0.76) but puts the top's mf attack p2/p3 at +4.0/+3.6 alone and +2.5/+2.2 with the softer top hammers (score 1.120, 14 off, 346 OFF profiles).
+
+**The top's mf attack p4 is not a measure of the model.** It averages partial 4 over C7, D#7 and F#7 (A7's and C8's lie above 12 kHz). The model's F#7 has nothing at 11.8 kHz (−94 to −113 dB re p1), and whether that is read or falls under the 12 dB noise margin decides the average: −69.7 dB in the control with it, −56.5 without (`hardness_slope_top` 0.15 alone), −74 with −113 (the kept default). C7 and D#7 stay at −48 to −59 dB against a target of −66 in every run: the model's top p4 has been too strong all along, and the control's −1.12 hid it. The flips of ±3 z on this one component follow F#7, not the instrument.
+
+**Rejected:**
+
+| Trial | Score | Off | Why |
+|---|---|---|---|
+| `unison.width_treble` 5 → 7 cents | 1.174 | 17 | top 2 kHz attack band +0.9 z, but its 2 kHz sustain band −0.4, ff attack p4 +2.0, mf p2 +0.3 |
+| `hardness_slope_bass` 0.02 → 0.01 | 1.220 | 17 | the slope runs to C4: `hf_even` 8–11k max +4.83 → +6.47 and rms new off; bass sustain unmoved |
+| `p_bass` 0.3, 0.5 (with the kept three) | 1.094, 1.099 | 13 | bass sustain p6/p12 unmoved (±0.02 z) |
+| `unison.height_spread` 0.1 → 0.3 mm | 1.320 | 24 | `hf_even` max 8–11k +3.32, 4–8k +0.59, top 1–2 kHz bands +0.7 z; eleven new reds in the treble and top (attack p2–p4, sustain p2–p3, balance) |
+
+`hf_even` alone, rendered C3–B4 at mf (rms/max 4–8k, rms/max 8–11k; control 5.4/16.7, 7.9/18.8): `contact_width_scale` 1.5 5.4/16.9, 8.1/20.0; `hysteresis` 0 5.7/15.1, 7.5/20.7, 0.4 5.8/16.5, 7.1/17.1, 0.8 4.5/11.2, 8.6/18.7; `p_offset` +0.5 4.8/13.0, 7.4/20.1; `shank_loss` 0.3 4.4/9.3, 7.8/24.3; `height_spread` 0.2/0.5 mm 6.2/11.6, 6.5/14.3 and 6.1/15.6, 9.5/26.0. None removes it: they move the coincidence of contact end and returning wave from key to key. The hammer's own force says where the highs come from: its 8–11 kHz share is −83 dB of its spectrum at C4, −73 at D4, −64 at D#4, −62 at F4, −66 at F#4 (mf, `strike_force_dump`). At D#4–F4 the contact (3.2–3.4 ms) outlasts the period (2.9–3.2 ms) by little: the force has fallen to 0.2–0.5 N when the wave comes back, rises again to 1–2.5 N within 0.3 ms and stops within 0.15 ms.
+
+**Not moved: the top's sound below its fundamental** (bands 1 and 2 kHz, z −4.5 to −2.8). In the sustain it is the undamped strings' halo and nothing else: with the sympathy off, the 1 kHz sustain band falls from −65 to −127 dB (2 kHz: −41 → −80); without the frame, the rim or the mechanical noises it moves by less than 0.2 dB. At C7 the halo is D#6's, E6's and F6's fundamentals at −82, −83 and −66 dB re the attack's strongest band (F6 is driven at its partial 3 by C7's partial 2), where the real grands' 1 kHz band totals −43. Rendered C7–C8 (bands at the attack/in the sustain, 1k/2k, dB; control −48.6/−28.7, −65.3/−41.0):
+
+| | attack 1k | attack 2k | sustain 1k | sustain 2k |
+|---|---|---|---|---|
+| `sympathetic.gain` 1.0 | −45.6 | −26.1 | −60.9 | −38.2 |
+| `damper.highest_note` 84 (24 keys free) | −47.9 | −28.7 | −65.1 | −40.9 |
+| Overkill (damped strings listen) | −46.1 | −28.0 | −64.5 | −40.9 |
+| `impedance_slope` 0 | −48.2 | −28.7 | −64.8 | −40.5 |
+| `noise.keybed` × 10, 3 or 1 ms | −48.5 | −28.7 | −65.4 | −40.9 |
+| `noise.keybed` × 100, 0.5 ms (C7, F#7, C8 only) | +11 dB | +5 dB | +12 dB | +4 dB |
+| real grands | −24.2 | −12.0 | −43.4 | −29.4 |
+
+What rings the halo is the knock at the bridge: the hammer's quasi-static push, β·F (12 % of it at C7, docs/top_treble.md), and the keybed. A hundred times the keybed's force, 30 N per m/s of hammer speed in 0.5 ms into the board at the key's place, gains only 10 dB. Through the board as modelled the knock would need forces no key or hammer gives. The halo of a real grand is rung some other way, which the model has not: the 88 % of the hammer's push that goes into the agraffe or capo bar, then the frame, which is bolted to the rim that holds the board (the frame drives nothing in the model); the duplex segments behind the bridge. That is a change to the engine's structure, not to the preset.
+
+Also left: the top's pp/mf envelope at 3 s (−60 dB, the floor, against −53 on a single readable source, Codex's note in bench_bias_correction.md), the top's sustain p4 (−72 against −61), the bass's sustain p6/p12 (−9 and −12 dB re p1 against the grands, already 6–20 dB short at the attack on D#1–A#1 and F2–B2: docs/bridges.md, the bass bridge's place).
+
 ### The fizz of D#4–F4 (`hf_even`, 2026-10-30)
 
 The user heard D#4, E4 and F4 "fizz" (*friser*), and no other key (2026-10-29). The register measures could not see it: they play every third key (C4, D#4, F#4), and none of them compared a key with its neighbours at the attack.
