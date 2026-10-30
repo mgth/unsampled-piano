@@ -944,6 +944,11 @@ impl Engine {
 
     fn handle(&mut self, ev: Event) {
         match ev {
+            // No key below A0 or above C8. Folded onto the end string, such a
+            // note made a voice holding note 21 (or 108) that its note-off,
+            // looking for its own number, never released: struck again and
+            // again, the bottom string piled up undamped voices.
+            Event::NoteOn { note, .. } | Event::NoteOff { note, .. } if !(21..=108).contains(&note) => {}
             Event::NoteOn { velocity: 0, note } => self.note_off(note),
             Event::NoteOn { note, velocity } => {
                 let k = note as usize & 127;

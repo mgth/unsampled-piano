@@ -56,3 +56,16 @@ fn no_strike_while_the_hammer_presses_the_string() {
     let d = rel_diff(&single, &again);
     assert!(d < 1e-2, "a strike during the hammer's contact changed the sound by {d:e} of the peak");
 }
+
+#[test]
+fn notes_off_the_keyboard_are_ignored() {
+    // Below A0 or above C8 there is no key: such a note used to sound the end
+    // string, and its note-off never reached the voice, which rang on.
+    let (silence, _) = render(&[], N);
+    for note in [0, 20, 109, 127] {
+        let on = Event::NoteOn { note, velocity: 100 };
+        let off = Event::NoteOff { note, velocity: 64 };
+        let (out, _) = render(&[(1000, on), (5000, off), (8000, on), (12_000, off)], N);
+        assert_eq!(out, silence, "note {note} sounded");
+    }
+}
