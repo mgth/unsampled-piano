@@ -113,3 +113,21 @@ unsafe impl Params for PianoParams {
         self.restored.store(true, Ordering::Release);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A project saved before `shank_freq_mid` existed keeps its uniform
+    /// shank (the field reads 0); a new one keeps the stiffer middle.
+    #[test]
+    fn a_state_saved_before_the_stiffer_shank_keeps_its_uniform_shank() {
+        let mut v = serde_json::to_value(PianoModel::default()).unwrap();
+        v.as_object_mut().unwrap().remove("shank_freq_mid").expect("a top-level field");
+        let old: PianoModel = serde_json::from_value(v).unwrap();
+        assert_eq!(old.shank_freq_mid, 0.0);
+        assert_eq!(old.shank_freq_at(63.0), old.shank_freq);
+        let new: PianoModel = serde_json::from_str(&serde_json::to_string(&PianoModel::default()).unwrap()).unwrap();
+        assert_eq!(new.shank_freq_mid, PianoModel::default().shank_freq_mid);
+    }
+}

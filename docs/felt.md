@@ -77,7 +77,7 @@ Most of these move the coincidence to other keys (rendered, `shank_loss` 0.5–1
 
 At mf D#4–F#4 come to −75, −76, −75, −76 dB (−67, −69, −60, −68 before), within the real grands' −71 to −79.
 
-**But not in the top.** At 700 Hz everywhere the top loses the level the supple shank gave it ([top_level.md](top_level.md)): its mf balance falls from −6.6 to −10.6 dB (z −1.9), its mf partials 3–4 by 9 dB, and the treble's mf balance goes to z −2.0. The shank mode is now `shank_freq_mid` (700 Hz) up to C5, geometric to `shank_freq` (300 Hz) at C6.
+**But not in the top.** At 700 Hz everywhere the top loses the level the supple shank gave it ([top_level.md](top_level.md)): its mf balance falls from −6.6 to −10.6 dB (z −1.9), its mf partials 3–4 by 9 dB, and the treble's mf balance goes to z −2.0. The shank mode is now `shank_freq_mid` (700 Hz) up to C5, geometric to `shank_freq` (300 Hz) at C6. A preset or a plugin state saved before it has no `shank_freq_mid` and reads 0: it keeps the uniform `shank_freq` it was voiced with.
 
 Bench: 1.14 → 1.14, 11 off. Better: `hf_even` 8–11 kHz largest gap z +3.8 → +2.1, rms +1.9 → +0.7, 4–8 kHz largest gap +1.8 → +0.8; the treble's balance (ff +1.4 → −0.1, mf +1.1 → −0.4); the bass's ff partial 6 (−2.3 → −1.5 sustain, −1.3 → −0.5 attack). Worse: the top's mf balance (−0.7 → −1.6), the treble's mf partial 3 (+0.4 → +1.5) and its ff early decay of partials 5–12 (−0.1 → +1.3), the bass between the partials (−0.8/−0.5 → −1.5/−1.3).
 

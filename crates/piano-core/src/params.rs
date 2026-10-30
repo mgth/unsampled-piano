@@ -990,7 +990,10 @@ pub struct PianoModel {
     /// C6 (geometric in between; 0: `shank_freq` everywhere). At 300 Hz,
     /// whose period is the middle's contact time (3.3 ms), D#4–F#4's attack
     /// had 10–15 dB more 8–11 kHz than their neighbours, at velocities
-    /// 40–75; at 700 Hz they sit on the real grands' (docs/felt.md).
+    /// 40–75; at 700 Hz they sit on the real grands' (docs/felt.md). A
+    /// preset or saved state from before it reads 0, so that it keeps its
+    /// sound.
+    #[cfg_attr(feature = "serde", serde(default))]
     pub shank_freq_mid: f64,
     /// Strike point (fraction of the speaking length from the agraffe) up
     /// to C6, 0.05 closer to the agraffe at C8.
