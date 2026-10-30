@@ -266,6 +266,9 @@ pub struct Engine {
     /// dampers lifted by the pedal), and the value its banks hold.
     board_load: f64,
     board_load_set: f64,
+    /// The dampers are lifted: the sympathetic banks run the brakes of every
+    /// free string ([`crate::params::SympatheticLaw::brake`]).
+    sym_free: bool,
     soft: f64,
     sostenuto_down: bool,
     /// Middle pedal down while it works a practice mute (`mute_felt` > 0).
@@ -395,6 +398,7 @@ impl Engine {
             sustain: 0.0,
             board_load: 1.0,
             board_load_set: 1.0,
+            sym_free: false,
             soft: 0.0,
             sostenuto_down: false,
             mute_down: false,
@@ -908,6 +912,14 @@ impl Engine {
                 b.set_load(l);
             }
         }
+        // The same threshold as the listening strings' (add_listeners).
+        let free = pedal < 0.5;
+        if free != self.sym_free {
+            self.sym_free = free;
+            for v in self.voices.iter_mut().filter(|v| v.active) {
+                v.set_sym_free(self.inst.table.get(v.note), free);
+            }
+        }
     }
 
     /// While the dampers are lifted (always, with [`Shortcuts::listen_all`]),
@@ -934,6 +946,7 @@ impl Engine {
         let Some(v) = self.voices.iter_mut().find(|v| !v.active) else { return false };
         let nm = self.inst.table.get(note);
         v.setup(nm, true);
+        v.set_sym_free(nm, self.sym_free);
         v.active = true;
         v.key_down = false;
         let law = self.live.damper;
@@ -1073,6 +1086,7 @@ impl Engine {
         let v = &mut self.voices[idx];
         if !(v.active && v.note == note) {
             v.setup(nm, false);
+            v.set_sym_free(nm, self.sym_free);
         }
         // The key lifts its damper on the way down, before the hammer
         // arrives: a string still ringing under its damper is struck free

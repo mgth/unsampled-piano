@@ -849,6 +849,11 @@ const HELP: &[(&str, &str, &str)] = &[
          grand's pedal halo in the middle (tools/pedal_bench.py, docs/pedal_drone.md).",
     ),
     ("sympathetic.self_cancel", "Keeps a key from resonating with its own vibration through the bridge.", "Cancels each key's own contribution to its bridge input (already in its coupled modes)."),
+    (
+        "sympathetic.brake",
+        "Strings ringing at the same pitch hold the bridge back, as on a real piano.",
+        "Divides each listening mode's drive by 1 + Σ Y·Z over the other free strings near its frequency (the two-way coupling to first order); undamped keys alone with the pedal up, every key with it down.",
+    ),
     // Nonlinearity
     (
         "nonlinear.enabled",
