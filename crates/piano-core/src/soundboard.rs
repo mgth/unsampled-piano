@@ -120,8 +120,9 @@ pub struct SoundboardParams {
     /// Modelled as an elastic foundation, ω² → ω² + (2π·crown_freq)²
     /// (Hz, 0: flat plate).
     pub crown_freq: f64,
-    /// Bridge as a polyline in normalised plate coordinates, from C8 down to
-    /// the last note of the main bridge; then the bass bridge.
+    /// Main bridge: a smooth curve through five points in normalised plate
+    /// coordinates, from C8 down to the last note of the main bridge; then
+    /// the bass bridge, straight.
     pub treble_bridge: [(f64, f64); 5],
     pub bass_bridge: [(f64, f64); 2],
     /// First note on the main bridge (lower notes are on the bass bridge).
@@ -459,15 +460,37 @@ impl SoundboardParams {
         let (u, v) = if main {
             // 0 at C8, 1 at the lowest note of the main bridge.
             let t = ((108.0 - note) / (108.0 - self.main_bridge_from as f64)).clamp(0.0, 1.0);
+            // A real bridge is one bent beam: a Catmull-Rom curve through
+            // the five points, so that the keys' spacing along it changes
+            // smoothly instead of jumping at the points. The ends' outer
+            // neighbours are mirrored.
             let tb = &self.treble_bridge;
             let seg = ((t * 4.0) as usize).min(3);
-            lerp(tb[seg], tb[seg + 1], t * 4.0 - seg as f64)
+            let u = t * 4.0 - seg as f64;
+            let mirror = |p: (f64, f64), q: (f64, f64)| (2.0 * p.0 - q.0, 2.0 * p.1 - q.1);
+            let p0 = if seg > 0 { tb[seg - 1] } else { mirror(tb[0], tb[1]) };
+            let p3 = if seg < 3 { tb[seg + 2] } else { mirror(tb[4], tb[3]) };
+            let (p1, p2) = (tb[seg], tb[seg + 1]);
+            let cr = |a: f64, b: f64, c: f64, d: f64| {
+                0.5 * (2.0 * b + (c - a) * u + (2.0 * a - 5.0 * b + 4.0 * c - d) * u * u + (3.0 * (b - c) + d - a) * u * u * u)
+            };
+            (cr(p0.0, p1.0, p2.0, p3.0), cr(p0.1, p1.1, p2.1, p3.1))
         } else {
             let span = (self.main_bridge_from - 21).max(1) as f64;
             let t = (self.main_bridge_from as f64 - 1.0 - note) / span.max(1.0);
             lerp(self.bass_bridge[0], self.bass_bridge[1], t.clamp(0.0, 1.0))
         };
         (u * self.a, v * self.b)
+    }
+
+    /// The main or the bass bridge as a line to draw, in metres.
+    pub fn bridge_line(&self, main: bool) -> Vec<(f64, f64)> {
+        if main {
+            let lo = self.main_bridge_from as f64;
+            (0..=64).map(|i| self.bridge_point_at(108.0 - (108.0 - lo) * i as f64 / 64.0, true)).collect()
+        } else {
+            self.bass_bridge.iter().map(|&(u, v)| (u * self.a, v * self.b)).collect()
+        }
     }
 }
 
@@ -1287,6 +1310,26 @@ mod tests {
             impedance_slope: 0.02,
             impedance_slope_bass: 0.0,
             ..SoundboardParams::GRAND_2M
+        }
+    }
+
+    #[test]
+    fn the_main_bridge_is_smooth_through_its_points() {
+        let p = SoundboardParams::GRAND_2M;
+        let lo = p.main_bridge_from as f64;
+        for (i, &(u, v)) in p.treble_bridge.iter().enumerate() {
+            let (x, y) = p.bridge_point_at(108.0 - (108.0 - lo) * i as f64 / 4.0, true);
+            assert!((x - u * p.a).abs() < 1e-9 && (y - v * p.b).abs() < 1e-9, "point {i}");
+        }
+        // The keys' spacing along it changes little from key to key (the
+        // straight segments jumped from 19 to 38 mm at G#4 and C#3).
+        let gap = |n: f64| {
+            let (a, b) = (p.bridge_point_at(n - 0.5, true), p.bridge_point_at(n + 0.5, true));
+            (a.0 - b.0).hypot(a.1 - b.1)
+        };
+        for n in p.main_bridge_from + 1..107 {
+            let (g0, g1) = (gap(n as f64), gap(n as f64 + 1.0));
+            assert!((g1 - g0).abs() < 4e-3, "key {n}: {g0} → {g1}");
         }
     }
 

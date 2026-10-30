@@ -579,8 +579,8 @@ const HELP: &[(&str, &str, &str)] = &[
         "soundboard.treble_bridge",
         "Where the main bridge lies on the soundboard. Where a string drives the board decides \
          which resonances it excites.",
-        "Polyline of 5 points [x, y], fractions of the board size, from C8 down to the first note \
-         of the main bridge; keys are placed at equal steps. The treble end sits in the clamped \
+        "Smooth curve (Catmull-Rom) through 5 points [x, y], fractions of the board size, from C8 \
+         down to the first note of the main bridge; the points fall at equal steps of keys. The treble end sits in the clamped \
          corner, as on real grands. Board coordinates: x along the strings, from the keyboard \
          end of the board towards the tail; y across, from the treble side (0) to the bass \
          side.",
