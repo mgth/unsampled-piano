@@ -443,6 +443,27 @@ const HELP: &[(&str, &str, &str)] = &[
     ("polarization.detune_cents", "Pitch difference between the sideways and up-and-down vibrations (the string's ends hold it differently in each direction).", "Horizontal minus vertical frequency (cents)."),
     ("polarization.radiation", "How much of the sideways vibration is heard.", "Output weight of the horizontal bridge force (vertical = 1)."),
     ("polarization.hammer_tilt", "How much the hammer also pushes the strings sideways.", "Share of each string's hammer force on its horizontal oscillator."),
+    (
+        "polarization.smooth",
+        "Whether the sideways vibration feels the soundboard's resonances. Higher: a note sitting on \
+         a board resonance keeps its long, quiet sideways ring instead of losing it with the loud \
+         start.",
+        "ε_H = h·((1 − s)·ε_V + s·ε_ref), ε_ref the board's smooth point mobility (infinite plate) \
+         × T/L. ε_X = (cross/√h)·√(ε_V·ε_H), clamped passive. 0: ε_H follows the key's vertical \
+         admittance.",
+    ),
+    (
+        "polarization.slope",
+        "How the sideways give of the bridge changes with pitch. Positive: the bridge rocks more \
+         easily for high notes.",
+        "ε_H grows as (f / 261.63 Hz)^slope; 1 is a bridge rocking on an infinite plate (moment \
+         mobility ∝ f).",
+    ),
+    (
+        "polarization.slope_from",
+        "Lowest pitch the sideways slope follows; below it the bridge's sideways give stays as there.",
+        "Hz; ε_H uses max(f, slope_from) in its slope. 0: none.",
+    ),
     // Soundboard
     (
         "soundboard.a",
