@@ -98,6 +98,26 @@ const PIN_R: f64 = 0.0035;
 const PIN_GAP: f64 = 0.03;
 const PIN_ROW: f64 = 0.014;
 const PIN_ACROSS: f64 = 0.0038;
+/// The hitch pins: their radius, how far they stand inside the case's wall
+/// along the string, the rear lengths (a few cm in the top treble, growing
+/// with the speaking length to some 20 cm in the bass, as on grands) and
+/// how much lower they hold the strings than the bridge.
+const HITCH_R: f64 = 0.0025;
+const HITCH_INSET: f64 = 0.05;
+const HITCH_MIN: f64 = 0.03;
+const HITCH_BASE: f64 = 0.04;
+const HITCH_SHARE: f64 = 0.1;
+const HITCH_DROP: f64 = 0.006;
+/// The bridge pins: radius, how far before and after the bridge's line
+/// along the string, and the string's side of each.
+const BRIDGE_PIN_R: f64 = 0.0009;
+const BRIDGE_PIN_ALONG: f64 = 0.006;
+const BRIDGE_PIN_SIDE: f64 = 0.0012;
+/// The felt braid across the rear lengths: its width along the strings,
+/// its thickness, and how far above and below the strings it weaves.
+const BRAID_W: f32 = 0.012;
+const BRAID_T: f32 = 0.0016;
+const BRAID_WEAVE: f64 = 0.0035;
 /// The pin block's top (under the plate) and thickness; the case's front
 /// panel and the belly rail's thickness.
 const PIN_BLOCK_TOP: f64 = 0.02;
@@ -128,6 +148,8 @@ const COPPER: Color32 = Color32::from_rgb(184, 115, 70);
 const IRON: Color32 = Color32::from_rgb(190, 160, 90);
 const BRASS: Color32 = Color32::from_rgb(222, 184, 98);
 const PIN: Color32 = Color32::from_rgb(132, 134, 142);
+const HITCH: Color32 = Color32::from_rgb(150, 152, 160);
+const BRIDGE_PIN: Color32 = Color32::from_rgb(196, 198, 206);
 const CASE: Color32 = Color32::from_rgb(40, 34, 32);
 const IVORY: Color32 = Color32::from_rgb(236, 232, 222);
 const EBONY: Color32 = Color32::from_rgb(28, 26, 26);
@@ -587,6 +609,32 @@ fn keyboard_span(sb: &SoundboardParams) -> (f64, f64) {
     (lo.min(hi), lo.max(hi))
 }
 
+/// A string's rear length (m), from its bridge point `p` (plate) on along
+/// its direction `u` to its hitch pin: [`HITCH_BASE`] and [`HITCH_SHARE`]
+/// of its speaking length, but [`HITCH_INSET`] short of the board's
+/// outline (the case's wall), and at least [`HITCH_MIN`].
+pub fn hitch_length(outline: &[(f64, f64)], p: (f64, f64), u: (f64, f64), speaking: f64) -> f64 {
+    let n = outline.len();
+    let mut best = HITCH_BASE + HITCH_SHARE * speaking;
+    for i in 0..n {
+        let (a, b) = (outline[i], outline[(i + 1) % n]);
+        let e = (b.0 - a.0, b.1 - a.1);
+        let denom = u.0 * e.1 - u.1 * e.0;
+        let len = e.0.hypot(e.1);
+        if denom.abs() < 1e-12 || len < 1e-12 {
+            continue;
+        }
+        let w = (a.0 - p.0, a.1 - p.1);
+        let (t, s) = ((w.0 * e.1 - w.1 * e.0) / denom, (w.0 * u.1 - w.1 * u.0) / denom);
+        if t > 0.0 && (0.0..=1.0).contains(&s) {
+            // The inset measured square to the wall, along the string.
+            let cos = (denom / len).abs().max(0.25);
+            best = best.min(t - HITCH_INSET / cos);
+        }
+    }
+    best.max(HITCH_MIN)
+}
+
 /// The agraffes' line (plate x), as the plan sketch draws it.
 pub fn agraffe_x(model: &PianoModel) -> f64 {
     let f = &model.frame;
@@ -859,6 +907,15 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let d = &model.damper;
     // Strings counted from the bass, for the pins' rows.
     let mut count = 0usize;
+    // Where the felt braid crosses each unison's rear length.
+    struct Crossing {
+        bass: bool,
+        /// Plate place, the strings' height there and their direction.
+        at: (f64, f64),
+        z: f64,
+        dir: (f64, f64),
+    }
+    let mut braid: Vec<Crossing> = Vec::new();
     for m in 21..=108u8 {
         let n = model.note(m);
         let ((ax, ay), (bx, by), z) = ends[(m - 21) as usize];
@@ -871,6 +928,15 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let len = dx.hypot(dy).max(1e-9);
         let (nx, ny) = (-dy / len, dx / len);
         let segments = if level > 0.02 { 16 } else { 1 };
+        // Beyond the bridge, the strings' rear lengths to their hitch pins,
+        // a little lower on the plate.
+        let (ux, uy) = (dx / len, dy / len);
+        let rear = hitch_length(&outline, (bx, by), (ux, uy), len);
+        let tail = if m == o.key { o.ink } else { pick(Part::Frame, HITCH) };
+        // Over the bridge, between its two pins: the speaking length ends
+        // against the front pin, to one side, and the string crosses to
+        // the other side of the back pin (side bearing).
+        let (pa, pd) = (BRIDGE_PIN_ALONG, BRIDGE_PIN_SIDE);
         for s in 0..n.strings {
             let off = (s as f64 - (n.strings as f64 - 1.0) / 2.0) * 0.0025;
             let point = |t: f64| {
@@ -879,7 +945,8 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
                     0.012 * level * phase.sin() * (std::f32::consts::PI * t as f32).sin()
                 });
                 let z = z + amp as f64;
-                place.at(ax + dx * t + nx * off, ay + dy * t + ny * off, z)
+                let (cx, cy) = (-ux * pa + nx * pd, -uy * pa + ny * pd);
+                place.at(ax + (dx + cx) * t + nx * off, ay + (dy + cy) * t + ny * off, z)
             };
             for k in 0..segments {
                 let (t0, t1) = (k as f64 / segments as f64, (k + 1) as f64 / segments as f64);
@@ -889,12 +956,27 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             // coil at the string's height, and the string's dead end from
             // it to the agraffe.
             let (back, across) = (PIN_GAP + PIN_ROW * (count % 2) as f64, off / 0.0025 * PIN_ACROSS);
-            let (ux, uy) = (dx / len, dy / len);
             let (px, py) = (ax - ux * back + nx * across, ay - uy * back + ny * across);
             b.plate_prism((px, py), PIN_R, 6, 0.0, (PIN_BLOCK_TOP, z + 0.012), PIN);
             b.plate_prism((px, py), PIN_R + 0.001, 6, 0.0, (z - 0.003, z + 0.002), c);
             b.line(place.at(px + ux * PIN_R, py + uy * PIN_R, z), point(0.0), rgba(c, 1.0));
+            // The bridge pins, and the string between them.
+            let (gx, gy) = (bx + ux * pa + nx * (off - pd), by + uy * pa + ny * (off - pd));
+            let foot = z - (STRING_Z - BRIDGE_H);
+            let front = (bx - ux * pa + nx * (off + pd + BRIDGE_PIN_R), by - uy * pa + ny * (off + pd + BRIDGE_PIN_R));
+            b.plate_prism(front, BRIDGE_PIN_R, 6, 0.0, (foot, z + 0.004), BRIDGE_PIN);
+            b.plate_prism((gx - nx * BRIDGE_PIN_R, gy - ny * BRIDGE_PIN_R), BRIDGE_PIN_R, 6, 0.0, (foot, z + 0.004), BRIDGE_PIN);
+            b.line(point(1.0), place.at(gx, gy, z), rgba(c, 1.0));
+            // Its rear length, plain wire, round its hitch pin.
+            let (hx, hy) = (bx + ux * rear + nx * off, by + uy * rear + ny * off);
+            b.line(place.at(gx, gy, z), place.at(hx - ux * HITCH_R, hy - uy * HITCH_R, z - HITCH_DROP), rgba(tail, 1.0));
+            b.plate_prism((hx, hy), HITCH_R, 6, 0.0, (z - HITCH_DROP - 0.012, z - HITCH_DROP + 0.004), HITCH);
             count += 1;
+        }
+        // The felt woven through the rear lengths of the strings that have
+        // dampers (the treble's ring free, a duplex).
+        if m <= d.highest_note {
+            braid.push(Crossing { bass: m < sb.main_bridge_from, at: (bx + ux * rear * 0.45, by + uy * rear * 0.45), z: z - HITCH_DROP * 0.45, dir: (ux, uy) });
         }
         // The agraffe, a brass stud the unison goes through, turned along
         // it, standing on the pin block (the highest treble's overhang it);
@@ -923,6 +1005,30 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             let (d0, d1) = (z + 0.002 + lift, z + 0.022 + lift);
             b.plate_box((px - 0.01, py - w, d0), (px + 0.01, py + w, d1), felt);
         }
+    }
+    // The braid: a band of felt across each bridge's rear lengths, over
+    // one unison and under the next.
+    for bass in [true, false] {
+        let set: Vec<_> = braid.iter().filter(|e| e.bass == bass).collect();
+        if set.len() < 2 {
+            continue;
+        }
+        let steps = 4;
+        let mut rings = Vec::new();
+        for i in 0..set.len() - 1 {
+            let (p, q) = (set[i], set[i + 1]);
+            for k in 0..steps {
+                let t = k as f64 / steps as f64;
+                let weave = BRAID_WEAVE * (std::f64::consts::PI * (i as f64 + t)).cos();
+                let (x, y) = (p.at.0 + (q.at.0 - p.at.0) * t, p.at.1 + (q.at.1 - p.at.1) * t);
+                rings.push((place.at(x, y, p.z + (q.z - p.z) * t + weave), BRAID_W / 2.0, BRAID_T / 2.0, BRAID_T / 2.0 - 0.0001));
+            }
+        }
+        let last = set[set.len() - 1];
+        let weave = BRAID_WEAVE * (std::f64::consts::PI * (set.len() - 1) as f64).cos();
+        rings.push((place.at(last.at.0, last.at.1, last.z + weave), BRAID_W / 2.0, BRAID_T / 2.0, BRAID_T / 2.0 - 0.0001));
+        let u = set.iter().fold((0.0, 0.0), |a, e| (a.0 + e.dir.0, a.1 + e.dir.1));
+        b.sweep(&rings, place.dir(u.0, u.1, 0.0), FELT);
     }
     let mid = string_ends(model, &sb, hx, 60);
     let n60 = model.note(60);
