@@ -599,8 +599,12 @@ fn lerp3(a: [f64; 3], b: [f64; 3], u: f64) -> [f64; 3] {
 }
 
 impl Lid {
+    /// As the lid shuts, its image and its shadow fade into the shut
+    /// lid's gain on every path ([`SoundboardParams::case_gain`]): none
+    /// left at 1, so that closing it is continuous.
     fn new(p: &SoundboardParams) -> Option<Self> {
-        (p.lid_angle > 0.0 && (p.lid_shut < 1.0 || p.vertical)).then(|| {
+        let s = if p.vertical { 0.0 } else { p.lid_shut.clamp(0.0, 1.0) };
+        (p.lid_angle > 0.0 && s < 1.0).then(|| {
             let th = p.lid_angle.to_radians();
             Self {
                 p0: [0.0, p.b, p.lid_hinge_height],
@@ -609,8 +613,8 @@ impl Lid {
                 n: [0.0, -th.sin(), -th.cos()],
                 width: p.a,
                 length: 1.05 * p.b,
-                reflection: p.lid_reflection,
-                transmission: p.lid_transmission,
+                reflection: p.lid_reflection * (1.0 - s),
+                transmission: p.lid_transmission + s * (1.0 - p.lid_transmission),
             }
         })
     }
@@ -1463,6 +1467,34 @@ mod tests {
         assert!((low(walled) - low(base)).abs() > 0.05 * low(base));
         let baffled = SoundboardParams { back_gain: 0.0, ..base };
         assert_eq!(low(SoundboardParams { wall_distance: 0.3, ..baffled }), low(baffled));
+    }
+
+    /// Shutting the lid, or opening it from shut, is continuous: its image
+    /// and shadow fade out with the closure (close pair under a 35° lid;
+    /// the audience pair, shut, opened by a hair as the lid macro does).
+    #[test]
+    fn shutting_the_lid_is_continuous() {
+        let close = SoundboardParams {
+            f_max: 1000.0,
+            grid_step: 0.05,
+            lid_angle: 35.0,
+            mics_relative: true,
+            mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
+            ..SoundboardParams::GRAND_2M
+        }
+        .resolved();
+        let audience = SoundboardParams { lid_angle: 0.0, lid_shut: 1.0, mics: [(0.55, -1.6, 1.0), (1.25, -1.6, 1.0)], ..close };
+        let gap = |a: SoundboardParams, b: SoundboardParams| {
+            let (a, b) = (Soundboard::new(a).radiation(), Soundboard::new(b).radiation());
+            let d: f64 = a.iter().zip(&b).flat_map(|(x, y)| (0..2).map(move |m| (x[m] - y[m]).norm_sqr())).sum();
+            let e: f64 = a.iter().flat_map(|x| x.iter().map(|c| c.norm_sqr())).sum();
+            (d / e).sqrt()
+        };
+        let eps = 1e-6;
+        assert!(gap(SoundboardParams { lid_shut: 1.0 - eps, ..close }, SoundboardParams { lid_shut: 1.0, ..close }) < 1e-4);
+        assert!(gap(audience, SoundboardParams { lid_angle: 45.0 * eps, lid_shut: 1.0 - eps, ..audience }) < 1e-4);
+        // An open lid still shapes the close pair's sound.
+        assert!(gap(SoundboardParams { lid_shut: 0.0, ..close }, SoundboardParams { lid_shut: 1.0, ..close }) > 0.1);
     }
 
     /// No outline, or one without area: the rectangle, bit for bit.

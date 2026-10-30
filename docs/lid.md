@@ -22,7 +22,7 @@ Shut, the lid closes a box over the board's top face, 25 cm high (`lid_hinge_hei
 
   g(f) = 1 − s + s·(leak + (1 − leak)/√(1 + (f/fc)²)),  fc = c/2h,
 
-with s = `lid_shut` and leak = `lid_leak` (0.25, −12 dB in the highs). At s = 1 there is no open lid, whatever `lid_angle` says, and the room's directivity is a closed grand's (Q = 2). The back face is untouched. Grands only: an upright has its own case (`case_open`, docs/upright.md). The weights are per mode, so the real-time cost is nil.
+with s = `lid_shut` and leak = `lid_leak` (0.25, −12 dB in the highs). As s grows the open lid's image and shadow fade (reflection × (1 − s), shadowed paths from `lid_transmission` towards 1): at s = 1 there is no open lid, whatever `lid_angle` says, and the room's directivity goes from an open grand's Q = 3 to a closed one's 2. Shutting the lid or opening it from shut is so continuous (test `shutting_the_lid_is_continuous`). The back face is untouched. Grands only: an upright has its own case (`case_open`, docs/upright.md). The weights are per mode, so the real-time cost is nil.
 
 No measurement of one piano with its lid open and shut was found (the corpora of `/mnt/local/SSD_B-CT4000/Piano/` have none; the literature found is qualitative: "mostly the timbre, a small level change"). `lid_leak` and the c/2h corner are estimates.
 
