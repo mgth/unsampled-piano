@@ -137,5 +137,64 @@ class ChannelPowerTests(unittest.TestCase):
                 self.assertIn('fixed-gain import',err.getvalue())
 
 
+class RobustnessTests(unittest.TestCase):
+    def test_weak_and_missing_partials_sit_at_the_floor(self):
+        t=np.arange(2*bench.SR)/bench.SR; f=bench.f0(96)
+        x=np.sin(2*np.pi*f*t)+10**(-100/20)*np.sin(2*np.pi*2*f*t)+10**(-50/20)*np.sin(2*np.pi*3*f*t)
+        p2,p3,p4=bench.partials(x,96,0,.06,[2,3,4])
+        self.assertEqual(p2,bench.PARTIAL_FLOOR_DB)  # read at −100: counted at the floor
+        self.assertEqual(p4,bench.PARTIAL_FLOOR_DB)  # absent from a clean signal: at the floor
+        self.assertAlmostEqual(p3,-50,delta=1)
+
+    def test_a_partial_lost_in_noise_above_the_floor_is_not_measured(self):
+        rng=np.random.default_rng(1); t=np.arange(2*bench.SR)/bench.SR; f=bench.f0(96)
+        x=np.sin(2*np.pi*f*t)+10**(-40/20)*rng.standard_normal(len(t))
+        self.assertTrue(np.isnan(bench.partials(x,96,0,.06,[2])[0]))
+
+    @staticmethod
+    def note(m, lines=(), line_db=-20, dur=2.0):
+        t=np.arange(int(dur*bench.SR))/bench.SR; f=bench.f0(m)
+        x=sum(np.sin(2*np.pi*k*f*t)/k for k in range(1,12) if k*f<6000)*np.exp(-t)
+        for g in lines: x=x+10**(line_db/20)*np.sin(2*np.pi*g*t)*np.exp(-t)
+        return np.r_[np.zeros(int(.3*bench.SR)),x]
+
+    def test_energy_between_the_partials_grows_with_a_halo(self):
+        clean=bench.between_partials(self.note(60),60)
+        rng=np.random.default_rng(2); x=self.note(60)
+        halo=bench.between_partials(x+1e-1*rng.standard_normal(len(x))*(np.arange(len(x))>.3*bench.SR),60)
+        self.assertLess(clean[0],-30)
+        self.assertGreater(halo[0],clean[0]+15)
+
+    def test_between_reads_any_silence_before_the_onset(self):
+        t=np.arange(2*bench.SR)/bench.SR; f=bench.f0(60)
+        x=sum(np.sin(2*np.pi*k*f*t)/k for k in range(1,12))*np.exp(-t)
+        for ms in (0,190,200,205,210,220):
+            with self.subTest(ms=ms):
+                self.assertTrue(np.isfinite(bench.between_partials(np.r_[np.zeros(int(ms*bench.SR/1000)),x],60)).all())
+
+    def test_between_does_not_depend_on_what_follows_its_windows(self):
+        x=self.note(90,dur=6.0); s=bench.onset(x)
+        whole=bench.between_partials(x,90)
+        cut=bench.between_partials(x[:s+int(1.6*bench.SR)],90)
+        np.testing.assert_allclose(whole,cut)
+
+    def test_a_line_shared_by_three_keys_is_found_at_its_level(self):
+        keys=bench.LINE_KEYS[:4]
+        self.assertEqual(bench.fixed_lines({m:self.note(m) for m in keys}),bench.LINE_LIMIT_DB)
+        # The median of the three strongest: one line alone is not enough.
+        self.assertEqual(bench.fixed_lines({m:self.note(m,lines=[1530]) for m in keys}),bench.LINE_LIMIT_DB)
+        level=bench.fixed_lines({m:self.note(m,lines=[1530,3170,4410]) for m in keys})
+        self.assertAlmostEqual(level,-20,delta=3)
+        self.assertIsNone(bench.fixed_lines({m:self.note(m) for m in keys[:2]}))
+
+    def test_one_real_piano_is_not_a_target_except_for_dynamics(self):
+        one={'sources':{'a':{'role':'target','metrics':{'top':{'env_mf':[0,0,0,-53],'dyn':[20,8]}}}}}
+        z=bench.score({'top':{'env_mf':[0,0,0,-60],'dyn':[18,7]}},one)
+        self.assertNotIn('top|env_mf|3s',z)
+        self.assertIn('top|dyn|ff-pp',z)
+        two={'sources':dict(one['sources'],b={'role':'target','metrics':{'top':{'env_mf':[0,0,0,-55]}}})}
+        self.assertIn('top|env_mf|3s',bench.score({'top':{'env_mf':[0,0,0,-60]}},two))
+
+
 if __name__=='__main__':
     unittest.main()
