@@ -760,6 +760,10 @@ pub struct SympatheticLaw {
     /// no other free string shares a frequency (the undamped top under a
     /// struck note) it changes nothing; where several do (the octaves of a
     /// pedalled chord) it holds the bridge back as the real strings do.
+    /// A `[sympathetic]` section saved before it existed reads `false`, so
+    /// that the sound it kept does not change (a preset without the section
+    /// takes the default instrument's, on).
+    #[cfg_attr(feature = "serde", serde(default))]
     pub brake: bool,
 }
 
