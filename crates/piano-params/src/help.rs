@@ -585,7 +585,13 @@ const HELP: &[(&str, &str, &str)] = &[
          end of the board towards the tail; y across, from the treble side (0) to the bass \
          side.",
     ),
-    ("soundboard.bass_bridge", "Where the separate bass bridge lies, nearer the middle of the board.", "Segment of 2 points [x, y] (fractions of the board size), from the note below `main_bridge_from` down to A0."),
+    ("soundboard.bass_bridge", "Where the separate bass bridge lies, nearer the middle of the board.", "Its 2 ends [x, y] (fractions of the board size), from the note below `main_bridge_from` down to A0."),
+    (
+        "soundboard.bass_bridge_bow",
+        "How much the bass bridge curves. Real bass bridges are often curved.",
+        "Arc of a circle through the bass bridge's two ends, this far (m) from their chord at its \
+         middle; positive towards the tail. The keys stay at equal steps along it. 0: straight.",
+    ),
     ("soundboard.main_bridge_from", "Lowest key on the main bridge; the keys below are on the bass bridge.", "MIDI note."),
     (
         "soundboard.outline",
