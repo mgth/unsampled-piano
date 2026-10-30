@@ -96,3 +96,26 @@ individuelle ne change leurs dynamiques relatives. Les fichiers d'écoute
 et leurs manifestes restent dans le workspace local sous
 `out/bench/fundamental-sustain/concert-midi/` ; les scripts de préparation
 et de rendu sont sur la branche d'archive.
+
+## Couplage latéral par défaut (30 octobre 2026)
+
+La tenue de H1 du médium restait trop courte sur `main` : à 1 s, H1 rapporté à sa propre attaque (`decay_self`, fenêtre 1–1,2 s) était 6,0 dB sous la médiane des vrais pianos sur C3–B3 et 8,1 dB sur C4–B4, toutes vélocités, une touche sur trois. Le levier retenu est l'intensité du couplage latéral, pas sa forme :
+
+- `polarization.h_coupling` 0,3 à C4 (0,03 avant) ;
+- `polarization.slope` −1 : ε_H suit C4/f, et `slope_from` 130,81 Hz le tient constant sous C3 ;
+- `polarization.cross` 0,438 = 0,8·√h, sous la limite passive ;
+- `polarization.smooth` reste à 0 : faire suivre à ε_H la mobilité lisse de la table au lieu de l'admittance verticale de la touche n'a rien changé à H1.
+
+ε_X est la moyenne géométrique √(ε_V·ε_H) multipliée par cross/√h, bornée pour rester passive. Les trois paramètres à 0 redonnent l'ancien son à l'octet près.
+
+| Banc (`channel-power-v2`, `hf_even`) | Avant | Couplage latéral |
+|---|---:|---:|
+| Score | 1,18 | 1,17 |
+| Mesures hors des vrais pianos | 15 | 16 |
+| Profils harmoniques OFF | 348 | 342 |
+| H1 à 1 s, C3–B3, écart à la médiane des vrais | −6,0 dB | −1,0 dB |
+| H1 à 1 s, C4–B4 | −8,1 dB | −0,8 dB |
+
+Ce qui recule : l'égalité de p1 d'une touche à l'autre (`evenness`, z −0,35 → −1,92), la part 4–8 kHz du suraigu à mf (nouvelle alerte) et le relâchement. Les étouffoirs tiennent moins la vibration latérale, désormais plus couplée : un Do3 étouffé reste 28 dB sous la même note tenue par la sostenuto, contre 38 avant. Un premier essai contre les notes isolées de Liang (29 octobre) trouvait déjà le relâchement de cette loi trop lent entre 120 et 500 ms.
+
+L'utilisateur a préféré ce réglage à l'écoute, contre l'ancien et le vrai piano : Do3, Ré4, Ré♯4, Mi4 et La4 à mf et ff, et les 35 premières secondes de l'Étude op. 10 n° 3 de Chopin par Liang, avec et sans pédale. L'écoute s'est faite en micros proches et studio, même toucher, A et B au même gain. Ce réglage devient le défaut.

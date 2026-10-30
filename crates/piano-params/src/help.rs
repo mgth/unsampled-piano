@@ -430,8 +430,8 @@ const HELP: &[(&str, &str, &str)] = &[
         "polarization.h_coupling",
         "How much the bridge gives sideways, relative to up-and-down. Low: the sideways motion \
          rings long and quietly.",
-        "ε_H/ε_V. Calibrated with the full instrument on the ESPRIT statistics of Salamander \
-         (tools/decay_grid.py).",
+        "ε_H/ε_V at C4 (it follows `slope` from there). 0.3 keeps the middle's fundamentals at \
+         the real grands' level at 1 s (docs/fundamental_sustain.md).",
     ),
     (
         "polarization.cross",
@@ -457,7 +457,7 @@ const HELP: &[(&str, &str, &str)] = &[
         "How the sideways give of the bridge changes with pitch. Positive: the bridge rocks more \
          easily for high notes.",
         "ε_H grows as (f / 261.63 Hz)^slope; 1 is a bridge rocking on an infinite plate (moment \
-         mobility ∝ f).",
+         mobility proportional to f).",
     ),
     (
         "polarization.slope_from",

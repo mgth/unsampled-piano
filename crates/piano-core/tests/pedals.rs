@@ -158,9 +158,10 @@ fn upright_soft_pedal_and_practice_mute() {
     };
     let (sostenuto, mute) = (middle(&[]), middle(&upright));
     eprintln!("C3 0.8 s after release, middle pedal down: sostenuto {sostenuto:.0} dB, mute {mute:.0} dB");
-    // 40 dB apart (the wound strings' own loss is now the board's,
-    // docs/bass_decay.md): held, it would be level with the sostenuto.
-    assert!(mute < sostenuto - 35.0, "C3 held by the mute's pedal");
+    // Held, it would be level with the sostenuto. Damped, it lay 38 dB
+    // under it; 28 since the sideways coupling of pol_B (h 0.6 at C3, which
+    // the dampers grip less: docs/fundamental_sustain.md).
+    assert!(mute < sostenuto - 20.0, "C3 held by the mute's pedal");
 }
 
 /// Without the grand's double escapement, an upright re-strikes a key weaker

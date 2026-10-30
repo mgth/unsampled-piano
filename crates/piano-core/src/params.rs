@@ -451,21 +451,23 @@ impl PolarizationLaw {
         slope: 0.0,
         slope_from: 0.0,
     };
-    /// Calibrated on the ESPRIT statistics of Salamander with the full
-    /// instrument (tools/decay_grid.py): weak sideways coupling, cross term
-    /// at the passivity limit √h; gives single strings their measured
-    /// aftersound (≈ −27 dB, slow).
+    /// The sideways coupling at C4, h = 0.3, falls as C4/f above C3 and is
+    /// held below (slope −1 from 130.81 Hz); the cross term is 0.8·√h. The
+    /// middle's fundamentals then keep their level at 1 s as the real
+    /// grands do (−6 to −8 dB short before, within 1 dB now), and the
+    /// user preferred it by ear (docs/fundamental_sustain.md). It was
+    /// h = 0.03, cross at √h, from the ESPRIT statistics of Salamander.
     pub const DEFAULT: Self =
         Self {
             enabled: true,
-            h_coupling: 0.03,
-            cross: 0.173,
+            h_coupling: 0.3,
+            cross: 0.438,
             detune_cents: 0.3,
             radiation: 0.1,
             hammer_tilt: 0.05,
             smooth: 0.0,
-            slope: 0.0,
-            slope_from: 0.0,
+            slope: -1.0,
+            slope_from: 130.81,
         };
 
     /// Cross coupling actually used: clamped to keep the bridge passive.
