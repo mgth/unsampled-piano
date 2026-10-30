@@ -246,6 +246,17 @@ mod tests {
     }
 
     #[test]
+    fn a_preset_saved_before_the_bow_keeps_a_straight_bass_bridge() {
+        let mut text = preset_toml(&PianoModel::default());
+        let line = text.lines().find(|l| l.starts_with("bass_bridge_bow")).unwrap().to_string();
+        text = text.replace(&format!("{line}\n"), "");
+        let old: PianoModel = toml::from_str(&text).unwrap();
+        assert_eq!(old.soundboard.unwrap().bass_bridge_bow, 0.0);
+        let new: PianoModel = toml::from_str(&preset_toml(&PianoModel::default())).unwrap();
+        assert_eq!(new.soundboard.unwrap().bass_bridge_bow, piano_core::soundboard::SoundboardParams::GRAND_2M.bass_bridge_bow);
+    }
+
+    #[test]
     fn listening_and_touch_presets_are_laid_over_the_sound() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets");
         assert!(is_overlay(&root.join("listening/Microphones/close.toml")));

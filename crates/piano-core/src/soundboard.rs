@@ -127,7 +127,9 @@ pub struct SoundboardParams {
     pub bass_bridge: [(f64, f64); 2],
     /// The bass bridge's bow: an arc of a circle through its two ends,
     /// this far (m) from their chord at its middle, towards the tail when
-    /// positive; its keys at equal steps along it. 0: straight.
+    /// positive; its keys at equal steps along it. 0: straight, and what a
+    /// preset saved before the bow existed reads, so that it keeps its bridge.
+    #[cfg_attr(feature = "serde", serde(default))]
     pub bass_bridge_bow: f64,
     /// First note on the main bridge (lower notes are on the bass bridge).
     pub main_bridge_from: u8,

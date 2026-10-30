@@ -590,7 +590,8 @@ const HELP: &[(&str, &str, &str)] = &[
         "soundboard.bass_bridge_bow",
         "How much the bass bridge curves. Real bass bridges are often curved.",
         "Arc of a circle through the bass bridge's two ends, this far (m) from their chord at its \
-         middle; positive towards the tail. The keys stay at equal steps along it. 0: straight.",
+         middle; positive towards the tail. The keys stay at equal steps along it. 0: straight; \
+         a preset that does not set it gets a straight bridge.",
     ),
     ("soundboard.main_bridge_from", "Lowest key on the main bridge; the keys below are on the bass bridge.", "MIDI note."),
     (
