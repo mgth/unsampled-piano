@@ -1,0 +1,17 @@
+[
+  "/usr/bin/python3",
+  "tools/bench.py",
+  "refs",
+  "--no-build",
+  "iowa=/home/user/dev/piano/out/compare/iowa:nodyn",
+  "salamander=/home/user/dev/piano/out/compare/salamander:nodyn",
+  "headroom=/home/user/dev/piano/out/bench/sets/headroom:nodyn",
+  "splendid=/home/user/dev/piano/out/bench/sets/splendid:nodyn",
+  "helgesson=/home/user/dev/piano/out/bench/sets/helgesson:nodyn",
+  "liang=/home/user/dev/piano/out/bench/sets/liang:nodyn",
+  "plath=/home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/sets/plath-calibrated:nodyn",
+  "bivib_grand=/home/user/dev/piano/out/bench/sets/bivib_grand",
+  "bivib_upright=/home/user/dev/piano/out/bench/sets/bivib_upright:info",
+  "maps_close=/home/user/dev/piano/out/bench/sets/maps_close:info:nodyn",
+  "commercial=/home/user/dev/piano/out/compare/commercial:info"
+]

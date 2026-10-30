@@ -1,0 +1,8 @@
+{
+ "attack_rows": 349,
+ "sustain_rows": 71,
+ "attack_identical": true,
+ "sustain_identical": true,
+ "attack_support_sha256": "5a11a4ce504b8aa3a2a430a3d7b906f9d0e1bfe4bc0f92573534f9357880cda2",
+ "sustain_support_sha256": "1e9f6217f0b597961ba1ea0d3e997ca2af89674b3eae5d4b5ad3eef5f2f2a741"
+}

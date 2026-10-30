@@ -1,0 +1,740 @@
+{
+ "geo000": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo001": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo002": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo003": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo004": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo005": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo006": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo007": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo008": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo009": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo010": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo011": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.095
+  }
+ },
+ "geo012": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo013": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo014": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo015": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo016": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo017": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo018": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo019": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo020": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo021": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo022": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo023": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.105
+  }
+ },
+ "geo024": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "geo025": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "geo026": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "geo027": {
+  "note": 102,
+  "params": {
+   "q": 0.05,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "geo028": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "geo029": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "geo030": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "geo031": {
+  "note": 102,
+  "params": {
+   "q": 0.1,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "geo032": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "geo033": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 0,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "geo034": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "geo035": {
+  "note": 102,
+  "params": {
+   "q": 0.2,
+   "h": 0.2,
+   "p": 1,
+   "w": 1.0,
+   "d": 7.5e-05
+  },
+  "extra": {
+   "strike_ratio": 0.115
+  }
+ },
+ "shank000": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.3,
+   "shank_freq": 150,
+   "shank_loss": 0.1
+  }
+ },
+ "shank001": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.3,
+   "shank_freq": 150,
+   "shank_loss": 0.5
+  }
+ },
+ "shank002": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.3,
+   "shank_freq": 300,
+   "shank_loss": 0.1
+  }
+ },
+ "shank003": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.3,
+   "shank_freq": 300,
+   "shank_loss": 0.5
+  }
+ },
+ "shank004": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.3,
+   "shank_freq": 600,
+   "shank_loss": 0.1
+  }
+ },
+ "shank005": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.3,
+   "shank_freq": 600,
+   "shank_loss": 0.5
+  }
+ },
+ "shank006": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.5,
+   "shank_freq": 150,
+   "shank_loss": 0.1
+  }
+ },
+ "shank007": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.5,
+   "shank_freq": 150,
+   "shank_loss": 0.5
+  }
+ },
+ "shank008": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.5,
+   "shank_freq": 300,
+   "shank_loss": 0.1
+  }
+ },
+ "shank009": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.5,
+   "shank_freq": 300,
+   "shank_loss": 0.5
+  }
+ },
+ "shank010": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.5,
+   "shank_freq": 600,
+   "shank_loss": 0.1
+  }
+ },
+ "shank011": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.5,
+   "shank_freq": 600,
+   "shank_loss": 0.5
+  }
+ },
+ "shank012": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.7,
+   "shank_freq": 150,
+   "shank_loss": 0.1
+  }
+ },
+ "shank013": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.7,
+   "shank_freq": 150,
+   "shank_loss": 0.5
+  }
+ },
+ "shank014": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.7,
+   "shank_freq": 300,
+   "shank_loss": 0.1
+  }
+ },
+ "shank015": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.7,
+   "shank_freq": 300,
+   "shank_loss": 0.5
+  }
+ },
+ "shank016": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.7,
+   "shank_freq": 600,
+   "shank_loss": 0.1
+  }
+ },
+ "shank017": {
+  "note": 102,
+  "params": {
+   "q": 0.10000000000000002,
+   "h": 0.2,
+   "p": 1.0,
+   "w": 1.0,
+   "d": 2.5e-05
+  },
+  "extra": {
+   "shank_share": 0.7,
+   "shank_freq": 600,
+   "shank_loss": 0.5
+  }
+ }
+}

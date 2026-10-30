@@ -555,6 +555,22 @@ const HELP: &[(&str, &str, &str)] = &[
     ("soundboard.bass_bridge", "Where the separate bass bridge lies, nearer the middle of the board.", "Segment of 2 points [x, y] (fractions of the board size), from the note below `main_bridge_from` down to A0."),
     ("soundboard.main_bridge_from", "Lowest key on the main bridge; the keys below are on the bass bridge.", "MIDI note."),
     (
+        "soundboard.outline",
+        "The soundboard's shape. A grand's board follows the curved side of its case and narrows \
+         towards the tail; all points at zero: a plain rectangle.",
+        "Polygon of 10 points [x, y], fractions of the board size (as the bridges), inside the \
+         a × b rectangle; unused points repeat the last one. The rim holds the board along it: \
+         its resonances below `outline_below` are the outlined plate's own (docs/outline.md).",
+    ),
+    (
+        "soundboard.outline_below",
+        "Up to this frequency the soundboard resonates with its own shape (see Outline); above, \
+         as the rectangle around it.",
+        "Rayleigh–Ritz on the rectangle's modes below 4× this frequency, a stiff ground holding \
+         the board outside the outline. Above it the rectangle's modes stay, radiating from \
+         inside the outline only (Hz).",
+    ),
+    (
         "soundboard.mics",
         "Where the two microphones stand: the first gives the left channel, the second the \
          right. Close to the board the sound is detailed and dry; further away the board blends \

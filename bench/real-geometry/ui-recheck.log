@@ -1,0 +1,33 @@
+   Compiling piano-ui v0.2.1 (/home/user/.codex/worktrees/piano-realism-audit/piano/crates/piano-ui)
+    Finished `release` profile [optimized + debuginfo] target(s) in 13.12s
+     Running unittests src/lib.rs (/tmp/piano-realism-target/release/deps/piano_ui-d2a78ad5f76c13df)
+
+running 25 tests
+test mics::tests::lid_shadow ... ok
+test mics::tests::critical_distance_follows_directivity_and_pattern ... ok
+test mics::tests::an_upright_moves_its_own_pair ... ok
+test mics::tests::a_standing_board_stands_in_the_room ... ok
+test mics::tests::relative_positions_stay_relative ... ok
+test mics::tests::default_setup_is_the_model_default ... ok
+test sections::tests::curves_are_finite ... ok
+test sketches::tests::felt_shades_stay_in_range ... ok
+test simple::tests::labels_give_both_ends ... ok
+test sketches::tests::keyboard_layout ... ok
+test simple::tests::every_control_has_its_row ... ok
+test sections::tests::placement ... ok
+test mics::tests::setups_match_the_listening_presets ... ok
+test mics::tests::setups_fit_the_curated_ranges ... ok
+test widgets::tests::formatting ... ok
+test widgets::tests::temperaments_are_chosen_by_name ... ok
+test sketches::tests::parts_name_real_parameters ... ok
+test tests::preset_folders_merge ... ok
+test touch_tests::a_touch_lies_over_any_instrument ... ok
+test widgets::tests::shown_texts_have_their_glyphs ... ok
+test sketches::tests::both_actions_draw ... ok
+test mics::tests::a_pair_seen_as_one_moves_together ... ok
+test mics::tests::dragging_moves_the_microphones ... ok
+test slider_tests::a_slider_lights_its_part_and_opens_its_help ... ok
+test slider_tests::a_musicians_control_moves_and_returns_to_the_preset ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+

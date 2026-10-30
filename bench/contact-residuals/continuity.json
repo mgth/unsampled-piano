@@ -1,0 +1,404 @@
+{
+ "base": {
+  "97": [
+   {
+    "drop": 7.85574700634394,
+    "from_velocity": 32,
+    "to_velocity": 58,
+    "minimum": -38.74318271844544
+   },
+   {
+    "drop": 5.267260771349868,
+    "from_velocity": 88,
+    "to_velocity": 127,
+    "minimum": -60.182679455265514
+   },
+   {
+    "drop": 4.10757319086116,
+    "from_velocity": 70,
+    "to_velocity": 84,
+    "minimum": -56.390604543634
+   }
+  ],
+  "99": [
+   {
+    "drop": 0.06491764921560872,
+    "from_velocity": 76,
+    "to_velocity": 86,
+    "minimum": -43.60962704544501
+   },
+   {
+    "drop": 1.6509482269046813,
+    "from_velocity": 104,
+    "to_velocity": 127,
+    "minimum": -51.35719239982258
+   },
+   {
+    "drop": 0.43951244944592105,
+    "from_velocity": 62,
+    "to_velocity": 72,
+    "minimum": -61.026632024364105
+   }
+  ],
+  "102": [
+   {
+    "drop": 15.299761459666922,
+    "from_velocity": 46,
+    "to_velocity": 94,
+    "minimum": -34.08234664202657
+   },
+   {
+    "drop": 6.278909864881655,
+    "from_velocity": 44,
+    "to_velocity": 56,
+    "minimum": -44.52065455848613
+   },
+   null
+  ],
+  "108": [
+   {
+    "drop": 2.738555386998378,
+    "from_velocity": 28,
+    "to_velocity": 32,
+    "minimum": -40.45968326124438
+   },
+   null,
+   null
+  ]
+ },
+ "guarded": {
+  "97": [
+   {
+    "drop": 4.78632507748658,
+    "from_velocity": 28,
+    "to_velocity": 40,
+    "minimum": -43.13999772500089
+   },
+   {
+    "drop": 5.627655415138278,
+    "from_velocity": 92,
+    "to_velocity": 127,
+    "minimum": -76.3163633197387
+   },
+   {
+    "drop": 4.211773752215336,
+    "from_velocity": 32,
+    "to_velocity": 38,
+    "minimum": -117.73944612664664
+   }
+  ],
+  "99": [
+   {
+    "drop": 0.08623064345511366,
+    "from_velocity": 60,
+    "to_velocity": 76,
+    "minimum": -34.03504789990412
+   },
+   {
+    "drop": 1.2556693999775206,
+    "from_velocity": 100,
+    "to_velocity": 127,
+    "minimum": -67.72906209660889
+   },
+   {
+    "drop": 4.419580287010582,
+    "from_velocity": 74,
+    "to_velocity": 88,
+    "minimum": -124.50660209444753
+   }
+  ],
+  "102": [
+   {
+    "drop": 5.544819106490543,
+    "from_velocity": 52,
+    "to_velocity": 76,
+    "minimum": -36.73627121107582
+   },
+   {
+    "drop": 2.740780932610086,
+    "from_velocity": 40,
+    "to_velocity": 50,
+    "minimum": -63.17389864483028
+   },
+   null
+  ],
+  "108": [
+   {
+    "drop": 3.472332876029512,
+    "from_velocity": 28,
+    "to_velocity": 34,
+    "minimum": -39.1073192432101
+   },
+   null,
+   null
+  ]
+ },
+ "heights": {
+  "97": [
+   {
+    "drop": 11.867347553743514,
+    "from_velocity": 28,
+    "to_velocity": 54,
+    "minimum": -42.17241696705585
+   },
+   {
+    "drop": 7.7463787743761685,
+    "from_velocity": 80,
+    "to_velocity": 120,
+    "minimum": -92.83263427204784
+   },
+   {
+    "drop": 1.3117634259460402,
+    "from_velocity": 52,
+    "to_velocity": 56,
+    "minimum": -121.85098696288114
+   }
+  ],
+  "99": [
+   {
+    "drop": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28,
+    "minimum": -46.32348831040606
+   },
+   {
+    "drop": 1.607901951890895,
+    "from_velocity": 50,
+    "to_velocity": 66,
+    "minimum": -55.7910535221855
+   },
+   {
+    "drop": 4.173414177188093,
+    "from_velocity": 36,
+    "to_velocity": 40,
+    "minimum": -85.93109586046081
+   }
+  ],
+  "102": [
+   {
+    "drop": 5.544819106490543,
+    "from_velocity": 52,
+    "to_velocity": 76,
+    "minimum": -36.73627121107582
+   },
+   {
+    "drop": 2.740780932610086,
+    "from_velocity": 40,
+    "to_velocity": 50,
+    "minimum": -63.17389864483028
+   },
+   null
+  ],
+  "108": [
+   {
+    "drop": 3.472332876029512,
+    "from_velocity": 28,
+    "to_velocity": 34,
+    "minimum": -39.1073192432101
+   },
+   null,
+   null
+  ]
+ },
+ "felt": {
+  "97": [
+   {
+    "drop": 10.23614638461823,
+    "from_velocity": 28,
+    "to_velocity": 62,
+    "minimum": -39.647289179570976
+   },
+   {
+    "drop": 5.517281051459122,
+    "from_velocity": 96,
+    "to_velocity": 127,
+    "minimum": -69.76631920449026
+   },
+   {
+    "drop": 5.814054970000811,
+    "from_velocity": 74,
+    "to_velocity": 90,
+    "minimum": -60.43843055286238
+   }
+  ],
+  "99": [
+   {
+    "drop": 3.9962779363267984,
+    "from_velocity": 28,
+    "to_velocity": 32,
+    "minimum": -48.93716849654922
+   },
+   {
+    "drop": 15.491602306270408,
+    "from_velocity": 42,
+    "to_velocity": 72,
+    "minimum": -64.2682152251491
+   },
+   {
+    "drop": 5.853757269377496,
+    "from_velocity": 34,
+    "to_velocity": 45,
+    "minimum": -78.14796985698227
+   }
+  ],
+  "102": [
+   {
+    "drop": 5.544819106490543,
+    "from_velocity": 52,
+    "to_velocity": 76,
+    "minimum": -36.73627121107582
+   },
+   {
+    "drop": 2.740780932610086,
+    "from_velocity": 40,
+    "to_velocity": 50,
+    "minimum": -63.17389864483028
+   },
+   null
+  ],
+  "108": [
+   {
+    "drop": 3.472332876029512,
+    "from_velocity": 28,
+    "to_velocity": 34,
+    "minimum": -39.1073192432101
+   },
+   null,
+   null
+  ]
+ },
+ "geometry": {
+  "97": [
+   {
+    "drop": 10.23614638461823,
+    "from_velocity": 28,
+    "to_velocity": 62,
+    "minimum": -39.647289179570976
+   },
+   {
+    "drop": 5.517281051459122,
+    "from_velocity": 96,
+    "to_velocity": 127,
+    "minimum": -69.76631920449026
+   },
+   {
+    "drop": 5.814054970000811,
+    "from_velocity": 74,
+    "to_velocity": 90,
+    "minimum": -60.43843055286238
+   }
+  ],
+  "99": [
+   {
+    "drop": 3.9962779363267984,
+    "from_velocity": 28,
+    "to_velocity": 32,
+    "minimum": -48.93716849654922
+   },
+   {
+    "drop": 15.491602306270408,
+    "from_velocity": 42,
+    "to_velocity": 72,
+    "minimum": -64.2682152251491
+   },
+   {
+    "drop": 5.853757269377496,
+    "from_velocity": 34,
+    "to_velocity": 45,
+    "minimum": -78.14796985698227
+   }
+  ],
+  "102": [
+   {
+    "drop": 6.460270260109869,
+    "from_velocity": 48,
+    "to_velocity": 68,
+    "minimum": -44.5006525073696
+   },
+   {
+    "drop": 10.186854352085689,
+    "from_velocity": 38,
+    "to_velocity": 52,
+    "minimum": -73.18646361832204
+   },
+   null
+  ],
+  "108": [
+   {
+    "drop": 3.472332876029512,
+    "from_velocity": 28,
+    "to_velocity": 34,
+    "minimum": -39.1073192432101
+   },
+   null,
+   null
+  ]
+ },
+ "geometry_heights": {
+  "97": [
+   {
+    "drop": 11.867347553743514,
+    "from_velocity": 28,
+    "to_velocity": 54,
+    "minimum": -42.17241696705585
+   },
+   {
+    "drop": 7.7463787743761685,
+    "from_velocity": 80,
+    "to_velocity": 120,
+    "minimum": -92.83263427204784
+   },
+   {
+    "drop": 1.3117634259460402,
+    "from_velocity": 52,
+    "to_velocity": 56,
+    "minimum": -121.85098696288114
+   }
+  ],
+  "99": [
+   {
+    "drop": 0.0,
+    "from_velocity": 28,
+    "to_velocity": 28,
+    "minimum": -46.32348831040606
+   },
+   {
+    "drop": 1.607901951890895,
+    "from_velocity": 50,
+    "to_velocity": 66,
+    "minimum": -55.7910535221855
+   },
+   {
+    "drop": 4.173414177188093,
+    "from_velocity": 36,
+    "to_velocity": 40,
+    "minimum": -85.93109586046081
+   }
+  ],
+  "102": [
+   {
+    "drop": 6.460270260109869,
+    "from_velocity": 48,
+    "to_velocity": 68,
+    "minimum": -44.5006525073696
+   },
+   {
+    "drop": 10.186854352085689,
+    "from_velocity": 38,
+    "to_velocity": 52,
+    "minimum": -73.18646361832204
+   },
+   null
+  ],
+  "108": [
+   {
+    "drop": 3.472332876029512,
+    "from_velocity": 28,
+    "to_velocity": 34,
+    "minimum": -39.1073192432101
+   },
+   null,
+   null
+  ]
+ }
+}

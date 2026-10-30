@@ -1,0 +1,20 @@
+[
+ {
+  "note": 21,
+  "layer": 13,
+  "byte_identical": true,
+  "sha256": "3e80aa196d09b9c22b5f6c4bf9c500b58c86af2bbe031f045d83c76fafb55d4b"
+ },
+ {
+  "note": 60,
+  "layer": 8,
+  "byte_identical": true,
+  "sha256": "6e3184a864648a79a666bcda0c9f22321fd6487eca55210068e8b4ac0130a33b"
+ },
+ {
+  "note": 108,
+  "layer": 13,
+  "byte_identical": true,
+  "sha256": "3ecc6b9d6f1f02611ca18dd682380d9fb0384a0b971a7a61932a83c80065132c"
+ }
+]

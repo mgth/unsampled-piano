@@ -1,0 +1,84 @@
+{
+  "identical_render_files": 90,
+  "render_files": 90,
+  "model_files_with_partials": 90,
+  "references": {
+    "iowa": {
+      "role": "target",
+      "files_with_partials": 85,
+      "previous_files_with_partials": 85,
+      "partial_rows": 746,
+      "diagnostic": "88 files\nC7v4: no partials\nF#7v4: no partials\nC8v4: no partials\nwrote /home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/refs/iowa.survey.csv (3 files failed)\n"
+    },
+    "salamander": {
+      "role": "target",
+      "files_with_partials": 90,
+      "previous_files_with_partials": 90,
+      "partial_rows": 863,
+      "diagnostic": "90 files\nwrote /home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/refs/salamander.survey.csv (0 files failed)\n"
+    },
+    "headroom": {
+      "role": "target",
+      "files_with_partials": 90,
+      "previous_files_with_partials": 88,
+      "partial_rows": 797,
+      "diagnostic": "90 files\nwrote /home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/refs/headroom.survey.csv (0 files failed)\n"
+    },
+    "splendid": {
+      "role": "target",
+      "files_with_partials": 182,
+      "previous_files_with_partials": 182,
+      "partial_rows": 1513,
+      "diagnostic": "184 files\nC8v4: no partials\nC8v8: no partials\nwrote /home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/refs/splendid.survey.csv (2 files failed)\n"
+    },
+    "helgesson": {
+      "role": "target",
+      "files_with_partials": 264,
+      "previous_files_with_partials": 264,
+      "partial_rows": 2497,
+      "diagnostic": "264 files\nwrote /home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/refs/helgesson.survey.csv (0 files failed)\n"
+    },
+    "liang": {
+      "role": "target",
+      "files_with_partials": 88,
+      "previous_files_with_partials": 88,
+      "partial_rows": 879,
+      "diagnostic": "88 files\nwrote /home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/refs/liang.survey.csv (0 files failed)\n"
+    },
+    "plath": {
+      "role": "target",
+      "files_with_partials": 88,
+      "previous_files_with_partials": 88,
+      "partial_rows": 811,
+      "diagnostic": "88 files\nwrote /home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/refs/plath.survey.csv (0 files failed)\n"
+    },
+    "bivib_grand": {
+      "role": "target",
+      "files_with_partials": 262,
+      "previous_files_with_partials": 263,
+      "partial_rows": 2268,
+      "diagnostic": "264 files\nF#7v4: no partials\nC8v8: no partials\nwrote /home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/refs/bivib_grand.survey.csv (2 files failed)\n"
+    },
+    "bivib_upright": {
+      "role": "info",
+      "files_with_partials": 253,
+      "previous_files_with_partials": 253,
+      "partial_rows": 2258,
+      "diagnostic": "264 files\nG#7v4: no partials\nG#7v8: no partials\nA7v4: no partials\nA7v8: no partials\nA#7v4: no partials\nA#7v8: no partials\nB7v4: no partials\nB7v8: no partials\nC8v4: no partials\nC8v8: no partials\nC8v13: no partials\nwrote /home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/refs/bivib_upright.survey.csv (11 files failed)\n"
+    },
+    "maps_close": {
+      "role": "info",
+      "files_with_partials": 74,
+      "previous_files_with_partials": 74,
+      "partial_rows": 753,
+      "diagnostic": "74 files\nwrote /home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/refs/maps_close.survey.csv (0 files failed)\n"
+    },
+    "commercial": {
+      "role": "info",
+      "files_with_partials": 90,
+      "previous_files_with_partials": 90,
+      "partial_rows": 855,
+      "diagnostic": "90 files\nwrote /home/user/.codex/worktrees/piano-realism-audit/piano/out/bench/refs/commercial.survey.csv (0 files failed)\n"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-28",
+  "branch": "codex/piano-realism-audit",
+  "base_commit": "934c88f8de44412c00535b94a091b1e5b04e6fbb",
+  "analysis_version": "channel-power-v2",
+  "file_sha256": {
+    "tools/bench.py": "ea1057ed501e94c152c783a741c6a14170dae112aa5e33385672662c8deb4ca0",
+    "tools/plath_set.py": "deff0335df8d2295de23313868087fbb9f839a4735fd905104b77e786f7310f8",
+    "crates/piano-analysis/src/io.rs": "01ec0260f13a4eb1eb644824ebd658fc653978e707656225dd5f979aeaf7a989",
+    "crates/piano-analysis/src/spectrum.rs": "63628a9350ef350360325a641d91e873aba56bd682ce10dd0ccdf55278ad33c7",
+    "crates/piano-analysis/src/inharm.rs": "7e984f5f2250b248a9a7564473208910d66ffb0c3749acf66b0c14240d9ca1b6",
+    "crates/piano-analysis/src/decay.rs": "2c8a023852ce0781d2f4b38494f6ffe01d98db29cca5d2177d1788088048e8e1",
+    "crates/piano-analysis/src/bin/piano-survey.rs": "4e319ede39600ea02e57d023134925bf28afb3e8f24d2108e5e498f20b63fe61",
+    "presets/default.toml": "bb436748197dd524c62e966419b408fb1c2c1db29ccca87418f82d36f879057c",
+    "bench/references.json": "9e8bbbc01f0033ac3dbef0cba4dd49e718dc53b8825c6df6eba9e767d3abf876",
+    "bench/baseline.json": "c3d7f1e4b5f62f1d8594db71cdc7dacae6a1c9ccfb113dcfb8ca7e4af13c568c"
+  },
+  "survey_binary_sha256": "676ee9f429e8328fd7cb5dc90dfd040da0c02628a8cd878faecb45fdd661ad7d",
+  "render_binary_sha256": "92937db2b949d341123843ac00db5bbdf06f496cf1b66b5bf69b087b35881dec",
+  "engine_changed": false,
+  "identical_raw_render_files": 90,
+  "plath_gain_per_pa": 0.01,
+  "plath_import_command": [
+    "python3",
+    "tools/plath_set.py",
+    "/mnt/local/SSD_B-CT4000/Piano/concert-piano-plath",
+    "out/bench/sets/plath-calibrated"
+  ],
+  "model_measurement_command": [
+    "python3",
+    "tools/bench.py",
+    "run",
+    "--reuse",
+    "--no-build",
+    "--name",
+    "protocol-v2",
+    "--save-baseline"
+  ],
+  "render_note": "Freshly rendered with bench.render(..., preset=None), same close/studio/playback overlays as before. All 90 WAV hashes match previous audit.",
+  "python_tests_passed": 8,
+  "rust_tests_passed": 11
+}

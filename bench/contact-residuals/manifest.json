@@ -1,0 +1,457 @@
+{
+ "date": "2026-10-28",
+ "branch": "codex/piano-realism-audit",
+ "default_changed": false,
+ "production_core_changed": false,
+ "candidate": "local",
+ "candidate_live_in_ui": false,
+ "ui": "default witness; piano-realism-ui.service; isolated /tmp/piano-realism-ui/config",
+ "inputs": {
+  "presets/default.toml": "bb436748197dd524c62e966419b408fb1c2c1db29ccca87418f82d36f879057c",
+  "crates/piano-core/src/engine.rs": "43992c825c74d4f8415399ae7065a70b962c615a5933d0108e0ebe5f613e4812",
+  "crates/piano-core/src/hammer.rs": "dbe041c7ea2b957c9a2bb65210cdcba21ba1d277a44dc8106bcfcb84eb36f1ba",
+  "crates/piano-core/src/params.rs": "879679efaa365402edc4404e1bf705ae5e1012c8638ab01461114d2061bae9c5",
+  "crates/piano-core/src/voice.rs": "1228eda8ce17372385ead3795414e169072a3c25ffe713d47e564b2dc6daae5f",
+  "tools/contact_voicing.py": "359b7918aa814e13ddfbb006dc104a340fe767b3594d48158e0fe911483611a2",
+  "tools/bench.py": "ea1057ed501e94c152c783a741c6a14170dae112aa5e33385672662c8deb4ca0",
+  "bench/contact-voicing/profiles.json": "50df5f38a1d4aebb3c1b7f617bff00d970367e353713251a49567edb75f0ff73",
+  "bench/contact-voicing/references.json": "dfa79c7e5d4d6925d45b20dae02a9f7e62461f8c236f1234e01df7d06f43516c",
+  "bench/contact-voicing/note-parameters.json": "228bcce969f7b1d676aed2e38574e67dae09064389917024b9d0e984e0c50cf1",
+  "bench/contact-voicing/validation-models.json": "9097de2f0ad75383656401d1e3b9878a10dc3165ff6a8c7305373cdc85b4c46a",
+  "bench/references.json": "9e8bbbc01f0033ac3dbef0cba4dd49e718dc53b8825c6df6eba9e767d3abf876",
+  "out/top-register/effective.toml": "4002d9a8fe71a2998c7dde39f13bb4c1f76f0e87df2674f8087aef67c169d632",
+  "target/release/examples/contact_batch": "2b5bae2c0078f24319e2c1169ea343818d5ea9c7fc77d7d2563e19f367e2a2cf",
+  "target/release/examples/top_probe": "07567e0f65c1a3970487700d08e8c803fc520d3186dc548e059b90eab592229a",
+  "target/release/piano-survey": "676ee9f429e8328fd7cb5dc90dfd040da0c02628a8cd878faecb45fdd661ad7d",
+  "target/release/unsampled-piano": "1c5f1624db4a5ffae8dea8a4834a7c901a3d5f299a2be5c42d47df407f7f8717"
+ },
+ "inherited_unchanged": {
+  "crates/piano-core/src/engine.rs": true,
+  "crates/piano-core/src/hammer.rs": true,
+  "crates/piano-core/src/params.rs": true,
+  "crates/piano-core/src/voice.rs": true,
+  "presets/default.toml": true
+ },
+ "c8_byte_identity": [
+  {
+   "velocity": 28,
+   "byte_identical": true
+  },
+  {
+   "velocity": 29,
+   "byte_identical": true
+  },
+  {
+   "velocity": 30,
+   "byte_identical": true
+  },
+  {
+   "velocity": 31,
+   "byte_identical": true
+  },
+  {
+   "velocity": 32,
+   "byte_identical": true
+  },
+  {
+   "velocity": 33,
+   "byte_identical": true
+  },
+  {
+   "velocity": 34,
+   "byte_identical": true
+  },
+  {
+   "velocity": 35,
+   "byte_identical": true
+  },
+  {
+   "velocity": 36,
+   "byte_identical": true
+  },
+  {
+   "velocity": 37,
+   "byte_identical": true
+  },
+  {
+   "velocity": 38,
+   "byte_identical": true
+  },
+  {
+   "velocity": 39,
+   "byte_identical": true
+  },
+  {
+   "velocity": 40,
+   "byte_identical": true
+  },
+  {
+   "velocity": 41,
+   "byte_identical": true
+  },
+  {
+   "velocity": 42,
+   "byte_identical": true
+  },
+  {
+   "velocity": 43,
+   "byte_identical": true
+  },
+  {
+   "velocity": 44,
+   "byte_identical": true
+  },
+  {
+   "velocity": 45,
+   "byte_identical": true
+  },
+  {
+   "velocity": 46,
+   "byte_identical": true
+  },
+  {
+   "velocity": 47,
+   "byte_identical": true
+  },
+  {
+   "velocity": 48,
+   "byte_identical": true
+  },
+  {
+   "velocity": 49,
+   "byte_identical": true
+  },
+  {
+   "velocity": 50,
+   "byte_identical": true
+  },
+  {
+   "velocity": 51,
+   "byte_identical": true
+  },
+  {
+   "velocity": 52,
+   "byte_identical": true
+  },
+  {
+   "velocity": 53,
+   "byte_identical": true
+  },
+  {
+   "velocity": 54,
+   "byte_identical": true
+  },
+  {
+   "velocity": 55,
+   "byte_identical": true
+  },
+  {
+   "velocity": 56,
+   "byte_identical": true
+  },
+  {
+   "velocity": 57,
+   "byte_identical": true
+  },
+  {
+   "velocity": 58,
+   "byte_identical": true
+  },
+  {
+   "velocity": 59,
+   "byte_identical": true
+  },
+  {
+   "velocity": 60,
+   "byte_identical": true
+  },
+  {
+   "velocity": 61,
+   "byte_identical": true
+  },
+  {
+   "velocity": 62,
+   "byte_identical": true
+  },
+  {
+   "velocity": 63,
+   "byte_identical": true
+  },
+  {
+   "velocity": 64,
+   "byte_identical": true
+  },
+  {
+   "velocity": 65,
+   "byte_identical": true
+  },
+  {
+   "velocity": 66,
+   "byte_identical": true
+  },
+  {
+   "velocity": 67,
+   "byte_identical": true
+  },
+  {
+   "velocity": 68,
+   "byte_identical": true
+  },
+  {
+   "velocity": 69,
+   "byte_identical": true
+  },
+  {
+   "velocity": 70,
+   "byte_identical": true
+  },
+  {
+   "velocity": 71,
+   "byte_identical": true
+  },
+  {
+   "velocity": 72,
+   "byte_identical": true
+  },
+  {
+   "velocity": 73,
+   "byte_identical": true
+  },
+  {
+   "velocity": 74,
+   "byte_identical": true
+  },
+  {
+   "velocity": 75,
+   "byte_identical": true
+  },
+  {
+   "velocity": 76,
+   "byte_identical": true
+  },
+  {
+   "velocity": 77,
+   "byte_identical": true
+  },
+  {
+   "velocity": 78,
+   "byte_identical": true
+  },
+  {
+   "velocity": 79,
+   "byte_identical": true
+  },
+  {
+   "velocity": 80,
+   "byte_identical": true
+  },
+  {
+   "velocity": 81,
+   "byte_identical": true
+  },
+  {
+   "velocity": 82,
+   "byte_identical": true
+  },
+  {
+   "velocity": 83,
+   "byte_identical": true
+  },
+  {
+   "velocity": 84,
+   "byte_identical": true
+  },
+  {
+   "velocity": 85,
+   "byte_identical": true
+  },
+  {
+   "velocity": 86,
+   "byte_identical": true
+  },
+  {
+   "velocity": 87,
+   "byte_identical": true
+  },
+  {
+   "velocity": 88,
+   "byte_identical": true
+  },
+  {
+   "velocity": 89,
+   "byte_identical": true
+  },
+  {
+   "velocity": 90,
+   "byte_identical": true
+  },
+  {
+   "velocity": 91,
+   "byte_identical": true
+  },
+  {
+   "velocity": 92,
+   "byte_identical": true
+  },
+  {
+   "velocity": 93,
+   "byte_identical": true
+  },
+  {
+   "velocity": 94,
+   "byte_identical": true
+  },
+  {
+   "velocity": 95,
+   "byte_identical": true
+  },
+  {
+   "velocity": 96,
+   "byte_identical": true
+  },
+  {
+   "velocity": 97,
+   "byte_identical": true
+  },
+  {
+   "velocity": 98,
+   "byte_identical": true
+  },
+  {
+   "velocity": 99,
+   "byte_identical": true
+  },
+  {
+   "velocity": 100,
+   "byte_identical": true
+  },
+  {
+   "velocity": 101,
+   "byte_identical": true
+  },
+  {
+   "velocity": 102,
+   "byte_identical": true
+  },
+  {
+   "velocity": 103,
+   "byte_identical": true
+  },
+  {
+   "velocity": 104,
+   "byte_identical": true
+  },
+  {
+   "velocity": 105,
+   "byte_identical": true
+  },
+  {
+   "velocity": 106,
+   "byte_identical": true
+  },
+  {
+   "velocity": 107,
+   "byte_identical": true
+  },
+  {
+   "velocity": 108,
+   "byte_identical": true
+  },
+  {
+   "velocity": 109,
+   "byte_identical": true
+  },
+  {
+   "velocity": 110,
+   "byte_identical": true
+  },
+  {
+   "velocity": 111,
+   "byte_identical": true
+  },
+  {
+   "velocity": 112,
+   "byte_identical": true
+  },
+  {
+   "velocity": 113,
+   "byte_identical": true
+  },
+  {
+   "velocity": 114,
+   "byte_identical": true
+  },
+  {
+   "velocity": 115,
+   "byte_identical": true
+  },
+  {
+   "velocity": 116,
+   "byte_identical": true
+  },
+  {
+   "velocity": 117,
+   "byte_identical": true
+  },
+  {
+   "velocity": 118,
+   "byte_identical": true
+  },
+  {
+   "velocity": 119,
+   "byte_identical": true
+  },
+  {
+   "velocity": 120,
+   "byte_identical": true
+  },
+  {
+   "velocity": 121,
+   "byte_identical": true
+  },
+  {
+   "velocity": 122,
+   "byte_identical": true
+  },
+  {
+   "velocity": 123,
+   "byte_identical": true
+  },
+  {
+   "velocity": 124,
+   "byte_identical": true
+  },
+  {
+   "velocity": 125,
+   "byte_identical": true
+  },
+  {
+   "velocity": 126,
+   "byte_identical": true
+  },
+  {
+   "velocity": 127,
+   "byte_identical": true
+  }
+ ],
+ "all_c8_byte_identical": true,
+ "wav_paths": 3914,
+ "scripts": {
+  "bench/contact-residuals/plot.py": "eb534827d02cda541610433d8d0abc16b0d4779df87fd74526ea4e779df2573a",
+  "bench/contact-residuals/local_restore.py": "5e4a7f496dec4f75bf64521f182d552c1f605a143f050e079186b5e6c7cd9c01",
+  "bench/contact-residuals/sustain.py": "fcc39b6b8b13f2e319f3d60cf2d22576b4504ffad66881b5dcd5d8739099dd20",
+  "bench/contact-residuals/full.py": "a5c0edb11fb39745723c721bd7903ec3ffd4cfa451f015dbdafbe51dca6123f2",
+  "bench/contact-residuals/evaluate.py": "6d5cb28b5f2b9f2ceb0efeabf427266606547e536bebbf89815af6265463452b",
+  "bench/contact-residuals/final_candidate.py": "2a7c747cd38208b3c8ba18dd798333a12f49b4db6ffab0079cf0d6af4a9ed127",
+  "bench/contact-residuals/refine.py": "113de785cd300a6523ceb6515068a6abf2107da6abab9894b331941cfeb7be75",
+  "bench/contact-residuals/continuity.py": "8827b6fb1cfe1e7f46db1c2e8bd24ab8a940fc3b75da14a86982e3a2f4351627",
+  "bench/contact-residuals/validate.py": "ae698a25955ce67932fbdb1e8dda9e970eb44a7986cc8ab58b8804cebdb22694",
+  "bench/contact-residuals/geometry.py": "08a30ce90a7608ac7d3378d70e4c1f4e2049880ac34c709bf1271bd56d10aeaf",
+  "bench/contact-residuals/rank.py": "c4c65139b7ee6c47949427ca5af98250fdae54263db5e2d16de2321a57959155",
+  "bench/contact-residuals/diagnose.py": "801872f561831398373041dda24859411f19f3ca1a92f3ccf11c2c3f722837ee",
+  "bench/contact-residuals/search.py": "989d81efd0ac5c861c621e053e359abd2115f7e1d29692b7402e08393b3296ea"
+ },
+ "tests": "15 Python benchmark tests pass; git diff --check clean; UI build offline release succeeds",
+ "attack_fixed_rows": 349,
+ "sustain_fixed_rows": 71
+}

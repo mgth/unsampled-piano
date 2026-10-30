@@ -24,6 +24,10 @@ struct Args {
     /// (the recordings' usable range; a render falls to digital silence).
     #[arg(long, default_value_t = 70.0)]
     range_db: f64,
+    /// Analyse mean channel power, preserving stereo energy (bench protocol v2).
+    /// ESPRIT needs a phase-bearing signal and remains a mono diagnostic.
+    #[arg(long, conflicts_with = "esprit")]
+    channel_power: bool,
     /// Also resolve each partial into components (subband ESPRIT) into this CSV.
     #[arg(long)]
     esprit: Option<PathBuf>,
@@ -41,12 +45,30 @@ fn opt(v: Option<f64>) -> String {
 }
 
 fn analyse(path: &std::path::Path, note: u8, a: &Args) -> Result<(Vec<String>, Vec<String>), String> {
-    let (x, sr) = io::read_mono(path, None).map_err(|e| e.to_string())?;
+    let (audio, sr) = if a.channel_power {
+        io::read_channels(path).map_err(|e| e.to_string())?
+    } else {
+        let (x, sr) = io::read_mono(path, None).map_err(|e| e.to_string())?;
+        (vec![x], sr)
+    };
+    let channels: Vec<&[f32]> = audio.iter().map(Vec::as_slice).collect();
+    let x = channels[0];
     let f_nom = a.a4 * 2f64.powf((note as f64 - 69.0) / 12.0);
-    let fit = inharm::estimate(&x, sr, f_nom, inharm::Options::default()).ok_or("no partials")?;
-    let peak = x.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+    let fit = inharm::estimate_channels(&channels, sr, f_nom, inharm::Options::default()).ok_or("no partials")?;
+    let peak = (0..x.len())
+        .map(|i| (channels.iter().map(|c| (c[i] as f64).powi(2)).sum::<f64>() / channels.len() as f64).sqrt())
+        .fold(0.0f64, f64::max);
     let on = fit.onset;
-    let centroid = distance::centroid(&x, sr, on, (0.05 * sr) as usize);
+    let centroid = if a.channel_power {
+        let spec = piano_analysis::spectrum::Spectrum::channel_power(&channels, sr, on, (0.05 * sr) as usize, 1);
+        let (num, den) = spec.db.iter().enumerate().fold((0.0, 0.0), |(n, d), (i, db)| {
+            let mag = 10f64.powf(db / 20.0);
+            (n + i as f64 * spec.bin_hz * mag, d + mag)
+        });
+        num / den.max(1e-30)
+    } else {
+        distance::centroid(x, sr, on, (0.05 * sr) as usize)
+    };
     let head = format!(
         "{:.4},{:.3},{:.4e},{},{},{:.2},{:.1}",
         fit.f0,
@@ -58,6 +80,7 @@ fn analyse(path: &std::path::Path, note: u8, a: &Args) -> Result<(Vec<String>, V
         centroid
     );
     let tail = &x[on..];
+    let tails: Vec<&[f32]> = channels.iter().map(|c| &c[on..]).collect();
     let mut lines = Vec::new();
     let mut comps = Vec::new();
     // Long segment for the high-resolution analysis, starting just after the attack.
@@ -69,7 +92,7 @@ fn analyse(path: &std::path::Path, note: u8, a: &Args) -> Result<(Vec<String>, V
     for p in fit.partials.iter().take(a.partials) {
         let spacing = fit.f0 * (1.0 + 2.0 * fit.b * (p.k * p.k) as f64);
         let win = (4.0 / spacing).clamp(0.02, 0.2);
-        let env = decay::envelope(tail, sr, p.freq, win, win / 4.0);
+        let env = decay::envelope_channels(&tails, sr, p.freq, win, win / 4.0);
         let pts = decay::usable_within(&env, 10.0, a.range_db);
         let single = decay::line_fit(pts);
         let (early, late) = match pts.first() {
@@ -130,9 +153,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut jobs: Vec<(PathBuf, String, u8, u32)> = Vec::new();
     for e in std::fs::read_dir(&a.dir)? {
         let path = e?.path();
+        if !path.extension().and_then(|s| s.to_str()).is_some_and(|s| s.eq_ignore_ascii_case("wav") || s.eq_ignore_ascii_case("flac")) {
+            continue;
+        }
         let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
-        let Some((n, v)) = stem.rsplit_once('v') else { continue };
-        let (Some(note), Ok(layer)) = (io::parse_note_name(n), v.parse::<u32>()) else { continue };
+        let Some((n, v)) = stem.rsplit_once('v') else {
+            continue;
+        };
+        let (Some(note), Ok(layer)) = (io::parse_note_name(n), v.parse::<u32>()) else {
+            continue;
+        };
         jobs.push((path, stem, note, layer));
     }
     jobs.sort_by_key(|j| (j.2, j.3));
@@ -147,7 +177,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let mut out = Vec::new();
                     loop {
                         let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                        let Some((path, name, note, layer)) = jobs.get(i) else { break };
+                        let Some((path, name, note, layer)) = jobs.get(i) else {
+                            break;
+                        };
                         out.push(Row { name: name.clone(), note: *note, layer: *layer, line: analyse(path, *note, &a) });
                     }
                     out

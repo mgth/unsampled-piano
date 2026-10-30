@@ -242,11 +242,12 @@ pub struct UnisonLaw {
     /// the velocity (docs/release.md).
     pub soft_exponent: f64,
     pub soft_speed: f64,
-    /// Height spread of a unison's strings under the hammer (m): a blow at
-    /// v meets the lowest string up to height_spread/v after the highest,
-    /// which takes no force until then. 0.1 mm: 0.2 ms at pp, short against
-    /// a 2–3 ms contact, so the strings' partials barely part
-    /// (docs/release.md).
+    /// Height spread of a unison's strings under the hammer (m): each string
+    /// presses its own part of the felt, the lowest from when the felt has
+    /// travelled up to height_spread past the highest, and is compressed
+    /// that much less. 0.1 mm: the strings take pulses of a little different
+    /// lengths and shapes, whose spectral dips fall apart
+    /// (docs/strike_shape.md, docs/release.md).
     pub height_spread: f64,
 }
 
@@ -746,10 +747,42 @@ impl VelocityLaw {
     }
 }
 
+/// Explicit contact settings for one treble key in an experimental preset.
+/// Values have the same units as the corresponding global PianoModel fields.
+/// The optional table covers MIDI 93..=108; no interpolation or velocity gain.
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TrebleContact {
+    pub hardness: f64,
+    pub p_offset: f64,
+    pub hysteresis: f64,
+    pub contact_width_scale: f64,
+    pub height_spread: f64,
+    pub strike_ratio: f64,
+}
+
+impl TrebleContact {
+    pub fn from_model(model: &PianoModel) -> Self {
+        Self {
+            hardness: model.hardness,
+            p_offset: model.p_offset,
+            hysteresis: model.hysteresis,
+            contact_width_scale: model.contact_width_scale,
+            height_spread: model.unison.height_spread,
+            strike_ratio: model.strike_ratio,
+        }
+    }
+}
+
 /// The whole instrument description: laws evaluated per key.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct PianoModel {
+    /// Optional, explicit settings for each key MIDI 93..=108, in that order.
+    /// Absent in the default and omitted from its serialized preset. This
+    /// makes a per-key research profile playable without changing the default.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub treble_contact: Option<[TrebleContact; 16]>,
     pub a4: f64,
     pub velocity: VelocityLaw,
     pub inharmonicity: InharmonicityLaw,
@@ -862,6 +895,7 @@ pub struct PianoModel {
 impl Default for PianoModel {
     fn default() -> Self {
         Self {
+            treble_contact: None,
             a4: 440.0,
             velocity: VelocityLaw::DEFAULT,
             inharmonicity: InharmonicityLaw::SALAMANDER_C5,
@@ -913,7 +947,11 @@ impl Default for PianoModel {
             core_depth_mid: 0.0,
             core_depth_treble: 0.0,
             p_offset: 0.0,
-            hysteresis: 0.3,
+            // 0.3 with the single felt (docs/middle_highs.md); with a contact
+            // per string, 0.6 scores better against the real grands (bench
+            // 1.03 against 1.07) and fills the treble's spectral dips
+            // (docs/strike_shape.md).
+            hysteresis: 0.6,
             contact_width_scale: 1.0,
             hammer_mass_scale: 1.0,
             shank_share: 0.3,
@@ -945,15 +983,29 @@ impl PianoModel {
         })
     }
 
+    pub fn contact_at(&self, note: u8) -> Option<&TrebleContact> {
+        let index = note.checked_sub(93)? as usize;
+        self.treble_contact.as_ref()?.get(index)
+    }
+
+    pub fn unison_at(&self, note: u8) -> UnisonLaw {
+        let mut unison = self.unison;
+        if let Some(contact) = self.contact_at(note) {
+            unison.height_spread = contact.height_spread;
+        }
+        unison
+    }
+
     pub fn note(&self, note: u8) -> NoteParams {
+        let contact = self.contact_at(note).copied().unwrap_or_else(|| TrebleContact::from_model(self));
         let f0 = note_freq(note, self.a4) * 2f64.powf((self.stretch.cents(note) + self.temperament.cents(note)) / 1200.0);
         let length = self.scale.length(note);
         let tension = self.scale.tension;
         let mu = tension / (2.0 * length * f0).powi(2);
         // ≈1/8 of the length up to C6, closer to the agraffe in the high treble.
         let m = note as f64;
-        let strike_pos = if m <= 84.0 { self.strike_ratio } else { self.strike_ratio - 0.05 * (m - 84.0) / 24.0 };
-        let contact_width = (0.008 - 0.004 * (m - 21.0) / 87.0) * self.contact_width_scale;
+        let strike_pos = if m <= 84.0 { contact.strike_ratio } else { contact.strike_ratio - 0.05 * (m - 84.0) / 24.0 };
+        let contact_width = (0.008 - 0.004 * (m - 21.0) / 87.0) * contact.contact_width_scale;
         let mut hammer = hammer_stulov(note);
         hammer.mass_kg *= self.hammer_mass_scale;
         if self.shank_share > 0.0 && self.shank_freq > 0.0 {
@@ -971,8 +1023,8 @@ impl PianoModel {
         // The core keeps Stulov's stiffness of the key, whatever the voicing
         // of the top felt.
         let base_q0 = hammer.q0;
-        hammer.q0 *= self.hardness * (slope * (key - 40.0) + self.hardness_slope_top * (key - 64.0).max(0.0)).exp();
-        hammer.p += self.p_offset + self.p_bass * ((40.0 - key) / 39.0).max(0.0);
+        hammer.q0 *= contact.hardness * (slope * (key - 40.0) + self.hardness_slope_top * (key - 64.0).max(0.0)).exp();
+        hammer.p += contact.p_offset + self.p_bass * ((40.0 - key) / 39.0).max(0.0);
         hammer.core_q = self.core_hardness * base_q0;
         hammer.core_p = self.core_p;
         let depth = if m <= 60.0 {
@@ -983,7 +1035,7 @@ impl PianoModel {
             self.core_depth_mid + (self.core_depth_treble - self.core_depth_mid) * t
         };
         hammer.core_depth = depth * 1e-3;
-        hammer.alpha *= self.hysteresis;
+        hammer.alpha *= contact.hysteresis;
         NoteParams {
             f0,
             b: self.inharmonicity.b(note),

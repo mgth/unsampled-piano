@@ -1,0 +1,389 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.229
+   Compiling crossbeam-utils v0.8.23
+   Compiling crossbeam-epoch v0.9.21
+   Compiling serde v1.0.229
+   Compiling crossbeam-deque v0.8.8
+   Compiling either v1.19.0
+   Compiling rayon-core v1.13.0
+   Compiling zerocopy v0.8.63
+   Compiling zmij v1.0.23
+   Compiling find-msvc-tools v0.1.15
+   Compiling autocfg v1.5.1
+   Compiling shlex v2.0.1
+   Compiling cfg-if v1.0.5
+   Compiling libc v0.2.191
+   Compiling serde_json v1.0.154
+   Compiling clap_lex v1.1.1
+   Compiling anstyle v1.0.14
+   Compiling itoa v1.0.18
+   Compiling plotters-backend v0.3.7
+   Compiling memchr v2.8.3
+   Compiling ciborium-io v0.2.2
+   Compiling regex-syntax v0.8.11
+   Compiling cast v0.3.0
+   Compiling same-file v1.0.6
+   Compiling oorandom v11.1.5
+   Compiling anes v0.1.6
+   Compiling assert_no_alloc v1.1.2
+   Compiling winnow v1.0.4
+   Compiling toml_writer v1.1.3+spec-1.1.0
+   Compiling walkdir v2.5.0
+   Compiling cc v1.9.0
+   Compiling itertools v0.13.0
+   Compiling clap_builder v4.6.7
+   Compiling num-traits v0.2.19
+   Compiling plotters-svg v0.3.7
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling syn v3.0.9
+   Compiling syn v2.0.119
+   Compiling plotters v0.3.7
+   Compiling page_size v0.6.0
+   Compiling alloca v0.4.0
+   Compiling regex-automata v0.4.18
+   Compiling rayon v1.12.0
+   Compiling criterion-plot v0.8.2
+   Compiling serde_spanned v1.1.2
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling serde_derive v1.0.229
+   Compiling clap v4.6.7
+   Compiling regex v1.13.1
+   Compiling zerocopy-derive v0.8.63
+   Compiling midly v0.5.3
+   Compiling piano-core v0.2.1 (/home/user/.codex/worktrees/piano-realism-audit/piano/crates/piano-core)
+   Compiling tinytemplate v1.2.1
+   Compiling piano-host v0.2.1 (/home/user/.codex/worktrees/piano-realism-audit/piano/crates/piano-host)
+   Compiling half v2.7.1
+   Compiling ciborium-ll v0.2.2
+   Compiling ciborium v0.2.2
+   Compiling criterion v0.8.2
+warning: linker stderr: ICECC[1071] 2026-10-28 20:23:12: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-host` (example "strike_sweep") generated 1 warning
+warning: linker stderr: ICECC[1449] 2026-10-28 20:23:17: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "modal_kernels") generated 1 warning
+warning: linker stderr: ICECC[1478] 2026-10-28 20:23:17: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-host` (test "contact_profile") generated 1 warning
+warning: linker stderr: ICECC[1501] 2026-10-28 20:23:17: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "soundboard_admittance") generated 1 warning
+warning: linker stderr: ICECC[1565] 2026-10-28 20:23:18: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "contact_convergence") generated 1 warning
+warning: linker stderr: ICECC[1616] 2026-10-28 20:23:18: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "bass_conductance") generated 1 warning
+warning: linker stderr: ICECC[1649] 2026-10-28 20:23:18: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "felt_compression") generated 1 warning
+warning: linker stderr: ICECC[1731] 2026-10-28 20:23:19: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "board_low") generated 1 warning
+warning: linker stderr: ICECC[1776] 2026-10-28 20:23:19: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "board_bench") generated 1 warning
+warning: linker stderr: ICECC[1815] 2026-10-28 20:23:19: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "partial_modes") generated 1 warning
+warning: linker stderr: ICECC[1878] 2026-10-28 20:23:19: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "build_time") generated 1 warning
+warning: linker stderr: ICECC[1912] 2026-10-28 20:23:19: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "aftersound") generated 1 warning
+warning: linker stderr: ICECC[1945] 2026-10-28 20:23:19: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: linker stderr: ICECC[1946] 2026-10-28 20:23:19: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "board_basis") generated 1 warning
+warning: `piano-core` (example "decay_budget") generated 1 warning
+warning: linker stderr: ICECC[1995] 2026-10-28 20:23:19: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "board_evenness") generated 1 warning
+warning: linker stderr: ICECC[2046] 2026-10-28 20:23:20: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "voice_ops") generated 1 warning
+warning: linker stderr: ICECC[2101] 2026-10-28 20:23:20: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "bass_budget") generated 1 warning
+warning: linker stderr: ICECC[2138] 2026-10-28 20:23:20: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "outline_modes") generated 1 warning
+warning: linker stderr: ICECC[2181] 2026-10-28 20:23:20: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "noise_levels") generated 1 warning
+warning: linker stderr: ICECC[2295] 2026-10-28 20:23:21: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "sympathy_debug") generated 1 warning
+warning: linker stderr: ICECC[2330] 2026-10-28 20:23:21: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "bridge_conductance_model") generated 1 warning
+warning: linker stderr: ICECC[2354] 2026-10-28 20:23:21: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "shortcut_diff") generated 1 warning
+warning: linker stderr: ICECC[2399] 2026-10-28 20:23:22: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "structure_levels") generated 1 warning
+warning: linker stderr: ICECC[2421] 2026-10-28 20:23:22: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "sympathy_level") generated 1 warning
+warning: linker stderr: ICECC[2444] 2026-10-28 20:23:22: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "stress_cost") generated 1 warning
+warning: linker stderr: ICECC[2506] 2026-10-28 20:23:22: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "region_coherence") generated 1 warning
+warning: linker stderr: ICECC[2538] 2026-10-28 20:23:22: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "structure_transfer") generated 1 warning
+warning: linker stderr: ICECC[2574] 2026-10-28 20:23:22: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (test "quality") generated 1 warning
+warning: linker stderr: ICECC[2657] 2026-10-28 20:23:22: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (test "live") generated 1 warning
+warning: linker stderr: ICECC[2700] 2026-10-28 20:23:22: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (example "hammer_stats") generated 1 warning
+warning: linker stderr: ICECC[2740] 2026-10-28 20:23:22: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (test "macros_live") generated 1 warning
+warning: linker stderr: ICECC[2759] 2026-10-28 20:23:23: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (test "realtime") generated 1 warning
+warning: linker stderr: ICECC[2778] 2026-10-28 20:23:23: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (test "pedals") generated 1 warning
+warning: linker stderr: ICECC[2823] 2026-10-28 20:23:23: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-host` (lib test) generated 1 warning
+warning: linker stderr: ICECC[2842] 2026-10-28 20:23:24: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (test "midi_doubles") generated 1 warning
+warning: linker stderr: ICECC[2861] 2026-10-28 20:23:26: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-core` (lib test) generated 1 warning
+    Finished `release` profile [optimized + debuginfo] target(s) in 24.76s
+     Running unittests src/lib.rs (/tmp/piano-real-geometry-target/release/deps/piano_core-df96287228cc3261)
+
+running 55 tests
+test eigen::tests::decomposes_a_symmetric_matrix ... ok
+test hammer::tests::complex_state_round_trips ... ok
+test hammer::tests::contact_shortens_and_force_grows_with_velocity ... ok
+test eigen::tests::ql_matches_jacobi ... ok
+test hammer::tests::heavy_string_matches_rigid_surface_contact ... ok
+test modal::tests::loading_a_table_equals_setting_the_modes ... ok
+test hammer::tests::lossless_contact_conserves_energy ... ok
+test modal::tests::all_isas_and_groups_are_bit_identical ... ok
+test live::tests::paths_round_trip ... ok
+test modal::tests::shrinking_mode_count_silences_dropped_modes ... ok
+test modal::tests::impulse_response_matches_analytic ... ok
+test hammer::tests::flexible_shank_energy_never_grows ... ok
+test macros::tests::neutral_controls_change_nothing_and_apply_once ... ok
+test params::tests::gamma_known_values ... ok
+test params::tests::rigaud_b_values ... ok
+test hammer::tests::level_strings_make_the_single_felt ... ok
+test params::tests::stulov_contact_time_matches_paper ... ok
+test params::tests::salamander_laws_match_survey ... ok
+test params::tests::temperaments_match_their_tables ... ok
+test params::tests::temperaments_keep_a_and_move_with_their_key ... ok
+test hammer::tests::uneven_strings_energy_never_grows ... ok
+test modal::tests::exp_neg_is_accurate ... ok
+test macros::tests::touch_keeps_mezzo_forte_and_stretch_reaches_equal_temperament ... ok
+test hammer::tests::lossy_contact_energy_never_grows ... ok
+test par::tests::pool_runs_every_item_once ... ok
+test modal::tests::two_inputs_superpose_and_damping_is_exact ... ok
+test soundboard::tests::an_upright_uses_its_own_microphones ... ok
+test limiter::tests::nothing_leaves_above_the_ceiling_and_the_gain_comes_back ... ok
+test unison::tests::detuned_strings_beat_with_shared_damping ... ok
+test soundboard::tests::conductance_is_positive_everywhere ... ok
+test modal::tests::second_output_matches_a_separate_bank ... ok
+test unison::tests::trichords_diagonalise ... ok
+test upsample::tests::delays_by_its_latency ... ok
+test unison::tests::polarised_trichord_and_single_string ... ok
+test unison::tests::nearly_identical_strings_split_into_prompt_and_aftersound ... ok
+test par::tests::keeps_order ... ok
+test structure::tests::edge_reactions_balance_the_plate ... ok
+test note_model::tests::every_key_has_two_decay_rates ... ok
+test hammer::tests::uneven_strings_fill_the_spectral_dips ... ok
+test structure::tests::rim_modes_are_sane ... ok
+test note_model::tests::whole_table_is_well_conditioned ... ok
+test room::tests::an_upright_stands_against_its_wall ... ok
+test soundboard::tests::an_outline_without_area_is_the_rectangle ... ok
+test soundboard::tests::wall_reflects_only_the_back_face ... ok
+test upsample::tests::keeps_the_band_and_removes_the_images ... ok
+test soundboard::tests::a_shorter_outline_has_the_shorter_boards_modes ... ok
+test board::tests::all_isas_are_bit_identical ... ok
+test room::tests::tail_decays_at_the_sabine_rate ... ok
+test structure::tests::outlined_edge_forces_balance_the_plate ... ok
+test soundboard::tests::modal_density_and_mean_mobility_match_measurements ... ok
+test board::tests::low_drive_rebuilds_each_key ... ok
+test board::tests::lifted_dampers_remove_the_string_load ... ok
+test board::tests::transfer_matches_mobility_and_rendering ... ok
+test note_model::tests::full_instrument_is_passive ... ok
+test soundboard::tests::a_grand_outline_holds_its_board ... ok
+
+test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+     Running tests/live.rs (/tmp/piano-real-geometry-target/release/deps/live-e49863ffa10b0e8e)
+
+running 1 test
+test output_gain_is_live_and_smooth ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests/macros_live.rs (/tmp/piano-real-geometry-target/release/deps/macros_live-11bc42f90fde054b)
+
+running 1 test
+test live_controls_match_a_rebuild ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.18s
+
+     Running tests/midi_doubles.rs (/tmp/piano-real-geometry-target/release/deps/midi_doubles-435733034b43c4f3)
+
+running 2 tests
+test no_strike_while_the_hammer_presses_the_string ... ok
+test a_doubled_note_on_strikes_once ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.35s
+
+     Running tests/pedals.rs (/tmp/piano-real-geometry-target/release/deps/pedals-37c35ce16732fb32)
+
+running 8 tests
+test a_restruck_key_is_struck_with_its_damper_lifted ... ok
+test upright_repeats_slower_than_a_grand ... ok
+test sostenuto_holds_only_the_keys_down_when_pressed ... ok
+test pedal_lets_the_octave_resonate_more_than_the_semitone ... ok
+test upright_soft_pedal_and_practice_mute ... ok
+test dampers_stop_mid_notes_faster_than_bass_and_skip_the_top ... ok
+test half_pedal_damps_partially ... ok
+test una_corda_is_darker_and_keeps_its_sustain ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.63s
+
+     Running tests/quality.rs (/tmp/piano-real-geometry-target/release/deps/quality-f4ca61f90e0fd6c2)
+
+running 3 tests
+test levels_reduce_the_model_only ... ok
+test a_light_engine_plays ... ok
+test overkill_listens_on_every_string ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+
+     Running tests/realtime.rs (/tmp/piano-real-geometry-target/release/deps/realtime-f870ca45a2af87ce)
+
+running 4 tests
+test threads_do_not_change_the_exact_drive ... ok
+test threads_do_not_change_the_output ... ok
+test whole_keyboard_restrikes_stay_bounded ... ok
+test no_allocation_bounded_and_deterministic ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.26s
+
+     Running unittests src/lib.rs (/tmp/piano-real-geometry-target/release/deps/piano_host-262fe8a9fee4faa7)
+
+running 4 tests
+test tests::decodes_channel_messages ... ok
+test tests::listening_overlay_keeps_the_instrument ... ok
+test tests::preset_round_trips_and_partial_presets_keep_defaults ... ok
+test tests::listening_and_touch_presets_are_laid_over_the_sound ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/contact_profile.rs (/tmp/piano-real-geometry-target/release/deps/contact_profile-f89f1f47be60359c)
+
+running 2 tests
+test contact_profile_is_absent_by_default_and_roundtrips ... ok
+test per_key_contact_matches_isolated_preset_including_string_heights ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.69s
+
+   Doc-tests piano_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests piano_host
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

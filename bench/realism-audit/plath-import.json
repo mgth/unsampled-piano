@@ -1,0 +1,30 @@
+[
+  {
+    "midi": 60,
+    "file": "D1_PROD08_40_0000_M0004.csv",
+    "takes": 5,
+    "peak_pa": 1.116161983,
+    "gain_applied_db": -6.975144436460737
+  },
+  {
+    "midi": 72,
+    "file": "D1_PROD08_52_0000_M0001.csv",
+    "takes": 5,
+    "peak_pa": 1.666869808,
+    "gain_applied_db": -10.458633519014978
+  },
+  {
+    "midi": 84,
+    "file": "D1_PROD08_64_0000_M0003.csv",
+    "takes": 5,
+    "peak_pa": 1.866771601,
+    "gain_applied_db": -11.442423621021682
+  },
+  {
+    "midi": 96,
+    "file": "D1_PROD08_76_0000_M0004.csv",
+    "takes": 5,
+    "peak_pa": 2.718884515,
+    "gain_applied_db": -14.70841513848761
+  }
+]

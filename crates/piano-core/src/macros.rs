@@ -111,6 +111,11 @@ impl PianoModel {
         // Tone: both layers of the felt, harder or softer together.
         let t = v(c.tone);
         m.hardness *= scale(TONE_HARDNESS, t);
+        if let Some(contacts) = m.treble_contact.as_mut() {
+            for contact in contacts {
+                contact.hardness *= scale(TONE_HARDNESS, t);
+            }
+        }
         m.core_hardness *= scale(TONE_CORE, t);
 
         // Touch: hammer speeds spread further from (or closer to) the

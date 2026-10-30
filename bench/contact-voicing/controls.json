@@ -1,0 +1,62 @@
+[
+ {
+  "note": 96,
+  "velocity": 56,
+  "samples": 9600,
+  "bit_identical": true
+ },
+ {
+  "note": 96,
+  "velocity": 100,
+  "samples": 9600,
+  "bit_identical": true
+ },
+ {
+  "note": 99,
+  "velocity": 56,
+  "samples": 9600,
+  "bit_identical": true
+ },
+ {
+  "note": 99,
+  "velocity": 100,
+  "samples": 9600,
+  "bit_identical": true
+ },
+ {
+  "note": 102,
+  "velocity": 56,
+  "samples": 9600,
+  "bit_identical": true
+ },
+ {
+  "note": 102,
+  "velocity": 100,
+  "samples": 9600,
+  "bit_identical": true
+ },
+ {
+  "note": 105,
+  "velocity": 56,
+  "samples": 9600,
+  "bit_identical": true
+ },
+ {
+  "note": 105,
+  "velocity": 100,
+  "samples": 9600,
+  "bit_identical": true
+ },
+ {
+  "note": 108,
+  "velocity": 56,
+  "samples": 9600,
+  "bit_identical": true
+ },
+ {
+  "note": 108,
+  "velocity": 100,
+  "samples": 9600,
+  "bit_identical": true
+ }
+]

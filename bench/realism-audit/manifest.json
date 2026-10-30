@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-28",
+  "base_commit": "934c88f8de44412c00535b94a091b1e5b04e6fbb",
+  "inherited_files": {
+    "bench/baseline.json": "cfa5a13e2ee2c2a7718ae929f1881f669bfc40e0438442f7c9fabf4b4d00701f",
+    "crates/piano-core/src/engine.rs": "43992c825c74d4f8415399ae7065a70b962c615a5933d0108e0ebe5f613e4812",
+    "crates/piano-core/src/hammer.rs": "dbe041c7ea2b957c9a2bb65210cdcba21ba1d277a44dc8106bcfcb84eb36f1ba",
+    "crates/piano-core/src/params.rs": "879679efaa365402edc4404e1bf705ae5e1012c8638ab01461114d2061bae9c5",
+    "crates/piano-core/src/voice.rs": "1228eda8ce17372385ead3795414e169072a3c25ffe713d47e564b2dc6daae5f",
+    "crates/piano-host/examples/strike_sweep.rs": "4cbec47c090ce58e75f320ca6322cdcb4396a6672b18c9b246a9cc9e55c465e2",
+    "presets/default.toml": "bb436748197dd524c62e966419b408fb1c2c1db29ccca87418f82d36f879057c",
+    "docs/strike_shape.md": "68a2faa9738cd757a08ca246802025416bf1789886a4eb43d9e5b9190d024344"
+  },
+  "compiled_default_matches_preset": true,
+  "fresh_metrics_equal_inherited_baseline": true,
+  "build_command": "CARGO_TARGET_DIR=/tmp/piano-realism-target cargo build --offline --release -p piano-render -p piano-analysis",
+  "bench_command": "python3 tools/bench.py run --no-build --name current-close-playback --out /tmp/piano-realism-audit/bench",
+  "probe_commands": "See audit.json probes[].command; all audio remained local.",
+  "audit_script_sha256": "cbadc64036de0b4634e09f9c4618f9945d3ca28a28aace855beb52837389980b",
+  "probe_audio_copy": "out/realism-audit/"
+}

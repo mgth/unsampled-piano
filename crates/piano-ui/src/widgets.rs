@@ -361,7 +361,7 @@ mod tests {
     #[test]
     fn shown_texts_have_their_glyphs() {
         let ctx = egui::Context::default();
-        let _ = ctx.run_ui(Default::default(), |_| {});
+        ctx.run_ui(Default::default(), |_| {}).drop_without_applying_deltas();
         let reg = piano_params::Registry::new();
         let mut texts: Vec<String> = reg.params().iter().map(|p| p.meta.label.clone()).collect();
         for p in reg.params() {

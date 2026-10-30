@@ -1,0 +1,100 @@
+{
+ "date": "2026-10-28",
+ "branch": "codex/piano-realism-audit",
+ "outline_import_commit": "90bc8f9f44ce8b4b3f4e1fabf28817cd575f9c1e",
+ "calibration_parameter_source": "bf23502: only rho_h, dx, dy, impedance_slope, impedance_slope_bass; not the other branch defaults",
+ "default_changed": false,
+ "default_preset_sha256": "bb436748197dd524c62e966419b408fb1c2c1db29ccca87418f82d36f879057c",
+ "compiled_outline_default": "zero polygon (rectangle)",
+ "compiled_treble_contact_default": null,
+ "ui_preset": "presets/experiments/real-geometry/outline_local.toml",
+ "ui_service": "piano-real-geometry-ui.service",
+ "ui_loaded_model_verified": {
+  "outline_vertices": 10,
+  "rho_h": 7.0,
+  "contact_keys": 16,
+  "note102_strike_ratio": 0.105
+ },
+ "frozen_contact_profiles": true,
+ "coverage": {
+  "attack_rows": 349,
+  "sustain_rows": 71,
+  "attack_identical": true,
+  "sustain_identical": true,
+  "attack_support_sha256": "5a11a4ce504b8aa3a2a430a3d7b906f9d0e1bfe4bc0f92573534f9357880cda2",
+  "sustain_support_sha256": "1e9f6217f0b597961ba1ea0d3e997ca2af89674b3eae5d4b5ad3eef5f2f2a741"
+ },
+ "checks": {
+  "rectangular_old_profile_exact_200ms": 144,
+  "isolated_vs_combined_outline_exact_200ms": 15,
+  "original_90_note_bench_exact_200ms": 90,
+  "six_complete_control_wavs_identical": true
+ },
+ "tests": {
+  "core_and_host": 81,
+  "params_control_ui": 45,
+  "python_bench": 15,
+  "rust_test_env": "CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=true",
+  "initial_release_without_assertions": "AllocDisabler unavailable; rerun with assertions passes",
+  "ui_test_harness_fix": "discard texture deltas as in ab67b43"
+ },
+ "render_macro_values": "all zero; later Tone override support has no effect on the rendered experiment",
+ "inputs": {
+  "presets/default.toml": "bb436748197dd524c62e966419b408fb1c2c1db29ccca87418f82d36f879057c",
+  "bench/baseline.json": "c3d7f1e4b5f62f1d8594db71cdc7dacae6a1c9ccfb113dcfb8ca7e4af13c568c",
+  "bench/references.json": "9e8bbbc01f0033ac3dbef0cba4dd49e718dc53b8825c6df6eba9e767d3abf876",
+  "bench/contact-voicing/references.json": "dfa79c7e5d4d6925d45b20dae02a9f7e62461f8c236f1234e01df7d06f43516c",
+  "bench/contact-voicing/profiles.json": "50df5f38a1d4aebb3c1b7f617bff00d970367e353713251a49567edb75f0ff73",
+  "bench/contact-voicing/note-parameters.json": "228bcce969f7b1d676aed2e38574e67dae09064389917024b9d0e984e0c50cf1",
+  "bench/contact-residuals/profile-local.json": "6328738c099a57ee583cfe636ac10e6bcad81b84b8bef66eb185d55bc7c3198b",
+  "bench/contact-residuals/summary-final.json": "882a04ba1f368c61570caf01fe2d0543e739b8d6ac3b3c4c621f4267a4fcb699",
+  "bench/contact-residuals/sustain-check.json": "3325d03a07eaa9e8352d68f7249a110c3d864eeef4a8e5aa3a3545bf3c87f48d",
+  "out/top-register/effective.toml": "4002d9a8fe71a2998c7dde39f13bb4c1f76f0e87df2674f8087aef67c169d632",
+  "tools/bench.py": "ea1057ed501e94c152c783a741c6a14170dae112aa5e33385672662c8deb4ca0",
+  "tools/contact_voicing.py": "359b7918aa814e13ddfbb006dc104a340fe767b3594d48158e0fe911483611a2"
+ },
+ "sources": {
+  "crates/piano-core/src/eigen.rs": "5a3817013af35df6bbda00efa09e938118d31376620c0c1470fc623eda5b0604",
+  "crates/piano-core/src/soundboard.rs": "f2b8b1a6a34547bb5d99096174cc18056cc61af4d1606a0dd4442373b0f1c8ad",
+  "crates/piano-core/src/structure.rs": "e8ff23080370236bf55a1c177ac6cb1e412eebdad8ca5e4f3b5692b562d672de",
+  "crates/piano-core/src/params.rs": "1dba5f189b035b2814dcb43eff3f88bc855b87536391839d10a64cd8032fd62d",
+  "crates/piano-core/src/note_model.rs": "dff8db5fe3d0f673bbbc498361c8fefb201a18942556e90f0a4b85a62555eaab",
+  "crates/piano-core/src/macros.rs": "44e1bb9abfcfe62807ef95c384952713b720a7ad9fc7778f455e3466bc003a60",
+  "crates/piano-core/src/engine.rs": "43992c825c74d4f8415399ae7065a70b962c615a5933d0108e0ebe5f613e4812",
+  "crates/piano-core/src/hammer.rs": "dbe041c7ea2b957c9a2bb65210cdcba21ba1d277a44dc8106bcfcb84eb36f1ba",
+  "crates/piano-core/src/voice.rs": "1228eda8ce17372385ead3795414e169072a3c25ffe713d47e564b2dc6daae5f",
+  "crates/piano-host/tests/contact_profile.rs": "67132f4c8a8b28fbe1cf4b6b992836ebf31e22227a5a7725f2cc2e404b66f81f",
+  "crates/piano-ui/src/widgets.rs": "d4b39a14793af8b6edd155d31766c8fb15ed95a1e3c5dc9582021e0e59337fbc",
+  "crates/piano-params/src/help.rs": "4b6ddd116046b49497f3b1784ed18c0f352e086284b79db5ffaad39a72d3bd51",
+  "crates/piano-render/examples/contact_batch.rs": "377eaea6f720b6d0b638acb28c6c285cddff9cf475d46f2c2ef398386f9a3a8f"
+ },
+ "executables": {
+  "/tmp/piano-real-geometry-target/release/examples/contact_batch": "cc8704e09f8e12fb45cdb46ff01316f09daabb49378e64016e5cf8811c00b94f",
+  "/tmp/piano-real-geometry-target/release/examples/top_probe": "6bd79fbbc20731f0b4933457fde1ae665fd9e437922a745c89316bec89f6f256",
+  "/tmp/piano-realism-target/release/unsampled-piano": "e0ea058f1039f6817a46b5dc1d614e0e37fe707e4e79d775875ca33f73d0dd81",
+  "/home/user/.codex/worktrees/piano-realism-audit/piano/target/release/piano-survey": "676ee9f429e8328fd7cb5dc90dfd040da0c02628a8cd878faecb45fdd661ad7d"
+ },
+ "presets": {
+  "calibrated_base.toml": "c4d6f83a94a1a3fd264bb461ccd66f9a766c28728e8301abf61ff4b0399c98d7",
+  "calibrated_guarded.toml": "4e4309fc49c5b748ec6d720957fde337c6e4a8fcb9c9fe110d387269683dfe4e",
+  "calibrated_local.toml": "112973e9355f09570b69e769faf0cb54712074afb38f8ba1a73853f890b790e3",
+  "outline_base.toml": "660414cbc25612b3e1f786e137ceb761d8e9e2602db85c7e91f15f51ccf472e1",
+  "outline_guarded.toml": "749806c1480740495038e9a3a6950378f799f5ffda5a34ccd28f7af25a95f968",
+  "outline_local.toml": "3d1097025988c1a5b153f223853a8c7a0831d104c1b8247e2a11fd7b45f10fb0",
+  "rect_base.toml": "4002d9a8fe71a2998c7dde39f13bb4c1f76f0e87df2674f8087aef67c169d632",
+  "rect_guarded.toml": "6f8b055e8bcbc87c403cc13e68b922b086c4468e57f8dcd3f3674de3753cb3b8",
+  "rect_local.toml": "6b025521956abec64dc5e84e58df3150a249fdeae13c0ef30e6a7f2ff7b8a0e8"
+ },
+ "scripts": {
+  "present.py": "a4aec7cb1bb5501a60e00f40f50706fd6bb22cd47998259000272465f74481da",
+  "check.py": "a50ae6f61f0ba3ee063ce14e1ce94d1a87bc2084145dd09dd10b9e5e0e038ba1",
+  "run.py": "cef02dc58f7dc0ae265633d4f793e78f004d28e07a45c3bbb85e1869812795f9",
+  "default_control.py": "beb5a2f4fca964eb09fd928648839c2c8b1e2ceaae0bba2fc8561d75b429e77d"
+ },
+ "unchanged_inherited_engine": {
+  "crates/piano-core/src/engine.rs": true,
+  "crates/piano-core/src/hammer.rs": true,
+  "crates/piano-core/src/voice.rs": true
+ },
+ "wav_paths": 4592
+}

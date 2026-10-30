@@ -1,6 +1,16 @@
 # Test bench: scoring the model against real pianos
 
-Status as of 2026-10-24.
+Updated 2026-10-28: measurement protocol `channel-power-v2`.
+
+The note-set bench now measures mean channel **power**, including the Rust
+partial tracker and decay fits (`piano-survey --channel-power`). It no longer
+sums L/R pressures before measuring. Plath must be imported with one fixed
+gain per pascal; the old per-note normalisation is rejected. Reference and
+baseline JSON files carry `analysis_version`: old references are rejected and
+an old baseline is not scored against new measurements. Rebuild all sources
+before saving a new baseline. See [bench_bias_correction.md](bench_bias_correction.md)
+for the controlled before/after comparison. The historical results below
+predate this protocol unless explicitly identified otherwise.
 
 Until now each change was measured with the script written for it (`tools/band_score.py`, `tools/hammer_score.py`, `tools/set_metrics.py`…), and what it moved elsewhere was found later: the release-ring gain of the treble cost its mf sustain at 3 s. The bench measures everything at every change, with one fixed set of measures, and against real pianos only. The commercial modelled piano used so far as a reference is itself a model: its biases would become ours. It is still measured, as information, and never enters the targets.
 
@@ -60,12 +70,17 @@ Levels below −60 dB re the peak count as −60 dB, and a level within 6 dB of 
 | `tools/maps_set.py` | MAPS isolated notes: M and F, pedal up |
 | `tools/plath_set.py` | Plath's anechoic measurements: the ears of the dummy head, median take |
 
-and the line that measures them all (11 sources, about 2 min):
+First import Plath with a common calibrated gain (float WAV, median take,
+manifest retaining the source pressure and selected take):
+
+    python3 tools/plath_set.py <Plath CSV directory> out/bench/sets/plath-calibrated
+
+Then measure all sources (11 sets):
 
     tools/bench.py refs iowa=out/compare/iowa:nodyn salamander=out/compare/salamander:nodyn \
         headroom=out/bench/sets/headroom:nodyn splendid=out/bench/sets/splendid:nodyn \
         helgesson=out/bench/sets/helgesson:nodyn liang=out/bench/sets/liang:nodyn \
-        plath=out/bench/sets/plath:nodyn bivib_grand=out/bench/sets/bivib_grand \
+        plath=out/bench/sets/plath-calibrated:nodyn bivib_grand=out/bench/sets/bivib_grand \
         bivib_upright=out/bench/sets/bivib_upright:info maps_close=out/bench/sets/maps_close:info:nodyn \
         commercial=out/compare/commercial:info
 
@@ -145,3 +160,26 @@ The velocity an instrument records under the fingers is a measurement, on anothe
 
 `presets/touch/recorded_performances.toml` is that law, the default since 2026-10-24 (chosen after a second A/B on MAESTRO and Liang's pieces; within Schubert's performance, middle notes at velocity 30–45 sit 1.2 dB lower, loud treble notes 0.4 dB higher). `tools/velocity_fit_pieces.py` fits it on the performances, keeping velocity 60 at the default law's speed (1.29 m/s, the mf timbre unchanged): 0.205–5.6 m/s, curve 0.78. The level against the performances is 2.0 dB rms, 2.2 with the default law. It is applied over an instrument as a listening preset is (`unsampled-piano-render --listening presets/touch/recorded_performances.toml`), and was chosen after an A/B on MAESTRO.
 
+
+## Channel-power protocol details
+
+`tools/bench.py` calls `load(..., stereo=True)` and measures
+`(|FFT(L)|² + |FFT(R)|²)/2`. Mono recordings are duplicated without changing
+their energy. Onsets use the RMS across channels; time-domain levels and
+filtered envelopes average the channel energies. Partial ratios use the square
+root of the pooled power to retain the existing amplitude-dB and SNR conventions.
+The Rust survey tracks peaks on pooled spectra and combines heterodyned channel
+energies **before** fitting each decay. It does not average independently fitted
+T60 values. ESPRIT is phase-sensitive and cannot be combined with
+`--channel-power`; its existing mono diagnostic remains available.
+
+Legacy callers of `bench.load()` retain their mono default. This migration is
+for the isolated-note bench; the separate piece/pedal scripts and older scratch
+analyses have not been silently migrated. References are trimmed to 20.5 s as
+float WAV to preserve the fixed-gain import. Survey diagnostics are retained
+beside each CSV in `.csv.log` files.
+
+Validation:
+
+    python3 -m unittest discover -s tools -p 'test_*.py'
+    cargo test -p piano-analysis

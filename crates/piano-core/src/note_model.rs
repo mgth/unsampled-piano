@@ -293,7 +293,7 @@ impl NoteModel {
             region_mix,
             basis,
             has_damper,
-            unison: model.unison,
+            unison: model.unison_at(note),
             h_radiation: pol.radiation,
             n_listen,
             longitudinal,

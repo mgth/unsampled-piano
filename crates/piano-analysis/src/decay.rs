@@ -28,6 +28,27 @@ pub fn envelope(x: &[f32], sr: f64, freq: f64, win_s: f64, hop_s: f64) -> Vec<(f
     out
 }
 
+/// Per-channel demodulation, then mean energy before fitting any slope.
+/// Averaging channel T60 values would not describe the energy envelope.
+pub fn envelope_channels(channels: &[&[f32]], sr: f64, freq: f64, win_s: f64, hop_s: f64) -> Vec<(f64, f64)> {
+    assert!(!channels.is_empty());
+    assert!(channels.iter().all(|c| c.len() == channels[0].len()));
+    let mut out = envelope(channels[0], sr, freq, win_s, hop_s);
+    if channels.len() == 1 {
+        return out;
+    }
+    let mut power: Vec<f64> = out.iter().map(|p| 10f64.powf(p.1 / 10.0)).collect();
+    for c in &channels[1..] {
+        for (sum, (_, db)) in power.iter_mut().zip(envelope(c, sr, freq, win_s, hop_s)) {
+            *sum += 10f64.powf(db / 10.0);
+        }
+    }
+    for (p, sum) in out.iter_mut().zip(power) {
+        p.1 = 10.0 * (sum / channels.len() as f64).max(1e-300).log10();
+    }
+    out
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct LineFit {
     /// Level at t = 0, dB.
@@ -110,7 +131,9 @@ pub fn fit_double(pts: &[(f64, f64)]) -> Option<DoubleDecay> {
     }
     let mut best: Option<(f64, usize)> = None;
     for j in 4..n - 4 {
-        let (Some(l), Some(r)) = (line_fit(&pts[..j]), line_fit(&pts[j..])) else { continue };
+        let (Some(l), Some(r)) = (line_fit(&pts[..j]), line_fit(&pts[j..])) else {
+            continue;
+        };
         let sse = l.rms_err_db.powi(2) * j as f64 + r.rms_err_db.powi(2) * (n - j) as f64;
         if best.is_none_or(|b| sse < b.0) {
             best = Some((sse, j));
@@ -139,10 +162,7 @@ pub fn fit_double(pts: &[(f64, f64)]) -> Option<DoubleDecay> {
             (a2, s2) = e;
         }
     }
-    let err = (pts
-        .iter()
-        .map(|&(t, d)| (d - 20.0 * (a1 * (-s1 * t).exp() + a2 * (-s2 * t).exp()).log10()).powi(2))
-        .sum::<f64>()
+    let err = (pts.iter().map(|&(t, d)| (d - 20.0 * (a1 * (-s1 * t).exp() + a2 * (-s2 * t).exp()).log10()).powi(2)).sum::<f64>()
         / n as f64)
         .sqrt();
     Some(DoubleDecay { a1, sigma1: s1, a2, sigma2: s2, knee_s: pts[j].0, rms_err_db: err })
@@ -151,18 +171,12 @@ pub fn fit_double(pts: &[(f64, f64)]) -> Option<DoubleDecay> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::synth::{render, Partial};
+    use crate::synth::{Partial, render};
 
     #[test]
     fn single_decay_t60() {
         let sr = 48_000.0;
-        let x = render(
-            &[Partial { freq: 440.0, amp: 0.5, sigma: 1.3, slow: None, phase: 0.0 }],
-            sr,
-            6.0,
-            1e-5,
-            1,
-        );
+        let x = render(&[Partial { freq: 440.0, amp: 0.5, sigma: 1.3, slow: None, phase: 0.0 }], sr, 6.0, 1e-5, 1);
         let env = envelope(&x, sr, 440.0, 0.05, 0.01);
         let fit = line_fit(usable(&env, 10.0)).unwrap();
         assert!((fit.sigma() - 1.3).abs() / 1.3 < 0.01, "{}", fit.sigma());

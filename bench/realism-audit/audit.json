@@ -1,0 +1,3607 @@
+{
+  "model_result": "/tmp/piano-realism-audit/bench/current-close-playback/result.json",
+  "model_sha256": "bcc6783912dc9e0dc0baf9f75db6ec7fcd961beea45fcd631b5c319543558a41",
+  "references_sha256": "7e1860e1594bb787ecda8d7c6726b23841ced7dac9ff1e3f6f9dcc185fda4aed",
+  "scores": {
+    "common_keys": [
+      "bass|attack_ff|p2",
+      "bass|attack_ff|p3",
+      "bass|attack_ff|p4",
+      "bass|attack_ff|p6",
+      "bass|balance|ff",
+      "bass|bands_att|1k",
+      "bass|bands_att|2k",
+      "bass|bands_att|4k",
+      "bass|bands_att|8k",
+      "bass|bands_sus|1k",
+      "bass|bands_sus|2k",
+      "bass|bands_sus|4k",
+      "bass|bands_sus|8k",
+      "bass|bright_ff|centroid",
+      "bass|env_ff|0.3s",
+      "bass|env_ff|1s",
+      "bass|env_ff|2s",
+      "bass|env_ff|3s",
+      "bass|hf_ff|2-4k",
+      "bass|hf_ff|4-8k",
+      "bass|inharm|log10 B",
+      "bass|stretch|cents",
+      "bass|sustain_ff|p12",
+      "bass|sustain_ff|p2",
+      "bass|sustain_ff|p3",
+      "bass|sustain_ff|p4",
+      "bass|sustain_ff|p6",
+      "bass|sustain_ff|p8",
+      "bass|t60_ff|p1-4 early",
+      "bass|t60_ff|p1-4 late",
+      "bass|t60_ff|p5-12 early",
+      "middle|attack_ff|p2",
+      "middle|attack_ff|p3",
+      "middle|attack_ff|p4",
+      "middle|attack_ff|p6",
+      "middle|bands_att|1k",
+      "middle|bands_att|2k",
+      "middle|bands_att|4k",
+      "middle|bands_att|8k",
+      "middle|bands_sus|1k",
+      "middle|bands_sus|2k",
+      "middle|bands_sus|4k",
+      "middle|bands_sus|8k",
+      "middle|bright_ff|centroid",
+      "middle|env_ff|0.3s",
+      "middle|env_ff|1s",
+      "middle|env_ff|2s",
+      "middle|env_ff|3s",
+      "middle|evenness|p1",
+      "middle|evenness|p2",
+      "middle|hf_ff|2-4k",
+      "middle|hf_ff|4-8k",
+      "middle|inharm|log10 B",
+      "middle|stretch|cents",
+      "middle|sustain_ff|p12",
+      "middle|sustain_ff|p2",
+      "middle|sustain_ff|p3",
+      "middle|sustain_ff|p4",
+      "middle|sustain_ff|p6",
+      "middle|sustain_ff|p8",
+      "middle|t60_ff|p1-4 early",
+      "middle|t60_ff|p1-4 late",
+      "middle|t60_ff|p5-12 early",
+      "top|attack_ff|p2",
+      "top|attack_ff|p3",
+      "top|attack_ff|p4",
+      "top|balance|ff",
+      "top|bands_att|1k",
+      "top|bands_att|2k",
+      "top|bands_att|4k",
+      "top|bands_sus|1k",
+      "top|bands_sus|2k",
+      "top|bands_sus|4k",
+      "top|bright_ff|centroid",
+      "top|env_ff|0.3s",
+      "top|env_ff|1s",
+      "top|hf_ff|2-4k",
+      "top|hf_ff|4-8k",
+      "top|inharm|log10 B",
+      "top|stretch|cents",
+      "top|sustain_ff|p2",
+      "top|sustain_ff|p3",
+      "top|t60_ff|p1-4 early",
+      "top|t60_ff|p1-4 late",
+      "treble|attack_ff|p2",
+      "treble|attack_ff|p3",
+      "treble|attack_ff|p4",
+      "treble|attack_ff|p6",
+      "treble|balance|ff",
+      "treble|bands_att|1k",
+      "treble|bands_att|2k",
+      "treble|bands_att|4k",
+      "treble|bands_sus|1k",
+      "treble|bands_sus|2k",
+      "treble|bands_sus|4k",
+      "treble|bright_ff|centroid",
+      "treble|env_ff|0.3s",
+      "treble|env_ff|1s",
+      "treble|env_ff|2s",
+      "treble|hf_ff|2-4k",
+      "treble|hf_ff|4-8k",
+      "treble|inharm|log10 B",
+      "treble|stretch|cents",
+      "treble|sustain_ff|p12",
+      "treble|sustain_ff|p2",
+      "treble|sustain_ff|p3",
+      "treble|sustain_ff|p4",
+      "treble|sustain_ff|p6",
+      "treble|sustain_ff|p8",
+      "treble|t60_ff|p1-4 early",
+      "treble|t60_ff|p1-4 late",
+      "treble|t60_ff|p5-12 early"
+    ],
+    "model": {
+      "score": 1.0264279767882993,
+      "within": 0.708994708994709,
+      "off": 9,
+      "families": {
+        "attack": 0.9863447480383135,
+        "brightness": 1.2096958293485327,
+        "dynamics": 0.292638187814284,
+        "sustain": 1.4680810592522007,
+        "decay": 0.911617033322729,
+        "tuning": 0.5448901480612244
+      },
+      "registers": {
+        "bass": 0.7622773741557838,
+        "middle": 0.8157691555186165,
+        "treble": 0.9882341062378343,
+        "top": 1.480913984001694
+      },
+      "n": 189,
+      "equal_family_rms": 0.9836233998103312
+    },
+    "model_common": {
+      "score": 1.081389074410213,
+      "within": 0.6339285714285714,
+      "off": 6,
+      "families": {
+        "attack": 0.9143206357036011,
+        "dynamics": 0.5619135482763334,
+        "brightness": 1.2752974267284067,
+        "decay": 0.949590852616117,
+        "tuning": 0.5448901480612244,
+        "sustain": 1.25657122528503
+      },
+      "registers": {
+        "bass": 0.8641127761544666,
+        "middle": 0.9340751397154895,
+        "top": 1.5814686841186498,
+        "treble": 0.9889361616872613
+      },
+      "n": 112,
+      "equal_family_rms": 0.9622639877108171
+    },
+    "real_leave_one_out": {
+      "iowa": {
+        "available": {
+          "score": 1.4731655722702617,
+          "within": 0.5251396648044693,
+          "off": 33,
+          "families": {
+            "attack": 1.900533452620969,
+            "brightness": 1.241327803708453,
+            "dynamics": 1.4211968764076854,
+            "sustain": 1.7064569307595079,
+            "decay": 1.1648448481981377,
+            "tuning": 0.678701309903603
+          },
+          "registers": {
+            "bass": 1.039893056143067,
+            "middle": 1.4645802568199275,
+            "treble": 1.7478680862710694,
+            "top": 1.5860109554696147
+          },
+          "n": 179,
+          "equal_family_rms": 1.4084398536014808
+        },
+        "common": {
+          "score": 1.4899399828898114,
+          "within": 0.5089285714285714,
+          "off": 21,
+          "families": {
+            "attack": 1.9617920830279367,
+            "dynamics": 1.9762352564044514,
+            "brightness": 1.2299375834801325,
+            "decay": 1.1080451954534998,
+            "tuning": 0.678701309903603,
+            "sustain": 1.7429975941448888
+          },
+          "registers": {
+            "bass": 0.9473914985775304,
+            "middle": 1.4219176234690305,
+            "top": 1.4627325847943733,
+            "treble": 1.992634550870362
+          },
+          "n": 112,
+          "equal_family_rms": 1.5271608003836907
+        },
+        "model_same_targets_common": {
+          "score": 1.1499242245393928,
+          "within": 0.625,
+          "off": 8,
+          "families": {
+            "attack": 1.0161402910342112,
+            "brightness": 1.307314735191212,
+            "dynamics": 0.5226500625032917,
+            "sustain": 1.3417647154076946,
+            "decay": 1.0579727393509493,
+            "tuning": 0.5444699992914246
+          },
+          "registers": {
+            "bass": 0.8163064628205414,
+            "middle": 1.0204930926666618,
+            "treble": 1.153507512975283,
+            "top": 1.6455164513714946
+          },
+          "n": 112,
+          "equal_family_rms": 1.0190569533149347
+        }
+      },
+      "salamander": {
+        "available": {
+          "score": 1.1712067575578802,
+          "within": 0.6055555555555555,
+          "off": 15,
+          "families": {
+            "attack": 1.3002966406468563,
+            "brightness": 1.6354863867334946,
+            "dynamics": 1.1202085998573295,
+            "sustain": 0.8034235649816339,
+            "decay": 0.8657116654100835,
+            "tuning": 0.5839241327529818
+          },
+          "registers": {
+            "bass": 1.5831395473322951,
+            "middle": 1.0754063252012185,
+            "treble": 0.985562162171963,
+            "top": 0.8337205828209919
+          },
+          "n": 180,
+          "equal_family_rms": 1.1072765302961902
+        },
+        "common": {
+          "score": 1.2694310746898063,
+          "within": 0.5803571428571429,
+          "off": 13,
+          "families": {
+            "attack": 1.4061871714031842,
+            "dynamics": 1.1347262433012442,
+            "brightness": 1.7008867770723959,
+            "decay": 0.954713808289671,
+            "tuning": 0.5839241327529818,
+            "sustain": 0.7966154126469879
+          },
+          "registers": {
+            "bass": 1.8447130099313331,
+            "middle": 1.2089756628839232,
+            "top": 0.7571028910001033,
+            "treble": 0.760212145464454
+          },
+          "n": 112,
+          "equal_family_rms": 1.157945292381595
+        },
+        "model_same_targets_common": {
+          "score": 1.084933126466715,
+          "within": 0.6339285714285714,
+          "off": 6,
+          "families": {
+            "attack": 0.90921932720428,
+            "brightness": 1.255355427829046,
+            "dynamics": 0.6243372929149009,
+            "sustain": 1.2723453887627463,
+            "decay": 0.9699963400324907,
+            "tuning": 0.6148331477452166
+          },
+          "registers": {
+            "bass": 0.9548736828822744,
+            "middle": 0.9450094148138437,
+            "treble": 0.971040131204612,
+            "top": 1.521098470075589
+          },
+          "n": 112,
+          "equal_family_rms": 0.9772554747876405
+        }
+      },
+      "headroom": {
+        "available": {
+          "score": 0.9992637598386342,
+          "within": 0.7555555555555555,
+          "off": 8,
+          "families": {
+            "attack": 1.0531736258775846,
+            "brightness": 0.8368891449487877,
+            "dynamics": 0.8737587440651331,
+            "sustain": 1.3183237688055236,
+            "decay": 0.8997830867398287,
+            "tuning": 1.1549786226561911
+          },
+          "registers": {
+            "bass": 1.0765678522333992,
+            "middle": 0.7535165529220108,
+            "treble": 1.0246679289119205,
+            "top": 1.1303458322036584
+          },
+          "n": 180,
+          "equal_family_rms": 1.0371897328342725
+        },
+        "common": {
+          "score": 0.9278095395659982,
+          "within": 0.75,
+          "off": 4,
+          "families": {
+            "attack": 0.802298823581339,
+            "dynamics": 0.9402492694294491,
+            "brightness": 0.8591287213972016,
+            "decay": 0.5175871898087434,
+            "tuning": 1.1549786226561911,
+            "sustain": 1.3183237688055236
+          },
+          "registers": {
+            "bass": 1.0022447160293861,
+            "middle": 0.7158899520947074,
+            "top": 0.9077642790998056,
+            "treble": 1.0618209899151487
+          },
+          "n": 112,
+          "equal_family_rms": 0.9665836684044057
+        },
+        "model_same_targets_common": {
+          "score": 1.1101891033722346,
+          "within": 0.6428571428571429,
+          "off": 8,
+          "families": {
+            "attack": 0.9218569040942427,
+            "brightness": 1.249163010280343,
+            "dynamics": 0.6458255345659362,
+            "sustain": 1.4018891210857178,
+            "decay": 0.9564686770333842,
+            "tuning": 0.5147329139116124
+          },
+          "registers": {
+            "bass": 0.9380336941721903,
+            "middle": 0.9175210641581575,
+            "treble": 1.105022241160478,
+            "top": 1.537406379893832
+          },
+          "n": 112,
+          "equal_family_rms": 0.997696881957363
+        }
+      },
+      "splendid": {
+        "available": {
+          "score": 1.2100415296475031,
+          "within": 0.655367231638418,
+          "off": 22,
+          "families": {
+            "attack": 1.214344462303151,
+            "brightness": 0.9972572600334355,
+            "dynamics": 0.8816092430805481,
+            "sustain": 1.245810611937334,
+            "decay": 1.433608944160931,
+            "tuning": 0.36666925188463967
+          },
+          "registers": {
+            "bass": 1.116373523787522,
+            "middle": 0.8931390375447307,
+            "treble": 1.36660610230821,
+            "top": 1.460073727538434
+          },
+          "n": 177,
+          "equal_family_rms": 1.0792060661409322
+        },
+        "common": {
+          "score": 1.1182484008853282,
+          "within": 0.7321428571428571,
+          "off": 12,
+          "families": {
+            "attack": 1.3216738817611953,
+            "dynamics": 0.43399139125987773,
+            "brightness": 1.0363888354040127,
+            "decay": 1.2431144221804298,
+            "tuning": 0.36666925188463967,
+            "sustain": 1.1032374303959953
+          },
+          "registers": {
+            "bass": 1.1366674764594906,
+            "middle": 0.7364599010501225,
+            "top": 1.5033737425966307,
+            "treble": 1.1209462547987377
+          },
+          "n": 112,
+          "equal_family_rms": 0.9921512678942377
+        },
+        "model_same_targets_common": {
+          "score": 1.077880729562646,
+          "within": 0.6517857142857143,
+          "off": 6,
+          "families": {
+            "attack": 0.994396879294559,
+            "brightness": 1.2485750399403055,
+            "dynamics": 0.604998113073051,
+            "sustain": 1.2621861404269201,
+            "decay": 0.8897056556445834,
+            "tuning": 0.5421210441559987
+          },
+          "registers": {
+            "bass": 0.9357630420323326,
+            "middle": 0.905251676622226,
+            "treble": 0.9278234306820162,
+            "top": 1.5834264604820947
+          },
+          "n": 112,
+          "equal_family_rms": 0.9654336447095676
+        }
+      },
+      "helgesson": {
+        "available": {
+          "score": 0.9363729273277294,
+          "within": 0.7611111111111111,
+          "off": 10,
+          "families": {
+            "attack": 0.9720723173802914,
+            "brightness": 0.7309780985170464,
+            "dynamics": 0.8474073849601663,
+            "sustain": 1.3480516234606317,
+            "decay": 0.7514784957896704,
+            "tuning": 1.3206991660936385
+          },
+          "registers": {
+            "bass": 1.0864323777761098,
+            "middle": 0.7463595967315686,
+            "treble": 0.9152636349452802,
+            "top": 0.9718917879107023
+          },
+          "n": 180,
+          "equal_family_rms": 1.0266094878517422
+        },
+        "common": {
+          "score": 0.8938655409534665,
+          "within": 0.7767857142857143,
+          "off": 5,
+          "families": {
+            "attack": 0.7224986613162183,
+            "dynamics": 0.5182308226319923,
+            "brightness": 0.7038602230516546,
+            "decay": 0.489092138576804,
+            "tuning": 1.3206991660936385,
+            "sustain": 1.3672677958845099
+          },
+          "registers": {
+            "bass": 1.2345808731458972,
+            "middle": 0.641366978040515,
+            "top": 0.9589838865043507,
+            "treble": 0.5904513010293286
+          },
+          "n": 112,
+          "equal_family_rms": 0.9254607273969754
+        },
+        "model_same_targets_common": {
+          "score": 1.0375344989204967,
+          "within": 0.6785714285714286,
+          "off": 6,
+          "families": {
+            "attack": 0.8625822017547076,
+            "brightness": 1.220860111589146,
+            "dynamics": 0.5722601619689588,
+            "sustain": 1.206510508768066,
+            "decay": 0.9052097364289011,
+            "tuning": 0.6208448659015611
+          },
+          "registers": {
+            "bass": 0.8402565198026409,
+            "middle": 0.9287463761321386,
+            "treble": 0.951471718640603,
+            "top": 1.4756429658363934
+          },
+          "n": 112,
+          "equal_family_rms": 0.9329656819376213
+        }
+      },
+      "liang": {
+        "available": {
+          "score": 1.7277960689302234,
+          "within": 0.7017543859649122,
+          "off": 11,
+          "families": {
+            "attack": 0.7632072815658711,
+            "brightness": 1.015881575352524,
+            "dynamics": 1.354222223639845,
+            "sustain": 0.9603959357659521,
+            "decay": 3.1972671499235488,
+            "tuning": 0.5386384229283901
+          },
+          "registers": {
+            "bass": 2.2663296696092745,
+            "middle": 1.9687077284003114,
+            "treble": 1.018944744621777,
+            "top": 1.1033782319358791
+          },
+          "n": 114,
+          "equal_family_rms": 1.574982936037019
+        },
+        "common": {
+          "score": 1.7421540984936905,
+          "within": 0.6964285714285714,
+          "off": 11,
+          "families": {
+            "attack": 0.7632072815658713,
+            "dynamics": 1.354222223639845,
+            "brightness": 1.015881575352524,
+            "decay": 3.325375379121879,
+            "tuning": 0.5386384229283901,
+            "sustain": 0.9603959357659522
+          },
+          "registers": {
+            "bass": 2.266329669609274,
+            "middle": 1.9687077284003116,
+            "top": 1.1466445246586277,
+            "treble": 1.018944744621777
+          },
+          "n": 112,
+          "equal_family_rms": 1.61859155219059
+        },
+        "model_same_targets_common": {
+          "score": 1.131339609985715,
+          "within": 0.6160714285714286,
+          "off": 7,
+          "families": {
+            "attack": 0.9662525512547305,
+            "brightness": 1.3782082027535278,
+            "dynamics": 0.5896637312514258,
+            "sustain": 1.2469359243955498,
+            "decay": 0.9922604948258554,
+            "tuning": 0.5262943974945696
+          },
+          "registers": {
+            "bass": 0.9197694300321351,
+            "middle": 0.9474374197086924,
+            "treble": 0.9668986711299852,
+            "top": 1.7213702010412024
+          },
+          "n": 112,
+          "equal_family_rms": 0.9997683932517527
+        }
+      },
+      "plath": {
+        "available": {
+          "score": 1.0318219450407913,
+          "within": 0.6608695652173913,
+          "off": 6,
+          "families": {
+            "attack": 1.1490474260746095,
+            "brightness": 1.3151812305854453,
+            "dynamics": 1.1109585886501463,
+            "sustain": 0.9028263247244206,
+            "decay": 0.6013193650551755,
+            "tuning": 0.8155012118516239
+          },
+          "registers": {
+            "bass": 1.0658207009593847,
+            "middle": 1.0573609147738985,
+            "treble": 0.7482848315899809,
+            "top": 1.2372119944002915
+          },
+          "n": 115,
+          "equal_family_rms": 1.0104424130288745
+        },
+        "common": {
+          "score": 1.0429027185567352,
+          "within": 0.6517857142857143,
+          "off": 6,
+          "families": {
+            "attack": 1.1490474260746095,
+            "dynamics": 1.1109585886501463,
+            "brightness": 1.3151812305854453,
+            "decay": 0.617240326923205,
+            "tuning": 0.8155012118516239,
+            "sustain": 0.9028263247244206
+          },
+          "registers": {
+            "bass": 1.0658207009593847,
+            "middle": 1.0573609147738985,
+            "top": 1.2833534846776788,
+            "treble": 0.7615273048085202
+          },
+          "n": 112,
+          "equal_family_rms": 1.012041160450469
+        },
+        "model_same_targets_common": {
+          "score": 1.1439713381431864,
+          "within": 0.6785714285714286,
+          "off": 7,
+          "families": {
+            "attack": 0.9227994523381944,
+            "brightness": 1.5084151999777755,
+            "dynamics": 0.44636262785863473,
+            "sustain": 1.2122685467542618,
+            "decay": 0.8957792029771293,
+            "tuning": 0.4985241197560627
+          },
+          "registers": {
+            "bass": 0.8428167772950782,
+            "middle": 0.866875468552085,
+            "treble": 0.9688635857557586,
+            "top": 1.879968324994838
+          },
+          "n": 112,
+          "equal_family_rms": 0.9871386721414506
+        }
+      },
+      "bivib_grand": {
+        "available": {
+          "score": 0.9150755330002983,
+          "within": 0.7816091954022989,
+          "off": 7,
+          "families": {
+            "attack": 0.9182594632318626,
+            "brightness": 1.1721696156804398,
+            "dynamics": 0.5864294751285418,
+            "sustain": 0.7228376221949431,
+            "decay": 0.8754315095427826,
+            "tuning": 0.5854291966874967
+          },
+          "registers": {
+            "bass": 0.7183155156620639,
+            "middle": 0.8792604642039377,
+            "treble": 0.8919880267574808,
+            "top": 1.2148300532700844
+          },
+          "n": 174,
+          "equal_family_rms": 0.8359309659828175
+        },
+        "common": {
+          "score": 0.9149214333721571,
+          "within": 0.75,
+          "off": 4,
+          "families": {
+            "attack": 0.644791973015699,
+            "dynamics": 0.2572219878468866,
+            "brightness": 1.2350607512374168,
+            "decay": 0.9341553832114085,
+            "tuning": 0.5854291966874967,
+            "sustain": 0.7228376221949432
+          },
+          "registers": {
+            "bass": 0.6704431666170944,
+            "middle": 0.9688949516814553,
+            "top": 0.9893569019579783,
+            "treble": 1.0216089568602695
+          },
+          "n": 112,
+          "equal_family_rms": 0.7900593597025874
+        },
+        "model_same_targets_common": {
+          "score": 1.1187928070433637,
+          "within": 0.625,
+          "off": 8,
+          "families": {
+            "attack": 0.8995950507039013,
+            "brightness": 1.3397076312728733,
+            "dynamics": 0.5499427260133984,
+            "sustain": 1.2773353559280665,
+            "decay": 1.0169642803537944,
+            "tuning": 0.5611759736349549
+          },
+          "registers": {
+            "bass": 0.8548248657552538,
+            "middle": 1.0336064059564094,
+            "treble": 1.0465076062487693,
+            "top": 1.5839322876590822
+          },
+          "n": 112,
+          "equal_family_rms": 0.990559204594498
+        }
+      }
+    },
+    "worst_model_measures": [
+      {
+        "key": "top|bands_att|1k",
+        "value": -44.27590695846091,
+        "target": -23.64736585105009,
+        "tol": 5.0994181332479025,
+        "z": -4.0452735132492785,
+        "refs": [
+          -17.323600818978488,
+          -22.603650993580246,
+          -22.809929894941227,
+          -22.237034392127892,
+          -20.926671712248872,
+          -30.691607075547623,
+          -33.12103724781589,
+          -19.465394673160475
+        ]
+      },
+      {
+        "key": "top|sustain_ff|p4",
+        "value": -81.2948325057863,
+        "target": -61.119567195614735,
+        "tol": 5.23835727529584,
+        "z": -3.8514488893910266,
+        "refs": [
+          -62.78225809491963,
+          -64.98166854445898,
+          -52.15961045357929,
+          -64.55473168950104
+        ]
+      },
+      {
+        "key": "top|attack_mf|p2",
+        "value": -25.05144634598295,
+        "target": -34.26180102915059,
+        "tol": 3.0,
+        "z": 3.070118227722547,
+        "refs": [
+          -30.753380142292787,
+          -36.37113680053697,
+          -34.894368280671294,
+          -35.09766267862201,
+          -35.60551399347702,
+          -32.84874427930344
+        ]
+      },
+      {
+        "key": "top|attack_ff|p3",
+        "value": -32.17551875606922,
+        "target": -45.22823595573822,
+        "tol": 4.751704439006164,
+        "z": 2.7469547753266865,
+        "refs": [
+          -48.27302839793746,
+          -50.37781181266036,
+          -43.36888522071029,
+          -39.275723946194056,
+          -45.68633807901937,
+          -39.72000928138791,
+          -53.2412765420842,
+          -41.8828143659121
+        ]
+      },
+      {
+        "key": "top|t60_ff|p1-4 early",
+        "value": -0.717747297428178,
+        "target": -1.309513802902743,
+        "tol": 0.267753417402118,
+        "z": 2.210117470081949,
+        "refs": [
+          -0.9761734414755323,
+          -1.1877714249879279,
+          -1.2507150668780678,
+          -1.663366254459656,
+          -1.4269080440051876,
+          -1.7631720123761423,
+          -1.1902342782154225,
+          -1.0177699008240089
+        ]
+      },
+      {
+        "key": "top|bands_sus|2k",
+        "value": -36.63208179377925,
+        "target": -28.935864677686403,
+        "tol": 3.5086158925116884,
+        "z": -2.1935194252863655,
+        "refs": [
+          -22.964254680319005,
+          -30.21577920297135,
+          -25.131086550905934,
+          -33.056286201455265,
+          -27.621878952204433,
+          -28.493357710806848,
+          -34.12394560653502,
+          -29.880328516293392
+        ]
+      },
+      {
+        "key": "bass|t60_ff|p5-12 early",
+        "value": 1.291310378107607,
+        "target": 1.829973962026962,
+        "tol": 0.25,
+        "z": -2.15465433567742,
+        "refs": [
+          1.7053660830609363,
+          2.0946072093863055,
+          1.7163891622032783,
+          1.9382739243063314,
+          1.911059871619567,
+          1.5049880930775963,
+          1.968272522613952,
+          1.800834829947728
+        ]
+      },
+      {
+        "key": "top|attack_mf|p3",
+        "value": -41.20959652435227,
+        "target": -50.46447789351413,
+        "tol": 4.417678100170226,
+        "z": 2.0949650833104476,
+        "refs": [
+          -48.272975350621394,
+          -50.00082659860452,
+          -54.672169095162246,
+          -52.53970584508483,
+          -55.111479307289024,
+          -42.189711164322794
+        ]
+      },
+      {
+        "key": "middle|bands_att|8k",
+        "value": -34.025617295211234,
+        "target": -42.07716569764604,
+        "tol": 3.975104196233691,
+        "z": 2.0254936738673264,
+        "refs": [
+          -44.07447624740023,
+          -47.034088060608696,
+          -45.86530658497335,
+          -38.97393310979521,
+          -39.33684584677746,
+          -38.00983703716846,
+          -46.63500100298074,
+          -36.687837691464146
+        ]
+      },
+      {
+        "key": "top|bands_sus|1k",
+        "value": -54.370239844894044,
+        "target": -42.69050717592484,
+        "tol": 5.936434733436891,
+        "z": -1.9674658601371056,
+        "refs": [
+          -33.822552607150364,
+          -45.18219273282555,
+          -44.43462675090148,
+          -37.3180917756439,
+          -37.41976717148148,
+          -53.57662685976047,
+          -47.03630501485717,
+          -42.733894494778355
+        ]
+      },
+      {
+        "key": "middle|sustain_ff|p12",
+        "value": -25.06954703840719,
+        "target": -32.84243692554584,
+        "tol": 4.0,
+        "z": 1.9432224717846625,
+        "refs": [
+          -29.24110083513552,
+          -29.26440825887697,
+          -35.19324634720142,
+          -32.14416825740249,
+          -35.17218881906092,
+          -37.92317268287203,
+          -35.994085427593426,
+          -27.807124776223905
+        ]
+      },
+      {
+        "key": "treble|attack_mf|p2",
+        "value": -19.547091700550347,
+        "target": -25.315155009768777,
+        "tol": 3.0,
+        "z": 1.9226877697394766,
+        "refs": [
+          -29.62908238692813,
+          -21.948244167470182,
+          -23.88103339631124,
+          -28.95733738824183,
+          -22.720123910746157,
+          -24.755108808915132
+        ]
+      },
+      {
+        "key": "treble|env_mf|3s",
+        "value": -47.552474879858636,
+        "target": -39.79214856001138,
+        "tol": 4.072290406214739,
+        "z": -1.9056416772252278,
+        "refs": [
+          -38.579869458076686,
+          -43.13284985859384,
+          -34.781816617867534,
+          -45.76254666092473,
+          -36.70366020459408
+        ]
+      },
+      {
+        "key": "treble|env_ff|3s",
+        "value": -49.167921528364054,
+        "target": -43.57538117852221,
+        "tol": 3.0,
+        "z": -1.8641801166139491,
+        "refs": [
+          -43.13956962340374,
+          -42.92048298812125,
+          -41.19361295397184,
+          -48.31847989813122,
+          -44.56213369266621,
+          -43.54864829843801,
+          -41.34474079492318
+        ]
+      },
+      {
+        "key": "treble|sustain_ff|p2",
+        "value": -9.181354786075369,
+        "target": -16.597549004284268,
+        "tol": 4.0,
+        "z": 1.8540485545522247,
+        "refs": [
+          -21.65709391019145,
+          -16.87744885933103,
+          -11.06349286513489,
+          -18.58468730194906,
+          -17.942607839165934,
+          -20.462406765585374,
+          -13.480983036915354,
+          -12.711671456001058
+        ]
+      }
+    ]
+  },
+  "renderer_sha256": "92937db2b949d341123843ac00db5bbdf06f496cf1b66b5bf69b087b35881dec",
+  "preset_sha256": "bb436748197dd524c62e966419b408fb1c2c1db29ccca87418f82d36f879057c",
+  "configurations": {
+    "default": [],
+    "close_live_touch": [
+      "--listening",
+      "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+      "--listening",
+      "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+    ],
+    "close_playback": [
+      "--listening",
+      "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+      "--listening",
+      "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+      "--listening",
+      "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+    ]
+  },
+  "probes": [
+    {
+      "source": "default",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-60-30.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-60-30.wav: 1.30 s, peak -28.3 dBFS, max 23 voices, rendered in 0.58 s (2.2\u00d7 real time), hash aa107937ecd0c75e",
+      "file": "/tmp/piano-realism-audit/probes/default-60-30.wav",
+      "midi": 60,
+      "peak_dbfs": -28.34288562987777,
+      "attack": {
+        "mono_loss_db": -1.2777467367133213,
+        "p2_over_p1_stereo_db": -2.7597621513047748,
+        "p2_over_p1_mono_db": -0.9668375176258638
+      },
+      "sustain": {
+        "mono_loss_db": -0.635183033632929,
+        "p2_over_p1_stereo_db": 6.335968292381811,
+        "p2_over_p1_mono_db": 7.255004333483081
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-60-45.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-60-45.wav: 1.30 s, peak -22.8 dBFS, max 23 voices, rendered in 0.60 s (2.2\u00d7 real time), hash 1ad5c9a33150342e",
+      "file": "/tmp/piano-realism-audit/probes/default-60-45.wav",
+      "midi": 60,
+      "peak_dbfs": -22.782864259465704,
+      "attack": {
+        "mono_loss_db": -1.2306505619830914,
+        "p2_over_p1_stereo_db": -0.8356867102978806,
+        "p2_over_p1_mono_db": 0.9548401836511335
+      },
+      "sustain": {
+        "mono_loss_db": -0.5861197295047087,
+        "p2_over_p1_stereo_db": 8.428161099734464,
+        "p2_over_p1_mono_db": 9.349629804894318
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-60-56.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-60-56.wav: 1.30 s, peak -19.4 dBFS, max 23 voices, rendered in 0.60 s (2.2\u00d7 real time), hash 8f8a7829eb0a017a",
+      "file": "/tmp/piano-realism-audit/probes/default-60-56.wav",
+      "midi": 60,
+      "peak_dbfs": -19.43222916915665,
+      "attack": {
+        "mono_loss_db": -1.2451301236690524,
+        "p2_over_p1_stereo_db": -0.22296255745299937,
+        "p2_over_p1_mono_db": 1.5674513596081763
+      },
+      "sustain": {
+        "mono_loss_db": -0.6022974694590011,
+        "p2_over_p1_stereo_db": 9.106572384674042,
+        "p2_over_p1_mono_db": 10.027715839879773
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-60-70.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-60-70.wav: 1.30 s, peak -15.5 dBFS, max 23 voices, rendered in 0.56 s (2.3\u00d7 real time), hash 39de80c090a59d3e",
+      "file": "/tmp/piano-realism-audit/probes/default-60-70.wav",
+      "midi": 60,
+      "peak_dbfs": -15.507249361583746,
+      "attack": {
+        "mono_loss_db": -1.2750523372518514,
+        "p2_over_p1_stereo_db": 0.2728696670198792,
+        "p2_over_p1_mono_db": 2.063737064121572
+      },
+      "sustain": {
+        "mono_loss_db": -0.6249039347435581,
+        "p2_over_p1_stereo_db": 9.663041224021494,
+        "p2_over_p1_mono_db": 10.583573581701682
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-60-100.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-60-100.wav: 1.30 s, peak -8.2 dBFS, max 23 voices, rendered in 0.60 s (2.2\u00d7 real time), hash 3013a3a9ed2e6735",
+      "file": "/tmp/piano-realism-audit/probes/default-60-100.wav",
+      "midi": 60,
+      "peak_dbfs": -8.225940867238492,
+      "attack": {
+        "mono_loss_db": -1.3463321643402362,
+        "p2_over_p1_stereo_db": 0.894344747164141,
+        "p2_over_p1_mono_db": 2.685531005394503
+      },
+      "sustain": {
+        "mono_loss_db": -0.6641363653718666,
+        "p2_over_p1_stereo_db": 10.332945212259867,
+        "p2_over_p1_mono_db": 11.252772588801797
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-72-30.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-72-30.wav: 1.30 s, peak -36.2 dBFS, max 23 voices, rendered in 0.56 s (2.3\u00d7 real time), hash e52d9bb06ec1bd44",
+      "file": "/tmp/piano-realism-audit/probes/default-72-30.wav",
+      "midi": 72,
+      "peak_dbfs": -36.1871839290096,
+      "attack": {
+        "mono_loss_db": -1.2176682152389986,
+        "p2_over_p1_stereo_db": -25.304199542789398,
+        "p2_over_p1_mono_db": -25.82701379641957
+      },
+      "sustain": {
+        "mono_loss_db": -1.795512239347825,
+        "p2_over_p1_stereo_db": -0.05914830802599497,
+        "p2_over_p1_mono_db": -0.7579286110257554
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-72-45.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-72-45.wav: 1.30 s, peak -29.8 dBFS, max 23 voices, rendered in 0.58 s (2.2\u00d7 real time), hash a2598f73ef4c8539",
+      "file": "/tmp/piano-realism-audit/probes/default-72-45.wav",
+      "midi": 72,
+      "peak_dbfs": -29.799473132665124,
+      "attack": {
+        "mono_loss_db": -1.2511547934533258,
+        "p2_over_p1_stereo_db": -16.752340366212547,
+        "p2_over_p1_mono_db": -17.47019116138712
+      },
+      "sustain": {
+        "mono_loss_db": -1.8448914151645694,
+        "p2_over_p1_stereo_db": 12.409666072405937,
+        "p2_over_p1_mono_db": 13.107303618383064
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-72-56.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-72-56.wav: 1.30 s, peak -26.4 dBFS, max 23 voices, rendered in 0.56 s (2.3\u00d7 real time), hash 3fc6c1a59e728ee8",
+      "file": "/tmp/piano-realism-audit/probes/default-72-56.wav",
+      "midi": 72,
+      "peak_dbfs": -26.424990500704183,
+      "attack": {
+        "mono_loss_db": -1.2679124906672299,
+        "p2_over_p1_stereo_db": -15.161657881153152,
+        "p2_over_p1_mono_db": -15.911469841702296
+      },
+      "sustain": {
+        "mono_loss_db": -1.889699049264644,
+        "p2_over_p1_stereo_db": 14.353119186134816,
+        "p2_over_p1_mono_db": 17.589387687194705
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-72-70.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-72-70.wav: 1.30 s, peak -22.9 dBFS, max 23 voices, rendered in 0.59 s (2.2\u00d7 real time), hash 525d4068716a036e",
+      "file": "/tmp/piano-realism-audit/probes/default-72-70.wav",
+      "midi": 72,
+      "peak_dbfs": -22.85972000961349,
+      "attack": {
+        "mono_loss_db": -1.2876683686393406,
+        "p2_over_p1_stereo_db": -14.625648122744042,
+        "p2_over_p1_mono_db": -15.390015938353706
+      },
+      "sustain": {
+        "mono_loss_db": -2.028284309302994,
+        "p2_over_p1_stereo_db": 15.148726615101697,
+        "p2_over_p1_mono_db": 19.41473853562742
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-72-100.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-72-100.wav: 1.30 s, peak -15.3 dBFS, max 23 voices, rendered in 0.57 s (2.3\u00d7 real time), hash 3fdb97b7f7b8399d",
+      "file": "/tmp/piano-realism-audit/probes/default-72-100.wav",
+      "midi": 72,
+      "peak_dbfs": -15.316092804685987,
+      "attack": {
+        "mono_loss_db": -1.3290578104127553,
+        "p2_over_p1_stereo_db": -15.63638865483095,
+        "p2_over_p1_mono_db": -16.398638578831907
+      },
+      "sustain": {
+        "mono_loss_db": -2.4633545932489054,
+        "p2_over_p1_stereo_db": 14.248347211690259,
+        "p2_over_p1_mono_db": 15.051706449550771
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-84-30.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-84-30.wav: 1.30 s, peak -41.8 dBFS, max 23 voices, rendered in 0.56 s (2.3\u00d7 real time), hash 5322f4c3389d68d0",
+      "file": "/tmp/piano-realism-audit/probes/default-84-30.wav",
+      "midi": 84,
+      "peak_dbfs": -41.798811015519064,
+      "attack": {
+        "mono_loss_db": -5.30369353066685,
+        "p2_over_p1_stereo_db": -25.875845406149104,
+        "p2_over_p1_mono_db": -23.767647330746154
+      },
+      "sustain": {
+        "mono_loss_db": -5.821894283105071,
+        "p2_over_p1_stereo_db": -18.78031285430556,
+        "p2_over_p1_mono_db": -17.95784703990989
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-84-45.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-84-45.wav: 1.30 s, peak -34.5 dBFS, max 23 voices, rendered in 0.56 s (2.3\u00d7 real time), hash 56ab9f2c95011b28",
+      "file": "/tmp/piano-realism-audit/probes/default-84-45.wav",
+      "midi": 84,
+      "peak_dbfs": -34.54944501039278,
+      "attack": {
+        "mono_loss_db": -6.441963787159841,
+        "p2_over_p1_stereo_db": -32.190497445661165,
+        "p2_over_p1_mono_db": -30.479733568168434
+      },
+      "sustain": {
+        "mono_loss_db": -6.208354407288694,
+        "p2_over_p1_stereo_db": -13.08470614154838,
+        "p2_over_p1_mono_db": -12.653970323706199
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-84-56.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-84-56.wav: 1.30 s, peak -30.7 dBFS, max 23 voices, rendered in 0.59 s (2.2\u00d7 real time), hash 7115a5f0004bbaad",
+      "file": "/tmp/piano-realism-audit/probes/default-84-56.wav",
+      "midi": 84,
+      "peak_dbfs": -30.69881167988191,
+      "attack": {
+        "mono_loss_db": -6.563224991858751,
+        "p2_over_p1_stereo_db": -25.347360801753037,
+        "p2_over_p1_mono_db": -23.419197477466827
+      },
+      "sustain": {
+        "mono_loss_db": -6.14867516583894,
+        "p2_over_p1_stereo_db": -14.2701321605173,
+        "p2_over_p1_mono_db": -12.285910716462642
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-84-70.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-84-70.wav: 1.30 s, peak -25.6 dBFS, max 23 voices, rendered in 0.60 s (2.2\u00d7 real time), hash 336bc0a21fc17817",
+      "file": "/tmp/piano-realism-audit/probes/default-84-70.wav",
+      "midi": 84,
+      "peak_dbfs": -25.58619820088364,
+      "attack": {
+        "mono_loss_db": -6.573899055483922,
+        "p2_over_p1_stereo_db": -18.535379858956386,
+        "p2_over_p1_mono_db": -16.72333901425609
+      },
+      "sustain": {
+        "mono_loss_db": -6.060783426902686,
+        "p2_over_p1_stereo_db": -14.183683691946626,
+        "p2_over_p1_mono_db": -12.09601103754789
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-84-100.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-84-100.wav: 1.30 s, peak -17.9 dBFS, max 23 voices, rendered in 0.59 s (2.2\u00d7 real time), hash a66e7f27d8c20bb8",
+      "file": "/tmp/piano-realism-audit/probes/default-84-100.wav",
+      "midi": 84,
+      "peak_dbfs": -17.907799260804513,
+      "attack": {
+        "mono_loss_db": -6.465947781367164,
+        "p2_over_p1_stereo_db": -16.795947092957874,
+        "p2_over_p1_mono_db": -15.050568824891142
+      },
+      "sustain": {
+        "mono_loss_db": -5.969809710794074,
+        "p2_over_p1_stereo_db": -13.657987386382668,
+        "p2_over_p1_mono_db": -11.055736230834881
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-96-30.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-96-30.wav: 1.30 s, peak -43.9 dBFS, max 22 voices, rendered in 0.56 s (2.3\u00d7 real time), hash a9b199f985c09b08",
+      "file": "/tmp/piano-realism-audit/probes/default-96-30.wav",
+      "midi": 96,
+      "peak_dbfs": -43.85008385275135,
+      "attack": {
+        "mono_loss_db": -2.9873473753127016,
+        "p2_over_p1_stereo_db": -22.14968929555942,
+        "p2_over_p1_mono_db": -30.948169814084522
+      },
+      "sustain": {
+        "mono_loss_db": -3.1975064309555727,
+        "p2_over_p1_stereo_db": -25.959781885227777,
+        "p2_over_p1_mono_db": -29.432572998853466
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-96-45.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-96-45.wav: 1.30 s, peak -32.6 dBFS, max 22 voices, rendered in 0.62 s (2.1\u00d7 real time), hash 6190d0b265d65c6a",
+      "file": "/tmp/piano-realism-audit/probes/default-96-45.wav",
+      "midi": 96,
+      "peak_dbfs": -32.64819743359539,
+      "attack": {
+        "mono_loss_db": -3.7636942542150624,
+        "p2_over_p1_stereo_db": -18.585364475228495,
+        "p2_over_p1_mono_db": -27.586187508412216
+      },
+      "sustain": {
+        "mono_loss_db": -2.633060449129765,
+        "p2_over_p1_stereo_db": -20.75326906287792,
+        "p2_over_p1_mono_db": -24.26016896139702
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-96-56.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-96-56.wav: 1.30 s, peak -26.6 dBFS, max 22 voices, rendered in 0.57 s (2.3\u00d7 real time), hash 831541d28a8844a4",
+      "file": "/tmp/piano-realism-audit/probes/default-96-56.wav",
+      "midi": 96,
+      "peak_dbfs": -26.594769976161345,
+      "attack": {
+        "mono_loss_db": -3.8104284716887067,
+        "p2_over_p1_stereo_db": -21.58472655259903,
+        "p2_over_p1_mono_db": -30.756364231103642
+      },
+      "sustain": {
+        "mono_loss_db": -2.3854361834812607,
+        "p2_over_p1_stereo_db": -22.740328739341038,
+        "p2_over_p1_mono_db": -26.247857037284483
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-96-70.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-96-70.wav: 1.30 s, peak -20.5 dBFS, max 22 voices, rendered in 0.59 s (2.2\u00d7 real time), hash 6c1a9d00b6066a1e",
+      "file": "/tmp/piano-realism-audit/probes/default-96-70.wav",
+      "midi": 96,
+      "peak_dbfs": -20.463587923257744,
+      "attack": {
+        "mono_loss_db": -3.8035440710698953,
+        "p2_over_p1_stereo_db": -34.18143223321752,
+        "p2_over_p1_mono_db": -43.50891433841529
+      },
+      "sustain": {
+        "mono_loss_db": -2.2457519002849526,
+        "p2_over_p1_stereo_db": -25.670567622316348,
+        "p2_over_p1_mono_db": -30.79748828908572
+      }
+    },
+    {
+      "source": "default",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/default-96-100.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/default-96-100.wav: 1.30 s, peak -11.5 dBFS, max 22 voices, rendered in 0.60 s (2.2\u00d7 real time), hash 9576a4b6e5fce692",
+      "file": "/tmp/piano-realism-audit/probes/default-96-100.wav",
+      "midi": 96,
+      "peak_dbfs": -11.48450380896091,
+      "attack": {
+        "mono_loss_db": -3.8236955404192003,
+        "p2_over_p1_stereo_db": -23.79927091398372,
+        "p2_over_p1_mono_db": -32.63566367003583
+      },
+      "sustain": {
+        "mono_loss_db": -2.177742337126313,
+        "p2_over_p1_stereo_db": -21.482711297844443,
+        "p2_over_p1_mono_db": -25.1686447349009
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-60-30.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-60-30.wav: 1.30 s, peak -30.0 dBFS, max 23 voices, rendered in 0.66 s (2.0\u00d7 real time), hash b824f0b37c8bd222",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-60-30.wav",
+      "midi": 60,
+      "peak_dbfs": -29.95441250263046,
+      "attack": {
+        "mono_loss_db": -2.089391306530476,
+        "p2_over_p1_stereo_db": -8.458691427555388,
+        "p2_over_p1_mono_db": -6.424656335153685
+      },
+      "sustain": {
+        "mono_loss_db": -1.1978113523911402,
+        "p2_over_p1_stereo_db": -0.5651986738086089,
+        "p2_over_p1_mono_db": 0.888137444781419
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-60-45.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-60-45.wav: 1.30 s, peak -24.9 dBFS, max 23 voices, rendered in 0.64 s (2.0\u00d7 real time), hash b8bf86901911a55b",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-60-45.wav",
+      "midi": 60,
+      "peak_dbfs": -24.899570886845922,
+      "attack": {
+        "mono_loss_db": -1.9675504980439764,
+        "p2_over_p1_stereo_db": -6.551653827761582,
+        "p2_over_p1_mono_db": -4.500224619036825
+      },
+      "sustain": {
+        "mono_loss_db": -1.0410384293804422,
+        "p2_over_p1_stereo_db": 1.5521834348816492,
+        "p2_over_p1_mono_db": 3.0081673781788103
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-60-56.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-60-56.wav: 1.30 s, peak -21.7 dBFS, max 23 voices, rendered in 0.66 s (2.0\u00d7 real time), hash ad797a825f4f92ef",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-60-56.wav",
+      "midi": 60,
+      "peak_dbfs": -21.655110910557372,
+      "attack": {
+        "mono_loss_db": -1.9302966866450055,
+        "p2_over_p1_stereo_db": -5.9454595471333915,
+        "p2_over_p1_mono_db": -3.887786255220829
+      },
+      "sustain": {
+        "mono_loss_db": -1.010373610499665,
+        "p2_over_p1_stereo_db": 2.233566188157939,
+        "p2_over_p1_mono_db": 3.6890617696659724
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-60-70.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-60-70.wav: 1.30 s, peak -18.1 dBFS, max 23 voices, rendered in 0.62 s (2.1\u00d7 real time), hash 0288ed1b2d3a05bc",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-60-70.wav",
+      "midi": 60,
+      "peak_dbfs": -18.08497890862765,
+      "attack": {
+        "mono_loss_db": -1.911309034212726,
+        "p2_over_p1_stereo_db": -5.453940353769049,
+        "p2_over_p1_mono_db": -3.391655223180439
+      },
+      "sustain": {
+        "mono_loss_db": -0.9985420357097361,
+        "p2_over_p1_stereo_db": 2.790682414695852,
+        "p2_over_p1_mono_db": 4.245173484812617
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-60-100.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-60-100.wav: 1.30 s, peak -11.3 dBFS, max 23 voices, rendered in 0.63 s (2.0\u00d7 real time), hash 48a3fdc468c6e534",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-60-100.wav",
+      "midi": 60,
+      "peak_dbfs": -11.345641022193998,
+      "attack": {
+        "mono_loss_db": -1.9396831360214368,
+        "p2_over_p1_stereo_db": -4.835115582015415,
+        "p2_over_p1_mono_db": -2.769604172239793
+      },
+      "sustain": {
+        "mono_loss_db": -1.0118113837439284,
+        "p2_over_p1_stereo_db": 3.4592790246362854,
+        "p2_over_p1_mono_db": 4.912058477470105
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-72-30.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-72-30.wav: 1.30 s, peak -37.1 dBFS, max 23 voices, rendered in 0.65 s (2.0\u00d7 real time), hash 14692a1b44ceba99",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-72-30.wav",
+      "midi": 72,
+      "peak_dbfs": -37.055760017880196,
+      "attack": {
+        "mono_loss_db": -2.339738774377997,
+        "p2_over_p1_stereo_db": -12.608091307807838,
+        "p2_over_p1_mono_db": -14.614181211196772
+      },
+      "sustain": {
+        "mono_loss_db": -3.81212791972892,
+        "p2_over_p1_stereo_db": 14.78987314518405,
+        "p2_over_p1_mono_db": 13.259490596500301
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-72-45.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-72-45.wav: 1.30 s, peak -31.4 dBFS, max 23 voices, rendered in 0.64 s (2.0\u00d7 real time), hash 7762a99c3f52af4b",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-72-45.wav",
+      "midi": 72,
+      "peak_dbfs": -31.41443076018922,
+      "attack": {
+        "mono_loss_db": -2.7257934930021612,
+        "p2_over_p1_stereo_db": -4.009682917260689,
+        "p2_over_p1_mono_db": -6.168183630080324
+      },
+      "sustain": {
+        "mono_loss_db": -3.5089291034493995,
+        "p2_over_p1_stereo_db": 29.587266441866184,
+        "p2_over_p1_mono_db": 28.089250592942637
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-72-56.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-72-56.wav: 1.30 s, peak -27.5 dBFS, max 23 voices, rendered in 0.64 s (2.0\u00d7 real time), hash d469646252dda8f3",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-72-56.wav",
+      "midi": 72,
+      "peak_dbfs": -27.537616392801667,
+      "attack": {
+        "mono_loss_db": -2.844244914594796,
+        "p2_over_p1_stereo_db": -2.3600150840911955,
+        "p2_over_p1_mono_db": -4.499350263137786
+      },
+      "sustain": {
+        "mono_loss_db": -3.4677167214935283,
+        "p2_over_p1_stereo_db": 37.89778542871493,
+        "p2_over_p1_mono_db": 35.86649249723615
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-72-70.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-72-70.wav: 1.30 s, peak -22.6 dBFS, max 23 voices, rendered in 0.63 s (2.1\u00d7 real time), hash 2cd192f037578bc1",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-72-70.wav",
+      "midi": 72,
+      "peak_dbfs": -22.636975654122736,
+      "attack": {
+        "mono_loss_db": -2.854206675305382,
+        "p2_over_p1_stereo_db": -1.7706554528441252,
+        "p2_over_p1_mono_db": -3.895359218706464
+      },
+      "sustain": {
+        "mono_loss_db": -3.5785165791561018,
+        "p2_over_p1_stereo_db": 34.81453277992303,
+        "p2_over_p1_mono_db": 33.008645660394414
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-72-100.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-72-100.wav: 1.30 s, peak -14.7 dBFS, max 23 voices, rendered in 0.62 s (2.1\u00d7 real time), hash 61d7ce1f1a281516",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-72-100.wav",
+      "midi": 72,
+      "peak_dbfs": -14.690942662206217,
+      "attack": {
+        "mono_loss_db": -2.585813527668876,
+        "p2_over_p1_stereo_db": -2.6945975070942545,
+        "p2_over_p1_mono_db": -4.80334663680867
+      },
+      "sustain": {
+        "mono_loss_db": -3.9809022732556847,
+        "p2_over_p1_stereo_db": 29.762414099872206,
+        "p2_over_p1_mono_db": 28.055346644701338
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-84-30.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-84-30.wav: 1.30 s, peak -34.6 dBFS, max 23 voices, rendered in 0.63 s (2.1\u00d7 real time), hash bd3b18a6137e7256",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-84-30.wav",
+      "midi": 84,
+      "peak_dbfs": -34.571863793194225,
+      "attack": {
+        "mono_loss_db": -4.291576817003248,
+        "p2_over_p1_stereo_db": -32.91102966582819,
+        "p2_over_p1_mono_db": -29.3095562973298
+      },
+      "sustain": {
+        "mono_loss_db": -4.096576113132842,
+        "p2_over_p1_stereo_db": -25.260829018395683,
+        "p2_over_p1_mono_db": -22.64898132604467
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-84-45.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-84-45.wav: 1.30 s, peak -25.1 dBFS, max 23 voices, rendered in 0.63 s (2.1\u00d7 real time), hash 7824fc39bb036ad7",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-84-45.wav",
+      "midi": 84,
+      "peak_dbfs": -25.058577203786612,
+      "attack": {
+        "mono_loss_db": -4.289907981680324,
+        "p2_over_p1_stereo_db": -39.26877467356708,
+        "p2_over_p1_mono_db": -35.605171691735634
+      },
+      "sustain": {
+        "mono_loss_db": -4.094146157684083,
+        "p2_over_p1_stereo_db": -20.110255656762668,
+        "p2_over_p1_mono_db": -17.20310290704431
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-84-56.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-84-56.wav: 1.30 s, peak -20.4 dBFS, max 23 voices, rendered in 0.63 s (2.1\u00d7 real time), hash a76ef702918e1fe4",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-84-56.wav",
+      "midi": 84,
+      "peak_dbfs": -20.361900575348457,
+      "attack": {
+        "mono_loss_db": -4.281610534737918,
+        "p2_over_p1_stereo_db": -32.047396821776964,
+        "p2_over_p1_mono_db": -28.493039827916764
+      },
+      "sustain": {
+        "mono_loss_db": -4.115437932670478,
+        "p2_over_p1_stereo_db": -20.079701548898026,
+        "p2_over_p1_mono_db": -17.392378415493216
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-84-70.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-84-70.wav: 1.30 s, peak -15.8 dBFS, max 23 voices, rendered in 0.64 s (2.0\u00d7 real time), hash e0ca194a9553fc51",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-84-70.wav",
+      "midi": 84,
+      "peak_dbfs": -15.800973147100779,
+      "attack": {
+        "mono_loss_db": -4.268558685523896,
+        "p2_over_p1_stereo_db": -25.143163703862484,
+        "p2_over_p1_mono_db": -21.592735252669307
+      },
+      "sustain": {
+        "mono_loss_db": -4.132012628344096,
+        "p2_over_p1_stereo_db": -20.339387896784615,
+        "p2_over_p1_mono_db": -17.562563830221436
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-84-100.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-84-100.wav: 1.30 s, peak -8.0 dBFS, max 23 voices, rendered in 0.61 s (2.1\u00d7 real time), hash faad8e1da106a76b",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-84-100.wav",
+      "midi": 84,
+      "peak_dbfs": -8.027010722227619,
+      "attack": {
+        "mono_loss_db": -4.265094560278516,
+        "p2_over_p1_stereo_db": -23.342650266441275,
+        "p2_over_p1_mono_db": -19.795786620205273
+      },
+      "sustain": {
+        "mono_loss_db": -4.137652729682105,
+        "p2_over_p1_stereo_db": -20.258849334565294,
+        "p2_over_p1_mono_db": -17.422806582716476
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-96-30.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-96-30.wav: 1.30 s, peak -36.4 dBFS, max 22 voices, rendered in 0.60 s (2.2\u00d7 real time), hash fe13a725b490d7d0",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-96-30.wav",
+      "midi": 96,
+      "peak_dbfs": -36.39427043481281,
+      "attack": {
+        "mono_loss_db": -1.364511920790257,
+        "p2_over_p1_stereo_db": -20.905122618181867,
+        "p2_over_p1_mono_db": -24.723959685449195
+      },
+      "sustain": {
+        "mono_loss_db": -0.4969000346435609,
+        "p2_over_p1_stereo_db": -25.656080060994775,
+        "p2_over_p1_mono_db": -29.920611706973062
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-96-45.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-96-45.wav: 1.30 s, peak -29.9 dBFS, max 22 voices, rendered in 0.64 s (2.0\u00d7 real time), hash 02aedb8d93935c1e",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-96-45.wav",
+      "midi": 96,
+      "peak_dbfs": -29.913938466049647,
+      "attack": {
+        "mono_loss_db": -0.7985364662831249,
+        "p2_over_p1_stereo_db": -17.32285789203003,
+        "p2_over_p1_mono_db": -21.051694327430454
+      },
+      "sustain": {
+        "mono_loss_db": -0.5027816217338325,
+        "p2_over_p1_stereo_db": -20.401947009674824,
+        "p2_over_p1_mono_db": -24.813146357995954
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-96-56.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-96-56.wav: 1.30 s, peak -26.1 dBFS, max 22 voices, rendered in 0.58 s (2.2\u00d7 real time), hash 4a3ee278fa994d4d",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-96-56.wav",
+      "midi": 96,
+      "peak_dbfs": -26.051373760692105,
+      "attack": {
+        "mono_loss_db": -0.6741570138244819,
+        "p2_over_p1_stereo_db": -20.258002681057732,
+        "p2_over_p1_mono_db": -23.96051600365881
+      },
+      "sustain": {
+        "mono_loss_db": -0.4856936501577241,
+        "p2_over_p1_stereo_db": -22.21195005451581,
+        "p2_over_p1_mono_db": -26.699180217558435
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-96-70.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-96-70.wav: 1.30 s, peak -22.0 dBFS, max 22 voices, rendered in 0.66 s (2.0\u00d7 real time), hash 04d74d142805147a",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-96-70.wav",
+      "midi": 96,
+      "peak_dbfs": -22.00796591524387,
+      "attack": {
+        "mono_loss_db": -0.6075880127004429,
+        "p2_over_p1_stereo_db": -32.382195448012745,
+        "p2_over_p1_mono_db": -35.86713824775526
+      },
+      "sustain": {
+        "mono_loss_db": -0.4661255709225623,
+        "p2_over_p1_stereo_db": -27.860602855313942,
+        "p2_over_p1_mono_db": -34.659217845203464
+      }
+    },
+    {
+      "source": "close_live_touch",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_live_touch-96-100.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_live_touch-96-100.wav: 1.30 s, peak -13.0 dBFS, max 22 voices, rendered in 0.64 s (2.0\u00d7 real time), hash 5331f2e04cd32668",
+      "file": "/tmp/piano-realism-audit/probes/close_live_touch-96-100.wav",
+      "midi": 96,
+      "peak_dbfs": -13.0400064682096,
+      "attack": {
+        "mono_loss_db": -0.5926226137796143,
+        "p2_over_p1_stereo_db": -22.734257975348704,
+        "p2_over_p1_mono_db": -26.70260006129958
+      },
+      "sustain": {
+        "mono_loss_db": -0.4647435287938955,
+        "p2_over_p1_stereo_db": -25.334577732497067,
+        "p2_over_p1_mono_db": -29.91619280758887
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-60-30.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-60-30.wav: 1.30 s, peak -28.6 dBFS, max 23 voices, rendered in 0.62 s (2.1\u00d7 real time), hash 5dfaedcddd00e8bb",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-60-30.wav",
+      "midi": 60,
+      "peak_dbfs": -28.567310814253748,
+      "attack": {
+        "mono_loss_db": -2.0363011806761486,
+        "p2_over_p1_stereo_db": -7.568034828579604,
+        "p2_over_p1_mono_db": -5.526887880826809
+      },
+      "sustain": {
+        "mono_loss_db": -1.11666803976573,
+        "p2_over_p1_stereo_db": 0.42317084813191796,
+        "p2_over_p1_mono_db": 1.878286590958431
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-60-45.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-60-45.wav: 1.30 s, peak -24.1 dBFS, max 23 voices, rendered in 0.64 s (2.0\u00d7 real time), hash ff0b42ae8fc90cf8",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-60-45.wav",
+      "midi": 60,
+      "peak_dbfs": -24.078631473619375,
+      "attack": {
+        "mono_loss_db": -1.9564294718087647,
+        "p2_over_p1_stereo_db": -6.382047060720739,
+        "p2_over_p1_mono_db": -4.328835321176399
+      },
+      "sustain": {
+        "mono_loss_db": -1.031255105617698,
+        "p2_over_p1_stereo_db": 1.7419190075303774,
+        "p2_over_p1_mono_db": 3.1978490397661297
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-60-56.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-60-56.wav: 1.30 s, peak -21.4 dBFS, max 23 voices, rendered in 0.63 s (2.1\u00d7 real time), hash b0722c494cd336cb",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-60-56.wav",
+      "midi": 60,
+      "peak_dbfs": -21.393905301702233,
+      "attack": {
+        "mono_loss_db": -1.9281085473491588,
+        "p2_over_p1_stereo_db": -5.903612978863385,
+        "p2_over_p1_mono_db": -3.8454872162650755
+      },
+      "sustain": {
+        "mono_loss_db": -1.008812853054053,
+        "p2_over_p1_stereo_db": 2.2813670291297563,
+        "p2_over_p1_mono_db": 3.736795663559077
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-60-70.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-60-70.wav: 1.30 s, peak -18.4 dBFS, max 23 voices, rendered in 0.61 s (2.1\u00d7 real time), hash 32dde2af107996f5",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-60-70.wav",
+      "midi": 60,
+      "peak_dbfs": -18.38372064312783,
+      "attack": {
+        "mono_loss_db": -1.9119111483646432,
+        "p2_over_p1_stereo_db": -5.490003580692356,
+        "p2_over_p1_mono_db": -3.428039730947803
+      },
+      "sustain": {
+        "mono_loss_db": -0.9988740054479515,
+        "p2_over_p1_stereo_db": 2.7495777115622544,
+        "p2_over_p1_mono_db": 4.2041597491860685
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-60-100.wav",
+        "--note",
+        "60",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-60-100.wav: 1.30 s, peak -12.7 dBFS, max 23 voices, rendered in 0.64 s (2.0\u00d7 real time), hash b7ea35347296816f",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-60-100.wav",
+      "midi": 60,
+      "peak_dbfs": -12.7296340221751,
+      "attack": {
+        "mono_loss_db": -1.9283629626550098,
+        "p2_over_p1_stereo_db": -4.943374685773281,
+        "p2_over_p1_mono_db": -2.8780417261256295
+      },
+      "sustain": {
+        "mono_loss_db": -1.0072424728487968,
+        "p2_over_p1_stereo_db": 3.350028706821664,
+        "p2_over_p1_mono_db": 4.803097583764572
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-72-30.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-72-30.wav: 1.30 s, peak -35.3 dBFS, max 23 voices, rendered in 0.63 s (2.1\u00d7 real time), hash 4d013fc18f569532",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-72-30.wav",
+      "midi": 72,
+      "peak_dbfs": -35.25719715402141,
+      "attack": {
+        "mono_loss_db": -2.4801069592006035,
+        "p2_over_p1_stereo_db": -8.080115535420633,
+        "p2_over_p1_mono_db": -10.208976033172279
+      },
+      "sustain": {
+        "mono_loss_db": -3.7023066965904534,
+        "p2_over_p1_stereo_db": 20.085352121868887,
+        "p2_over_p1_mono_db": 18.551442772307524
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-72-45.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-72-45.wav: 1.30 s, peak -30.5 dBFS, max 23 voices, rendered in 0.62 s (2.1\u00d7 real time), hash e65c2bca8760c7bc",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-72-45.wav",
+      "midi": 72,
+      "peak_dbfs": -30.452528263012297,
+      "attack": {
+        "mono_loss_db": -2.7660270689592337,
+        "p2_over_p1_stereo_db": -3.475007470007125,
+        "p2_over_p1_mono_db": -5.627799257189713
+      },
+      "sustain": {
+        "mono_loss_db": -3.488083130104698,
+        "p2_over_p1_stereo_db": 31.855638183199687,
+        "p2_over_p1_mono_db": 30.37115724542693
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-72-56.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-72-56.wav: 1.30 s, peak -27.2 dBFS, max 23 voices, rendered in 0.62 s (2.1\u00d7 real time), hash 31ccbcd5c5b602df",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-72-56.wav",
+      "midi": 72,
+      "peak_dbfs": -27.150459376382898,
+      "attack": {
+        "mono_loss_db": -2.848311249563038,
+        "p2_over_p1_stereo_db": -2.275298359546,
+        "p2_over_p1_mono_db": -4.413684668207702
+      },
+      "sustain": {
+        "mono_loss_db": -3.470436815264022,
+        "p2_over_p1_stereo_db": 37.718709788723295,
+        "p2_over_p1_mono_db": 35.71070459582151
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-72-70.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-72-70.wav: 1.30 s, peak -23.0 dBFS, max 23 voices, rendered in 0.64 s (2.0\u00d7 real time), hash 155e3eadb66e6043",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-72-70.wav",
+      "midi": 72,
+      "peak_dbfs": -23.049576480809428,
+      "attack": {
+        "mono_loss_db": -2.8583896738677805,
+        "p2_over_p1_stereo_db": -1.7758152638051703,
+        "p2_over_p1_mono_db": -3.9017228186539343
+      },
+      "sustain": {
+        "mono_loss_db": -3.5625344622355763,
+        "p2_over_p1_stereo_db": 35.083838969923725,
+        "p2_over_p1_mono_db": 33.2671881862362
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-72-100.wav",
+        "--note",
+        "72",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-72-100.wav: 1.30 s, peak -16.2 dBFS, max 23 voices, rendered in 0.62 s (2.1\u00d7 real time), hash b1d1d7576106fb9d",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-72-100.wav",
+      "midi": 72,
+      "peak_dbfs": -16.214064315324592,
+      "attack": {
+        "mono_loss_db": -2.654672009659343,
+        "p2_over_p1_stereo_db": -2.4410348973122686,
+        "p2_over_p1_mono_db": -4.552214961910386
+      },
+      "sustain": {
+        "mono_loss_db": -3.924211232630363,
+        "p2_over_p1_stereo_db": 30.599522552307917,
+        "p2_over_p1_mono_db": 28.884430464815555
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-84-30.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-84-30.wav: 1.30 s, peak -31.1 dBFS, max 23 voices, rendered in 0.63 s (2.1\u00d7 real time), hash 2d0612d187dcacfe",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-84-30.wav",
+      "midi": 84,
+      "peak_dbfs": -31.103225825843555,
+      "attack": {
+        "mono_loss_db": -4.297234445617265,
+        "p2_over_p1_stereo_db": -34.157372615823725,
+        "p2_over_p1_mono_db": -30.539835192232736
+      },
+      "sustain": {
+        "mono_loss_db": -4.09755008426882,
+        "p2_over_p1_stereo_db": -22.410921361484736,
+        "p2_over_p1_mono_db": -19.318996861378967
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-84-45.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-84-45.wav: 1.30 s, peak -23.8 dBFS, max 23 voices, rendered in 0.63 s (2.1\u00d7 real time), hash 38e1c5ebf66626ed",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-84-45.wav",
+      "midi": 84,
+      "peak_dbfs": -23.82535181092189,
+      "attack": {
+        "mono_loss_db": -4.287796927131195,
+        "p2_over_p1_stereo_db": -38.738054023578805,
+        "p2_over_p1_mono_db": -35.105829566997066
+      },
+      "sustain": {
+        "mono_loss_db": -4.096795065247688,
+        "p2_over_p1_stereo_db": -19.976819586859737,
+        "p2_over_p1_mono_db": -17.31460351133537
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-84-56.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-84-56.wav: 1.30 s, peak -20.0 dBFS, max 23 voices, rendered in 0.62 s (2.1\u00d7 real time), hash 1841159bf566c191",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-84-56.wav",
+      "midi": 84,
+      "peak_dbfs": -20.007171301942087,
+      "attack": {
+        "mono_loss_db": -4.280776109637267,
+        "p2_over_p1_stereo_db": -31.34506467490351,
+        "p2_over_p1_mono_db": -27.79282144438639
+      },
+      "sustain": {
+        "mono_loss_db": -4.117550949280843,
+        "p2_over_p1_stereo_db": -20.10499330810797,
+        "p2_over_p1_mono_db": -17.41270268522769
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-84-70.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-84-70.wav: 1.30 s, peak -16.2 dBFS, max 23 voices, rendered in 0.63 s (2.1\u00d7 real time), hash e6f5658197eb6071",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-84-70.wav",
+      "midi": 84,
+      "peak_dbfs": -16.17432976242149,
+      "attack": {
+        "mono_loss_db": -4.269614359721807,
+        "p2_over_p1_stereo_db": -25.482411561682543,
+        "p2_over_p1_mono_db": -21.932448401222324
+      },
+      "sustain": {
+        "mono_loss_db": -4.131676564110768,
+        "p2_over_p1_stereo_db": -20.349559324673496,
+        "p2_over_p1_mono_db": -17.57988370996131
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-84-100.wav",
+        "--note",
+        "84",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-84-100.wav: 1.30 s, peak -9.5 dBFS, max 23 voices, rendered in 0.62 s (2.1\u00d7 real time), hash 6c3c65a39e751a3a",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-84-100.wav",
+      "midi": 84,
+      "peak_dbfs": -9.526569922431923,
+      "attack": {
+        "mono_loss_db": -4.263238543892971,
+        "p2_over_p1_stereo_db": -23.2935247962218,
+        "p2_over_p1_mono_db": -19.745291152056804
+      },
+      "sustain": {
+        "mono_loss_db": -4.137375973195187,
+        "p2_over_p1_stereo_db": -20.99530577944226,
+        "p2_over_p1_mono_db": -18.16437241592228
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 30,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-96-30.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "30",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-96-30.wav: 1.30 s, peak -34.3 dBFS, max 22 voices, rendered in 0.63 s (2.1\u00d7 real time), hash 2c21c15b575cea56",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-96-30.wav",
+      "midi": 96,
+      "peak_dbfs": -34.29680482033604,
+      "attack": {
+        "mono_loss_db": -1.1069851345163764,
+        "p2_over_p1_stereo_db": -19.440055455549647,
+        "p2_over_p1_mono_db": -23.195803133323327
+      },
+      "sustain": {
+        "mono_loss_db": -0.5001988972534445,
+        "p2_over_p1_stereo_db": -22.86588907152398,
+        "p2_over_p1_mono_db": -27.189770804790186
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 45,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-96-45.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "45",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-96-45.wav: 1.30 s, peak -28.9 dBFS, max 22 voices, rendered in 0.64 s (2.0\u00d7 real time), hash cda3a1c41182d5e2",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-96-45.wav",
+      "midi": 96,
+      "peak_dbfs": -28.892820861384937,
+      "attack": {
+        "mono_loss_db": -0.7600757447466365,
+        "p2_over_p1_stereo_db": -17.589994924255876,
+        "p2_over_p1_mono_db": -21.3158733118744
+      },
+      "sustain": {
+        "mono_loss_db": -0.49994877456779563,
+        "p2_over_p1_stereo_db": -20.54106644046324,
+        "p2_over_p1_mono_db": -24.972732180822224
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 56,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-96-56.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "56",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-96-56.wav: 1.30 s, peak -25.8 dBFS, max 22 voices, rendered in 0.60 s (2.2\u00d7 real time), hash d74c47be309e5d42",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-96-56.wav",
+      "midi": 96,
+      "peak_dbfs": -25.75729968622911,
+      "attack": {
+        "mono_loss_db": -0.6668696640829381,
+        "p2_over_p1_stereo_db": -20.72722087625252,
+        "p2_over_p1_mono_db": -24.42520269715851
+      },
+      "sustain": {
+        "mono_loss_db": -0.48384440727145195,
+        "p2_over_p1_stereo_db": -22.542973257130285,
+        "p2_over_p1_mono_db": -27.037395242494732
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 70,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-96-70.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "70",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-96-70.wav: 1.30 s, peak -22.3 dBFS, max 22 voices, rendered in 0.63 s (2.1\u00d7 real time), hash e5862d7999c5d528",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-96-70.wav",
+      "midi": 96,
+      "peak_dbfs": -22.34321868997781,
+      "attack": {
+        "mono_loss_db": -0.611029995224101,
+        "p2_over_p1_stereo_db": -30.4285325630897,
+        "p2_over_p1_mono_db": -33.96418558307262
+      },
+      "sustain": {
+        "mono_loss_db": -0.46718405462338086,
+        "p2_over_p1_stereo_db": -27.446291678375076,
+        "p2_over_p1_mono_db": -33.614282018648815
+      }
+    },
+    {
+      "source": "close_playback",
+      "velocity": 100,
+      "command": [
+        "/tmp/piano-realism-target/release/unsampled-piano-render",
+        "note",
+        "/tmp/piano-realism-audit/probes/close_playback-96-100.wav",
+        "--note",
+        "96",
+        "--velocity",
+        "100",
+        "--hold",
+        "1.2",
+        "--tail",
+        ".1",
+        "--preset",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/default.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Microphones/close.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/listening/Room/studio.toml",
+        "--listening",
+        "/home/user/.codex/worktrees/piano-realism-audit/piano/presets/touch/disklavier_playback.toml"
+      ],
+      "render_log": "/tmp/piano-realism-audit/probes/close_playback-96-100.wav: 1.30 s, peak -14.8 dBFS, max 22 voices, rendered in 0.60 s (2.2\u00d7 real time), hash 0dfc556d851a39f5",
+      "file": "/tmp/piano-realism-audit/probes/close_playback-96-100.wav",
+      "midi": 96,
+      "peak_dbfs": -14.837194827538976,
+      "attack": {
+        "mono_loss_db": -0.5911586013024298,
+        "p2_over_p1_stereo_db": -24.435992373105883,
+        "p2_over_p1_mono_db": -28.450790347398073
+      },
+      "sustain": {
+        "mono_loss_db": -0.46294426081764345,
+        "p2_over_p1_stereo_db": -28.04048965465228,
+        "p2_over_p1_mono_db": -32.73381783263386
+      }
+    }
+  ],
+  "reference_probes": [
+    {
+      "source": "salamander",
+      "layer": 4,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C4v4.flac",
+      "midi": 60,
+      "peak_dbfs": -11.694299069677443,
+      "attack": {
+        "mono_loss_db": -1.4997202797486215,
+        "p2_over_p1_stereo_db": -0.050835451582955236,
+        "p2_over_p1_mono_db": 1.9881123044108748
+      },
+      "sustain": {
+        "mono_loss_db": -1.6209357125291484,
+        "p2_over_p1_stereo_db": 1.8006452365820729,
+        "p2_over_p1_mono_db": 5.6331067929247585
+      }
+    },
+    {
+      "source": "salamander",
+      "layer": 8,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C4v8.flac",
+      "midi": 60,
+      "peak_dbfs": -8.113453121402971,
+      "attack": {
+        "mono_loss_db": -1.474579304769446,
+        "p2_over_p1_stereo_db": 0.5736783178180249,
+        "p2_over_p1_mono_db": 2.597717596614701
+      },
+      "sustain": {
+        "mono_loss_db": -1.5666488542339891,
+        "p2_over_p1_stereo_db": 2.252297031432382,
+        "p2_over_p1_mono_db": 6.143001462203461
+      }
+    },
+    {
+      "source": "salamander",
+      "layer": 13,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C4v13.flac",
+      "midi": 60,
+      "peak_dbfs": -3.167025030356667,
+      "attack": {
+        "mono_loss_db": -1.4835345991220972,
+        "p2_over_p1_stereo_db": 1.1731718946920202,
+        "p2_over_p1_mono_db": 3.1894351768507216
+      },
+      "sustain": {
+        "mono_loss_db": -1.4580594453068507,
+        "p2_over_p1_stereo_db": 3.0576118798046155,
+        "p2_over_p1_mono_db": 6.935374724671264
+      }
+    },
+    {
+      "source": "salamander",
+      "layer": 4,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C5v4.flac",
+      "midi": 72,
+      "peak_dbfs": -14.218756272198066,
+      "attack": {
+        "mono_loss_db": -9.60284980771802,
+        "p2_over_p1_stereo_db": -26.685087815827767,
+        "p2_over_p1_mono_db": -20.087097355547982
+      },
+      "sustain": {
+        "mono_loss_db": -8.954899550043798,
+        "p2_over_p1_stereo_db": -19.123628364337165,
+        "p2_over_p1_mono_db": -6.518898517216868
+      }
+    },
+    {
+      "source": "salamander",
+      "layer": 8,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C5v8.flac",
+      "midi": 72,
+      "peak_dbfs": -11.11896636192962,
+      "attack": {
+        "mono_loss_db": -9.340641006819205,
+        "p2_over_p1_stereo_db": -25.440536475568855,
+        "p2_over_p1_mono_db": -18.951551815512442
+      },
+      "sustain": {
+        "mono_loss_db": -7.966478266841211,
+        "p2_over_p1_stereo_db": -16.876960682677094,
+        "p2_over_p1_mono_db": -3.9295108943217567
+      }
+    },
+    {
+      "source": "salamander",
+      "layer": 13,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C5v13.flac",
+      "midi": 72,
+      "peak_dbfs": -5.568802112441849,
+      "attack": {
+        "mono_loss_db": -8.63542798637911,
+        "p2_over_p1_stereo_db": -24.699505578786308,
+        "p2_over_p1_mono_db": -18.034562457769752
+      },
+      "sustain": {
+        "mono_loss_db": -7.654192072264381,
+        "p2_over_p1_stereo_db": -15.825812280523126,
+        "p2_over_p1_mono_db": -2.3568760974207024
+      }
+    },
+    {
+      "source": "salamander",
+      "layer": 4,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C6v4.flac",
+      "midi": 84,
+      "peak_dbfs": -15.185789063580014,
+      "attack": {
+        "mono_loss_db": -1.7199251357189915,
+        "p2_over_p1_stereo_db": -20.87855999906441,
+        "p2_over_p1_mono_db": -19.55544376404405
+      },
+      "sustain": {
+        "mono_loss_db": -3.6924208277605457,
+        "p2_over_p1_stereo_db": -31.333864459460674,
+        "p2_over_p1_mono_db": -28.129135621112123
+      }
+    },
+    {
+      "source": "salamander",
+      "layer": 8,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C6v8.flac",
+      "midi": 84,
+      "peak_dbfs": -10.64498233904068,
+      "attack": {
+        "mono_loss_db": -1.6498971791431327,
+        "p2_over_p1_stereo_db": -11.609214721582548,
+        "p2_over_p1_mono_db": -10.236228010013257
+      },
+      "sustain": {
+        "mono_loss_db": -4.945769930444863,
+        "p2_over_p1_stereo_db": -21.354593312567193,
+        "p2_over_p1_mono_db": -17.1334895484037
+      }
+    },
+    {
+      "source": "salamander",
+      "layer": 13,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C6v13.flac",
+      "midi": 84,
+      "peak_dbfs": -5.953046196832275,
+      "attack": {
+        "mono_loss_db": -1.4610566255761503,
+        "p2_over_p1_stereo_db": -6.221168110204981,
+        "p2_over_p1_mono_db": -5.008030297738976
+      },
+      "sustain": {
+        "mono_loss_db": -6.704657688194872,
+        "p2_over_p1_stereo_db": -15.599432242742807,
+        "p2_over_p1_mono_db": -9.163875813430085
+      }
+    },
+    {
+      "source": "salamander",
+      "layer": 4,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C7v4.flac",
+      "midi": 96,
+      "peak_dbfs": -20.715434716955823,
+      "attack": {
+        "mono_loss_db": -1.8433244220896094,
+        "p2_over_p1_stereo_db": -35.42776790740931,
+        "p2_over_p1_mono_db": -47.07167480447084
+      },
+      "sustain": {
+        "mono_loss_db": -2.515179798944917,
+        "p2_over_p1_stereo_db": -36.9139198326169,
+        "p2_over_p1_mono_db": -45.59728061917784
+      }
+    },
+    {
+      "source": "salamander",
+      "layer": 8,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C7v8.flac",
+      "midi": 96,
+      "peak_dbfs": -13.764431035170684,
+      "attack": {
+        "mono_loss_db": -1.7607921260670614,
+        "p2_over_p1_stereo_db": -29.396944056854547,
+        "p2_over_p1_mono_db": -38.46178345551192
+      },
+      "sustain": {
+        "mono_loss_db": -2.6758177694440026,
+        "p2_over_p1_stereo_db": -34.15174099842774,
+        "p2_over_p1_mono_db": -42.27823962809124
+      }
+    },
+    {
+      "source": "salamander",
+      "layer": 13,
+      "file": "/home/user/dev/piano/data/salamander/Samples/C7v13.flac",
+      "midi": 96,
+      "peak_dbfs": -5.609696844360488,
+      "attack": {
+        "mono_loss_db": -1.7176899741241543,
+        "p2_over_p1_stereo_db": -22.62301112902101,
+        "p2_over_p1_mono_db": -32.96611910751735
+      },
+      "sustain": {
+        "mono_loss_db": -2.897973637861773,
+        "p2_over_p1_stereo_db": -28.933072690554713,
+        "p2_over_p1_mono_db": -38.421511867574516
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 4,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C4v4.wav",
+      "midi": 60,
+      "peak_dbfs": -36.50531945383659,
+      "attack": {
+        "mono_loss_db": -0.38247199011214905,
+        "p2_over_p1_stereo_db": 6.831213797523787,
+        "p2_over_p1_mono_db": 7.1245231681476575
+      },
+      "sustain": {
+        "mono_loss_db": -1.3773561593971295,
+        "p2_over_p1_stereo_db": 6.522420668263026,
+        "p2_over_p1_mono_db": 13.555996911406751
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 8,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C4v8.wav",
+      "midi": 60,
+      "peak_dbfs": -33.384504198153714,
+      "attack": {
+        "mono_loss_db": -0.40553891703971007,
+        "p2_over_p1_stereo_db": 7.598475273314721,
+        "p2_over_p1_mono_db": 7.909146624101035
+      },
+      "sustain": {
+        "mono_loss_db": -1.3346984724649174,
+        "p2_over_p1_stereo_db": 7.6061723454844286,
+        "p2_over_p1_mono_db": 14.697940416587086
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 13,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C4v13.wav",
+      "midi": 60,
+      "peak_dbfs": -24.233657148254544,
+      "attack": {
+        "mono_loss_db": -0.47757263491299706,
+        "p2_over_p1_stereo_db": 9.300839640064215,
+        "p2_over_p1_mono_db": 9.667027190956565
+      },
+      "sustain": {
+        "mono_loss_db": -1.4672215525188304,
+        "p2_over_p1_stereo_db": 9.457923109873802,
+        "p2_over_p1_mono_db": 17.20899766566068
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 4,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C5v4.wav",
+      "midi": 72,
+      "peak_dbfs": -38.78563731042786,
+      "attack": {
+        "mono_loss_db": -1.9171611830933464,
+        "p2_over_p1_stereo_db": -11.296800899590544,
+        "p2_over_p1_mono_db": -14.469529272933796
+      },
+      "sustain": {
+        "mono_loss_db": -2.3696350797594654,
+        "p2_over_p1_stereo_db": -16.71975427548201,
+        "p2_over_p1_mono_db": -32.60484898519585
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 8,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C5v8.wav",
+      "midi": 72,
+      "peak_dbfs": -35.798231145649126,
+      "attack": {
+        "mono_loss_db": -1.9509501529557713,
+        "p2_over_p1_stereo_db": -9.591815639879139,
+        "p2_over_p1_mono_db": -12.793145679525315
+      },
+      "sustain": {
+        "mono_loss_db": -2.2260711940938815,
+        "p2_over_p1_stereo_db": -13.32855125992763,
+        "p2_over_p1_mono_db": -26.669716873241867
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 13,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C5v13.wav",
+      "midi": 72,
+      "peak_dbfs": -24.946191055571543,
+      "attack": {
+        "mono_loss_db": -1.9114413521696956,
+        "p2_over_p1_stereo_db": -7.009028448160456,
+        "p2_over_p1_mono_db": -10.162693165109612
+      },
+      "sustain": {
+        "mono_loss_db": -1.6741111420191932,
+        "p2_over_p1_stereo_db": -6.298730012528998,
+        "p2_over_p1_mono_db": -15.019656991528628
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 4,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C6v4.wav",
+      "midi": 84,
+      "peak_dbfs": -39.65470715010499,
+      "attack": {
+        "mono_loss_db": -2.552905965421263,
+        "p2_over_p1_stereo_db": -32.099110529888,
+        "p2_over_p1_mono_db": -36.20621509603784
+      },
+      "sustain": {
+        "mono_loss_db": -1.0207383456812662,
+        "p2_over_p1_stereo_db": -24.064734179754936,
+        "p2_over_p1_mono_db": -25.39504499125519
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 8,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C6v8.wav",
+      "midi": 84,
+      "peak_dbfs": -35.67750666845311,
+      "attack": {
+        "mono_loss_db": -2.561548177033826,
+        "p2_over_p1_stereo_db": -32.33201938446398,
+        "p2_over_p1_mono_db": -38.10741978484404
+      },
+      "sustain": {
+        "mono_loss_db": -1.009435711682976,
+        "p2_over_p1_stereo_db": -21.87952572830722,
+        "p2_over_p1_mono_db": -23.56426902988032
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 13,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C6v13.wav",
+      "midi": 84,
+      "peak_dbfs": -22.599086590339144,
+      "attack": {
+        "mono_loss_db": -2.467030702745697,
+        "p2_over_p1_stereo_db": -19.358303084230634,
+        "p2_over_p1_mono_db": -24.761090923663296
+      },
+      "sustain": {
+        "mono_loss_db": -1.044853212677289,
+        "p2_over_p1_stereo_db": -14.079652602837925,
+        "p2_over_p1_mono_db": -13.838981346221287
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 4,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C7v4.wav",
+      "midi": 96,
+      "peak_dbfs": -46.82821161435001,
+      "attack": {
+        "mono_loss_db": -4.118417812345829,
+        "p2_over_p1_stereo_db": -25.573192853081284,
+        "p2_over_p1_mono_db": -17.998679843079508
+      },
+      "sustain": {
+        "mono_loss_db": -2.0801553393102323,
+        "p2_over_p1_stereo_db": -28.985963568305916,
+        "p2_over_p1_mono_db": -30.424743230216418
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 8,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C7v8.wav",
+      "midi": 96,
+      "peak_dbfs": -41.6944876773454,
+      "attack": {
+        "mono_loss_db": -4.831575211449736,
+        "p2_over_p1_stereo_db": -28.246730942513295,
+        "p2_over_p1_mono_db": -21.935756823455968
+      },
+      "sustain": {
+        "mono_loss_db": -3.3080207778986055,
+        "p2_over_p1_stereo_db": -30.26056565686681,
+        "p2_over_p1_mono_db": -31.968677278679603
+      }
+    },
+    {
+      "source": "bivib",
+      "layer": 13,
+      "file": "/home/user/dev/piano/out/bench/sets/bivib_grand/C7v13.wav",
+      "midi": 96,
+      "peak_dbfs": -28.643342541395715,
+      "attack": {
+        "mono_loss_db": -6.031583483880054,
+        "p2_over_p1_stereo_db": -20.850961706200486,
+        "p2_over_p1_mono_db": -15.133732570257262
+      },
+      "sustain": {
+        "mono_loss_db": -4.978176167440887,
+        "p2_over_p1_stereo_db": -28.13088505260305,
+        "p2_over_p1_mono_db": -29.999001916366357
+      }
+    },
+    {
+      "source": "plath",
+      "layer": 13,
+      "file": "/home/user/dev/piano/out/bench/sets/plath/C4v13.wav",
+      "midi": 60,
+      "peak_dbfs": -6.000142010910672,
+      "attack": {
+        "mono_loss_db": -1.1251378579838551,
+        "p2_over_p1_stereo_db": -6.746046267339683,
+        "p2_over_p1_mono_db": -7.5789121563668616
+      },
+      "sustain": {
+        "mono_loss_db": -0.7390476731947965,
+        "p2_over_p1_stereo_db": -11.121281452042478,
+        "p2_over_p1_mono_db": -13.053628652001187
+      }
+    },
+    {
+      "source": "plath",
+      "layer": 13,
+      "file": "/home/user/dev/piano/out/bench/sets/plath/C5v13.wav",
+      "midi": 72,
+      "peak_dbfs": -5.990733353739253,
+      "attack": {
+        "mono_loss_db": -1.2456092296719643,
+        "p2_over_p1_stereo_db": -13.228715920517946,
+        "p2_over_p1_mono_db": -21.96853160603418
+      },
+      "sustain": {
+        "mono_loss_db": -1.3389138972663504,
+        "p2_over_p1_stereo_db": -6.3634926853438945,
+        "p2_over_p1_mono_db": -12.999094810918857
+      }
+    },
+    {
+      "source": "plath",
+      "layer": 13,
+      "file": "/home/user/dev/piano/out/bench/sets/plath/C6v13.wav",
+      "midi": 84,
+      "peak_dbfs": -6.019172160617633,
+      "attack": {
+        "mono_loss_db": -4.501658049086795,
+        "p2_over_p1_stereo_db": -18.40460357191095,
+        "p2_over_p1_mono_db": -18.523036578832556
+      },
+      "sustain": {
+        "mono_loss_db": -4.487970996536359,
+        "p2_over_p1_stereo_db": -13.039205624045119,
+        "p2_over_p1_mono_db": -19.504681477255144
+      }
+    },
+    {
+      "source": "plath",
+      "layer": 13,
+      "file": "/home/user/dev/piano/out/bench/sets/plath/C7v13.wav",
+      "midi": 96,
+      "peak_dbfs": -6.014645075962698,
+      "attack": {
+        "mono_loss_db": -2.252447663916231,
+        "p2_over_p1_stereo_db": -10.05995911527106,
+        "p2_over_p1_mono_db": -14.453185402611368
+      },
+      "sustain": {
+        "mono_loss_db": -0.9308285636646841,
+        "p2_over_p1_stereo_db": -30.63257879720463,
+        "p2_over_p1_mono_db": -35.968582652484315
+      }
+    }
+  ]
+}

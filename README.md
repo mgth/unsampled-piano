@@ -136,6 +136,10 @@ For playing and setting up the instrument, see the [website](https://unsampled.m
 - Note sustain (bridge, soundboard thickness, string losses): [docs/sustain.md](docs/sustain.md)
 - Dynamics, pedal and sympathetic resonance: [docs/dynamics_pedal.md](docs/dynamics_pedal.md)
 - Comparison with Salamander, Iowa and a commercial modelled piano: [docs/comparison.md](docs/comparison.md)
+- Realism audit and proposed comparisons (2026-10-28, French): [docs/realism_audit.md](docs/realism_audit.md)
+- Corrected bench: calibrated Plath levels and stereo power, with remaining gaps (French): [docs/bench_bias_correction.md](docs/bench_bias_correction.md)
+- [Top-register diagnosis](docs/top_register_diagnosis.md): isolated causes, controlled variants and comparisons with the corrected bench.
+- [Contact voicing by key and dynamic](docs/contact_voicing.md): experimental profiles, fixed coverage and dense velocity checks.
 - Test bench: the model scored against real pianos (`cargo xtask bench`): [docs/bench.md](docs/bench.md)
 - Recorded performances (Disklavier, Bösendorfer SE) against the model, note by note: [docs/pieces.md](docs/pieces.md)
 - A graded hammer felt instead of the two-layer hammer: [docs/felt.md](docs/felt.md)

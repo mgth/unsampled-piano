@@ -1,0 +1,1118 @@
+{
+ "checks": [
+  {
+   "voicing": "base",
+   "note": 93,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 93,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 93,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 94,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 94,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 94,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 95,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 95,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 95,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 96,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 96,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 96,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 97,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 97,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 97,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 98,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 98,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 98,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 99,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 99,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 99,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 100,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 100,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 100,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 101,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 101,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 101,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 102,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 102,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 102,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 103,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 103,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 103,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 104,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 104,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 104,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 105,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 105,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 105,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 106,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 106,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 106,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 107,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 107,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 107,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 108,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 108,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "base",
+   "note": 108,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 93,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 93,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 93,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 94,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 94,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 94,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 95,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 95,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 95,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 96,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 96,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 96,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 97,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 97,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 97,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 98,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 98,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 98,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 99,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 99,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 99,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 100,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 100,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 100,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 101,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 101,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 101,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 102,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 102,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 102,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 103,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 103,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 103,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 104,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 104,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 104,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 105,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 105,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 105,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 106,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 106,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 106,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 107,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 107,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 107,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 108,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 108,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "guarded",
+   "note": 108,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 93,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 93,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 93,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 94,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 94,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 94,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 95,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 95,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 95,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 96,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 96,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 96,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 97,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 97,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 97,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 98,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 98,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 98,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 99,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 99,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 99,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 100,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 100,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 100,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 101,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 101,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 101,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 102,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 102,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 102,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 103,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 103,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 103,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 104,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 104,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 104,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 105,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 105,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 105,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 106,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 106,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 106,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 107,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 107,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 107,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 108,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 108,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "local",
+   "note": 108,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 93,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 93,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 93,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 97,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 97,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 97,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 99,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 99,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 99,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 102,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 102,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 102,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 108,
+   "velocity": 45,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 108,
+   "velocity": 56,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  },
+  {
+   "voicing": "calibrated_local_isolated",
+   "note": 108,
+   "velocity": 100,
+   "exact_200ms": true,
+   "max_delta": 0.0
+  }
+ ],
+ "all_exact": true
+}

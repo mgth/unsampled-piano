@@ -1,0 +1,25 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling serde v1.0.229
+   Compiling either v1.19.0
+   Compiling rayon v1.12.0
+   Compiling syn v3.0.9
+   Compiling serde_derive v1.0.229
+   Compiling midly v0.5.3
+   Compiling piano-core v0.2.1 (/home/user/.codex/worktrees/piano-realism-audit/piano/crates/piano-core)
+   Compiling piano-host v0.2.1 (/home/user/.codex/worktrees/piano-realism-audit/piano/crates/piano-host)
+warning: linker stderr: ICECC[283] 2026-10-28 20:26:13: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-host` (test "contact_profile") generated 1 warning
+    Finished `release` profile [optimized + debuginfo] target(s) in 13.92s
+     Running tests/contact_profile.rs (/tmp/piano-real-geometry-target/release/deps/contact_profile-a57651af15c91920)
+
+running 3 tests
+test tone_also_moves_the_explicit_treble_contact ... ok
+test contact_profile_is_absent_by_default_and_roundtrips ... ok
+test per_key_contact_matches_isolated_preset_including_string_heights ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.88s
+

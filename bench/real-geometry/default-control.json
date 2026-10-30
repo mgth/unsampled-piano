@@ -1,0 +1,456 @@
+{
+ "count": 90,
+ "all_exact": true,
+ "checks": [
+  {
+   "note": 21,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 21,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 21,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 24,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 24,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 24,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 27,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 27,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 27,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 30,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 30,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 30,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 33,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 33,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 33,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 36,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 36,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 36,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 39,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 39,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 39,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 42,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 42,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 42,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 45,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 45,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 45,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 48,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 48,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 48,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 51,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 51,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 51,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 54,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 54,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 54,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 57,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 57,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 57,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 60,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 60,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 60,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 63,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 63,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 63,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 66,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 66,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 66,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 69,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 69,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 69,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 72,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 72,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 72,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 75,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 75,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 75,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 78,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 78,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 78,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 81,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 81,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 81,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 84,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 84,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 84,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 87,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 87,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 87,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 90,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 90,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 90,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 93,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 93,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 93,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 96,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 96,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 96,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 99,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 99,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 99,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 102,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 102,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 102,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 105,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 105,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 105,
+   "velocity": 100,
+   "exact_200ms": true
+  },
+  {
+   "note": 108,
+   "velocity": 45,
+   "exact_200ms": true
+  },
+  {
+   "note": 108,
+   "velocity": 56,
+   "exact_200ms": true
+  },
+  {
+   "note": 108,
+   "velocity": 100,
+   "exact_200ms": true
+  }
+ ]
+}

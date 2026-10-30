@@ -1,0 +1,346 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.27
+   Compiling cfg-if v1.0.5
+   Compiling serde v1.0.229
+   Compiling bitflags v2.13.2
+   Compiling serde_core v1.0.229
+   Compiling once_cell v1.21.4
+   Compiling libc v0.2.191
+   Compiling rustix v1.1.5
+   Compiling linux-raw-sys v0.12.1
+   Compiling winnow v1.0.4
+   Compiling autocfg v1.5.1
+   Compiling pkg-config v0.3.34
+   Compiling crossbeam-utils v0.8.23
+   Compiling smallvec v1.16.3
+   Compiling pin-project-lite v0.2.17
+   Compiling log v0.4.34
+   Compiling equivalent v1.0.3
+   Compiling hashbrown v0.17.1
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling parking v2.2.1
+   Compiling slab v0.4.12
+   Compiling futures-core v0.3.34
+   Compiling find-msvc-tools v0.1.15
+   Compiling shlex v2.0.1
+   Compiling futures-io v0.3.34
+   Compiling fastrand v2.5.0
+   Compiling endi v1.1.1
+   Compiling libloading v0.8.9
+   Compiling downcast-rs v1.2.1
+   Compiling memchr v2.8.3
+   Compiling scoped-tls v1.0.1
+   Compiling toml_writer v1.1.3+spec-1.1.0
+   Compiling wayland-client v0.31.15
+   Compiling dlib v0.5.3
+   Compiling event-listener v5.4.2
+   Compiling tracing-core v0.1.36
+   Compiling cc v1.9.0
+   Compiling foldhash v0.2.0
+   Compiling khronos_api v3.1.0
+   Compiling futures-lite v2.6.1
+   Compiling getrandom v0.3.4
+   Compiling zerocopy v0.8.63
+   Compiling version_check v0.9.5
+   Compiling async-task v4.7.1
+   Compiling cfg_aliases v0.2.2
+   Compiling arrayvec v0.7.8
+   Compiling atomic-waker v1.1.2
+   Compiling thiserror v2.0.21
+   Compiling rustix v0.38.44
+   Compiling thiserror v1.0.69
+   Compiling xml-rs v0.8.29
+   Compiling piper v0.2.5
+   Compiling ordered-stream v0.2.0
+   Compiling siphasher v1.0.4
+   Compiling num-traits v0.2.19
+   Compiling event-listener-strategy v0.5.4
+   Compiling async-io v2.6.0
+   Compiling linebender_resource_handle v0.1.1
+   Compiling wayland-sys v0.31.11
+   Compiling async-lock v3.4.2
+   Compiling polycool v0.4.0
+   Compiling async-broadcast v0.7.2
+   Compiling ahash v0.8.12
+   Compiling x11-dl v2.21.0
+   Compiling linux-raw-sys v0.4.15
+   Compiling parking_lot_core v0.9.12
+   Compiling either v1.19.0
+   Compiling hex v0.4.3
+   Compiling phf_shared v0.14.0
+   Compiling scopeguard v1.2.0
+   Compiling quick-xml v0.41.0
+   Compiling unicode-general-category v1.1.0
+   Compiling indexmap v2.14.2
+   Compiling kurbo v0.13.1
+   Compiling static_assertions v1.1.0
+   Compiling crossbeam-epoch v0.9.21
+   Compiling fearless_simd v0.4.1
+   Compiling lock_api v0.4.14
+   Compiling concurrent-queue v2.5.0
+   Compiling phf_generator v0.14.0
+   Compiling syn v3.0.9
+   Compiling syn v2.0.119
+   Compiling async-channel v2.5.0
+   Compiling gl_generator v0.14.0
+   Compiling smithay-client-toolkit v0.19.2
+   Compiling xcursor v0.3.11
+   Compiling cursor-icon v1.2.0
+   Compiling crossbeam-deque v0.8.8
+   Compiling simd-adler32 v0.3.10
+   Compiling xkeysym v0.2.1
+   Compiling async-executor v1.14.0
+   Compiling blocking v1.7.0
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling winit v0.30.13
+   Compiling crc32fast v1.5.3
+   Compiling x11rb-protocol v0.13.2
+   Compiling nohash-hasher v0.2.0
+   Compiling as-raw-xcb-connection v1.0.1
+   Compiling profiling v1.0.18
+   Compiling rayon-core v1.13.0
+   Compiling euclid v0.22.14
+   Compiling unicode-segmentation v1.13.3
+   Compiling epaint_default_fonts v0.37.0
+   Compiling adler2 v2.0.1
+   Compiling self_cell v1.3.0
+   Compiling raw-window-handle v0.6.2
+   Compiling unicode-properties v0.1.4
+   Compiling errno v0.3.14
+   Compiling memmap2 v0.9.12
+   Compiling glutin_egl_sys v0.7.1
+   Compiling glutin_glx_sys v0.6.1
+   Compiling itertools v0.15.0
+   Compiling toml_edit v0.25.17+spec-1.1.0
+   Compiling signal-hook-registry v1.4.8
+   Compiling percent-encoding v2.3.2
+   Compiling wayland-scanner v0.31.11
+   Compiling futures-task v0.3.34
+   Compiling parking_lot v0.12.5
+   Compiling xkbcommon-dl v0.4.2
+   Compiling dpi v0.1.2
+   Compiling smol_str v0.2.2
+   Compiling miniz_oxide v0.9.1
+   Compiling alsa-sys v0.4.0
+   Compiling glutin v0.32.3
+   Compiling miniz_oxide v0.8.9
+   Compiling fdeflate v0.3.7
+   Compiling wayland-backend v0.3.17
+   Compiling guillotiere v0.7.0
+   Compiling glutin-winit v0.5.0
+   Compiling pxfm v0.1.30
+   Compiling rtrb v0.4.0
+   Compiling assert_no_alloc v1.1.2
+   Compiling midir v0.11.1
+   Compiling web-time v1.1.0
+   Compiling byteorder-lite v0.1.0
+   Compiling litrs v1.0.1
+   Compiling glow v0.17.0
+   Compiling proc-macro-crate v3.5.0
+   Compiling flate2 v1.1.10
+   Compiling rayon v1.12.0
+   Compiling alsa v0.11.0
+   Compiling document-features v0.2.12
+   Compiling png v0.18.1
+   Compiling uuid v1.28.0
+   Compiling serde_spanned v1.1.2
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling accesskit v0.25.1
+   Compiling accesskit_consumer v0.39.1
+   Compiling enumflags2_derive v0.7.12
+   Compiling tracing-attributes v0.1.31
+   Compiling thiserror-impl v1.0.69
+   Compiling phf_macros v0.14.0
+   Compiling moxcms v0.8.1
+   Compiling serde_derive v1.0.229
+   Compiling bytemuck_derive v1.12.1
+   Compiling thiserror-impl v2.0.21
+   Compiling serde_repr v0.1.21
+   Compiling async-recursion v1.2.0
+   Compiling async-trait v0.1.92
+   Compiling futures-macro v0.3.34
+   Compiling midly v0.5.3
+   Compiling phf v0.14.0
+   Compiling futures-util v0.3.34
+   Compiling tracing v0.1.44
+   Compiling bytemuck v1.25.2
+   Compiling font-types v0.12.7
+   Compiling color v0.3.3
+   Compiling emath v0.37.0
+   Compiling polling v3.11.0
+   Compiling gethostname v1.1.0
+   Compiling calloop v0.13.0
+   Compiling read-fonts v0.41.0
+   Compiling ecolor v0.37.0
+   Compiling peniko v0.6.1
+   Compiling vello_common v0.2.0
+   Compiling async-signal v0.2.14
+   Compiling async-process v2.5.0
+   Compiling wayland-csd-frame v0.3.0
+   Compiling zvariant_utils v4.2.0
+   Compiling enumflags2 v0.7.12
+   Compiling zcheapstr v1.1.0
+   Compiling piano-core v0.2.1 (/home/user/.codex/worktrees/piano-realism-audit/piano/crates/piano-core)
+   Compiling vello_cpu v0.2.0
+   Compiling zvariant_derive v5.15.1
+   Compiling zvariant v5.15.1
+   Compiling image v0.25.10
+   Compiling wayland-protocols v0.32.13
+   Compiling calloop-wayland-source v0.3.0
+   Compiling wayland-cursor v0.31.14
+   Compiling zbus_names v4.3.5
+   Compiling piano-params v0.2.1 (/home/user/.codex/worktrees/piano-realism-audit/piano/crates/piano-params)
+   Compiling piano-host v0.2.1 (/home/user/.codex/worktrees/piano-realism-audit/piano/crates/piano-host)
+   Compiling zbus_xml v5.2.1
+   Compiling piano-control v0.2.1 (/home/user/.codex/worktrees/piano-realism-audit/piano/crates/piano-control)
+   Compiling zbus_macros v5.19.0
+   Compiling zbus-lockstep v0.5.2
+   Compiling zbus-lockstep-macros v0.5.2
+   Compiling zbus v5.19.0
+   Compiling x11rb v0.13.2
+   Compiling skrifa v0.44.0
+   Compiling harfrust v0.12.0
+   Compiling wayland-protocols-wlr v0.3.12
+   Compiling wayland-protocols-plasma v0.3.12
+   Compiling epaint v0.37.0
+   Compiling atspi-common v0.13.0
+   Compiling egui v0.37.0
+   Compiling atspi-proxies v0.13.0
+   Compiling accesskit_atspi_common v0.21.0
+warning: linker stderr: ICECC[3463] 2026-10-28 20:29:10: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-params` (example "list_params") generated 1 warning
+warning: linker stderr: ICECC[3499] 2026-10-28 20:29:10: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-control` (lib test) generated 1 warning
+   Compiling atspi v0.29.0
+   Compiling accesskit_unix v0.24.0
+   Compiling egui_glow v0.37.0
+   Compiling piano-ui v0.2.1 (/home/user/.codex/worktrees/piano-realism-audit/piano/crates/piano-ui)
+warning: linker stderr: ICECC[3547] 2026-10-28 20:29:12: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-control` (test "limiter") generated 1 warning
+warning: linker stderr: ICECC[3566] 2026-10-28 20:29:12: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-control` (test "swap") generated 1 warning
+warning: linker stderr: ICECC[3585] 2026-10-28 20:29:12: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-control` (example "edit_load") generated 1 warning
+   Compiling accesskit_winit v0.34.1
+   Compiling egui-winit v0.37.0
+   Compiling eframe v0.37.0
+warning: linker stderr: ICECC[3665] 2026-10-28 20:29:14: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-params` (lib test) generated 1 warning
+warning: linker stderr: ICECC[3985] 2026-10-28 20:29:32: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-ui` (example "demo") generated 1 warning
+warning: linker stderr: ICECC[4004] 2026-10-28 20:29:35: socket()(Error: Operation not permitted)
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `piano-ui` (lib test) generated 1 warning
+    Finished `release` profile [optimized + debuginfo] target(s) in 37.36s
+     Running unittests src/lib.rs (/tmp/piano-realism-target/release/deps/piano_control-cf91708dc1796c7a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/limiter.rs (/tmp/piano-realism-target/release/deps/limiter-e00f77aa856aee06)
+
+running 2 tests
+test the_limiter_switches_live ... ok
+test the_limiter_keeps_the_output_under_its_ceiling ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running tests/swap.rs (/tmp/piano-realism-target/release/deps/swap-06e7e67488413f1c)
+
+running 6 tests
+test mismatched_channels_are_refused - should panic ... ok
+test live_edits_do_not_rebuild ... ok
+test midi_learn_routes_a_controller ... ok
+test a_burst_of_edits_builds_once ... ok
+test swap_on_two_threads_keeps_held_notes ... ok
+test swap_keeps_held_notes_and_never_allocates ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.80s
+
+     Running unittests src/lib.rs (/tmp/piano-realism-target/release/deps/piano_params-f9960e2a2dba01bd)
+
+running 12 tests
+test help::tests::indices_are_ignored ... ok
+test meta::tests::labels ... ok
+test meta::tests::curated_paths_exist ... ok
+test help::tests::every_parameter_has_help ... ok
+test help::tests::every_entry_is_a_parameter ... ok
+test midi::tests::joystick_axis_moved_most_is_learnt ... ok
+test midi::tests::learn_then_drive ... ok
+test midi::tests::rebuild_parameters_and_one_to_one ... ok
+test tests::ids_are_unique_and_live_params_registered ... ok
+test midi::tests::integers_booleans_and_persistence ... ok
+test tests::paths_and_errors ... ok
+test tests::every_parameter_reads_and_writes ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (/tmp/piano-realism-target/release/deps/piano_ui-d2a78ad5f76c13df)
+
+running 25 tests
+test mics::tests::an_upright_moves_its_own_pair ... ok
+test mics::tests::a_standing_board_stands_in_the_room ... ok
+test mics::tests::default_setup_is_the_model_default ... ok
+test mics::tests::critical_distance_follows_directivity_and_pattern ... ok
+test mics::tests::lid_shadow ... ok
+test mics::tests::relative_positions_stay_relative ... ok
+test sections::tests::curves_are_finite ... ok
+test simple::tests::labels_give_both_ends ... ok
+test sketches::tests::felt_shades_stay_in_range ... ok
+test mics::tests::setups_fit_the_curated_ranges ... ok
+test simple::tests::every_control_has_its_row ... ok
+test mics::tests::setups_match_the_listening_presets ... ok
+test widgets::tests::temperaments_are_chosen_by_name ... ok
+test sections::tests::placement ... ok
+test sketches::tests::parts_name_real_parameters ... ok
+test widgets::tests::formatting ... ok
+test sketches::tests::keyboard_layout ... ok
+test widgets::tests::shown_texts_have_their_glyphs ... FAILED
+test tests::preset_folders_merge ... ok
+test touch_tests::a_touch_lies_over_any_instrument ... ok
+test sketches::tests::both_actions_draw ... ok
+test mics::tests::a_pair_seen_as_one_moves_together ... ok
+test mics::tests::dragging_moves_the_microphones ... ok
+test slider_tests::a_slider_lights_its_part_and_opens_its_help ... ok
+test slider_tests::a_musicians_control_moves_and_returns_to_the_preset ... ok
+
+failures:
+
+---- widgets::tests::shown_texts_have_their_glyphs stdout ----
+
+thread 'widgets::tests::shown_texts_have_their_glyphs' (4850) panicked at /home/user/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/epaint-0.37.0/src/textures.rs:337:9:
+Dropped TexturesDelta with 1 unapplied deltas. Deltas need to be handled. If you want to drop this intentionally call `clear` before dropping.
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    widgets::tests::shown_texts_have_their_glyphs
+
+test result: FAILED. 24 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+error: test failed, to rerun pass `-p piano-ui --lib`
