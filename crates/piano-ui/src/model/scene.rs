@@ -108,6 +108,23 @@ const PIN_HEAD: f64 = 0.011;
 const PIN_TOP: f64 = 0.02;
 const PIN_BUSH_R: f64 = 0.0055;
 const PIN_BUSH_H: f64 = 0.0015;
+/// An agraffe, as they are made: a hexagonal flange screwed into the
+/// plate, a neck, and a head the unison's strings go through, its flats
+/// facing along them: the head's half-width, and its growth per string
+/// beyond the first; the flange's radius beyond the head's and height;
+/// the head's extent below and above the strings; the holes' radius; the
+/// longest neck, beyond which the agraffe stands on a boss of the plate
+/// (the bass's, its strings higher), and the boss's radius beyond the
+/// flange's.
+const AGRAFFE_HEAD: f64 = 0.0028;
+const AGRAFFE_HEAD_PER: f64 = 0.0009;
+const AGRAFFE_FLANGE: f64 = 0.0012;
+const AGRAFFE_FLANGE_H: f64 = 0.003;
+const AGRAFFE_BELOW: f64 = 0.0045;
+const AGRAFFE_ABOVE: f64 = 0.0035;
+const AGRAFFE_HOLE_R: f64 = 0.0006;
+const AGRAFFE_NECK: f64 = 0.004;
+const AGRAFFE_BOSS: f64 = 0.0025;
 /// The felt strip on the plate under the strings' dead lengths, between
 /// the agraffes and the pins: its middle in front of the agraffes, width
 /// and thickness.
@@ -843,6 +860,53 @@ fn tuning_pin(b: &mut Builder, p: &TuningPin, i: usize, z: f64, c: Color32) {
     b.line(helix(steps), hole, rgba(c, 1.0));
 }
 
+/// The agraffe at `at` (plate) for a unison of `strings` along `u` at
+/// height `z`, standing on `foot` (see the [`AGRAFFE_HEAD`] constants):
+/// brass `c`, its boss the plate's `plate`; the strings' holes through
+/// its head 2.5 mm apart, as they are drawn.
+#[allow(clippy::too_many_arguments)]
+fn agraffe(b: &mut Builder, at: (f64, f64), u: (f64, f64), z: f64, foot: f64, strings: usize, c: Color32, plate: Color32) {
+    let place = b.place;
+    let hw = AGRAFFE_HEAD + AGRAFFE_HEAD_PER * (strings as f64 - 1.0);
+    let flange = hw + AGRAFFE_FLANGE;
+    let head = z - AGRAFFE_BELOW;
+    let foot = if head - AGRAFFE_NECK - AGRAFFE_FLANGE_H > foot {
+        let top = head - AGRAFFE_NECK - AGRAFFE_FLANGE_H;
+        b.plate_prism(at, flange + AGRAFFE_BOSS, 8, 0.0, (foot, top), plate);
+        top
+    } else {
+        foot
+    };
+    b.plate_prism(at, flange, 6, u.1.atan2(u.0), (foot, foot + AGRAFFE_FLANGE_H), c);
+    let base = place.at(at.0, at.1, foot + AGRAFFE_FLANGE_H);
+    let (h, top, w) = ((head - foot - AGRAFFE_FLANGE_H) as f32, (z + AGRAFFE_ABOVE - foot - AGRAFFE_FLANGE_H) as f32, hw as f32);
+    #[rustfmt::skip]
+    let rings = [
+        (0.0, 0.6 * w, false), (h, 0.6 * w, false), (h, w, true),
+        (top - 0.0012, w, true), (top - 0.0003, 0.8 * w, false), (top, 0.45 * w, false),
+    ];
+    b.lathe(base, place.dir(0.0, 0.0, 1.0), place.dir(u.0, u.1, 0.0), &rings, &[c]);
+    // The holes, on the faces the strings go in and out by.
+    let (n, hole) = ((-u.1, u.0), rgba(Color32::from_rgb(40, 32, 20), 1.0));
+    for s in 0..strings {
+        let off = (s as f64 - (strings as f64 - 1.0) / 2.0) * 0.0025;
+        for side in [-1.0, 1.0] {
+            let d = side * (hw + 0.0001);
+            let (cx, cy) = (at.0 + u.0 * d + n.0 * off, at.1 + u.1 * d + n.1 * off);
+            let rim = |k: usize| {
+                let (sn, cs) = (std::f64::consts::TAU * k as f64 / 6.0).sin_cos();
+                let r = AGRAFFE_HOLE_R;
+                place.at(cx + n.0 * r * cs, cy + n.1 * r * cs, z + r * sn)
+            };
+            let centre = place.at(cx, cy, z);
+            for k in 0..6 {
+                let t = if side > 0.0 { [centre, rim(k), rim(k + 1)] } else { [centre, rim(k + 1), rim(k)] };
+                b.tri(false, t, [hole; 3]);
+            }
+        }
+    }
+}
+
 /// A grand's leg under `top` (world, the case's underside), as most are
 /// made: a moulded block under the case, a square shaft tapering down with
 /// rounded corners and a bead under its neck, a collar and a brass ferrule
@@ -1166,14 +1230,13 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         if m <= d.highest_note {
             braid.push(Crossing { bass: m < sb.main_bridge_from, at: (bx + ux * rear * 0.45, by + uy * rear * 0.45), z: z - HITCH_DROP * 0.45, dir: (ux, uy) });
         }
-        // The agraffe, a brass stud the unison goes through, turned along
-        // it, standing on the pin block (the highest treble's overhang it);
-        // the hammer under (an upright's: in front of) the strings at
-        // the strike point, all on one line.
-        let turn = dy.atan2(dx);
-        let r = 0.0038 + 0.0008 * (n.strings as f64 - 1.0);
+        // The agraffe the unison goes through, standing on the pin block
+        // (the highest treble's overhang it); the hammer under (an
+        // upright's: in front of) the strings at the strike point, all on
+        // one line.
+        let r = AGRAFFE_HEAD + AGRAFFE_HEAD_PER * (n.strings as f64 - 1.0) + AGRAFFE_FLANGE;
         let foot = if ax + r <= block_back(ax) { PIN_BLOCK_TOP } else { z - 0.008 };
-        b.plate_prism((ax, ay), r, 6, turn, (foot, z + 0.005), pick(Part::Agraffes, BRASS));
+        agraffe(&mut b, (ax, ay), (ux, uy), z, foot, n.strings, pick(Part::Agraffes, BRASS), pick(Part::Frame, IRON));
         let k = obs.map(|o| o.keys[m as usize]);
         let down = k.is_some_and(|k| k.down);
         let hammer_on = k.is_some_and(|k| k.hammer);
