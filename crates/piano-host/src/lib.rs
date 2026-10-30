@@ -205,6 +205,20 @@ pub fn read_midi_file(path: &Path) -> Result<Vec<(f64, Event)>, String> {
 #[cfg(test)]
 mod tests {
 
+    /// The brake came with sympathetic.gain 1: a `[sympathetic]` section
+    /// saved before it (gain 0.6, no brake field) keeps the unbraked
+    /// coupling it was heard with; a preset without the section, and the
+    /// shipped default, take the brake.
+    #[test]
+    fn presets_from_before_the_brake_keep_their_sympathy() {
+        let old: PianoModel = toml::from_str("[sympathetic]\nenabled = true\nmax_freq = 5000.0\ngain = 0.6\nself_cancel = true\n").unwrap();
+        assert_eq!((old.sympathetic.gain, old.sympathetic.brake), (0.6, false));
+        let partial: PianoModel = toml::from_str("hardness = 0.4\n").unwrap();
+        assert!(partial.sympathetic.brake);
+        let shipped = load_preset(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/default.toml")).unwrap();
+        assert_eq!((shipped.sympathetic.gain, shipped.sympathetic.brake), (1.0, true));
+    }
+
     #[test]
     fn listening_overlay_keeps_the_instrument() {
         let mut inst = PianoModel { hardness: 0.77, ..Default::default() };

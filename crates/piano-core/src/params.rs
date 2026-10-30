@@ -742,16 +742,33 @@ pub struct SympatheticLaw {
     /// several share it (octaves). Once the free strings kept their load on
     /// the board (docs/pedal_drone.md), 1 left the middle's pedal halo
     /// 3.9 dB over the Disklavier's and B5 ringing 7 dB louder with the
-    /// pedal in Chopin op. 10 no. 3; 0.6 matches the middle (+16.2 dB
-    /// against +15.5). It costs the undamped top's sound below its
-    /// fundamentals (bench 1.07 → 1.13).
+    /// pedal in Chopin op. 10 no. 3; 0.6 matched the middle (+16.2 dB
+    /// against +15.5) but cost the undamped top's sound below its
+    /// fundamentals (bench 1.07 → 1.13). Back to 1 with [`Self::brake`]
+    /// (docs/treble_halo.md): the middle's pedalled halo +14.7 dB against
+    /// the Disklavier's +14.5, the top's halo as Plath's at its start
+    /// (bench 1.143 → 1.066); preferred by ear, note by note.
     pub gain: f64,
     /// Cancel each key's own contribution to its bridge input.
     pub self_cancel: bool,
+    /// The free strings brake the bridge where they ring (the two-way
+    /// coupling to first order): each listening mode's drive is divided by
+    /// 1 + Σ_k Y·Z_k over the other free strings' modes near its frequency,
+    /// Y the board's transfer between their regions, Z_k a string's
+    /// impedance at the bridge (from its own sympathetic response). Two sets:
+    /// the undamped keys alone (pedal up) and every key (pedal down). Where
+    /// no other free string shares a frequency (the undamped top under a
+    /// struck note) it changes nothing; where several do (the octaves of a
+    /// pedalled chord) it holds the bridge back as the real strings do.
+    /// A `[sympathetic]` section saved before it existed reads `false`, so
+    /// that the sound it kept does not change (a preset without the section
+    /// takes the default instrument's, on).
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub brake: bool,
 }
 
 impl SympatheticLaw {
-    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 0.6, self_cancel: true };
+    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 1.0, self_cancel: true, brake: true };
 }
 
 /// Partial frequency of a stiff string: f_k = k·f0·sqrt(1 + B·k²).

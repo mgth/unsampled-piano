@@ -46,6 +46,8 @@ pub struct Voice {
     pub bank: ModalBank,
     /// Response to the bridge motion from the other keys.
     pub sym: ModalBank,
+    /// `sym` runs the table braked by every free string (dampers lifted).
+    sym_free: bool,
     pub contact: ContactSolver,
     sym_force: Vec<f32>,
     agraffe: Vec<f32>,
@@ -102,6 +104,7 @@ impl Voice {
             damper_speed: 1.0,
             bank: ModalBank::new(sample_rate, modes, max_block),
             sym: ModalBank::new(sample_rate, modes, max_block),
+            sym_free: false,
             contact: ContactSolver::new(modes, sample_rate),
             sym_force: vec![0.0; max_block],
             agraffe: vec![0.0; max_block],
@@ -145,6 +148,7 @@ impl Voice {
         self.sym.load(&nm.sym_table);
         self.sym.set_active_len(nm.n_listen);
         self.sym.reset();
+        self.sym_free = false;
         self.force.fill(0.0);
         self.force_ring.fill(0.0);
         self.lp = [0.0; 2];
@@ -501,6 +505,19 @@ impl Voice {
     }
 
     /// Sets the damper decay-rate factor (see [`NoteModel::damper_rate`]).
+    /// Switches the sympathetic bank to the brakes of the dampers' state
+    /// (lifted: every string free), keeping its motion. Real-time safe.
+    pub fn set_sym_free(&mut self, nm: &NoteModel, free: bool) {
+        if free == self.sym_free {
+            return;
+        }
+        self.sym_free = free;
+        let damping = self.sym.damping();
+        self.sym.load(nm.sym_table(free));
+        self.sym.set_active_len(nm.n_listen);
+        self.sym.set_damping(damping);
+    }
+
     pub fn set_damper_rate(&mut self, rate: f64) {
         self.bank.set_damping(rate as f32);
         self.sym.set_damping(rate as f32);

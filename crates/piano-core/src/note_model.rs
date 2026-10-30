@@ -57,6 +57,10 @@ pub struct NoteModel {
     /// physical, passive phase at each mode's frequency).
     pub table: ModeTable,
     pub sym_table: ModeTable,
+    /// The sympathetic table while the dampers are lifted: the same modes,
+    /// braked by every free string instead of the undamped ones alone
+    /// ([`params::SympatheticLaw::brake`]).
+    pub sym_table_free: ModeTable,
 }
 
 /// Delay (samples) of the bridge acceleration seen by the strings: the
@@ -284,18 +288,9 @@ impl NoteModel {
             clusters.push(cl);
         }
         let longitudinal = longitudinal(model, &np, n_osc, &clusters, &modes, note, sample_rate, res);
-        let delay = BRIDGE_DELAY / sample_rate;
-        let sym_modes: Vec<ModeSpec> = modes
-            .iter()
-            .map(|m| {
-                let adv = C64::polar(1.0, tau * m.freq_hz * delay);
-                let g1 = C64::new(m.gain_re, m.gain_im) * adv;
-                let g2 = C64::new(m.gain2_re, m.gain2_im) * adv;
-                ModeSpec { gain_re: g1.re, gain_im: g1.im, gain2_re: g2.re, gain2_im: g2.im, ..*m }
-            })
-            .collect();
         let table = ModeTable::new(sample_rate, &modes);
-        let sym_table = ModeTable::new(sample_rate, &sym_modes);
+        let sym_table = ModeTable::new(sample_rate, &sym_specs(&modes, None, sample_rate));
+        let sym_table_free = ModeTable::new(sample_rate, &sym_specs(&modes, None, sample_rate));
         Self {
             note,
             params: np,
@@ -313,7 +308,13 @@ impl NoteModel {
             longitudinal,
             table,
             sym_table,
+            sym_table_free,
         }
+    }
+
+    /// The sympathetic table for the dampers' state.
+    pub fn sym_table(&self, free: bool) -> &ModeTable {
+        if free { &self.sym_table_free } else { &self.sym_table }
     }
 
     /// Damper decay-rate factor at contact `engagement` (0 lifted, 1 resting).
@@ -323,6 +324,83 @@ impl NoteModel {
         }
         model.damper.rate(engagement, self.params.tension, self.params.mu, self.params.length)
     }
+}
+
+/// The sympathetic bank's modes: input gains advanced by e^{iωD}, D =
+/// [`BRIDGE_DELAY`] samples (the bridge input arrives that late, and the
+/// coupling keeps its physical, passive phase at each mode's frequency),
+/// times each mode's brake when given.
+fn sym_specs(modes: &[ModeSpec], brake: Option<&[C64]>, sample_rate: f64) -> Vec<ModeSpec> {
+    let delay = BRIDGE_DELAY / sample_rate;
+    modes
+        .iter()
+        .enumerate()
+        .map(|(i, m)| {
+            let adv = C64::polar(1.0, std::f64::consts::TAU * m.freq_hz * delay) * brake.and_then(|b| b.get(i)).copied().unwrap_or(C64::ONE);
+            let g1 = C64::new(m.gain_re, m.gain_im) * adv;
+            let g2 = C64::new(m.gain2_re, m.gain2_im) * adv;
+            ModeSpec { gain_re: g1.re, gain_im: g1.im, gain2_re: g2.re, gain2_im: g2.im, ..*m }
+        })
+        .collect()
+}
+
+/// A listening mode's response to its bridge input 1 (sympathetic force per
+/// bridge acceleration, the bank's own discrete transfer) at ω (rad/s).
+fn mode_response(m: &ModeSpec, omega: f64, sample_rate: f64) -> C64 {
+    let t = 1.0 / sample_rate;
+    let z = C64::polar(1.0, -omega * t);
+    let p = C64::polar((-m.sigma * t).exp(), std::f64::consts::TAU * m.freq_hz * t);
+    let wb = C64::new(m.out_re, m.out_im) * C64::new(m.gain_re, m.gain_im);
+    (wb / (C64::ONE - p * z) + wb.conj() / (C64::ONE - p.conj() * z)).scale(0.5)
+}
+
+/// Other free strings' modes within this share of a mode's frequency brake
+/// it; farther ones answer off resonance, their mean load already in the
+/// board (`SoundboardParams::string_load`).
+const BRAKE_WINDOW: f64 = 0.02;
+
+/// Per key and listening mode, the brake 1/(1 − Σ_k A·H_k) on its
+/// sympathetic drive: H_k the bridge force of another free key's listening
+/// modes per bridge acceleration (near the mode's frequency), A the board's
+/// acceleration at the key's region per force at theirs, the free strings
+/// taken to move with the bridge at the key's region. Passive strings give
+/// |brake| ≤ 1; capped there.
+pub fn sym_brakes(notes: &[NoteModel], board_modes: &[BoardMode], free: impl Fn(&NoteModel) -> bool, sample_rate: f64) -> Vec<Vec<C64>> {
+    // Every free key's listening modes, by frequency.
+    let mut pool: Vec<(f64, usize, usize)> = notes
+        .iter()
+        .enumerate()
+        .filter(|(_, nm)| free(nm))
+        .flat_map(|(i, nm)| nm.modes[..nm.n_listen].iter().enumerate().map(move |(j, m)| (m.freq_hz, i, j)))
+        .collect();
+    pool.sort_by(|a, b| a.0.total_cmp(&b.0));
+    crate::par::map(notes.len(), |i| {
+        let nm = &notes[i];
+        let mut acc = [C64::ZERO; board::REGIONS];
+        nm.modes[..nm.n_listen]
+            .iter()
+            .map(|m| {
+                let (lo, hi) = (m.freq_hz * (1.0 - BRAKE_WINDOW), m.freq_hz * (1.0 + BRAKE_WINDOW));
+                let start = pool.partition_point(|e| e.0 < lo);
+                let omega = std::f64::consts::TAU * m.freq_hz;
+                acc.fill(C64::ZERO);
+                let mut any = false;
+                for &(_, k, j) in pool[start..].iter().take_while(|e| e.0 <= hi).filter(|e| e.1 != i) {
+                    acc[notes[k].region] += mode_response(&notes[k].modes[j], omega, sample_rate);
+                    any = true;
+                }
+                if !any {
+                    return C64::ONE;
+                }
+                let diff = (C64::ONE - C64::polar(1.0, -omega / sample_rate)).scale(sample_rate);
+                let s = acc.iter().enumerate().filter(|(_, h)| h.norm_sqr() > 0.0).fold(C64::ZERO, |s, (r, &h)| {
+                    s + board::transfer(board_modes, r, MICS + nm.region, omega, sample_rate) * diff * h
+                });
+                let b = C64::ONE / (C64::ONE - s);
+                if b.norm() > 1.0 { b.scale(1.0 / b.norm()) } else { b }
+            })
+            .collect()
+    })
 }
 
 /// Longitudinal model of a key, or None when disabled or above `max_note`.
@@ -428,7 +506,15 @@ impl PianoTable {
         res: Resolution,
     ) -> Self {
         // Independent keys: built in parallel (≈ 0.5 s on one core).
-        let notes = crate::par::map(88, |i| NoteModel::build_with(model, board, board_modes, low, frame, 21 + i as u8, sample_rate, res));
+        let mut notes = crate::par::map(88, |i| NoteModel::build_with(model, board, board_modes, low, frame, 21 + i as u8, sample_rate, res));
+        if let (true, Some(bm)) = (model.sympathetic.enabled && model.sympathetic.brake, board_modes) {
+            let up = sym_brakes(&notes, bm, |nm| !nm.has_damper, sample_rate);
+            let down = sym_brakes(&notes, bm, |_| true, sample_rate);
+            for ((nm, up), down) in notes.iter_mut().zip(&up).zip(&down) {
+                nm.sym_table = ModeTable::new(sample_rate, &sym_specs(&nm.modes, Some(up), sample_rate));
+                nm.sym_table_free = ModeTable::new(sample_rate, &sym_specs(&nm.modes, Some(down), sample_rate));
+            }
+        }
         Self { notes }
     }
 
@@ -441,6 +527,11 @@ impl PianoTable {
 
     pub fn get(&self, note: u8) -> &NoteModel {
         &self.notes[(note.clamp(21, 108) - 21) as usize]
+    }
+
+    /// The 88 keys, A0 first.
+    pub fn notes(&self) -> &[NoteModel] {
+        &self.notes
     }
 }
 
@@ -509,6 +600,29 @@ mod tests {
                 assert!(m.sigma > 0.0, "note {note} mode {i}: σ = {}", m.sigma);
             }
         }
+    }
+
+    /// The free strings' brake: never a gain, nothing on the fundamentals
+    /// of the undamped top with the dampers down (no other free string
+    /// shares them),
+    /// and several dB somewhere once every string is free (octaves).
+    #[test]
+    fn free_strings_brake_where_they_share_a_frequency() {
+        let inst = crate::instrument::Instrument::new(PianoModel::default(), 48_000.0);
+        let (bm, notes) = (inst.board.as_deref().unwrap(), inst.table.notes());
+        let up = sym_brakes(notes, bm, |nm| !nm.has_damper, 48_000.0);
+        let down = sym_brakes(notes, bm, |_| true, 48_000.0);
+        let db = |b: &C64| 20.0 * b.norm().log10();
+        for (i, (u, d)) in up.iter().zip(&down).enumerate() {
+            assert!(u.iter().chain(d).all(|b| b.norm() <= 1.0 + 1e-12), "key {}", 21 + i);
+            // The halo under the top's notes: D#6–B6's fundamentals.
+            if (87..=95).contains(&(21 + i)) {
+                let p1 = &u[..notes[i].n_osc];
+                assert!(p1.iter().all(|b| db(b) > -0.5), "key {}: {:?}", 21 + i, p1.iter().map(db).fold(0.0, f64::min));
+            }
+        }
+        let strongest = down.iter().flatten().map(db).fold(0.0, f64::min);
+        assert!(strongest < -3.0, "strongest brake {strongest} dB");
     }
 
     /// Every key, including single strings, has a fast and a slow component
