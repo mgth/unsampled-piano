@@ -76,7 +76,7 @@ Gain on the bridge-to-string coupling (`sympathetic.gain`), Chopin lines (model 
 
 0.6 brings B5 back among its treble neighbours (D#6 −5 dB, F#6 −7 dB) and matches the middle's halo. The user preferred it by ear. The treble's halo does not follow the gain: unexplained so far. The bench, played without the pedal, loses through the top (C7–C8): these keys have no dampers and always listen, and their sound below the fundamental (1–2 kHz bands, already 10–20 dB under the real grands) comes from the sympathy.
 
-A two-way coupling would brake the bridge where strings share a frequency and leave the rest: it would serve both the pedalled middle and the undamped top.
+A two-way coupling would brake the bridge where strings share a frequency and leave the rest: it would serve both the pedalled middle and the undamped top. Since 2026-10-30 the free strings brake each other to first order (`sympathetic.brake`) and the gain is back to 1: docs/treble_halo.md.
 
 ## The note on the board's first mode
 

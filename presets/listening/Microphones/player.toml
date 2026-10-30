@@ -5,6 +5,7 @@
 # Positions relative to the board.
 # Level: the same loudness as the other set-ups.
 [soundboard]
+lid_shut = 0.0
 lid_angle = 35.0
 mics_relative = true
 mics = [[-0.558824, 0.569231, 0.45], [-0.558824, 0.430769, 0.45]]

@@ -82,6 +82,10 @@ Tests of cancellation, velocity separation, sparse references, missing/noisy val
 
     python3 -m unittest discover -s tools -p 'test_bench.py'
 
+### The free strings' brake, sympathy back to 1 (2026-10-30)
+
+`sympathetic.brake` and `sympathetic.gain` 1 (docs/treble_halo.md): 1.143 → 1.066, 11 off as before; all seven halo measures of the top move 0.6–1 z (bands 1k/2k at the attack and in the sustain, `between`, `lines`), the treble's `between` early −2.58 → −2.35; the largest other move is the top's late T60 of partials 1–4, +0.53 → +1.42. Baseline saved.
+
 ### Weak partials, single-source targets and the resonance measures (2026-10-30)
 
 Three of the 13 measures left off by the tuning below were the bench's, not the model's, and the ear's "rounder resonance" was not measured at all. Protocol `channel-power-v3`; all eleven sources measured again (the harmonic references did not change). Every figure below measures the same renders (the default at `ccfd57d`, identical to `b93b27a`), so only the bench differs.

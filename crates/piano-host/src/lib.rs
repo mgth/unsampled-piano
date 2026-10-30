@@ -68,7 +68,7 @@ pub fn save_preset(model: &PianoModel, path: &Path) -> Result<(), String> {
 /// Fields of a listening set-up (microphones, their gain, the lid opening,
 /// the room): what a listening preset sets, and what loading an instrument
 /// keeps.
-const LISTENING: &[(&str, &[&str])] = &[("soundboard", &["mics", "mics_upright", "mics_relative", "mic_gain_db", "mic_pattern", "lid_angle"]), ("room", &[])];
+const LISTENING: &[(&str, &[&str])] = &[("soundboard", &["mics", "mics_upright", "mics_relative", "mic_gain_db", "mic_pattern", "lid_angle", "lid_shut"]), ("room", &[])];
 
 fn to_table(model: &PianoModel) -> toml::Table {
     toml::Table::try_from(model).expect("model serialises")
@@ -204,6 +204,20 @@ pub fn read_midi_file(path: &Path) -> Result<Vec<(f64, Event)>, String> {
 
 #[cfg(test)]
 mod tests {
+
+    /// The brake came with sympathetic.gain 1: a `[sympathetic]` section
+    /// saved before it (gain 0.6, no brake field) keeps the unbraked
+    /// coupling it was heard with; a preset without the section, and the
+    /// shipped default, take the brake.
+    #[test]
+    fn presets_from_before_the_brake_keep_their_sympathy() {
+        let old: PianoModel = toml::from_str("[sympathetic]\nenabled = true\nmax_freq = 5000.0\ngain = 0.6\nself_cancel = true\n").unwrap();
+        assert_eq!((old.sympathetic.gain, old.sympathetic.brake), (0.6, false));
+        let partial: PianoModel = toml::from_str("hardness = 0.4\n").unwrap();
+        assert!(partial.sympathetic.brake);
+        let shipped = load_preset(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/default.toml")).unwrap();
+        assert_eq!((shipped.sympathetic.gain, shipped.sympathetic.brake), (1.0, true));
+    }
 
     #[test]
     fn listening_overlay_keeps_the_instrument() {

@@ -775,6 +775,20 @@ const HELP: &[(&str, &str, &str)] = &[
     ("soundboard.lid_hinge_height", "Height of the lid's hinge above the soundboard.", "z of the hinge line (m)."),
     ("soundboard.lid_reflection", "How much sound the lid reflects.", "Pressure reflection coefficient of the lid image."),
     ("soundboard.lid_transmission", "How much sound passes through the lid to a microphone behind it.", "Gain of the direct path when the lid shadows it."),
+    (
+        "soundboard.lid_shut",
+        "Lid shut on the case (1) rather than open at its angle or taken away (0). The shut lid boxes \
+         the board's top face in: the tone loses its highs, the bass hardly changes.",
+        "Gain on the front face's paths: 1 − s + s·(leak + (1 − leak)/√(1 + (f/fc)²)), fc = c/2h with \
+         h the hinge height (the box's height resonance, ≈ 690 Hz). At 1 no open lid, whatever the \
+         angle. Grands only.",
+    ),
+    (
+        "soundboard.lid_leak",
+        "How much of the board's top sound still gets out of the shut lid in the highs, by the gaps \
+         and the opening behind the music desk.",
+        "Floor of the shut lid's gain above fc (pressure ratio).",
+    ),
     // Musician's controls
     ("macros.tone", "Soft to bright: how hard the hammers' felt is.", "Top felt and inner felt hardness × 4^v and × 12^v (v from −1 to +1, 0: the preset). C3's attack centroid moves ±18 %, C5's ±7 % (docs/macros.md)."),
     ("macros.touch", "Even to contrasted: how far soft and loud playing lie apart, mezzo forte unchanged.", "The hammer speeds' log-distance from velocity 60's × 1.5^v: C4 velocity 100 − 30 changes by −6 to +9 dB."),
@@ -784,7 +798,7 @@ const HELP: &[(&str, &str, &str)] = &[
     ("macros.unisons", "Pure to lively: how far apart the strings of each note are tuned, and how unevenly the hammer meets them.", "Unison spread × 3^v (× 1.6^v towards pure: tighter unisons lose the slow modes that carry the sustain), hit spread × 1.5^v. C5 over 1–2 s −3.7 to +5.7 dB."),
     ("macros.mechanism", "Discreet to present action noises: the keys' knock, the dampers, the pedal. Four tenths up, the level of real grands' recordings.", "noise.action, keybed, damper_mass and pedal × 8^v (±18 dB); the defaults are 7.5 dB below the level measured on eight real grands, which +0.42 reaches."),
     ("macros.size", "Baby grand to concert grand.", "Bass string length × 1.25^v (bass inharmonicity as 1/L²), board and frame × 1.12^v, hammer mass × 1.1^v."),
-    ("macros.lid", "Closed to open lid.", "Lid angle from the preset's towards 0 (v = −1) or 45° (v = +1). At 0 the lid is taken away rather than shut."),
+    ("macros.lid", "Closed to open lid.", "Lid angle from the preset's towards 0 (v = −1) or 45° (v = +1), and its closure towards shut (v = −1) or none (v = +1): at −1 the lid is shut."),
     ("macros.space", "Close to roomy: how much of the room's reverberation is heard.", "Room tail × 3^v (about ±8 dB)."),
     ("macros.stretch", "Strict to stretched tuning: how wide the octaves are tuned.", "The stretch law × (1 + v): equal temperament at −1, twice the preset's stretch at +1."),
     // Dampers
@@ -854,6 +868,11 @@ const HELP: &[(&str, &str, &str)] = &[
          grand's pedal halo in the middle (tools/pedal_bench.py, docs/pedal_drone.md).",
     ),
     ("sympathetic.self_cancel", "Keeps a key from resonating with its own vibration through the bridge.", "Cancels each key's own contribution to its bridge input (already in its coupled modes)."),
+    (
+        "sympathetic.brake",
+        "Strings ringing at the same pitch hold the bridge back, as on a real piano.",
+        "Divides each listening mode's drive by 1 + Σ Y·Z over the other free strings near its frequency (the two-way coupling to first order); undamped keys alone with the pedal up, every key with it down.",
+    ),
     // Nonlinearity
     (
         "nonlinear.enabled",

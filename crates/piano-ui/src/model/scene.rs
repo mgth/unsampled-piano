@@ -18,10 +18,13 @@
 use egui::Color32;
 use piano_core::params::PianoModel;
 use piano_core::soundboard::{Outline, SoundboardParams};
+use piano_core::observe::KeyState;
 use piano_core::Observation;
 
 use super::cam::{add, cross, dot, norm, scale, sub, V3};
 use crate::sketches::{self, Part};
+
+mod action;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[repr(C)]
@@ -77,6 +80,9 @@ pub struct Options<'a> {
     pub lid: bool,
     pub frame: bool,
     pub mics: bool,
+    /// The case (rim, arms, belly rail) drawn, or left out to show the
+    /// action.
+    pub case: bool,
     /// Text colour of the theme (the key shown).
     pub ink: Color32,
 }
@@ -89,8 +95,12 @@ pub const BOARD_GRID: (usize, usize) = (36, 28);
 const BRIDGE_H: f64 = 0.03;
 const STRING_Z: f64 = 0.035;
 const BASS_RISE: f64 = 0.02;
-/// A grand's hammer line in front of its board (half a hammer and a gap).
-const HAMMER_CLEAR: f64 = 0.015;
+/// A grand's hammer line in front of its board: room for its hammers,
+/// leaning back at rest and forward on the strings, to swing past the
+/// board's edge, and for the dampers' wires behind them ([`action`]); the
+/// pin block's back edge in front of it.
+const HAMMER_CLEAR: f64 = 0.045;
+const BLOCK_CLEAR: f64 = 0.015;
 /// The tuning pins (7 mm), one per string in front of the agraffes (see
 /// [`tuning_pins`]): the first row's distance, the rows' spacing.
 const PIN_R: f64 = 0.0035;
@@ -154,9 +164,10 @@ const BRAID_WEAVE: f64 = 0.0035;
 /// The pin block's top (under the plate) and thickness; the case's front
 /// panel and the belly rail's thickness.
 const PIN_BLOCK_TOP: f64 = 0.02;
-const PIN_BLOCK_T: f64 = 0.05;
+const PIN_BLOCK_T: f64 = 0.032;
 const FRONT_T: f64 = 0.02;
 const BELLY_RAIL: f64 = 0.05;
+const BELLY_AT: f64 = 0.06;
 /// The keyboard: depth of the white keys. A grand's keybed, its underside
 /// flush with the case's, its thickness and the keys' bottom above it; the
 /// keys' top above the floor; the key slip's thickness.
@@ -1099,16 +1110,21 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let (p, q) = (outline[k], outline[(k + 1) % n]);
         let forward = |p: (f64, f64)| if p.0.abs() < 1e-6 { (case_front, p.1) } else { p };
         let sides: Vec<_> = (1..=n).map(|i| forward(outline[(k + i) % n])).collect();
-        b.wall(&sides, false, 0.0, t, z0, &|_| z1, case);
         (across_lo, across_hi) = (p.1.min(q.1), p.1.max(q.1));
-        b.wall(&[p, q], false, -BELLY_RAIL, 0.0, z0, &|_| -0.012, case);
-    } else {
+        if o.case {
+            b.wall(&sides, false, 0.0, t, z0, &|_| z1, case);
+            // A grand's under the board, behind the hammers resting under
+            // its edge and the keys' tails.
+            let at = if vertical { -BELLY_RAIL } else { BELLY_AT };
+            b.wall(&[p, q], false, at, at + BELLY_RAIL, z0, &|_| -0.012, case);
+        }
+    } else if o.case {
         b.wall(&outline, true, 0.0, t, z0, &|_| z1, case);
     }
 
     // The pin block under the plate, from the case's front to just behind
     // the agraffes, short of the hammers.
-    let block_back = |ax: f64| (ax + 0.008).min(hx - HAMMER_CLEAR);
+    let block_back = |ax: f64| (ax + 0.008).min(hx - BLOCK_CLEAR);
     let mut back: Vec<(f64, f64)> = ends.iter().map(|&((ax, ay), _, _)| (block_back(ax), ay.clamp(across_lo, across_hi))).collect();
     back.sort_by(|p, q| q.1.total_cmp(&p.1));
     let mut block = vec![(case_front, across_lo), (case_front, across_hi), (back[0].0, across_hi)];
@@ -1150,7 +1166,9 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         b.wall(&strip, false, -UNDER_FELT_W / 2.0, UNDER_FELT_W / 2.0, PIN_BLOCK_TOP, &|_| PIN_BLOCK_TOP + UNDER_FELT_T, UNDER_FELT);
     }
     let rim_label = outline.iter().cloned().fold((0.0, 0.0), |m, p| if p.0 > m.0 { p } else { m });
-    b.label(place.at(rim_label.0 + t, rim_label.1, z1), if rim.enabled { "Rim" } else { "Case (not modelled)" }, "Frame & rim");
+    if o.case {
+        b.label(place.at(rim_label.0 + t, rim_label.1, z1), if rim.enabled { "Rim" } else { "Case (not modelled)" }, "Frame & rim");
+    }
 
     // Bridges on the board.
     let main = pick(Part::Bridges, sketches::BRIDGE);
@@ -1235,12 +1253,16 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             braid.push(Crossing { bass: m < sb.main_bridge_from, at: (bx + ux * rear * 0.45, by + uy * rear * 0.45), z: z - HITCH_DROP * 0.45, dir: (ux, uy) });
         }
         // The agraffe the unison goes through, standing on the pin block
-        // (the highest treble's overhang it); the hammer under (an
-        // upright's: in front of) the strings at the strike point, all on
-        // one line.
+        // (the highest treble's overhang it).
         let r = AGRAFFE_HEAD + AGRAFFE_HEAD_PER * (n.strings as f64 - 1.0) + AGRAFFE_FLANGE;
         let foot = if ax + r <= block_back(ax) { PIN_BLOCK_TOP } else { z - 0.008 };
         agraffe(&mut b, (ax, ay), (ux, uy), z, foot, n.strings, pick(Part::Agraffes, BRASS), pick(Part::Frame, IRON));
+        // An upright's hammer in front of the strings at the strike
+        // point, all on one line, and its damper; a grand's are its
+        // action's ([`action`]).
+        if !vertical {
+            continue;
+        }
         let k = obs.map(|o| o.keys[m as usize]);
         let down = k.is_some_and(|k| k.down);
         let hammer_on = k.is_some_and(|k| k.hammer);
@@ -1249,14 +1271,14 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let gap = if hammer_on { 0.0 } else if down { 0.012 } else { 0.025 };
         let felt = if hammer_on { sketches::HIGHLIGHT } else { pick(Part::Strike, pick(Part::Felt, sketches::FELT)) };
         let w = 0.0045;
-        let (h0, h1) = if vertical { (z + 0.002 + gap, z + 0.032 + gap) } else { (z - 0.032 - gap, z - 0.002 - gap) };
+        let (h0, h1) = (z + 0.002 + gap, z + 0.032 + gap);
         b.plate_box((sx - 0.012, sy - w, h0), (sx + 0.012, sy + w, h1), felt);
         // The damper on the strings, lifted by the key or the pedal.
         if m <= d.highest_note {
             let (px, py) = (ax + dx * d.position, ay + dy * d.position);
             let lift = 0.015 * (1.0 - k.map_or(1.0, |k| k.damper)) as f64;
             let felt = pick(Part::DamperPoint, pick(Part::Damper, Color32::from_rgb(90, 90, 96)));
-            // Above a grand's strings, in front of an upright's.
+            // In front of the strings.
             let (d0, d1) = (z + 0.002 + lift, z + 0.022 + lift);
             b.plate_box((px - 0.01, py - w, d0), (px + 0.01, py + w, d1), felt);
         }
@@ -1288,7 +1310,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let mid = string_ends(model, &sb, hx, 60);
     let n60 = model.note(60);
     let strike = (mid.0.0 + (mid.1.0 - mid.0.0) * n60.strike_pos, mid.0.1 + (mid.1.1 - mid.0.1) * n60.strike_pos);
-    b.label(place.at(strike.0, strike.1, if vertical { mid.2 + 0.04 } else { mid.2 - 0.04 }), "Hammers", "Hammer");
+    b.label(place.at(strike.0, strike.1 - 0.12, if vertical { mid.2 + 0.04 } else { mid.2 - 0.04 }), "Hammers", "Hammer");
     let damp = (mid.0.0 + (mid.1.0 - mid.0.0) * d.position, mid.0.1 + (mid.1.1 - mid.0.1) * d.position);
     b.label(place.at(damp.0, damp.1 + 0.12, mid.2 + 0.03), "Dampers", "Dampers");
     b.label(place.at((mid.0.0 + mid.1.0) / 2.0, mid.0.1 - 0.25, mid.2), "Strings", "Strings");
@@ -1316,8 +1338,26 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         b.label(q[tail], "Frame", "Frame & rim");
     }
 
-    // The lid, hinged along the bass side.
-    if !vertical && sb.lid_angle > 0.0 && o.lid {
+    // The lid, hinged along the bass side; shut, it lies on the case.
+    if !vertical && sb.lid_shut >= 1.0 && o.lid {
+        // Over the case's outline, carried forward to the case's front.
+        let h = sb.lid_hinge_height;
+        let mut top: Vec<(f64, f64)> = outline.iter().map(|&p| if p.0.abs() < 1e-6 { (case_front, p.1) } else { p }).collect();
+        if signed_area(&top) < 0.0 {
+            top.reverse();
+        }
+        let c = rgba(CASE, 0.25);
+        for [i, j, k] in triangulate(&top) {
+            let p = [top[i], top[j], top[k]].map(|(x, y)| place.at(x, y, h));
+            b.tri(true, p, [c; 3]);
+            b.tri(true, [p[2], p[1], p[0]], [c; 3]);
+        }
+        for i in 0..top.len() {
+            let (p, q) = (top[i], top[(i + 1) % top.len()]);
+            b.line(place.at(p.0, p.1, h), place.at(q.0, q.1, h), rgba(CASE, 0.9));
+        }
+        b.label(place.at(sb.a * 0.6, sb.b * 0.5, h), "Lid, shut", "Microphones");
+    } else if !vertical && sb.lid_angle > 0.0 && o.lid {
         let th = sb.lid_angle.to_radians();
         let (h, len) = (sb.lid_hinge_height, 1.05 * sb.b);
         let p0 = |x: f64| place.at(x, sb.b, h);
@@ -1335,34 +1375,27 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     // front: a grand's on its keybed, at the usual height above the floor.
     let keys_back = case_front - FRONT_T;
     let (klo, khi) = keyboard_span(&sb);
-    let white = (khi - klo) / 52.0;
     let (y_back, kz) = if vertical { (UPRIGHT_KEYS_Y, UPRIGHT_KEYS_Z) } else { (keys_back, z0 + KEYBED_T + KEY_FRAME) };
     let key_top = kz + 0.022;
     let floor = if vertical { 0.0 } else { key_top - KEY_HEIGHT };
     let key_front = y_back - KEY_DEPTH;
-    for m in 21..=108u8 {
-        let k = obs.map(|o| o.keys[m as usize]);
-        let down = k.is_some_and(|k| k.down);
-        let (x, w) = sketches::key_span(m);
-        let y0 = khi - (x + w) as f64 * white + 0.0006;
-        let y1 = khi - x as f64 * white - 0.0006;
-        let black = sketches::is_black(m);
-        let depth = if black { KEY_DEPTH * 0.62 } else { KEY_DEPTH };
-        let (zb, h) = if black { (0.022, 0.012) } else { (0.0, 0.022) };
-        let drop = if down { -0.008 } else { 0.0 };
-        let base = if black { EBONY } else { IVORY };
-        let c = if down {
-            sketches::HIGHLIGHT
-        } else if m == o.key {
-            mix(base, sketches::HIGHLIGHT, 0.5)
-        } else {
-            pick(Part::Key, base)
-        };
-        let c = mix(c, sketches::HIGHLIGHT, key_level(m) * 0.4);
-        // Keys in world coordinates: x across, the back of the keys at y_back.
-        let o3 = [-y1 as f32, (key_front + KEY_DEPTH - depth) as f32, (kz + zb + drop) as f32];
-        b.cuboid(o3, [(y1 - y0) as f32, 0.0, 0.0], [0.0, depth as f32, 0.0], [0.0, 0.0, h as f32], c);
-    }
+    let ctx = action::Ctx {
+        model,
+        sb: &sb,
+        ends: &ends,
+        hx,
+        obs,
+        key: o.key,
+        lit: &lit,
+        level: &key_level,
+        span: (klo, khi),
+        key_front,
+        key_back: y_back,
+        kz,
+        vertical,
+        inside: !o.case,
+    };
+    action::keys(&mut b, &ctx);
     let cx = -((klo + khi) / 2.0) as f32;
     // Under a grand's front legs, their centres (world x, y).
     let mut front_legs = [[0.0f32; 2]; 2];
@@ -1373,8 +1406,8 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             b.cuboid([x as f32, key_front as f32, (kz - 0.01) as f32], [0.05, 0.0, 0.0], [0.0, KEY_DEPTH as f32, 0.0], [0.0, 0.0, 0.06], CASE);
         }
     } else {
-        // Its case, as most grands': the keybed under the case's front,
-        // its sides carried forward as arms that come down in a curve from
+        // Its case, as most grands': the keybed under the case's front
+        // and the action, its sides carried forward as arms that come down in a curve from
         // the rim's top to a little above the keys, rounded at their
         // front; the cheek blocks between them and the keys' ends, the key
         // slip along the keys' front, and behind them the fallboard (open)
@@ -1384,7 +1417,10 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let (x_lo, x_hi) = (-(hi + t) as f32, -(lo - t) as f32);
         let (yf, yb) = ((key_front - KEY_SLIP - 0.002) as f32, (y_back + FRONT_T) as f32);
         let (z0f, top, bed) = (z0 as f32, key_top as f32, (z0 + KEYBED_T) as f32);
-        b.cuboid([x_lo, yf + 0.004, z0f], [x_hi - x_lo, 0.0, 0.0], [0.0, yb - yf - 0.004, 0.0], [0.0, 0.0, KEYBED_T as f32], case);
+        b.cuboid([x_lo, yf + 0.004, z0f], [x_hi - x_lo, 0.0, 0.0], [0.0, BELLY_AT as f32 - yf - 0.004, 0.0], [0.0, 0.0, KEYBED_T as f32], case);
+        // The front legs under the arms, flush with their outsides.
+        let y = yf + 0.1;
+        front_legs = [[x_lo + 0.074, y], [x_hi - 0.074, y]];
         let arm = top + 0.035;
         let mut profile = vec![(yf, z0f), (yb, z0f), (yb, z1 as f32)];
         for i in 1..=10 {
@@ -1396,10 +1432,10 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             let a = std::f32::consts::FRAC_PI_2 * i as f32 / 6.0;
             profile.push((yf + r - r * a.sin(), arm - r + r * a.cos()));
         }
-        for (x0, x1) in [(x_lo, -hi as f32), (-lo as f32, x_hi)] {
+        for (x0, x1) in [(x_lo, -hi as f32), (-lo as f32, x_hi)].into_iter().filter(|_| o.case) {
             b.slab(&profile, x0, x1, case);
         }
-        for (x0, x1) in [(-hi as f32, -(khi + 0.002) as f32), (-(klo - 0.002) as f32, -lo as f32)] {
+        for (x0, x1) in [(-hi as f32, -(khi + 0.002) as f32), (-(klo - 0.002) as f32, -lo as f32)].into_iter().filter(|_| o.case) {
             let block = |y: f32| ([(x0 + x1) / 2.0, y, (bed + top + 0.012) / 2.0], (x1 - x0) / 2.0, (top + 0.012 - bed) / 2.0, 0.008);
             b.sweep(&[block(yf + KEY_SLIP as f32), block(y_back as f32)], [1.0, 0.0, 0.0], case);
         }
@@ -1407,12 +1443,12 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             let ring = |x: f32| ([x, y, (z.0 + z.1) / 2.0], d / 2.0, (z.1 - z.0) / 2.0, r);
             [ring(x0), ring(x1)]
         };
-        b.sweep(&along(-hi as f32, -lo as f32, yf + KEY_SLIP as f32 / 2.0, (z0f, kz as f32 - 0.002), KEY_SLIP as f32, 0.005), [0.0, 1.0, 0.0], case);
-        b.sweep(&along(-hi as f32, -lo as f32, (y_back + FRONT_T / 2.0) as f32, (bed, PIN_BLOCK_TOP as f32), FRONT_T as f32, 0.009), [0.0, 1.0, 0.0], case);
-        b.cuboid([-(khi + 0.002) as f32, y_back as f32 - 0.006, top - 0.004], [(khi - klo + 0.004) as f32, 0.0, 0.0], [0.0, 0.006, 0.0], [0.0, 0.0, 0.012], FELT);
-        // The front legs under the arms, flush with their outsides.
-        let y = yf + 0.1;
-        front_legs = [[x_lo + 0.074, y], [x_hi - 0.074, y]];
+        // The fallboard over the keys, which run on under it.
+        if o.case {
+            b.sweep(&along(-hi as f32, -lo as f32, yf + KEY_SLIP as f32 / 2.0, (z0f, kz as f32 - 0.002), KEY_SLIP as f32, 0.005), [0.0, 1.0, 0.0], case);
+            b.sweep(&along(-hi as f32, -lo as f32, (y_back + FRONT_T / 2.0) as f32, (top + 0.014, PIN_BLOCK_TOP as f32), FRONT_T as f32, 0.009), [0.0, 1.0, 0.0], case);
+            b.cuboid([-(khi + 0.002) as f32, y_back as f32 - 0.006, top - 0.004], [(khi - klo + 0.004) as f32, 0.0, 0.0], [0.0, 0.006, 0.0], [0.0, 0.0, 0.012], FELT);
+        }
     }
     b.label([-((klo + khi) / 2.0) as f32, key_front as f32, (kz + 0.03) as f32], "Keyboard", "Player");
 
@@ -1430,7 +1466,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     } else {
         // The lyre under the keybed, in front of the fallboard, braced to
         // the belly rail; the third leg under the case's tail.
-        lyre(&mut b, cx, y_back as f32 - 0.05, z0 as f32, floor as f32, (-(BELLY_RAIL / 2.0) as f32, z0 as f32), pedals);
+        lyre(&mut b, cx, y_back as f32 - 0.05, z0 as f32, floor as f32, ((BELLY_AT + BELLY_RAIL / 2.0) as f32, z0 as f32), pedals);
         let tail = place.at(sb.a - 0.12, sb.b * 0.5, z0);
         for [x, y] in front_legs.into_iter().chain([[tail[0], tail[1]]]) {
             leg(&mut b, [x, y, z0 as f32], floor as f32);
@@ -1473,7 +1509,7 @@ mod tests {
     use super::*;
 
     fn options() -> Options<'static> {
-        Options { key: 60, lit: &[], lid: true, frame: true, mics: true, ink: Color32::WHITE }
+        Options { key: 60, lit: &[], lid: true, frame: true, mics: true, case: true, ink: Color32::WHITE }
     }
 
     #[test]
@@ -1597,12 +1633,14 @@ mod tests {
         // Down to none: the main bridge carrying every string from A0.
         for vertical in [false, true] {
             for from in [21, 22, 28, 45, 60, 107] {
-                let mut m = PianoModel::default();
-                let sb = m.soundboard.as_mut().unwrap();
-                (sb.vertical, sb.main_bridge_from) = (vertical, from);
-                let s = build(&m, None, &options());
-                assert!(!s.tris.is_empty(), "vertical {vertical}, main bridge from {from}");
-                assert!(s.tris.iter().chain(&s.lines).all(|v| v.pos.iter().all(|x| x.is_finite())), "vertical {vertical}, main bridge from {from}");
+                for case in [true, false] {
+                    let mut m = PianoModel::default();
+                    let sb = m.soundboard.as_mut().unwrap();
+                    (sb.vertical, sb.main_bridge_from) = (vertical, from);
+                    let s = build(&m, None, &Options { case, ..options() });
+                    assert!(!s.tris.is_empty(), "vertical {vertical}, main bridge from {from}");
+                    assert!(s.tris.iter().chain(&s.lines).all(|v| v.pos.iter().all(|x| x.is_finite())), "vertical {vertical}, main bridge from {from}, case {case}");
+                }
             }
         }
     }
@@ -1664,3 +1702,4 @@ mod tests {
         assert_ne!(playing.tris, still.tris);
     }
 }
+

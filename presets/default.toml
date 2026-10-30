@@ -213,6 +213,8 @@ lid_angle = 0.0
 lid_hinge_height = 0.25
 lid_reflection = 0.85
 lid_transmission = 0.1
+lid_shut = 0.0
+lid_leak = 0.25
 string_load = 1.0
 string_load_free = 1.0
 exact_below = 0.0
@@ -285,8 +287,9 @@ lift_time = 0.005
 [sympathetic]
 enabled = true
 max_freq = 5000.0
-gain = 0.6
+gain = 1.0
 self_cancel = true
+brake = true
 
 [nonlinear]
 enabled = true
