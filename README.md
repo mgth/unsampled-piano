@@ -139,6 +139,7 @@ For playing and setting up the instrument, see the [website](https://unsampled.m
 - Dynamics, pedal and sympathetic resonance: [docs/dynamics_pedal.md](docs/dynamics_pedal.md)
 - Comparison with Salamander, Iowa and a commercial modelled piano: [docs/comparison.md](docs/comparison.md)
 - Test bench: the model scored against real pianos (`cargo xtask bench`): [docs/bench.md](docs/bench.md)
+- The bench's channel-power protocol and Plath's fixed-gain import, before/after (French): [docs/bench_bias_correction.md](docs/bench_bias_correction.md)
 - Recorded performances (Disklavier, Bösendorfer SE) against the model, note by note: [docs/pieces.md](docs/pieces.md)
 - A graded hammer felt instead of the two-layer hammer: [docs/felt.md](docs/felt.md)
 - Top treble: the knock of the truncated string, the decay of the top strings: [docs/top_treble.md](docs/top_treble.md)

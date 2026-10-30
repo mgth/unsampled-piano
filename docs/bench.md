@@ -1,6 +1,8 @@
 # Test bench: scoring the model against real pianos
 
-Bench updated 2026-10-29; historical results below are dated separately.
+Bench updated 2026-10-30: the register measures follow the `channel-power-v2` protocol (below), as the harmonic profiles already did. Historical results below are dated separately and predate it unless stated.
+
+The register measures now take the mean **power** of the channels, in the Python measures and in the Rust partial tracker and decay fits (`piano-survey --channel-power`). They no longer sum the left and right pressures first: a partial in antiphase between the two microphones is not lost. Plath is imported with one gain per pascal for the whole piano; the old per-note normalisation is refused. Reference and baseline files carry `analysis_version`: references of another version are refused, and a baseline of another version is not scored against the new measures. Codex's controlled before/after comparison, on the model of 2026-10-28: [bench_bias_correction.md](bench_bias_correction.md).
 
 Until now each change was measured with the script written for it (`tools/band_score.py`, `tools/hammer_score.py`, `tools/set_metrics.py`…), and what it moved elsewhere was found later: the release-ring gain of the treble cost its mf sustain at 3 s. The bench measures everything at every change, with one fixed set of measures, and against real pianos only. The commercial modelled piano used so far as a reference is itself a model: its biases would become ours. It is still measured, as information, and never enters the targets.
 
@@ -31,7 +33,7 @@ The baseline, `bench/baseline.json`, holds the measures of the run saved with `-
 
 ## Harmonic profiles, note by note
 
-The local comparison retains each key, velocity layer and time window separately. It measures partials **2–8 relative to partial 1**, in dB, at the attack (0–60 ms) and in the sustain (0.5–1 s). Since specification v2, the channels' FFT powers are averaged rather than summing their waveforms; the onset uses their RMS amplitude too. Both operations preserve a note whose channels oppose in phase. The same search windows and 12 kHz/noise exclusions apply to the model and recordings. Missing recordings and unreadable partials remain missing, never zero. A weak fundamental can raise all the ratios: the warning identifies a spectral imbalance, not its physical cause or a perceptual diagnosis of “nasality”. The historical register metrics remain unchanged and still use the original mono analysis.
+The local comparison retains each key, velocity layer and time window separately. It measures partials **2–8 relative to partial 1**, in dB, at the attack (0–60 ms) and in the sustain (0.5–1 s). Since specification v2, the channels' FFT powers are averaged rather than summing their waveforms; the onset uses their RMS amplitude too. Both operations preserve a note whose channels oppose in phase. The same search windows and 12 kHz/noise exclusions apply to the model and recordings. Missing recordings and unreadable partials remain missing, never zero. A weak fundamental can raise all the ratios: the warning identifies a spectral imbalance, not its physical cause or a perceptual diagnosis of “nasality”. Since 2026-10-30 the historical register metrics average the channels' powers too (`channel-power-v2`).
 
 For each component, the targets are real pianos with a recording of **that exact key and layer**. No neighbouring-key interpolation is used, and sources marked `info` never enter the targets. At least two usable reference values are required. The target is their mean; z uses their standard deviation with a 4 dB minimum tolerance. Layers 4/8/13 correspond to the model's MIDI velocities 45/56/100, but only BiVib's velocities are calibrated to that exact scale; the other pianos supply corresponding soft/medium/loud layers. Their own variation remains in the tolerance.
 
@@ -79,6 +81,28 @@ display “no harmonic profiles saved yet”.
 Tests of cancellation, velocity separation, sparse references, missing/noisy values, gain invariance, time windows and target filtering:
 
     python3 -m unittest discover -s tools -p 'test_bench.py'
+
+### Channel power for the register measures (2026-10-30)
+
+All eleven sources were measured again with `channel-power-v2`, Plath from its fixed-gain import (`out/bench/sets/plath-calibrated`). Of the harmonic references only Plath's changed, by its import. The default model at `6951313` renders byte for byte as the run that saved the previous baseline; its scores under the two protocols:
+
+| Protocol | Score | Off | Bass | Middle | Treble | Top | Harmonic OFF |
+|---|---|---|---|---|---|---|---|
+| mono sum (previous baseline) | 1.10 | 12 | 0.95 | 0.72 | 0.97 | 1.67 | 348 |
+| channel power (this baseline) | 1.12 | 13 | 0.92 | 0.77 | 0.84 | 1.77 | 348 |
+
+The measures that move most are those the mono sum hid. The bass ff attack's p2 goes from 6.3 to 10.5 dB against p1 (target 12.4): the model's bass partials partly cancelled between the two close microphones. The top's mf attack p2 goes from −29.2 to −25.3 dB (target −35.0), and its 4–8 kHz share and sustain p2 rise too: what the sum took off the model's top was too much already. Alerts: treble ff balance, treble ff sustain p3 and the top's early T60 of p5–12 go; the bass 1 kHz sustain band, the top's mf attack p2 and its pp/mf envelopes at 3 s come. The 3 s envelopes rest on a single source, as Codex noted (bench_bias_correction.md).
+
+The bass bridge variants of docs/bridges.md, measured again from their renders:
+
+| Bass bridge | Score | Bass | Middle | Treble | Top | Harmonic OFF |
+|---|---|---|---|---|---|---|
+| 8 keys, F1 (before) | 1.10 | 0.80 | 0.94 | 0.78 | 1.70 | 359 |
+| placed by string length | 1.14 | 0.98 | 0.79 | 0.84 | 1.77 | 353 |
+| Steinway D proportions (default) | 1.12 | 0.92 | 0.77 | 0.84 | 1.77 | 348 |
+| old ends bowed +5 cm | 1.09 | 0.72 | 0.78 | 0.87 | 1.77 | 334 |
+
+The ranking stands; the default no longer gains on the historical score (1.10 → 1.12): the middle's gain is offset by the bass, the treble and the top.
 
 ### Review validation, stereo profiles v3 (2026-10-29)
 
@@ -157,12 +181,17 @@ Levels below −60 dB re the peak count as −60 dB, and a level within 6 dB of 
 | `tools/maps_set.py` | MAPS isolated notes: M and F, pedal up |
 | `tools/plath_set.py` | Plath's anechoic measurements: the ears of the dummy head, median take |
 
-and the line that measures them all (11 sources, about 2 min):
+First import Plath with a common calibrated gain (float WAV, median take,
+manifest retaining the source pressure and selected take):
+
+    python3 tools/plath_set.py <Plath CSV directory> out/bench/sets/plath-calibrated
+
+Then measure all sources (11 sets):
 
     tools/bench.py refs iowa=out/compare/iowa:nodyn salamander=out/compare/salamander:nodyn \
         headroom=out/bench/sets/headroom:nodyn splendid=out/bench/sets/splendid:nodyn \
         helgesson=out/bench/sets/helgesson:nodyn liang=out/bench/sets/liang:nodyn \
-        plath=out/bench/sets/plath:nodyn bivib_grand=out/bench/sets/bivib_grand \
+        plath=out/bench/sets/plath-calibrated:nodyn bivib_grand=out/bench/sets/bivib_grand \
         bivib_upright=out/bench/sets/bivib_upright:info maps_close=out/bench/sets/maps_close:info:nodyn \
         commercial=out/compare/commercial:info
 
@@ -242,3 +271,26 @@ The velocity an instrument records under the fingers is a measurement, on anothe
 
 `presets/touch/recorded_performances.toml` is that law, the default since 2026-10-24 (chosen after a second A/B on MAESTRO and Liang's pieces; within Schubert's performance, middle notes at velocity 30–45 sit 1.2 dB lower, loud treble notes 0.4 dB higher). `tools/velocity_fit_pieces.py` fits it on the performances, keeping velocity 60 at the default law's speed (1.29 m/s, the mf timbre unchanged): 0.205–5.6 m/s, curve 0.78. The level against the performances is 2.0 dB rms, 2.2 with the default law. It is applied over an instrument as a listening preset is (`unsampled-piano-render --listening presets/touch/recorded_performances.toml`), and was chosen after an A/B on MAESTRO.
 
+
+## Channel-power protocol details
+
+`tools/bench.py` calls `load(..., stereo=True)` and measures
+`(|FFT(L)|² + |FFT(R)|²)/2`. Mono recordings are duplicated without changing
+their energy. Onsets use the RMS across channels; time-domain levels and
+filtered envelopes average the channel energies. Partial ratios use the square
+root of the pooled power to retain the existing amplitude-dB and SNR conventions.
+The Rust survey tracks peaks on pooled spectra and combines heterodyned channel
+energies **before** fitting each decay. It does not average independently fitted
+T60 values. ESPRIT is phase-sensitive and cannot be combined with
+`--channel-power`; its existing mono diagnostic remains available.
+
+Legacy callers of `bench.load()` retain their mono default. This migration is
+for the isolated-note bench; the separate piece/pedal scripts and older scratch
+analyses have not been silently migrated. References are trimmed to 20.5 s as
+float WAV to preserve the fixed-gain import. Survey diagnostics are retained
+beside each CSV in `.csv.log` files.
+
+Validation:
+
+    python3 -m unittest discover -s tools -p 'test_*.py'
+    cargo test -p piano-analysis
