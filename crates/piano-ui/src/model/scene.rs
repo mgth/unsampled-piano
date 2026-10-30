@@ -257,10 +257,10 @@ impl Builder {
     #[allow(clippy::too_many_arguments)]
     fn wall(&mut self, line: &[(f64, f64)], closed: bool, a: f64, b: f64, z0: f64, top: &dyn Fn(usize) -> f64, c: Color32) {
         let n = line.len();
-        let segs = if closed { n } else { n - 1 };
         if n < 2 {
             return;
         }
+        let segs = if closed { n } else { n - 1 };
         let c = rgba(c, 1.0);
         let right = |k: usize| {
             let (p, q) = (line[k], line[(k + 1) % n]);
@@ -1142,6 +1142,10 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
                 (ax - (bx - ax) / l * UNDER_FELT_AT, ay - (by - ay) / l * UNDER_FELT_AT)
             })
             .collect();
+        // No bass strip when the main bridge carries every string.
+        if strip.len() < 2 {
+            continue;
+        }
         strip.sort_by(|p, q| q.1.total_cmp(&p.1));
         b.wall(&strip, false, -UNDER_FELT_W / 2.0, UNDER_FELT_W / 2.0, PIN_BLOCK_TOP, &|_| PIN_BLOCK_TOP + UNDER_FELT_T, UNDER_FELT);
     }
@@ -1586,6 +1590,21 @@ mod tests {
         assert!(top > perimeter * t && top < perimeter * t + 8.0 * t * t, "{top} vs {}", perimeter * t);
         // Every normal is a unit vector.
         assert!(b.s.tris.iter().all(|v| (dot(v.normal, v.normal) - 1.0).abs() < 1e-4));
+    }
+
+    #[test]
+    fn any_bass_bridge_builds_grand_or_upright() {
+        // Down to none: the main bridge carrying every string from A0.
+        for vertical in [false, true] {
+            for from in [21, 22, 28, 45, 60, 107] {
+                let mut m = PianoModel::default();
+                let sb = m.soundboard.as_mut().unwrap();
+                (sb.vertical, sb.main_bridge_from) = (vertical, from);
+                let s = build(&m, None, &options());
+                assert!(!s.tris.is_empty(), "vertical {vertical}, main bridge from {from}");
+                assert!(s.tris.iter().chain(&s.lines).all(|v| v.pos.iter().all(|x| x.is_finite())), "vertical {vertical}, main bridge from {from}");
+            }
+        }
     }
 
     #[test]
