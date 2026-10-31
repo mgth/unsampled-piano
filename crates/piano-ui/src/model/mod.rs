@@ -57,7 +57,7 @@ const GEOMETRY: &[(&str, &[&str])] = &[
     ("Soundboard", &["soundboard.a", "soundboard.b", "soundboard.outline_below", "soundboard.main_bridge_from", "soundboard.main_string_slant"]),
     ("Frame", &["frame.offset_x", "frame.agraffe_x", "frame.a", "frame.b", "frame.height"]),
     ("Rim", &["rim.thickness", "rim.height", "rim.top"]),
-    ("Lid", &["soundboard.lid_angle", "soundboard.lid_shut", "soundboard.lid_hinge_height"]),
+    ("Lid", &["soundboard.lid_angle", "soundboard.lid_removed", "soundboard.lid_hinge_height"]),
     ("Along the strings", &["strike_ratio", "damper.position", "damper.highest_note"]),
 ];
 
@@ -145,6 +145,13 @@ impl Default for Levels {
 const REF_DECAY: f32 = 0.8;
 const KEY_RANGE_DB: f32 = 50.0;
 const BOARD_RANGE_DB: f32 = 40.0;
+/// The lowest the keys' reference comes down to: the energy below which
+/// the engine frees a voice at the bottom of the range, so that after a
+/// long rest what is left in the strings stays dark (a soft note lies a
+/// little above).
+fn key_floor() -> f32 {
+    piano_core::engine::Shortcuts::DEFAULT.voice_silence * 10f32.powf(KEY_RANGE_DB / 10.0)
+}
 /// Time constant of the meters' fall (s, on amplitudes), and how long a
 /// blow (1–3 ms on the strings) stays shown.
 const RELEASE_S: f32 = 0.3;
@@ -523,7 +530,7 @@ impl ModelView {
     fn key_levels(&mut self, obs: &Observation) -> [f32; 128] {
         let peak = obs.keys.iter().map(|k| k.energy).filter(|e| e.is_finite()).fold(0.0, f32::max);
         self.levels.keys = self.levels.keys.max(peak);
-        let r = self.levels.keys;
+        let r = self.levels.keys.max(key_floor());
         std::array::from_fn(|m| level(obs.keys[m].energy, r, KEY_RANGE_DB, 10.0))
     }
 
@@ -774,10 +781,15 @@ fn numbers(ui: &mut Ui, model: &PianoModel, counts: &mut Option<(SoundboardParam
                 row("Board modes", format!("{} under 1 kHz ({} in all)", c.below_1k, c.all));
                 row("First board mode", format!("{:.0} Hz", c.first));
                 row("Bass bridge", format!("A0 to {}", sketches::note_name(sb.main_bridge_from - 1)));
-                if !sb.vertical && sb.lid_shut >= 1.0 {
-                    row("Lid", "shut".into());
-                } else if sb.lid_angle > 0.0 && !sb.vertical {
-                    row("Lid", format!("open {:.0}°", sb.lid_angle));
+                if !sb.vertical {
+                    let lid = if sb.lid_removed {
+                        "removed".into()
+                    } else if sb.lid_angle <= 0.0 {
+                        "shut".into()
+                    } else {
+                        format!("open {:.0}°", sb.lid_angle)
+                    };
+                    row("Lid", lid);
                 }
                 for (i, (x, y, z)) in sb.mics.iter().enumerate() {
                     row(if i == 0 { "Mic L" } else { "Mic R" }, format!("{x:.2}, {y:.2}, {z:.2} m"));
@@ -894,5 +906,21 @@ mod tests {
         assert_eq!(level(1.0, 1.0, 40.0, 20.0), 1.0);
         assert!((level(0.1, 1.0, 40.0, 20.0) - 0.5).abs() < 1e-6);
         assert_eq!(level(0.0, 1.0, 40.0, 20.0), 0.0);
+    }
+
+    #[test]
+    fn a_long_rest_does_not_light_what_is_left() {
+        let mut v = ModelView::default();
+        // The reference long come down after the last note, only what is
+        // left in the strings to see.
+        v.levels.keys = 1e-30;
+        let mut o = Observation::default();
+        o.keys[100].energy = piano_core::engine::Shortcuts::DEFAULT.voice_silence;
+        assert_eq!(v.key_levels(&o)[100], 0.0);
+        // Then a soft note.
+        o.keys[60].energy = 1.5;
+        let l = v.key_levels(&o);
+        assert_eq!(l[100], 0.0);
+        assert!(l[60] > 0.9, "a soft note still shows: {}", l[60]);
     }
 }

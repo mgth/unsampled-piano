@@ -33,17 +33,18 @@ struct Setup {
     upright: [(f64, f64, f64); 2],
     /// `mics` x and y in shares of the board (they follow its size).
     relative: bool,
+    /// 0: the lid shut on the case.
     lid_angle: f64,
-    /// 1: the lid shut on the case.
-    lid_shut: f64,
+    lid_removed: bool,
     /// Level keeping the loudness of the other set-ups.
     gain_db: f64,
     /// Pick-up pattern: 1 omni, 0.5 cardioid.
     pattern: f64,
 }
 
-/// The listening presets' microphone set-ups, and the calibrated one (the
-/// model's default), for hosts without the preset folder.
+/// The listening presets' microphone set-ups (the first, Close, the
+/// model's default), and the calibrated one, for hosts without the preset
+/// folder.
 const SETUPS: [Setup; 4] = [
     Setup {
         name: "Close",
@@ -53,7 +54,7 @@ const SETUPS: [Setup; 4] = [
         upright: [(0.705882, 0.653846, 0.4), (0.294118, 0.346154, 0.4)],
         relative: true,
         lid_angle: 35.0,
-        lid_shut: 0.0,
+        lid_removed: false,
         gain_db: -9.6,
         pattern: 0.5,
     },
@@ -65,7 +66,7 @@ const SETUPS: [Setup; 4] = [
         upright: [(-0.2, 0.7, 2.0), (-0.2, 0.3, 2.0)],
         relative: true,
         lid_angle: 35.0,
-        lid_shut: 0.0,
+        lid_removed: false,
         gain_db: 3.4,
         pattern: 1.0,
     },
@@ -77,7 +78,7 @@ const SETUPS: [Setup; 4] = [
         upright: [(0.0, 0.7, 1.6), (0.0, 0.3, 1.6)],
         relative: true,
         lid_angle: 0.0,
-        lid_shut: 1.0,
+        lid_removed: false,
         gain_db: 0.0,
         pattern: 1.0,
     },
@@ -89,7 +90,7 @@ const SETUPS: [Setup; 4] = [
         upright: SoundboardParams::GRAND_2M.mics_upright,
         relative: false,
         lid_angle: 0.0,
-        lid_shut: 0.0,
+        lid_removed: true,
         gain_db: 0.0,
         pattern: 1.0,
     },
@@ -150,7 +151,7 @@ impl Bounds {
 /// How far the open lid reaches over the board from its hinge (y), and the
 /// height of its edge (m).
 fn lid_extent(sb: &SoundboardParams) -> (f64, f64) {
-    if sb.lid_angle <= 0.0 || shut(sb) {
+    if !open(sb) {
         return (0.0, sb.lid_hinge_height);
     }
     // From the hinge to the lid's edge farthest from it.
@@ -167,7 +168,7 @@ fn lid_plan(sb: &SoundboardParams) -> Vec<(f64, f64)> {
     let lid = sb.lid_outline().points;
     let mut top = if shut(sb) {
         lid
-    } else if sb.lid_angle > 0.0 {
+    } else if open(sb) {
         let far = 10.0 * (sb.a + sb.b);
         let cos = sb.lid_angle.to_radians().cos();
         clip(&lid, &[(-far, -far), (far, -far), (far, sb.b), (-far, sb.b)]).into_iter().map(|(x, y)| (x, sb.b - (sb.b - y) * cos)).collect()
@@ -182,7 +183,12 @@ fn lid_plan(sb: &SoundboardParams) -> Vec<(f64, f64)> {
 
 /// Whether the lid lies shut on the case.
 fn shut(sb: &SoundboardParams) -> bool {
-    !sb.vertical && sb.lid_shut >= 1.0
+    !sb.vertical && !sb.lid_removed && sb.lid_angle <= 0.0
+}
+
+/// Whether the lid stands open.
+fn open(sb: &SoundboardParams) -> bool {
+    !sb.lid_removed && sb.lid_angle > 0.0
 }
 
 fn keyboard_front(model: &PianoModel) -> f64 {
@@ -192,7 +198,7 @@ fn keyboard_front(model: &PianoModel) -> f64 {
 /// Whether the open lid stands between the board's centre and the mic (it
 /// then hears the board through the lid), as the radiation computes it.
 fn behind_lid(sb: &SoundboardParams, m: [f64; 3]) -> bool {
-    if sb.lid_angle <= 0.0 || shut(sb) {
+    if !open(sb) {
         return false;
     }
     let th = sb.lid_angle.to_radians();
@@ -341,7 +347,7 @@ impl MicView {
                 let on = (if raw.vertical { s.upright == raw.mics_upright } else { s.mics == raw.mics })
                     && s.relative == raw.mics_relative
                     && s.lid_angle == raw.lid_angle
-                    && s.lid_shut == raw.lid_shut
+                    && s.lid_removed == raw.lid_removed
                     && s.gain_db == raw.mic_gain_db
                     && s.pattern == raw.mic_pattern;
                 let mut hint = format!("{}. Also sets the microphone gain ({} dB) to keep a comparable loudness.", s.hint, s.gain_db);
@@ -351,7 +357,7 @@ impl MicView {
                 if ui.selectable_label(on, s.name).on_hover_text(hint).clicked() {
                     let mut edits = vec![
                         ("soundboard.lid_angle".to_string(), s.lid_angle),
-                        ("soundboard.lid_shut".to_string(), s.lid_shut),
+                        ("soundboard.lid_removed".to_string(), if s.lid_removed { 1.0 } else { 0.0 }),
                         ("soundboard.mic_gain_db".to_string(), s.gain_db),
                         ("soundboard.mic_pattern".to_string(), s.pattern),
                         ("soundboard.mics_relative".to_string(), if s.relative { 1.0 } else { 0.0 }),
@@ -826,19 +832,19 @@ mod tests {
 
     #[test]
     fn lid_shadow() {
-        let sb = SoundboardParams { lid_angle: 35.0, ..SoundboardParams::GRAND_2M };
+        let sb = SoundboardParams { lid_angle: 35.0, lid_removed: false, ..SoundboardParams::GRAND_2M };
         // Concert pair: in front of the opening, not behind the lid.
         assert!(!behind_lid(&sb, [0.55, -1.6, 2.0]));
         // High above the bass side: behind it.
         assert!(behind_lid(&sb, [0.85, 1.6, 1.8]));
         assert!(!behind_lid(&SoundboardParams { lid_angle: 0.0, ..sb }, [0.85, 1.6, 1.8]));
-        assert!(!behind_lid(&SoundboardParams { lid_shut: 1.0, ..sb }, [0.85, 1.6, 1.8]));
+        assert!(!behind_lid(&SoundboardParams { lid_removed: true, ..sb }, [0.85, 1.6, 1.8]));
     }
 
     #[test]
     fn lid_plan_has_the_case_shape() {
         use piano_core::soundboard::LID_OVERHANG;
-        let sb = SoundboardParams { lid_angle: 35.0, ..SoundboardParams::GRAND_2M };
+        let sb = SoundboardParams { lid_angle: 35.0, lid_removed: false, ..SoundboardParams::GRAND_2M };
         let lid = lid_plan(&sb);
         let (reach, _) = lid_extent(&sb);
         // Over the rim at the front, its bentside cutting off the corner
@@ -847,9 +853,9 @@ mod tests {
         let rect = (sb.a + 2.0 * LID_OVERHANG) * reach;
         assert!(signed_area(&lid) > 0.5 * rect && signed_area(&lid) < 0.85 * rect, "{} of {rect}", signed_area(&lid));
         // Shut, the whole outline; removed, none.
-        let shut = lid_plan(&SoundboardParams { lid_shut: 1.0, ..sb });
+        let shut = lid_plan(&SoundboardParams { lid_angle: 0.0, ..sb });
         assert!((signed_area(&shut) - signed_area(&sb.lid_outline().points).abs()).abs() < 1e-9);
-        assert!(lid_plan(&SoundboardParams { lid_angle: 0.0, ..sb }).is_empty());
+        assert!(lid_plan(&SoundboardParams { lid_removed: true, ..sb }).is_empty());
     }
 
     #[test]
@@ -860,8 +866,8 @@ mod tests {
             let m = piano_host::load_listening(&dir.join(format!("{name}.toml")), &PianoModel::default()).unwrap();
             let sb = m.soundboard.unwrap();
             assert_eq!(
-                (sb.mics, sb.mics_upright, sb.mics_relative, sb.lid_angle, sb.lid_shut, sb.mic_gain_db, sb.mic_pattern),
-                (s.mics, s.upright, s.relative, s.lid_angle, s.lid_shut, s.gain_db, s.pattern),
+                (sb.mics, sb.mics_upright, sb.mics_relative, sb.lid_angle, sb.lid_removed, sb.mic_gain_db, sb.mic_pattern),
+                (s.mics, s.upright, s.relative, s.lid_angle, s.lid_removed, s.gain_db, s.pattern),
                 "{name}"
             );
         }
@@ -902,10 +908,10 @@ mod tests {
     #[test]
     fn default_setup_is_the_model_default() {
         let sb = PianoModel::default().soundboard.unwrap();
-        let s = &SETUPS[3];
+        let s = &SETUPS[0];
         assert_eq!(
-            (s.mics, s.upright, s.relative, s.lid_angle, s.lid_shut, s.gain_db, s.pattern),
-            (sb.mics, sb.mics_upright, sb.mics_relative, sb.lid_angle, sb.lid_shut, sb.mic_gain_db, sb.mic_pattern)
+            (s.mics, s.upright, s.relative, s.lid_angle, s.lid_removed, s.gain_db, s.pattern),
+            (sb.mics, sb.mics_upright, sb.mics_relative, sb.lid_angle, sb.lid_removed, sb.mic_gain_db, sb.mic_pattern)
         );
     }
 
@@ -925,7 +931,7 @@ mod tests {
     fn critical_distance_follows_directivity_and_pattern() {
         let m = PianoModel::default();
         let m = PianoModel { room: piano_core::room::RoomParams { directivity: 3.0, ..m.room }, ..m };
-        let sb = m.soundboard.unwrap();
+        let sb = SoundboardParams { mic_pattern: 1.0, ..m.soundboard.unwrap() };
         let (_, omni) = source_and_critical_distance(&m, &sb, m.room.piano);
         let cardioid = SoundboardParams { mic_pattern: 0.5, ..sb };
         let (_, card) = source_and_critical_distance(&m, &cardioid, m.room.piano);

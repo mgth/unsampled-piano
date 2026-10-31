@@ -779,23 +779,24 @@ const HELP: &[(&str, &str, &str)] = &[
     ("soundboard.case_panel_mass", "Weight of the case panels per square metre: heavier panels let less sound through.", "Surface mass m (kg/m²) in the mass law; 6 ≈ 1 cm of wood."),
     (
         "soundboard.lid_angle",
-        "How far the lid is open (0: removed). An open lid reflects the sound towards the audience \
-         side and shadows the mics behind it.",
+        "How far the lid is open; 0: shut on the case. An open lid reflects the sound towards the \
+         audience side and shadows the mics behind it. The shut lid boxes the board's top face in: \
+         the tone loses its highs, the bass hardly changes.",
         "The lid is a reflecting plate of the case's shape (the board's outline 7.5 cm wider, over \
          the rim) hinged on the bass side (y = b), opening towards y < 0. \
          Each board cell gets an image path through it when the reflection hits the lid; mics \
-         behind it get the transmitted share. No diffraction.",
+         behind it get the transmitted share. No diffraction. Over its last 5° the image and the \
+         shadow fade into the shut lid's gain on the front face's paths, 1 − s + s·(leak + \
+         (1 − leak)/√(1 + (f/fc)²)), fc = c/2h with h the hinge height (the box's height \
+         resonance, ≈ 1070 Hz). Grands only.",
     ),
     ("soundboard.lid_hinge_height", "Height of the lid's hinge above the soundboard: the case's top, where the lid rests.", "z of the hinge line (m); also the height h of the box the shut lid closes. 0.16 on a real grand, as `rim.top`."),
     ("soundboard.lid_reflection", "How much sound the lid reflects.", "Pressure reflection coefficient of the lid image."),
     ("soundboard.lid_transmission", "How much sound passes through the lid to a microphone behind it.", "Gain of the direct path when the lid shadows it."),
     (
-        "soundboard.lid_shut",
-        "Lid shut on the case (1) rather than open at its angle or taken away (0). The shut lid boxes \
-         the board's top face in: the tone loses its highs, the bass hardly changes.",
-        "Gain on the front face's paths: 1 − s + s·(leak + (1 − leak)/√(1 + (f/fc)²)), fc = c/2h with \
-         h the hinge height (the box's height resonance, ≈ 1070 Hz). At 1 no open lid, whatever the \
-         angle. Grands only.",
+        "soundboard.lid_removed",
+        "The lid taken off the case: no reflection, no shadow, no box; the angle is then unused.",
+        "No lid image or shadow, the front face's paths ungated; the room's directivity Q = 2.",
     ),
     (
         "soundboard.lid_leak",

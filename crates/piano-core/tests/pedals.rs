@@ -219,3 +219,18 @@ fn a_restruck_key_is_struck_with_its_damper_lifted() {
     let db = 20.0 * (peak(&again) / peak(&fresh)).log10();
     assert!(db.abs() < 1.0, "re-struck attack {db:.1} dB from a fresh one");
 }
+
+/// Once a note has died away, the undamped strings that heard it are left
+/// alone and the board sleeps: what the engine shows of them is rest, not
+/// the state they were left in (the live view would light it up).
+#[test]
+fn observed_rest_after_a_note() {
+    let (_, e) = render(&[(0.01, on(60, 127)), (0.5, off(60))], 10.0);
+    assert!(e.active_voices() > 0, "the undamped strings keep their listening voices");
+    let mut obs = piano_core::Observation::default();
+    e.observe(&mut obs);
+    let lit: Vec<(usize, f32)> = obs.keys.iter().enumerate().filter(|(_, k)| k.energy > 0.0).map(|(m, k)| (m, k.energy)).collect();
+    assert!(lit.is_empty(), "{lit:?}");
+    assert!(!e.board_awake());
+    assert!(obs.board[..obs.board_modes].iter().all(|&a| a == 0.0));
+}

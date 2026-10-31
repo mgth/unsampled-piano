@@ -68,7 +68,7 @@ pub fn save_preset(model: &PianoModel, path: &Path) -> Result<(), String> {
 /// Fields of a listening set-up (microphones, their gain, the lid opening,
 /// the room): what a listening preset sets, and what loading an instrument
 /// keeps.
-const LISTENING: &[(&str, &[&str])] = &[("soundboard", &["mics", "mics_upright", "mics_relative", "mic_gain_db", "mic_pattern", "lid_angle", "lid_shut"]), ("room", &[])];
+const LISTENING: &[(&str, &[&str])] = &[("soundboard", &["mics", "mics_upright", "mics_relative", "mic_gain_db", "mic_pattern", "lid_angle", "lid_removed"]), ("room", &[])];
 
 fn to_table(model: &PianoModel) -> toml::Table {
     toml::Table::try_from(model).expect("model serialises")
@@ -89,8 +89,14 @@ fn merge(base: &mut toml::Table, top: toml::Table) {
 /// `base` with the fields a preset text sets (the others keep their value).
 pub fn overlay_preset(base: &PianoModel, text: &str) -> Result<PianoModel, String> {
     let top: toml::Table = text.parse().map_err(|e| format!("{e}"))?;
+    // A lid set as before `lid_removed` (an angle, `lid_shut`): read as
+    // then (`deserialize_saved`), not with the base's removed lid.
+    let old_lid = top.get("soundboard").and_then(|s| s.as_table()).is_some_and(|s| !s.contains_key("lid_removed") && (s.contains_key("lid_angle") || s.contains_key("lid_shut")));
     let mut t = to_table(base);
     merge(&mut t, top);
+    if let (true, Some(toml::Value::Table(s))) = (old_lid, t.get_mut("soundboard")) {
+        s.remove("lid_removed");
+    }
     t.try_into().map_err(|e| format!("{e}"))
 }
 
@@ -317,6 +323,35 @@ mod tests {
         // The shipped default keeps the line.
         let shipped = load_preset(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/default.toml")).unwrap();
         assert_eq!(shipped.damper, PianoModel::default().damper);
+    }
+
+    /// Before `lid_removed`, an angle of 0 was a removed lid and
+    /// `lid_shut` = 1 a shut one: presets and listening overlays saved
+    /// then keep the lid they were heard with.
+    #[test]
+    fn a_preset_saved_before_the_removed_lid_keeps_its_lid() {
+        let lid = |m: PianoModel| m.soundboard.map(|s| (s.lid_removed, s.lid_angle)).unwrap();
+        let removed = PianoModel { soundboard: Some(piano_core::soundboard::SoundboardParams::GRAND_2M), ..PianoModel::default() };
+        let mut text = preset_toml(&removed);
+        text = text.replace("lid_removed = true\n", "");
+        let old = |angle: &str, shut: &str| toml::from_str::<PianoModel>(&text.replace("lid_angle = 0.0\n", &format!("lid_angle = {angle}\nlid_shut = {shut}\n"))).unwrap();
+        assert_eq!(lid(old("0.0", "0.0")), (true, 0.0));
+        assert_eq!(lid(old("35.0", "0.0")), (false, 35.0));
+        assert_eq!(lid(old("0.0", "1.0")), (false, 0.0));
+        assert_eq!(lid(toml::from_str("[soundboard]\nlid_angle = 35.0\n").unwrap()), (false, 35.0));
+        assert_eq!(lid(toml::from_str("[soundboard]\na = 2.0\n").unwrap()), (false, 35.0));
+        // Listening overlays, over a removed lid and over a shut one.
+        let shut = overlay_preset(&removed, "[soundboard]\nlid_angle = 0.0\nlid_removed = false\n").unwrap();
+        assert_eq!(lid(shut), (false, 0.0));
+        assert_eq!(lid(overlay_preset(&removed, "[soundboard]\nlid_shut = 0.0\nlid_angle = 35.0\n").unwrap()), (false, 35.0));
+        assert_eq!(lid(overlay_preset(&removed, "[soundboard]\nlid_shut = 1.0\nlid_angle = 0.0\n").unwrap()), (false, 0.0));
+        assert_eq!(lid(overlay_preset(&shut, "[soundboard]\nlid_shut = 0.0\nlid_angle = 0.0\n").unwrap()), (true, 0.0));
+        assert_eq!(lid(overlay_preset(&shut, "[soundboard]\nmic_gain_db = 3.0\n").unwrap()), (false, 0.0));
+        // The shipped presets say which.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets");
+        assert_eq!(lid(load_preset(&root.join("default.toml")).unwrap()), (false, 35.0));
+        assert_eq!(lid(load_listening(&root.join("listening/Microphones/audience_lid_closed.toml"), &removed).unwrap()), (false, 0.0));
+        assert_eq!(lid(load_listening(&root.join("listening/Microphones/concert.toml"), &removed).unwrap()), (false, 35.0));
     }
 
     #[test]
