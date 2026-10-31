@@ -148,6 +148,7 @@ pub fn run(
         theme: app.theme.clone(),
     }));
     ui.set_host_page(Box::new(SettingsPage(page.clone())));
+    ui.set_host_bar(Box::new(crate::songbar::SongBar::new(audio.transport.clone())));
     if let Ok(p) = std::env::var("PIANO_UI_PAGE") {
         ui.open_page(&p);
     }

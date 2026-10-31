@@ -36,6 +36,9 @@ cargo run --release -p piano-play -- --buffer 128 [--preset presets/listening/Mi
 # rebuilt in the background (≈ 0.1 s) without cutting held notes
 # play MIDI files in sequence (sample-accurate timing; --from skips the beginning)
 cargo run --release -p piano-play -- --buffer 128 --file data/midi/*.mid
+# in the interface (--ui), the bar above the status bar opens a MIDI file
+# (or takes one dropped on the window): play, pause, stop, and a slider to
+# move through it; pausing or moving lets the keys and pedals go
 
 # offline rendering (stereo WAV)
 cargo run --release -p piano-render -- midi piece.mid out/piece.wav
