@@ -11,6 +11,7 @@
 
 use crate::node;
 use crate::player::{rate_factor, KeyboardInput, Player, Stats, MAX_BLOCK};
+use crate::song::{Song, Transport};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use piano_control::Controller;
 use piano_core::params::PianoModel;
@@ -112,11 +113,14 @@ pub struct Audio {
     keyboard: Arc<KeyboardInput>,
     /// Records the engine's input and output (crate::blackbox).
     pub blackbox: Arc<crate::blackbox::BlackBox>,
+    /// The MIDI file playing, kept across restarts (the window drives it).
+    pub transport: Arc<Mutex<Transport>>,
 }
 
 /// What to play besides the keyboard at the start.
 pub struct Start {
-    pub timeline: Vec<(u64, Event)>,
+    /// MIDI files, played at once.
+    pub song: Option<Song>,
     /// Listen to a MIDI keyboard.
     pub listen: bool,
     /// Feed the queue from elsewhere (the demo) instead of midir.
@@ -152,7 +156,6 @@ fn promote_worker(max_block: usize, sample_rate: f64) {
 
 impl Audio {
     /// Starts playing `model`; returns the controller of its engine.
-    /// `timeline` needs the sample rate, so it is built from it.
     pub fn start(
         settings: Settings,
         name: &str,
@@ -160,11 +163,10 @@ impl Audio {
         stats: Arc<Stats>,
         model: PianoModel,
         map: Option<MidiMap>,
-        start: impl FnOnce(f64) -> Result<Start, String>,
+        start: Start,
     ) -> Result<(Self, Controller), String> {
         let backend = open(&settings, name)?;
         let sample_rate = backend_rate(&backend);
-        let start = start(sample_rate)?;
         let keyboard = Arc::new(KeyboardInput::default());
         keyboard.set(settings.midi_channel, settings.invert_sustain);
         let mut audio = Self {
@@ -179,6 +181,7 @@ impl Audio {
             midi_now: None,
             keyboard,
             blackbox: Arc::default(),
+            transport: Arc::default(),
         };
         let control = audio.launch(backend, model, map, start)?;
         Ok((audio, control))
@@ -232,7 +235,7 @@ impl Audio {
         self.live = None;
         let backend = open(&self.settings, &self.name)?;
         self.sample_rate = backend_rate(&backend);
-        let start = Start { timeline: Vec::new(), listen: true, demo: None };
+        let start = Start { song: None, listen: true, demo: None };
         let new = self.launch(backend, model, map, start)?;
         // Inside the mutex: the interface, the supervisor and the MCP server
         // hold this Arc.
@@ -261,7 +264,15 @@ impl Audio {
             control.set_midi_map(map);
         }
         let (tx, rx) = rtrb::RingBuffer::<Event>::new(1024);
-        let mut player = Player::new(engine, sr, factor, start.timeline, Some(rx), self.stats.clone());
+        let song = {
+            let mut t = self.transport.lock().unwrap();
+            let song = t.connect();
+            if let Some(s) = start.song {
+                t.load(s, true);
+            }
+            song
+        };
+        let mut player = Player::new(engine, sr, factor, Some(song), Some(rx), self.stats.clone());
         if self.settings.blackbox {
             self.blackbox.start(self.engine_rate, cfg.threads, cfg.quality.name(), model);
             player = player.with_blackbox(self.blackbox.clone());
@@ -758,7 +769,7 @@ mod tests {
     fn switches_while_playing() {
         use piano_params::Value;
         let s = Settings { host: Some("node".into()), midi: Some("zz-none".into()), ..settings(None) };
-        let start = |_| Ok(Start { timeline: Vec::new(), listen: true, demo: None });
+        let start = Start { song: None, listen: true, demo: None };
         let (mut a, c) = Audio::start(s.clone(), "piano-switch-test", 0.0, Arc::default(), PianoModel::default(), None, start).unwrap();
         let control = Arc::new(Mutex::new(c));
         control.lock().unwrap().set("output_gain_db", Value::Float(-6.0));

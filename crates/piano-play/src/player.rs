@@ -1,9 +1,10 @@
 //! The audio-thread side, shared by the audio backends: renders a host
 //! buffer from the queued events (keyboard via midir, demo), the events the
-//! backend delivers with their frame (graph MIDI input) and the file
-//! timeline, and reports every event it plays (MIDI mirror). No allocation,
+//! backend delivers with their frame (graph MIDI input) and the MIDI file
+//! playing (crate::song), and reports every event it plays (MIDI mirror). No allocation,
 //! no lock.
 
+use crate::song::SongPlayer;
 use piano_control::EngineSlot;
 use piano_core::upsample::Upsampler;
 use piano_core::{Event, TimedEvent};
@@ -73,7 +74,7 @@ pub fn rate_factor(output_rate: f64, full_rate: bool) -> usize {
 pub struct Player {
     /// Current engine, and the replaced ones finishing their notes.
     engine: EngineSlot,
-    /// The output's rate (buffers, timeline and clock count its frames).
+    /// The output's rate (buffers, song and clock count its frames).
     sample_rate: f64,
     /// Output frames per engine sample, and the upsamplers (left, right).
     factor: usize,
@@ -84,9 +85,8 @@ pub struct Player {
     ur: Vec<f32>,
     held_at: usize,
     held: usize,
-    /// File events (absolute sample, event), sorted.
-    timeline: Vec<(u64, Event)>,
-    cursor: usize,
+    /// The MIDI file and its transport.
+    song: Option<SongPlayer>,
     clock: u64,
     queue: Option<rtrb::Consumer<Event>>,
     all: Vec<TimedEvent>,
@@ -104,7 +104,7 @@ impl Player {
         engine: EngineSlot,
         sample_rate: f64,
         factor: usize,
-        timeline: Vec<(u64, Event)>,
+        song: Option<SongPlayer>,
         queue: Option<rtrb::Consumer<Event>>,
         stats: Arc<Stats>,
     ) -> Self {
@@ -120,8 +120,7 @@ impl Player {
             ur: vec![0.0; size],
             held_at: 0,
             held: 0,
-            timeline,
-            cursor: 0,
+            song,
             clock: 0,
             queue,
             all: Vec::with_capacity(MAX_EVENTS),
@@ -168,10 +167,15 @@ impl Player {
         // File events due in this buffer (late ones, if it overflowed, at its
         // start).
         let end = self.clock + frames as u64;
-        while self.cursor < self.timeline.len() && self.timeline[self.cursor].0 < end && self.all.len() < MAX_EVENTS {
-            let (t, event) = self.timeline[self.cursor];
-            self.all.push(TimedEvent { frame: t.saturating_sub(self.clock) as u32, event });
-            self.cursor += 1;
+        if let Some(song) = self.song.as_mut() {
+            let all = &mut self.all;
+            song.advance(frames, self.sample_rate, |frame, event| {
+                let room = all.len() < MAX_EVENTS;
+                if room {
+                    all.push(TimedEvent { frame: frame.min(frames as u32 - 1), event });
+                }
+                room
+            });
         }
         // In place, no allocation.
         self.all.sort_unstable_by_key(|e| e.frame);
@@ -252,6 +256,14 @@ mod tests {
         assert_eq!(f(96_000.0, true), 1);
     }
 
+    /// A song playing from the start (keep the transport while it plays).
+    fn song(events: Vec<(f64, Event)>) -> (crate::song::Transport, SongPlayer) {
+        let mut t = crate::song::Transport::default();
+        let player = t.connect();
+        t.load(crate::song::Song::new("test".into(), events), true);
+        (t, player)
+    }
+
     /// A few notes through a player: the output, sent in buffers of
     /// `sizes` (cycled), and the engine's rate.
     fn play(rate: f64, factor: usize, sizes: &[usize]) -> Vec<f32> {
@@ -266,12 +278,12 @@ mod tests {
         };
         let (_control, engine) = piano_control::new(model, cfg);
         let at = |s: f64| (s * rate) as u64;
-        let timeline = vec![
-            (at(0.01), Event::NoteOn { note: 60, velocity: 90 }),
-            (at(0.0503), Event::NoteOn { note: 67, velocity: 70 }),
-            (at(0.2), Event::NoteOff { note: 60, velocity: 64 }),
-        ];
-        let mut player = Player::new(engine, rate, factor, timeline, None, Arc::default());
+        let (_transport, song) = song(vec![
+            (0.01, Event::NoteOn { note: 60, velocity: 90 }),
+            (0.0503, Event::NoteOn { note: 67, velocity: 70 }),
+            (0.2, Event::NoteOff { note: 60, velocity: 64 }),
+        ]);
+        let mut player = Player::new(engine, rate, factor, Some(song), None, Arc::default());
         let total = at(0.3) as usize;
         let mut out = vec![0.0; total];
         let mut done = 0;
@@ -326,18 +338,18 @@ mod tests {
         let cfg = EngineConfig { sample_rate: rate, max_block: MAX_BLOCK, model, quality: Quality::Light, threads: 2, ..Default::default() };
         let (mut control, engine) = piano_control::new(model, cfg);
         let at = |s: f64| (s * rate) as u64;
-        let timeline = vec![
-            (at(0.01), Event::NoteOn { note: 60, velocity: 90 }),
-            (at(0.0503), Event::NoteOn { note: 67, velocity: 70 }),
-            (at(0.0503), Event::NoteOn { note: 76, velocity: 110 }),
-            (at(0.2), Event::NoteOff { note: 60, velocity: 64 }),
-            (at(0.31), Event::NoteOn { note: 67, velocity: 100 }),
-            (at(0.45), Event::Control { cc: 64, value: 127 }),
-            (at(0.5), Event::NoteOn { note: 48, velocity: 60 }),
-        ];
+        let (_transport, song) = song(vec![
+            (0.01, Event::NoteOn { note: 60, velocity: 90 }),
+            (0.0503, Event::NoteOn { note: 67, velocity: 70 }),
+            (0.0503, Event::NoteOn { note: 76, velocity: 110 }),
+            (0.2, Event::NoteOff { note: 60, velocity: 64 }),
+            (0.31, Event::NoteOn { note: 67, velocity: 100 }),
+            (0.45, Event::Control { cc: 64, value: 127 }),
+            (0.5, Event::NoteOn { note: 48, velocity: 60 }),
+        ]);
         let bb = Arc::new(crate::blackbox::BlackBox::new());
         bb.start(rate, 2, Quality::Light.name(), model);
-        let mut player = Player::new(engine, rate, 1, timeline, None, Arc::default()).with_blackbox(bb.clone());
+        let mut player = Player::new(engine, rate, 1, Some(song), None, Arc::default()).with_blackbox(bb.clone());
         let total = at(0.8) as usize;
         let mut out = vec![0.0; total];
         let mut done = 0;
@@ -369,7 +381,8 @@ mod tests {
         let dir = bb.dump(&root).unwrap().expect("a recording");
         eprintln!("flight recording: {}", dir.display());
         let text = std::fs::read_to_string(dir.join("events.txt")).unwrap();
-        assert_eq!(text.lines().filter(|l| l.starts_with("E ")).count(), 8);
+        // The song's 7, the 3 pedals it releases as it loads, the parameter.
+        assert_eq!(text.lines().filter(|l| l.starts_with("E ")).count(), 11);
         assert_eq!(text.lines().filter(|l| l.starts_with("S ")).count(), 1);
         let wav = std::fs::read(dir.join("audio.wav")).unwrap();
         let samples: Vec<f32> = wav[44..].chunks(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();

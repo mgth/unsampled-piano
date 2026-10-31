@@ -28,6 +28,8 @@ clap.workspace = true
 jack = "0.13"
 libc = "0.2"
 toml.workspace = true
+# The system's file dialog, to open a MIDI file (the portal on Linux).
+rfd = { version = "0.16", default-features = false, features = ["xdg-portal", "async-std", "wayland"] }
 
 # The executable's icon (build.rs), for Windows targets: rc.exe on Windows,
 # MinGW's windres when cross-compiling.
