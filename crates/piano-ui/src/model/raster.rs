@@ -103,8 +103,15 @@ fn shots() {
         if let Some(a) = std::env::var("PIANO_SHOT_SLANT").ok().and_then(|a| a.parse().ok()) {
             sb.main_string_slant = a;
         }
+        // The lid open at that angle, or shut.
+        match std::env::var("PIANO_SHOT_LID").as_deref() {
+            Ok("shut") => sb.lid_shut = 1.0,
+            Ok(a) => sb.lid_angle = a.parse().unwrap(),
+            Err(_) => {}
+        }
     }
-    let options = Options { key: 0, lit: &[], lid: false, frame: false, mics: false, case: false, ink: Color32::WHITE };
+    let lid = std::env::var("PIANO_SHOT_LID").is_ok();
+    let options = Options { key: 0, lit: &[], lid, frame: false, mics: false, case: false, ink: Color32::WHITE };
     for view in std::env::var("PIANO_SHOTS").unwrap_or_default().split(';').filter(|s| !s.is_empty()) {
         let (name, v) = view.split_once(':').unwrap();
         let v: Vec<f32> = v.split(',').map(|x| x.parse().unwrap()).collect();

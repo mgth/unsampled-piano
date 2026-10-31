@@ -8,6 +8,7 @@
 //! put the keyboard at the bottom and the treble on the right, as the
 //! pianist sees it.
 
+use crate::model::scene::{clip, signed_area, triangulate};
 use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Shape, Stroke, Ui, Vec2};
 use piano_core::params::PianoModel;
 use piano_core::soundboard::SoundboardParams;
@@ -152,8 +153,31 @@ fn lid_extent(sb: &SoundboardParams) -> (f64, f64) {
     if sb.lid_angle <= 0.0 || shut(sb) {
         return (0.0, sb.lid_hinge_height);
     }
-    let (th, len) = (sb.lid_angle.to_radians(), 1.05 * sb.b);
+    // From the hinge to the lid's edge farthest from it.
+    let len = sb.b - sb.lid_outline().points.iter().map(|p| p.1).fold(sb.b, f64::min);
+    let th = sb.lid_angle.to_radians();
     (len * th.cos(), sb.lid_hinge_height + len * th.sin())
+}
+
+/// The lid seen from above, counter-clockwise in board coordinates: its
+/// outline as the radiation has it ([`SoundboardParams::lid_outline`]),
+/// open turned about its hinge (y = b), what lies past the hinge being the
+/// rim's top. Empty when there is none.
+fn lid_plan(sb: &SoundboardParams) -> Vec<(f64, f64)> {
+    let lid = sb.lid_outline().points;
+    let mut top = if shut(sb) {
+        lid
+    } else if sb.lid_angle > 0.0 {
+        let far = 10.0 * (sb.a + sb.b);
+        let cos = sb.lid_angle.to_radians().cos();
+        clip(&lid, &[(-far, -far), (far, -far), (far, sb.b), (-far, sb.b)]).into_iter().map(|(x, y)| (x, sb.b - (sb.b - y) * cos)).collect()
+    } else {
+        Vec::new()
+    };
+    if signed_area(&top) < 0.0 {
+        top.reverse();
+    }
+    top
 }
 
 /// Whether the lid lies shut on the case.
@@ -185,7 +209,7 @@ fn behind_lid(sb: &SoundboardParams, m: [f64; 3]) -> bool {
     let u = fc / (fc - fm);
     let x = [c[0] + u * (m[0] - c[0]), c[1] + u * (m[1] - c[1]), c[2] + u * (m[2] - c[2])];
     let t = dot(rel(x), up);
-    (0.0..=1.05 * sb.b).contains(&t) && (-0.05..=sb.a + 0.05).contains(&x[0])
+    t >= 0.0 && sb.lid_outline().contains(x[0], sb.b - t)
 }
 
 /// The pair of positions in use: the upright's own on a standing board.
@@ -467,18 +491,31 @@ impl MicView {
         p.add(Shape::line(pts(true), Stroke::new(3.0, BRIDGE)));
         p.add(Shape::line(pts(false), Stroke::new(3.0, BRIDGE)));
         let (reach, top) = lid_extent(sb);
-        if reach > 0.0 {
-            p.line_segment([map.plan(0.0, sb.b), map.plan(sb.a, sb.b)], Stroke::new(3.0, LID));
-            p.text(map.plan(sb.a, sb.b) + Vec2::new(0.0, -4.0), Align2::CENTER_BOTTOM, "Hinge", font.clone(), weak);
+        // The lid, its shape and overhang the radiation's (`behind_lid`).
+        let lid = lid_plan(sb);
+        if !lid.is_empty() {
+            let mut mesh = egui::Mesh::default();
+            for &(x, y) in &lid {
+                mesh.colored_vertex(map.plan(x, y), LID.gamma_multiply(0.3));
+            }
+            for [i, j, k] in triangulate(&lid) {
+                mesh.add_triangle(i as u32, j as u32, k as u32);
+            }
+            p.add(Shape::mesh(mesh));
+            let mut edge: Vec<Pos2> = lid.iter().map(|&(x, y)| map.plan(x, y)).collect();
+            edge.push(edge[0]);
+            p.extend(Shape::dashed_line(&edge, Stroke::new(1.5, LID), 4.0, 3.0));
         }
         if reach > 0.0 {
-            let lid = Rect::from_two_pos(map.plan(0.0, sb.b), map.plan(sb.a, sb.b - reach));
-            p.rect_filled(lid, 0.0, LID.gamma_multiply(0.3));
-            dashed_rect(&p, lid, Stroke::new(1.5, LID));
-            p.text(map.plan(sb.a, sb.b - reach) + Vec2::new(0.0, -4.0), Align2::CENTER_BOTTOM, "Lid", font.clone(), weak);
+            let along = lid.iter().filter(|q| q.1 >= sb.b - 1e-9).map(|q| q.0);
+            let (x0, x1) = along.fold((sb.a, 0.0), |(lo, hi): (f64, f64), x| (lo.min(x), hi.max(x)));
+            p.line_segment([map.plan(x0, sb.b), map.plan(x1, sb.b)], Stroke::new(3.0, LID));
+            p.text(map.plan(x1, sb.b) + Vec2::new(0.0, -4.0), Align2::CENTER_BOTTOM, "Hinge", font.clone(), weak);
+            // At the far end of its tail edge.
+            let far = lid.iter().copied().fold((f64::MIN, sb.b), |m, q| if q.0 > m.0 + 1e-6 || (q.0 > m.0 - 1e-6 && q.1 < m.1) { q } else { m });
+            p.text(map.plan(far.0, far.1) + Vec2::new(0.0, -4.0), Align2::CENTER_BOTTOM, "Lid", font.clone(), weak);
         }
         if shut(sb) {
-            dashed_rect(&p, board.expand(2.0), Stroke::new(1.5, LID));
             p.text(map.plan(sb.a, sb.b) + Vec2::new(0.0, -4.0), Align2::CENTER_BOTTOM, "Lid shut", font.clone(), weak);
         }
         p.text(map.plan(sb.a / 2.0, 0.0) + Vec2::new(6.0, 0.0), Align2::LEFT_CENTER, "Treble", font.clone(), weak);
@@ -502,7 +539,9 @@ impl MicView {
         }
         if model.rim.enabled {
             let r = &model.rim;
-            let case = Rect::from_two_pos(map.elev(-rim, r.top - r.height), map.elev(sb.b + rim, r.top));
+            // Up to the lid's hinge on a grand, the lid resting on it.
+            let top = if sb.vertical { r.top } else { r.top.max(sb.lid_hinge_height) };
+            let case = Rect::from_two_pos(map.elev(-rim, r.top - r.height), map.elev(sb.b + rim, top));
             p.rect_filled(case, 2.0, weak.gamma_multiply(0.35));
         }
         p.line_segment([map.elev(0.0, 0.0), map.elev(sb.b, 0.0)], Stroke::new(3.0, WOOD));
@@ -794,6 +833,23 @@ mod tests {
         assert!(behind_lid(&sb, [0.85, 1.6, 1.8]));
         assert!(!behind_lid(&SoundboardParams { lid_angle: 0.0, ..sb }, [0.85, 1.6, 1.8]));
         assert!(!behind_lid(&SoundboardParams { lid_shut: 1.0, ..sb }, [0.85, 1.6, 1.8]));
+    }
+
+    #[test]
+    fn lid_plan_has_the_case_shape() {
+        use piano_core::soundboard::LID_OVERHANG;
+        let sb = SoundboardParams { lid_angle: 35.0, ..SoundboardParams::GRAND_2M };
+        let lid = lid_plan(&sb);
+        let (reach, _) = lid_extent(&sb);
+        // Over the rim at the front, its bentside cutting off the corner
+        // the rectangle over the board had at the tail.
+        assert!(lid.iter().any(|q| q.0 <= -LID_OVERHANG + 1e-9), "{lid:?}");
+        let rect = (sb.a + 2.0 * LID_OVERHANG) * reach;
+        assert!(signed_area(&lid) > 0.5 * rect && signed_area(&lid) < 0.85 * rect, "{} of {rect}", signed_area(&lid));
+        // Shut, the whole outline; removed, none.
+        let shut = lid_plan(&SoundboardParams { lid_shut: 1.0, ..sb });
+        assert!((signed_area(&shut) - signed_area(&sb.lid_outline().points).abs()).abs() < 1e-9);
+        assert!(lid_plan(&SoundboardParams { lid_angle: 0.0, ..sb }).is_empty());
     }
 
     #[test]

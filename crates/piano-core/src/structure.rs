@@ -232,12 +232,15 @@ impl Default for RimParams {
 }
 
 impl RimParams {
-    /// 30 cm high, 7.5 cm thick maple wall rising 5 cm above the board.
+    /// 40 cm high, 7.5 cm thick maple wall rising 16 cm above the board,
+    /// up to the lid (`SoundboardParams::lid_hinge_height`): a grand's keys
+    /// at ≈ 72 cm from the floor, its lid shut at ≈ 1 m, the board ≈ 10 cm
+    /// above the keys, a case ≈ 40 cm deep (docs/lid.md).
     pub const GRAND_2M: Self = Self {
         enabled: true,
-        height: 0.30,
+        height: 0.40,
         thickness: 0.075,
-        top: 0.05,
+        top: 0.16,
         young: 12e9,
         shear: 1.0e9,
         density: 650.0,

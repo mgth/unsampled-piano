@@ -17,7 +17,7 @@
 
 use egui::Color32;
 use piano_core::params::PianoModel;
-use piano_core::soundboard::{Outline, SoundboardParams};
+use piano_core::soundboard::{Outline, SoundboardParams, LID_OVERHANG};
 use piano_core::observe::KeyState;
 use piano_core::Observation;
 
@@ -625,7 +625,7 @@ pub fn frame_outline(model: &PianoModel, sb: &SoundboardParams) -> Vec<(f64, f64
     p
 }
 
-fn signed_area(p: &[(f64, f64)]) -> f64 {
+pub fn signed_area(p: &[(f64, f64)]) -> f64 {
     0.5 * p.iter().zip(p.iter().cycle().skip(1)).map(|(a, b)| a.0 * b.1 - b.0 * a.1).sum::<f64>()
 }
 
@@ -1102,8 +1102,12 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     // over the pin block to just in front of the tuning pins (as the frame
     // is), and the belly rail under the board's front edge.
     let t = if rim.enabled { rim.thickness } else { 0.02 };
-    let (z0, z1) = if rim.enabled { (rim.top - rim.height, rim.top) } else { (-0.25, 0.05) };
+    let (z0, z1) = if rim.enabled { (rim.top - rim.height, rim.top) } else { (-0.24, 0.16) };
     let case = pick(Part::Rim, CASE);
+    // A grand's case goes on above the rim up to the lid's hinge: the box
+    // the shut lid closes ([`SoundboardParams::lid_shut`]), the lid resting
+    // on it. Only the rim below is in the structure's model.
+    let lid_top = if vertical { z1 } else { sb.lid_hinge_height.max(z1) };
     let n = outline.len();
     let front = (0..n).find(|&k| outline[k].0.abs() < 1e-6 && outline[(k + 1) % n].0.abs() < 1e-6);
     let (mut across_lo, mut across_hi) = (0.0, sb.b);
@@ -1114,6 +1118,9 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         (across_lo, across_hi) = (p.1.min(q.1), p.1.max(q.1));
         if o.case {
             b.wall(&sides, false, 0.0, t, z0, &|_| z1, case);
+            if lid_top > z1 {
+                b.wall(&sides, false, 0.0, t, z1, &|_| lid_top, CASE);
+            }
             // A grand's under the board, behind the hammers resting under
             // its edge and the keys' tails.
             let at = if vertical { -BELLY_RAIL } else { BELLY_AT };
@@ -1121,6 +1128,9 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         }
     } else if o.case {
         b.wall(&outline, true, 0.0, t, z0, &|_| z1, case);
+        if lid_top > z1 {
+            b.wall(&outline, true, 0.0, t, z1, &|_| lid_top, CASE);
+        }
     }
 
     // The pin block under the plate, from the case's front to just behind
@@ -1339,11 +1349,14 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         b.label(q[tail], "Frame", "Frame & rim");
     }
 
-    // The lid, hinged along the bass side; shut, it lies on the case.
+    // The lid, hinged along the bass side, of the case's shape as the
+    // radiation has it ([`SoundboardParams::lid_outline`]): over the rim,
+    // its bentside the board's.
+    let lid = sb.lid_outline().points;
     if !vertical && sb.lid_shut >= 1.0 && o.lid {
-        // Over the case's outline, carried forward to the case's front.
+        // Shut, with its front flap carried forward to the case's front.
         let h = sb.lid_hinge_height;
-        let mut top: Vec<(f64, f64)> = outline.iter().map(|&p| if p.0.abs() < 1e-6 { (case_front, p.1) } else { p }).collect();
+        let mut top: Vec<(f64, f64)> = lid.iter().map(|&p| if p.0 <= -LID_OVERHANG + 1e-9 { (case_front, p.1) } else { p }).collect();
         if signed_area(&top) < 0.0 {
             top.reverse();
         }
@@ -1359,17 +1372,30 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         }
         b.label(place.at(sb.a * 0.6, sb.b * 0.5, h), "Lid, shut", "Microphones");
     } else if !vertical && sb.lid_angle > 0.0 && o.lid {
-        let th = sb.lid_angle.to_radians();
-        let (h, len) = (sb.lid_hinge_height, 1.05 * sb.b);
-        let p0 = |x: f64| place.at(x, sb.b, h);
-        let p1 = |x: f64| place.at(x, sb.b - len * th.cos(), h + len * th.sin());
-        let c = rgba(CASE, 0.35);
-        b.quad(true, [p0(-t), p0(sb.a + t), p1(sb.a + t), p1(-t)], c);
-        b.quad(true, [p1(-t), p1(sb.a + t), p0(sb.a + t), p0(-t)], c);
-        for (a, z) in [(p0(-t), p1(-t)), (p0(sb.a + t), p1(sb.a + t)), (p1(-t), p1(sb.a + t))] {
-            b.line(a, z, rgba(CASE, 0.9));
+        // Open, its front flap folded back on it, turned about the hinge
+        // y = b: what lies past it is the rim's top.
+        let (th, h) = (sb.lid_angle.to_radians(), sb.lid_hinge_height);
+        let far = 10.0 * (sb.a + sb.b);
+        let mut top = clip(&lid, &[(-far, -far), (far, -far), (far, sb.b), (-far, sb.b)]);
+        if signed_area(&top) < 0.0 {
+            top.reverse();
         }
-        b.label(p1(sb.a * 0.6), format!("Lid, {:.0}°", sb.lid_angle), "Microphones");
+        let up = |(x, y): (f64, f64)| place.at(x, sb.b - (sb.b - y) * th.cos(), h + (sb.b - y) * th.sin());
+        let c = rgba(CASE, 0.35);
+        for [i, j, k] in triangulate(&top) {
+            let p = [top[i], top[j], top[k]].map(up);
+            b.tri(true, p, [c; 3]);
+            b.tri(true, [p[2], p[1], p[0]], [c; 3]);
+        }
+        for i in 0..top.len() {
+            let (p, q) = (top[i], top[(i + 1) % top.len()]);
+            if p.1.min(q.1) < sb.b - 1e-9 {
+                b.line(up(p), up(q), rgba(CASE, 0.9));
+            }
+        }
+        // Labelled at its edge farthest from the hinge.
+        let edge = top.iter().copied().min_by(|p, q| p.1.total_cmp(&q.1)).unwrap_or((sb.a * 0.6, 0.0));
+        b.label(up(edge), format!("Lid, {:.0}°", sb.lid_angle), "Microphones");
     }
 
     // The keyboard, the keys down pressed in, its back against the case's
@@ -1409,7 +1435,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     } else {
         // Its case, as most grands': the keybed under the case's front
         // and the action, its sides carried forward as arms that come down in a curve from
-        // the rim's top to a little above the keys, rounded at their
+        // the case's top to a little above the keys, rounded at their
         // front; the cheek blocks between them and the keys' ends, the key
         // slip along the keys' front, and behind them the fallboard (open)
         // over a strip of felt. Across (plate y): the case's sides, wider
@@ -1423,10 +1449,10 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let y = yf + 0.1;
         front_legs = [[x_lo + 0.074, y], [x_hi - 0.074, y]];
         let arm = top + 0.035;
-        let mut profile = vec![(yf, z0f), (yb, z0f), (yb, z1 as f32)];
+        let mut profile = vec![(yf, z0f), (yb, z0f), (yb, lid_top as f32)];
         for i in 1..=10 {
             let s = i as f32 / 10.0;
-            profile.push((yb - 0.09 * s, arm + (z1 as f32 - arm) * 0.5 * (1.0 + (std::f32::consts::PI * s).cos())));
+            profile.push((yb - 0.09 * s, arm + (lid_top as f32 - arm) * 0.5 * (1.0 + (std::f32::consts::PI * s).cos())));
         }
         let r = 0.022;
         for i in 0..=6 {

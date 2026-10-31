@@ -194,8 +194,9 @@ pub struct SoundboardParams {
     pub case_open: f64,
     pub case_panel_mass: f64,
     /// Lid opening angle (degrees); 0 = lid removed. It is hinged along the
-    /// board's long side y = b, `lid_hinge_height` m above the board, as long
-    /// as the board is wide, and opens towards y < 0 (the audience).
+    /// board's long side y = b, `lid_hinge_height` m above the board, has
+    /// the case's shape ([`Self::lid_outline`]), and opens towards y < 0
+    /// (the audience).
     pub lid_angle: f64,
     pub lid_hinge_height: f64,
     /// Pressure reflection coefficient of the lid, and transmission through
@@ -204,8 +205,8 @@ pub struct SoundboardParams {
     pub lid_transmission: f64,
     /// How shut the lid is: 0 as `lid_angle` says, 1 shut on the case (no
     /// open lid then, whatever the angle). The board's front face then
-    /// sounds into the box the case and the lid close, 25 cm high: below
-    /// its height resonance c/2h (≈ 690 Hz) board, air and lid move
+    /// sounds into the box the case and the lid close, 16 cm high: below
+    /// its height resonance c/2h (≈ 1070 Hz) board, air and lid move
     /// together and the sound gets out round the rim and through the lid;
     /// above, the box rings and its felts and wood take a growing share.
     /// Gain on the front face: `lid_leak` + (1 − `lid_leak`)/√(1 + (f·2h/c)²),
@@ -283,6 +284,10 @@ pub struct SoundboardParams {
 
 /// Vertices of [`SoundboardParams::outline`].
 pub const OUTLINE_POINTS: usize = 10;
+
+/// How far the lid reaches past the board's edge (m): over the rim, as
+/// thick as [`crate::structure::RimParams`]' default.
+pub const LID_OVERHANG: f64 = 0.075;
 
 impl Default for SoundboardParams {
     fn default() -> Self {
@@ -423,7 +428,8 @@ impl SoundboardParams {
         // Removed lid: the default mics hang above the board (calibrated
         // set-up); see presets/listening/Microphones/concert.toml for an open lid.
         lid_angle: 0.0,
-        lid_hinge_height: 0.25,
+        // On the rim's top (`RimParams::top`), as on a real grand.
+        lid_hinge_height: 0.16,
         lid_reflection: 0.85,
         lid_transmission: 0.1,
         lid_shut: 0.0,
@@ -470,6 +476,15 @@ impl SoundboardParams {
 
     fn h(&self) -> f64 {
         (self.dx * self.dy).sqrt()
+    }
+
+    /// The lid folded down on the case, in metres: the board's outline (or
+    /// the rectangle) grown by [`LID_OVERHANG`] over the rim, its bentside
+    /// following the board's. Open, it turns about the hinge y = b; the
+    /// part past the hinge (y > b) is the rim's top under it.
+    pub fn lid_outline(&self) -> Outline {
+        let board = Outline::new(self).unwrap_or_else(|| Outline { points: vec![(0.0, 0.0), (self.a, 0.0), (self.a, self.b), (0.0, self.b)] });
+        board.grown(LID_OVERHANG)
     }
 
     /// Gain of the front face's sound through the case at ω, and through
@@ -645,13 +660,14 @@ struct Path {
     image: (f64, f64),
 }
 
-/// The open lid as a reflecting rectangle.
+/// The open lid, a reflecting plate of the case's shape.
 struct Lid {
     p0: [f64; 3],
     up: [f64; 3],
     n: [f64; 3],
-    width: f64,
-    length: f64,
+    /// [`SoundboardParams::lid_outline`] and the hinge's y.
+    outline: Outline,
+    hinge: f64,
     reflection: f64,
     transmission: f64,
 }
@@ -681,8 +697,8 @@ impl Lid {
                 up: [0.0, -th.cos(), th.sin()],
                 // Normal pointing to the board side.
                 n: [0.0, -th.sin(), -th.cos()],
-                width: p.a,
-                length: 1.05 * p.b,
+                outline: p.lid_outline(),
+                hinge: p.b,
                 reflection: p.lid_reflection * (1.0 - s),
                 transmission: p.lid_transmission + s * (1.0 - p.lid_transmission),
             }
@@ -693,9 +709,11 @@ impl Lid {
         dot(sub(q, self.p0), self.n)
     }
 
+    /// Whether the point of the lid's plane lies on the lid: folded down
+    /// about the hinge, (x, hinge − t) inside its outline.
     fn on_lid(&self, x: [f64; 3]) -> bool {
         let t = dot(sub(x, self.p0), self.up);
-        (0.0..=self.length).contains(&t) && (-0.05..=self.width + 0.05).contains(&x[0])
+        t >= 0.0 && self.outline.contains(x[0], self.hinge - t)
     }
 
     /// Direct path gain: shadowed when the mic is behind the lid.
@@ -797,6 +815,32 @@ impl Outline {
                 (x - p.0 - t * dx).hypot(y - p.1 - t * dy)
             })
             .fold(f64::INFINITY, f64::min)
+    }
+
+    /// The outline moved `d` m outwards, edge by edge, mitred at the
+    /// vertices (each vertex keeps its index).
+    pub fn grown(&self, d: f64) -> Self {
+        let n = self.points.len();
+        let signed = 0.5 * self.edges().map(|(p, q)| p.0 * q.1 - q.0 * p.1).sum::<f64>();
+        let side = if signed < 0.0 { -1.0 } else { 1.0 };
+        // Outwards: right of each edge on a counter-clockwise polygon.
+        let normal = |k: usize| {
+            let (p, q) = (self.points[k], self.points[(k + 1) % n]);
+            let (dx, dy) = (q.0 - p.0, q.1 - p.1);
+            let l = dx.hypot(dy).max(1e-12);
+            (side * dy / l, -side * dx / l)
+        };
+        let points = (0..n)
+            .map(|i| {
+                let (u, v) = (normal((i + n - 1) % n), normal(i));
+                let (mx, my) = (u.0 + v.0, u.1 + v.1);
+                let l = mx.hypot(my).max(1e-12);
+                let k = d / ((mx * v.0 + my * v.1) / l).max(0.3);
+                let p = self.points[i];
+                (p.0 + mx / l * k, p.1 + my / l * k)
+            })
+            .collect();
+        Self { points }
     }
 
     /// Share of the cell centred on (x, y), dx × dy, inside the outline.
@@ -1581,6 +1625,26 @@ mod tests {
         assert!((low(walled) - low(base)).abs() > 0.05 * low(base));
         let baffled = SoundboardParams { back_gain: 0.0, ..base };
         assert_eq!(low(SoundboardParams { wall_distance: 0.3, ..baffled }), low(baffled));
+    }
+
+    /// The open lid has the case's shape: over the rim along the spine and
+    /// the front, none over the bentside's missing corner at the tail.
+    #[test]
+    fn the_lid_has_the_case_shape() {
+        let p = SoundboardParams { lid_angle: 35.0, ..SoundboardParams::GRAND_2M };
+        let lid = Lid::new(&p).unwrap();
+        let th = p.lid_angle.to_radians();
+        // The point of the open lid over (x, y) of the case.
+        let at = |x: f64, y: f64| [x, p.b - (p.b - y) * th.cos(), p.lid_hinge_height + (p.b - y) * th.sin()];
+        assert!(lid.on_lid(at(0.5 * p.a, 0.5 * p.b)));
+        assert!(lid.on_lid(at(-0.05, 0.5 * p.b)));
+        assert!(lid.on_lid(at(p.a + 0.05, 0.9 * p.b)));
+        assert!(lid.on_lid(at(0.05 * p.a, -0.05)));
+        assert!(!lid.on_lid(at(0.95 * p.a, 0.1 * p.b)));
+        assert!(!lid.on_lid(at(p.a + 0.1, 0.9 * p.b)));
+        // The rectangle's lid without an outline.
+        let rect = Lid::new(&SoundboardParams { outline: [(0.0, 0.0); OUTLINE_POINTS], ..p }).unwrap();
+        assert!(rect.on_lid(at(0.95 * p.a, 0.1 * p.b)));
     }
 
     /// Shutting the lid, or opening it from shut, is continuous: its image
