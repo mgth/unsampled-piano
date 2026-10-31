@@ -239,10 +239,20 @@ const KEY_SLIP: f64 = 0.018;
 /// arms; the bass's agraffes' least distance from the board's bass side.
 const KEY_CHEEK: f64 = 0.03;
 const AGRAFFE_EDGE: f64 = 0.025;
-/// An upright's board bottom, keyboard height and distance in front.
-const UPRIGHT_BASE: f64 = 0.2;
-const UPRIGHT_KEYS_Z: f64 = 0.72;
+/// An upright's board's bottom above the floor (the room's); the back of
+/// its keys' visible part in front of the board, under the fallboard.
+pub const UPRIGHT_BASE: f64 = piano_core::room::VERTICAL_FOOT;
 const UPRIGHT_KEYS_Y: f64 = -0.27;
+/// An upright's case: its sides' and top's thickness, its cheek blocks'
+/// least width beside the keys, its lower panel's front behind the
+/// fallboard's, its plinth's height.
+const U_SIDE_T: f64 = 0.025;
+const U_TOP_T: f64 = 0.025;
+const U_CHEEK: f64 = 0.04;
+const U_LOWER_BACK: f64 = 0.03;
+const U_PLINTH: f64 = 0.06;
+/// An upright's rim's front, in front of its board.
+const U_RIM_FRONT: f64 = 0.015;
 /// The name on a grand's fallboard: its middle's height above the keys.
 /// The fallboard shut: its top's height above the keys at the name board
 /// and over their front, its thickness, its front edge's radius, the lip's
@@ -550,17 +560,6 @@ impl Builder {
                 self.quad(false, q, c);
             }
         }
-    }
-
-    /// A box between two plate points (x, y, z) corners, axis-aligned in
-    /// plate coordinates.
-    fn plate_box(&mut self, a: (f64, f64, f64), b: (f64, f64, f64), c: Color32) {
-        let p = self.place;
-        let o = p.at(a.0, a.1, a.2);
-        let u = sub(p.at(b.0, a.1, a.2), o);
-        let v = sub(p.at(a.0, b.1, a.2), o);
-        let w = sub(p.at(a.0, a.1, b.2), o);
-        self.cuboid(o, u, v, w, c);
     }
 
     /// A prism standing on the plate point `c`, from plate z `z.0` to
@@ -1287,6 +1286,91 @@ fn lyre(b: &mut Builder, cx: f32, y: f32, top: f32, floor: f32, brace: (f32, f32
     }
 }
 
+/// The fallboard over the keys from `x.0` to `x.1` across (world), the
+/// keys' front and their visible part's back `y`, the keys' bottom `kz`:
+/// `shut`, a board over the keys from the name board to their front, the
+/// name on it; else the name on the name board above the keys, centred
+/// at `cx`.
+fn fallboard(b: &mut Builder, shut: bool, x: (f64, f64), cx: f64, y: (f64, f64), kz: f64, case: Color32) {
+    let (key_front, y_back) = y;
+    let kt = kz + 0.022;
+    if !shut {
+        name::name(b, &|u, v, h| [(cx + u) as f32, (y_back - h) as f32, (kt + NAME_UP + v) as f32]);
+        return;
+    }
+    // Its top from high on the name board down to just in front of the
+    // keys, its front edge rounded, a lip down in front of them onto the
+    // key slip; under it, clear of the black keys.
+    let (back, front) = ((y_back, kt + FALL_BACK), (key_front - FALL_LIP - 0.003, kt + FALL_FRONT));
+    let mut profile = vec![back];
+    profile.extend(fillet(back, front, (front.0, kz), FALL_ROUND));
+    profile.extend([(front.0, kz), (front.0 + FALL_LIP, kz), (front.0 + FALL_LIP, kt + 0.004), (back.0, back.1 - FALL_T)]);
+    let profile: Vec<(f32, f32)> = profile.into_iter().map(|(y, z)| (y as f32, z as f32)).collect();
+    b.slab(&profile, x.0 as f32, x.1 as f32, case);
+    // The name on its top, a little behind the middle.
+    let (dy, dz) = (back.0 - front.0, back.1 - front.1);
+    let l = dy.hypot(dz);
+    let (dy, dz) = (dy / l, dz / l);
+    let (py, pz) = (front.0 + dy * 0.55 * l, front.1 + dz * 0.55 * l);
+    name::name(b, &|u, v, h| [(cx + u) as f32, (py + dy * v - dz * h) as f32, (pz + dz * v + dy * h) as f32]);
+}
+
+/// An upright's case round what is drawn so far, as most are made: two
+/// sides from the floor up past the tuning pins, coming forward beside
+/// the keys as arms; the top over them; behind the keys the fallboard,
+/// open, and the upper panel in front of the action up to the top; the
+/// keybed under the keys, the key slip in front of them, cheek blocks at
+/// their ends; under the keybed the lower panel down to the plinth. The
+/// panels and the top as solid as `o.front`. Across (plate y), the board
+/// and rim's `across` or the keys' `keys` with their cheeks, the wider.
+#[allow(clippy::too_many_arguments)]
+fn upright_case(b: &mut Builder, o: &Options, across: (f64, f64), keys: (f64, f64), kz: f64, key_front: f64, y_back: f64, case: Color32) {
+    let (_, hi) = b.bounds();
+    let (top, back) = (hi[2] as f64 + 0.01, hi[1] as f64 + 0.005);
+    let (klo, khi) = keys;
+    let (x0, x1) = (-across.1.max(khi + U_CHEEK), -across.0.min(klo - U_CHEEK));
+    let key_top = kz + 0.022;
+    let (bed_top, bed_bot) = (kz - KEY_FRAME, kz - KEY_FRAME - KEYBED_T);
+    let yf = key_front - KEY_SLIP - 0.002;
+    let low = y_back + U_LOWER_BACK;
+    // The sides: down from the top to the arms, which curve down to a
+    // little above the keys and on to the key slip, rounded at their
+    // front; under the keybed back to the lower panel.
+    let arm = key_top + 0.035;
+    let mut profile = vec![(low, 0.0), (back, 0.0), (back, top + U_TOP_T), (y_back, top + U_TOP_T), (y_back, arm + 0.12)];
+    for i in 1..=10 {
+        let s = i as f64 / 10.0;
+        profile.push((y_back - 0.09 * s, arm + 0.06 * (1.0 + (std::f64::consts::PI * s).cos())));
+    }
+    profile.extend(fillet((y_back - 0.09, arm), (yf, arm), (yf, bed_bot), 0.022));
+    profile.extend([(yf, bed_bot), (low, bed_bot)]);
+    let profile: Vec<(f32, f32)> = profile.into_iter().map(|(y, z)| (y as f32, z as f32)).collect();
+    for (a, z) in [(x0 - U_SIDE_T, x0), (x1, x1 + U_SIDE_T)] {
+        b.slab(&profile, a as f32, z as f32, case);
+    }
+    let box_ = |b: &mut Builder, x: (f64, f64), y: (f64, f64), z: (f64, f64), c: Color32| {
+        b.cuboid([x.0 as f32, y.0 as f32, z.0 as f32], [(x.1 - x.0) as f32, 0.0, 0.0], [0.0, (y.1 - y.0) as f32, 0.0], [0.0, 0.0, (z.1 - z.0) as f32], c);
+    };
+    // The keybed from the key slip back to in front of the plate's
+    // struts, the key slip, the cheek blocks.
+    let bed_back = -(plate::U_CLEAR + plate::U_DEPTH) - 0.005;
+    box_(b, (x0, x1), (yf + 0.004, bed_back), (bed_bot, bed_top), case);
+    box_(b, (x0, x1), (yf, yf + KEY_SLIP), (bed_bot, kz - 0.002), case);
+    for x in [(x0, -(khi + 0.002)), (-(klo - 0.002), x1)] {
+        box_(b, x, (yf + KEY_SLIP, y_back), (bed_top, key_top + 0.012), case);
+    }
+    // The felt strip behind the keys, the fallboard and the name.
+    box_(b, (-(khi + 0.002), -(klo - 0.002)), (y_back - 0.006, y_back), (key_top - 0.004, key_top + 0.008), FELT);
+    fallboard(b, o.fallboard, (x0, x1), -(klo + khi) / 2.0, (key_front, y_back), kz, case);
+    // The panels, the top and the plinth, as solid as asked.
+    let from = b.s.tris.len();
+    box_(b, (x0, x1), (y_back, y_back + FRONT_T), (key_top + 0.008, top), case);
+    box_(b, (x0 - U_SIDE_T, x1 + U_SIDE_T), (y_back - 0.012, back), (top, top + U_TOP_T), case);
+    box_(b, (x0, x1), (low, low + FRONT_T), (U_PLINTH, bed_bot), case);
+    box_(b, (x0, x1), (low - 0.01, low + FRONT_T), (0.0, U_PLINTH), case);
+    b.see_through(from, o.front);
+}
+
 pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let sb = model.soundboard.map(|s| s.resolved()).unwrap_or_default();
     let vertical = sb.vertical;
@@ -1346,6 +1430,9 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     // is), and the belly rail under the board's front edge.
     let t = if rim.enabled { rim.thickness } else { 0.02 };
     let (z0, z1) = if rim.enabled { (rim.top - rim.height, rim.top) } else { (-0.24, 0.16) };
+    // An upright's stands behind its board, as its back's frame, clear of
+    // the strings and the action in front.
+    let (z0, z1) = if vertical { (U_RIM_FRONT - (z1 - z0), U_RIM_FRONT) } else { (z0, z1) };
     let case = pick(Part::Rim, CASE);
     // A grand's case goes on above the rim up to the lid's hinge: the box
     // the shut lid closes ([`SoundboardParams::lid_shut`]), the lid resting
@@ -1516,31 +1603,6 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let r = AGRAFFE_HEAD + AGRAFFE_HEAD_PER * (n.strings as f64 - 1.0) + AGRAFFE_FLANGE;
         let foot = if ax + r <= block_back(ax) { PIN_BLOCK_TOP } else { z - 0.008 };
         agraffe(&mut b, (ax, ay), (ux, uy), z, foot, n.strings, pick(Part::Agraffes, BRASS), pick(Part::Frame, IRON));
-        // An upright's hammer in front of the strings at the strike
-        // point, all on one line, and its damper; a grand's are its
-        // action's ([`action`]).
-        if !vertical {
-            continue;
-        }
-        let k = obs.map(|o| o.keys[m as usize]);
-        let down = k.is_some_and(|k| k.down);
-        let hammer_on = k.is_some_and(|k| k.hammer);
-        let (sx, sy) = (ax + dx * n.strike_pos, ay + dy * n.strike_pos);
-        // At rest, their felts just above the belly rail.
-        let gap = if hammer_on { 0.0 } else if down { 0.012 } else { 0.025 };
-        let felt = if hammer_on { sketches::HIGHLIGHT } else { pick(Part::Strike, pick(Part::Felt, sketches::FELT)) };
-        let w = 0.0045;
-        let (h0, h1) = (z + 0.002 + gap, z + 0.032 + gap);
-        b.plate_box((sx - 0.012, sy - w, h0), (sx + 0.012, sy + w, h1), felt);
-        // The damper on the strings, in front of them, lifted by the key
-        // or the pedal.
-        if m <= d.highest_note {
-            let (px, py) = action::damper_at(model, ends[(m - 21) as usize], m);
-            let lift = 0.015 * (1.0 - k.map_or(1.0, |k| k.damper)) as f64;
-            let at = |a: f64, s: f64, h: f64| place.at(px + ux * a - uy * s, py + uy * a + ux * s, z + lift + h);
-            let (felt, wood) = (pick(Part::DamperPoint, DAMPER_FELT), pick(Part::Damper, DAMPER_WOOD));
-            action::damper_head(&mut b, &at, model, m, felt, wood);
-        }
     }
     // The braid: a band of felt across each bridge's rear lengths, over
     // one unison and under the next.
@@ -1645,7 +1707,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     // front: a grand's on its keybed, at the usual height above the floor.
     let keys_back = case_front - FRONT_T;
     let (klo, khi) = keyboard_span(&sb);
-    let (y_back, kz) = if vertical { (UPRIGHT_KEYS_Y, UPRIGHT_KEYS_Z) } else { (keys_back, z0 + KEYBED_T + KEY_FRAME) };
+    let (y_back, kz) = if vertical { (UPRIGHT_KEYS_Y, KEY_HEIGHT - 0.022) } else { (keys_back, z0 + KEYBED_T + KEY_FRAME) };
     let key_top = kz + 0.022;
     let floor = if vertical { 0.0 } else { key_top - KEY_HEIGHT };
     let key_front = y_back - KEY_DEPTH;
@@ -1670,10 +1732,9 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     // Under a grand's front legs, their centres (world x, y).
     let mut front_legs = [[0.0f32; 2]; 2];
     if vertical {
-        // The keybed and key slip, the cheeks at both ends of the keys.
-        b.cuboid([-(khi + 0.06) as f32, (key_front - 0.02) as f32, (kz - 0.05) as f32], [(khi - klo + 0.12) as f32, 0.0, 0.0], [0.0, (KEY_DEPTH + 0.02) as f32, 0.0], [0.0, 0.0, 0.05], CASE);
-        for x in [-(khi + 0.06), -(klo - 0.01)] {
-            b.cuboid([x as f32, key_front as f32, (kz - 0.01) as f32], [0.05, 0.0, 0.0], [0.0, KEY_DEPTH as f32, 0.0], [0.0, 0.0, 0.06], CASE);
+        if o.case {
+            let across = (across_lo.min(outline.iter().map(|p| p.1).fold(f64::MAX, f64::min)) - t, across_hi.max(outline.iter().map(|p| p.1).fold(f64::MIN, f64::max)) + t);
+            upright_case(&mut b, o, across, (klo, khi), kz, key_front, y_back, case);
         }
     } else {
         // Its case, as most grands': the keybed under the case's front
@@ -1729,27 +1790,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             let (c0, c1) = (case_front as f32, hx as f32);
             b.cuboid([-across_hi as f32, c0, shut - COVER_T], [(across_hi - across_lo) as f32, 0.0, 0.0], [0.0, c1 - c0, 0.0], [0.0, 0.0, COVER_T], case);
             b.see_through(from, o.front);
-            let (cx, kt) = (cx as f64, key_top);
-            if o.fallboard {
-                // Its top from high on the name board down to just in front
-                // of the keys, its front edge rounded, a lip down in front
-                // of them onto the key slip; under it, clear of the black
-                // keys.
-                let (back, front) = ((y_back, kt + FALL_BACK), (key_front - FALL_LIP - 0.003, kt + FALL_FRONT));
-                let mut profile = vec![back];
-                profile.extend(fillet(back, front, (front.0, kz), FALL_ROUND));
-                profile.extend([(front.0, kz), (front.0 + FALL_LIP, kz), (front.0 + FALL_LIP, kt + 0.004), (back.0, back.1 - FALL_T)]);
-                let profile: Vec<(f32, f32)> = profile.into_iter().map(|(y, z)| (y as f32, z as f32)).collect();
-                b.slab(&profile, -hi as f32, -lo as f32, case);
-                // The name on its top, a little behind the middle.
-                let (dy, dz) = (back.0 - front.0, back.1 - front.1);
-                let l = dy.hypot(dz);
-                let (dy, dz) = (dy / l, dz / l);
-                let (py, pz) = (front.0 + dy * 0.55 * l, front.1 + dz * 0.55 * l);
-                name::name(&mut b, &|u, v, h| [(cx + u) as f32, (py + dy * v - dz * h) as f32, (pz + dz * v + dy * h) as f32]);
-            } else {
-                name::name(&mut b, &|u, v, h| [(cx + u) as f32, (y_back - h) as f32, (kt + NAME_UP + v) as f32]);
-            }
+            fallboard(&mut b, o.fallboard, (-hi, -lo), cx as f64, (key_front, y_back), kz, case);
         }
     }
     b.label([-((klo + khi) / 2.0) as f32, key_front as f32, (kz + 0.03) as f32], "Keyboard", "Player");
@@ -1763,8 +1804,12 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     });
     b.mat = Material::Brass;
     if vertical {
+        // Out of the plinth under the lower panel, through brass plates.
+        let face = (y_back + U_LOWER_BACK - 0.01) as f32;
         for (i, &(v, c)) in pedals.iter().enumerate() {
-            pedal(&mut b, cx + (i as f32 - 1.0) * PEDAL_PITCH, key_front as f32, floor as f32 + 0.06, v, c);
+            let x = cx + (i as f32 - 1.0) * PEDAL_PITCH;
+            b.cuboid([x - 0.017, face - 0.002, floor as f32 + 0.012], [0.034, 0.0, 0.0], [0.0, 0.002, 0.0], [0.0, 0.0, 0.026], BRASS);
+            pedal(&mut b, x, face, floor as f32 + 0.025, v, c);
         }
     } else {
         // The lyre under the keybed, in front of the fallboard, braced to

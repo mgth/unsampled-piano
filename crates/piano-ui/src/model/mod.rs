@@ -617,7 +617,7 @@ impl ModelView {
             painter.text(rect.center(), Align2::CENTER_CENTER, "This model has no soundboard to edit.", FontId::proportional(13.0), ui.visuals().text_color());
             return;
         };
-        let place = |x: f64, y: f64| -> V3 { if sb.vertical { [-y as f32, 0.0, (0.2 + sb.a - x) as f32] } else { [-y as f32, x as f32, 0.06] } };
+        let place = |x: f64, y: f64| -> V3 { if sb.vertical { [-y as f32, 0.0, (scene::UPRIGHT_BASE + sb.a - x) as f32] } else { [-y as f32, x as f32, 0.06] } };
         let screen = |x: f64, y: f64| paint::to_screen(&m, rect, place(x, y)).map_or(rect.center(), |s| s.0);
         // Screen motion of one metre along the plate's x and y.
         let o = screen(0.0, 0.0);
