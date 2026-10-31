@@ -331,16 +331,16 @@ mod tests {
     #[test]
     fn a_preset_saved_before_the_removed_lid_keeps_its_lid() {
         let lid = |m: PianoModel| m.soundboard.map(|s| (s.lid_removed, s.lid_angle)).unwrap();
-        let mut text = preset_toml(&PianoModel::default());
+        let removed = PianoModel { soundboard: Some(piano_core::soundboard::SoundboardParams::GRAND_2M), ..PianoModel::default() };
+        let mut text = preset_toml(&removed);
         text = text.replace("lid_removed = true\n", "");
         let old = |angle: &str, shut: &str| toml::from_str::<PianoModel>(&text.replace("lid_angle = 0.0\n", &format!("lid_angle = {angle}\nlid_shut = {shut}\n"))).unwrap();
         assert_eq!(lid(old("0.0", "0.0")), (true, 0.0));
         assert_eq!(lid(old("35.0", "0.0")), (false, 35.0));
         assert_eq!(lid(old("0.0", "1.0")), (false, 0.0));
         assert_eq!(lid(toml::from_str("[soundboard]\nlid_angle = 35.0\n").unwrap()), (false, 35.0));
-        assert_eq!(lid(toml::from_str("[soundboard]\na = 2.0\n").unwrap()), (true, 0.0));
+        assert_eq!(lid(toml::from_str("[soundboard]\na = 2.0\n").unwrap()), (false, 35.0));
         // Listening overlays, over a removed lid and over a shut one.
-        let removed = PianoModel::default();
         let shut = overlay_preset(&removed, "[soundboard]\nlid_angle = 0.0\nlid_removed = false\n").unwrap();
         assert_eq!(lid(shut), (false, 0.0));
         assert_eq!(lid(overlay_preset(&removed, "[soundboard]\nlid_shut = 0.0\nlid_angle = 35.0\n").unwrap()), (false, 35.0));
@@ -349,7 +349,7 @@ mod tests {
         assert_eq!(lid(overlay_preset(&shut, "[soundboard]\nmic_gain_db = 3.0\n").unwrap()), (false, 0.0));
         // The shipped presets say which.
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets");
-        assert_eq!(lid(load_preset(&root.join("default.toml")).unwrap()), (true, 0.0));
+        assert_eq!(lid(load_preset(&root.join("default.toml")).unwrap()), (false, 35.0));
         assert_eq!(lid(load_listening(&root.join("listening/Microphones/audience_lid_closed.toml"), &removed).unwrap()), (false, 0.0));
         assert_eq!(lid(load_listening(&root.join("listening/Microphones/concert.toml"), &removed).unwrap()), (false, 35.0));
     }

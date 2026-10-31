@@ -1039,7 +1039,7 @@ impl Default for PianoModel {
             unison: UnisonLaw::GRAND,
             bridge: BridgeLaw::SALAMANDER_C5,
             polarization: PolarizationLaw::DEFAULT,
-            soundboard: Some(crate::soundboard::SoundboardParams::GRAND_2M),
+            soundboard: Some(crate::soundboard::SoundboardParams::DEFAULT),
             damper: DamperLaw::GRAND,
             sympathetic: SympatheticLaw::DEFAULT,
             nonlinear: StringNonlinearity::DEFAULT,

@@ -229,15 +229,16 @@ mod tests {
         assert!(same(&far.with_macros(), &end.with_macros()));
     }
 
-    /// From the default's removed lid the lid control moves the sound
+    /// From a removed lid the lid control moves the sound
     /// gradually on both sides of 0: nothing changes by a hair, and the
     /// shut side closes step by step.
     #[test]
     fn the_lid_fades_in_from_a_removed_lid() {
         use crate::room::piano_directivity;
         use crate::soundboard::Soundboard;
+        let removed = PianoModel { soundboard: Some(crate::soundboard::SoundboardParams::GRAND_2M), ..PianoModel::default() };
         let at = |l: f64| {
-            let mut m = PianoModel::default();
+            let mut m = removed;
             m.macros.lid = l;
             let m = m.with_macros();
             let sb = crate::soundboard::SoundboardParams { f_max: 1000.0, grid_step: 0.05, ..m.soundboard.unwrap() };
@@ -260,7 +261,7 @@ mod tests {
         let g: Vec<f64> = [-0.9, -0.97, -1.0].iter().map(|&l| at(l).2).collect();
         assert!(g0 > g[0] && g[0] > g[1] && g[1] > g[2], "{g:?}");
         let (shut, q, _) = at(-1.0);
-        assert_eq!((shut.lid_angle, shut.lid_reflection, q), (LID_MIN, PianoModel::default().soundboard.unwrap().lid_reflection, 2.0));
+        assert_eq!((shut.lid_angle, shut.lid_reflection, q), (LID_MIN, removed.soundboard.unwrap().lid_reflection, 2.0));
         let (open, q, _) = at(1.0);
         assert_eq!((open.lid_angle, q), (LID_MAX, 3.0));
     }

@@ -176,31 +176,31 @@ bass_bridge_bow = 0.034
 main_string_slant = 8.0
 mics = [
     [
-    0.45,
-    0.35,
-    1.5,
+    0.294118,
+    0.346154,
+    0.4,
 ],
     [
-    1.15,
-    0.85,
-    1.5,
+    0.705882,
+    0.653846,
+    0.4,
 ],
 ]
 mics_upright = [
     [
-    0.7,
-    1.0,
-    1.5,
+    0.705882,
+    0.653846,
+    0.4,
 ],
     [
-    0.3,
-    0.45,
-    1.5,
+    0.294118,
+    0.346154,
+    0.4,
 ],
 ]
-mics_relative = false
-mic_gain_db = 0.0
-mic_pattern = 1.0
+mics_relative = true
+mic_gain_db = -9.6
+mic_pattern = 0.5
 radiate = true
 grid_step = 0.015
 back_depth = 0.6
@@ -210,8 +210,8 @@ wall_reflection = 0.9
 vertical = false
 case_open = 1.0
 case_panel_mass = 6.0
-lid_angle = 0.0
-lid_removed = true
+lid_angle = 35.0
+lid_removed = false
 lid_hinge_height = 0.16
 lid_reflection = 0.85
 lid_transmission = 0.1

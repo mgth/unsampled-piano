@@ -59,7 +59,7 @@ The lower lid sends a little more to the close pair; shut, the box's corner move
 
 ## Where it is
 
-- `soundboard.lid_angle` (0: shut), `soundboard.lid_removed`, `soundboard.lid_leak` (listening: the angle and `lid_removed` travel with the microphones' presets). The default instrument has its lid removed (the calibrated set-up).
+- `soundboard.lid_angle` (0: shut), `soundboard.lid_removed`, `soundboard.lid_leak` (listening: the angle and `lid_removed` travel with the microphones' presets). Since 2026-10-31 the default instrument listens as `presets/listening/Microphones/close.toml` does: the close pair 40 cm above the board, cardioids, lid open at 35° (`SoundboardParams::DEFAULT`); `SoundboardParams::GRAND_2M` keeps the set-up the model was calibrated with (lid removed, omnis 1.5 m above the board), as the microphones' "Above" set-up. The bench already listened through close.toml, so its scores do not move.
 - `presets/listening/Microphones/audience_lid_closed.toml` shuts it; the other microphone presets open it at 35°, all with `lid_removed = false`.
 - Presets and plugin projects saved before 2026-10-31 keep their lid (`soundboard::deserialize_saved`, and `piano_host::overlay_preset` for listening overlays): without `lid_removed`, an angle of 0 reads as removed, `lid_shut` ≥ 0.5 as shut.
 - The `lid` macro moves the angle: towards 0 (shut) at −1, 45° at +1. A removed lid (the default) fades in so that the control is continuous through 0: at 45°, its reflection × |v| and its shadow's loss × |v|, and on the negative side the angle goes from 45° to 0 (test `the_lid_fades_in_from_a_removed_lid`). The room's directivity follows the reflection, 2 + (1 − closure)·reflection/0.85.

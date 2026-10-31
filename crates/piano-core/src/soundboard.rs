@@ -298,7 +298,7 @@ pub const LID_CLOSING: f64 = 5.0;
 
 impl Default for SoundboardParams {
     fn default() -> Self {
-        Self::GRAND_2M
+        Self::DEFAULT
     }
 }
 
@@ -456,8 +456,9 @@ impl SoundboardParams {
         vertical: false,
         case_open: 1.0,
         case_panel_mass: 6.0,
-        // Removed lid: the default mics hang above the board (calibrated
-        // set-up); see presets/listening/Microphones/concert.toml for an open lid.
+        // Removed lid, the mics hanging above the board: the set-up the
+        // model was calibrated with. The default instrument listens with
+        // the close pair under a lid open at 35° ([`Self::DEFAULT`]).
         lid_angle: 0.0,
         lid_removed: true,
         // On the rim's top (`RimParams::top`), as on a real grand.
@@ -485,6 +486,20 @@ impl SoundboardParams {
         scatter_step: 0.1,
         scatter_height: 0.05,
         scatter_shadow: 0.0,
+    };
+
+    /// The default instrument's board: [`Self::GRAND_2M`] heard by the
+    /// close pair under a lid open at 35°, as
+    /// presets/listening/Microphones/close.toml sets them.
+    pub const DEFAULT: Self = Self {
+        mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
+        mics_upright: [(0.705882, 0.653846, 0.4), (0.294118, 0.346154, 0.4)],
+        mics_relative: true,
+        mic_gain_db: -9.6,
+        mic_pattern: 0.5,
+        lid_angle: 35.0,
+        lid_removed: false,
+        ..Self::GRAND_2M
     };
 
     /// A grand's outline for the 2 m board: straight front edge (x = 0) and

@@ -42,8 +42,9 @@ struct Setup {
     pattern: f64,
 }
 
-/// The listening presets' microphone set-ups, and the calibrated one (the
-/// model's default), for hosts without the preset folder.
+/// The listening presets' microphone set-ups (the first, Close, the
+/// model's default), and the calibrated one, for hosts without the preset
+/// folder.
 const SETUPS: [Setup; 4] = [
     Setup {
         name: "Close",
@@ -907,7 +908,7 @@ mod tests {
     #[test]
     fn default_setup_is_the_model_default() {
         let sb = PianoModel::default().soundboard.unwrap();
-        let s = &SETUPS[3];
+        let s = &SETUPS[0];
         assert_eq!(
             (s.mics, s.upright, s.relative, s.lid_angle, s.lid_removed, s.gain_db, s.pattern),
             (sb.mics, sb.mics_upright, sb.mics_relative, sb.lid_angle, sb.lid_removed, sb.mic_gain_db, sb.mic_pattern)
@@ -930,7 +931,7 @@ mod tests {
     fn critical_distance_follows_directivity_and_pattern() {
         let m = PianoModel::default();
         let m = PianoModel { room: piano_core::room::RoomParams { directivity: 3.0, ..m.room }, ..m };
-        let sb = m.soundboard.unwrap();
+        let sb = SoundboardParams { mic_pattern: 1.0, ..m.soundboard.unwrap() };
         let (_, omni) = source_and_critical_distance(&m, &sb, m.room.piano);
         let cardioid = SoundboardParams { mic_pattern: 0.5, ..sb };
         let (_, card) = source_and_critical_distance(&m, &cardioid, m.room.piano);
