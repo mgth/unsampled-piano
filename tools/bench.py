@@ -58,13 +58,13 @@ EVEN_LAYER = 8
 # How the model is heard: close microphones in a studio, as the references
 # were recorded (the engine's default is a concert hall heard from 1.5 m,
 # whose reverberation would sit in every decay and between the partials).
-LISTENING = [os.path.join(ROOT, "presets", "listening", "Microphones", "close.toml"),
-             os.path.join(ROOT, "presets", "listening", "Room", "studio.toml")]
+LISTENING = [os.path.join(ROOT, "archive", "presets", "listening", "Microphones", "close.toml"),
+             os.path.join(ROOT, "archive", "presets", "listening", "Room", "studio.toml")]
 
 # The notes the references hold were played back by their instruments (the
 # Disklavier's scale, BiVib's measured velocities): the model plays them on
 # that scale, not on its default (a pianist's fingers).
-PLAYBACK = os.path.join(ROOT, "presets", "touch", "disklavier_playback.toml")
+PLAYBACK = os.path.join(ROOT, "archive", "presets", "touch", "disklavier_playback.toml")
 
 def playback_args():
     return ["--listening", PLAYBACK]

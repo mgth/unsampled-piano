@@ -10,8 +10,8 @@ so that what differs is the sound, not the level.
 Writes <prefix>_real.mp3 and <prefix>_model.mp3. --listening default: the
 engine's own (a concert hall heard from 1.5 m), for hall recordings;
 close: close microphones in a studio (tools/bench.py), for close ones;
-auto: each room of presets/listening/Room heard by the engine's
-microphones and by each set of presets/listening/Microphones, keeping the pair whose room and balance sound closest to the recording's
+auto: each room of archive/presets/listening/Room heard by the engine's
+microphones and by each set of archive/presets/listening/Microphones, keeping the pair whose room and balance sound closest to the recording's
 over the passage: L/R coherence at 0.5–4 kHz, how far the envelope dips
 between notes (p90 − p10 of its 10 ms level), and the long-term spectrum's
 octaves from 250 Hz to 4 kHz re 1 kHz (a closed lid sounds closed; the
@@ -64,7 +64,7 @@ def main():
     if a.listening == "auto":
         want = room_traits(a.audio, notes, a.start, a.dur)
         best = None
-        lst = os.path.join(bench.ROOT, "presets", "listening")
+        lst = os.path.join(bench.ROOT, "archive", "presets", "listening")
         mics = [None] + sorted(glob.glob(os.path.join(lst, "Microphones", "*.toml")))
         rooms = [None] + sorted(glob.glob(os.path.join(lst, "Room", "*.toml")))
         for i, (mic, room) in enumerate((m, r) for m in mics for r in rooms):

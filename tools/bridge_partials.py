@@ -68,7 +68,7 @@ def main():
         d = np.loadtxt(files[0], delimiter=";", skiprows=1, usecols=(2,), dtype=np.float32).astype(float)
         ar = resample_poly(d - d.mean(), 24, 25)
         prefix = os.path.join(tmp, b.name(m))
-        subprocess.run([EXE, a.preset or os.path.join(b.ROOT, "presets", "default.toml"), prefix, "--note", str(m), "--velocity", str(a.velocity),
+        subprocess.run([EXE, a.preset or os.path.join(b.ROOT, "archive", "presets", "default.toml"), prefix, "--note", str(m), "--velocity", str(a.velocity),
                         "--hold", "1.5", "--tail", "0.1"], check=True, capture_output=True)
         am = np.diff(np.fromfile(prefix + "_bridge.f32", np.float32).astype(float), prepend=0.0) * SR
         R, M = partials(ar, m, a.lo, a.hi), partials(am, m, a.lo, a.hi)

@@ -71,7 +71,7 @@ fn main() {
     // The default model at the old heights.
     let base = PianoModel { rim: RimParams { top: OLD.1, height: OLD.2, ..new.rim }, ..new };
     let sb0 = SoundboardParams { lid_hinge_height: OLD.0, ..new.soundboard.unwrap() };
-    // The listening presets' microphones (presets/listening/Microphones).
+    // The listening presets' microphones (archive/presets/listening/Microphones).
     let rel = |mics, angle, gain| SoundboardParams { mics, mics_relative: true, lid_angle: angle, lid_removed: false, mic_gain_db: gain, ..sb0 };
     let presets: [(&str, SoundboardParams); 5] = [
         ("default (lid off, 1.5 m)", sb0),

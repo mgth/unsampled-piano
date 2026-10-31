@@ -26,7 +26,7 @@ const HANDLE: f32 = 9.0;
 struct Setup {
     name: &'static str,
     hint: &'static str,
-    /// The listening preset it matches (presets/listening/Microphones).
+    /// The listening preset it matches (archive/presets/listening/Microphones).
     preset: Option<&'static str>,
     mics: [(f64, f64, f64); 2],
     /// The positions for an upright (`mics_upright`).
@@ -860,7 +860,7 @@ mod tests {
 
     #[test]
     fn setups_match_the_listening_presets() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/listening/Microphones");
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets/listening/Microphones");
         for s in SETUPS.iter() {
             let Some(name) = s.preset else { continue };
             let m = piano_host::load_listening(&dir.join(format!("{name}.toml")), &PianoModel::default()).unwrap();

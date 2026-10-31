@@ -490,7 +490,7 @@ impl SoundboardParams {
 
     /// The default instrument's board: [`Self::GRAND_2M`] heard by the
     /// close pair under a lid open at 35°, as
-    /// presets/listening/Microphones/close.toml sets them.
+    /// archive/presets/listening/Microphones/close.toml sets them.
     pub const DEFAULT: Self = Self {
         mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
         mics_upright: [(0.705882, 0.653846, 0.4), (0.294118, 0.346154, 0.4)],

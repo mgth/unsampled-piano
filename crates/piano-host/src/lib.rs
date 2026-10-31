@@ -221,7 +221,7 @@ mod tests {
         assert_eq!((old.sympathetic.gain, old.sympathetic.brake), (0.6, false));
         let partial: PianoModel = toml::from_str("hardness = 0.4\n").unwrap();
         assert!(partial.sympathetic.brake);
-        let shipped = load_preset(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/default.toml")).unwrap();
+        let shipped = load_preset(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets/default.toml")).unwrap();
         assert_eq!((shipped.sympathetic.gain, shipped.sympathetic.brake), (1.0, true));
     }
 
@@ -286,7 +286,7 @@ mod tests {
         let new: PianoModel = toml::from_str(&preset_toml(&PianoModel::default())).unwrap();
         assert_eq!(new.soundboard.unwrap().main_string_slant, piano_core::soundboard::SoundboardParams::GRAND_2M.main_string_slant);
         // The shipped default keeps the slant.
-        let shipped = load_preset(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/default.toml")).unwrap();
+        let shipped = load_preset(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets/default.toml")).unwrap();
         assert_eq!(shipped.soundboard.unwrap().main_string_slant, piano_core::soundboard::SoundboardParams::GRAND_2M.main_string_slant);
     }
 
@@ -304,7 +304,7 @@ mod tests {
         assert_eq!(new.shank_freq_mid, PianoModel::default().shank_freq_mid);
         assert!(new.shank_freq_at(63.0) > new.shank_freq);
         // The shipped default keeps the new shank.
-        let shipped = load_preset(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/default.toml")).unwrap();
+        let shipped = load_preset(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets/default.toml")).unwrap();
         assert_eq!(shipped.shank_freq_mid, PianoModel::default().shank_freq_mid);
     }
 
@@ -321,7 +321,7 @@ mod tests {
         let new: PianoModel = toml::from_str(&preset_toml(&PianoModel::default())).unwrap();
         assert_eq!(new.damper.behind_strike, PianoModel::default().damper.behind_strike);
         // The shipped default keeps the line.
-        let shipped = load_preset(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/default.toml")).unwrap();
+        let shipped = load_preset(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets/default.toml")).unwrap();
         assert_eq!(shipped.damper, PianoModel::default().damper);
     }
 
@@ -348,7 +348,7 @@ mod tests {
         assert_eq!(lid(overlay_preset(&shut, "[soundboard]\nlid_shut = 0.0\nlid_angle = 0.0\n").unwrap()), (true, 0.0));
         assert_eq!(lid(overlay_preset(&shut, "[soundboard]\nmic_gain_db = 3.0\n").unwrap()), (false, 0.0));
         // The shipped presets say which.
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets");
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets");
         assert_eq!(lid(load_preset(&root.join("default.toml")).unwrap()), (false, 35.0));
         assert_eq!(lid(load_listening(&root.join("listening/Microphones/audience_lid_closed.toml"), &removed).unwrap()), (false, 0.0));
         assert_eq!(lid(load_listening(&root.join("listening/Microphones/concert.toml"), &removed).unwrap()), (false, 35.0));
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn listening_and_touch_presets_are_laid_over_the_sound() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets");
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets");
         assert!(is_overlay(&root.join("listening/Microphones/close.toml")));
         assert!(is_overlay(&root.join("touch/recorded_performances.toml")));
         assert!(!is_overlay(&root.join("instruments/Character/honky_tonk.toml")));
