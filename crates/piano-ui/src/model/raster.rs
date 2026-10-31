@@ -63,7 +63,7 @@ pub fn render(scene: &Scene, m: &Mat4, w: usize, h: usize) -> Vec<u8> {
     for t in scene.tris.chunks(3) {
         tri(t, false);
     }
-    for t in scene.glass.chunks(3) {
+    for t in scene.glass.chunks(3).chain(scene.lid.chunks(3)) {
         tri(t, true);
     }
     for l in scene.lines.chunks(2) {
@@ -111,7 +111,7 @@ fn shots() {
         }
     }
     let lid = std::env::var("PIANO_SHOT_LID").is_ok();
-    let options = Options { key: 0, lit: &[], lid, frame: false, mics: false, case: false, ink: Color32::WHITE };
+    let options = Options { key: 0, lit: &[], lid, frame: false, mics: false, case: false, fallboard: false, front: 1.0, ink: Color32::WHITE };
     for view in std::env::var("PIANO_SHOTS").unwrap_or_default().split(';').filter(|s| !s.is_empty()) {
         let (name, v) = view.split_once(':').unwrap();
         let v: Vec<f32> = v.split(',').map(|x| x.parse().unwrap()).collect();
@@ -148,7 +148,7 @@ fn shots() {
 #[ignore]
 fn build_time() {
     let model = PianoModel::default();
-    let options = Options { key: 0, lit: &[], lid: true, frame: true, mics: true, case: std::env::var("CASE_OFF").is_err(), ink: Color32::WHITE };
+    let options = Options { key: 0, lit: &[], lid: true, frame: true, mics: true, case: std::env::var("CASE_OFF").is_err(), fallboard: false, front: 1.0, ink: Color32::WHITE };
     let obs = Observation::default();
     let levels = [0.0f32; 128];
     let live = Live { obs: &obs, keys: &levels, board: None, time: 0.0 };

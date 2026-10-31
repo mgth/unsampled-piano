@@ -4,14 +4,16 @@
 //! copied into the view's rectangle. Its GL objects are made on the first
 //! frame, on the painter's context. Needs OpenGL 3.3 or GLES 3.0; on
 //! anything else, or if a step fails, it reports why and the page falls
-//! back to egui's drawing.
+//! back to egui's drawing. The realistic look ([`super::real`]) is drawn
+//! by the same callback when asked for; if it fails, the plain one is.
 
 use std::sync::{Arc, Mutex};
 
 use egui_glow::glow::{self, HasContext};
 
-use super::cam::Mat4;
+use super::cam::{Camera, Mat4};
 use super::paint::LIGHT;
+use super::real::Real;
 use super::scene::{Scene, Vertex};
 
 #[derive(Clone, Default)]
@@ -23,6 +25,8 @@ pub struct Gpu {
 struct State {
     res: Option<Resources>,
     failed: Option<String>,
+    real: Option<Real>,
+    real_failed: Option<String>,
 }
 
 struct Resources {
@@ -74,8 +78,14 @@ impl Gpu {
         self.state.lock().ok()?.failed.clone()
     }
 
-    /// Queues the scene's drawing into `rect` (filled with `background`).
-    pub fn paint(&self, ui: &egui::Ui, rect: egui::Rect, scene: Arc<Scene>, mvp: Mat4, background: egui::Color32) {
+    /// Why the realistic look does not work here, once it was tried.
+    pub fn real_failed(&self) -> Option<String> {
+        self.state.lock().ok()?.real_failed.clone()
+    }
+
+    /// Queues the scene's drawing into `rect` (filled with `background`),
+    /// in the realistic look through `real`'s camera if given.
+    pub fn paint(&self, ui: &egui::Ui, rect: egui::Rect, scene: Arc<Scene>, mvp: Mat4, background: egui::Color32, real: Option<Camera>) {
         let state = self.state.clone();
         let bg = egui::Rgba::from(background);
         let callback = egui_glow::CallbackFn::new(move |info, painter| {
@@ -84,6 +94,22 @@ impl Gpu {
                 return;
             }
             let gl = painter.gl();
+            if let Some(cam) = real
+                && st.real_failed.is_none()
+            {
+                if st.real.is_none() {
+                    match unsafe { Real::new(gl) } {
+                        Ok(r) => st.real = Some(r),
+                        Err(e) => st.real_failed = Some(e),
+                    }
+                }
+                if let Some(r) = st.real.as_mut() {
+                    match unsafe { r.draw(gl, &info, painter.intermediate_fbo(), &scene, &cam) } {
+                        Ok(()) => return,
+                        Err(e) => st.real_failed = Some(e),
+                    }
+                }
+            }
             if st.res.is_none() {
                 match unsafe { Resources::new(gl) } {
                     Ok(r) => st.res = Some(r),
@@ -103,7 +129,7 @@ impl Gpu {
 }
 
 fn bytes(v: &[Vertex]) -> &[u8] {
-    // SAFETY: Vertex is repr(C), ten f32 with no padding.
+    // SAFETY: Vertex is repr(C), twelve f32 with no padding.
     unsafe { std::slice::from_raw_parts(v.as_ptr().cast::<u8>(), std::mem::size_of_val(v)) }
 }
 
@@ -148,7 +174,7 @@ impl Resources {
             }
             gl.bind_vertex_array(None);
             gl.bind_buffer(glow::ARRAY_BUFFER, None);
-            let samples = gl.get_parameter_i32(glow::MAX_SAMPLES).clamp(1, 4);
+            let samples = gl.get_parameter_i32(glow::MAX_SAMPLES).clamp(1, 8);
             Ok(Self {
                 u_mvp: gl.get_uniform_location(program, "u_mvp"),
                 u_light: gl.get_uniform_location(program, "u_light"),
@@ -228,12 +254,13 @@ impl Resources {
             gl.uniform_3_f32(self.u_light.as_ref(), LIGHT[0], LIGHT[1], LIGHT[2]);
             gl.bind_vertex_array(Some(self.vao));
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
-            let mut all = Vec::with_capacity(scene.tris.len() + scene.lines.len() + scene.glass.len());
+            let mut all = Vec::with_capacity(scene.tris.len() + scene.lines.len() + scene.glass.len() + scene.lid.len());
             all.extend_from_slice(&scene.tris);
             all.extend_from_slice(&scene.lines);
             all.extend_from_slice(&scene.glass);
+            all.extend_from_slice(&scene.lid);
             gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes(&all), glow::STREAM_DRAW);
-            let (nt, nl, ng) = (scene.tris.len() as i32, scene.lines.len() as i32, scene.glass.len() as i32);
+            let (nt, nl, ng) = (scene.tris.len() as i32, scene.lines.len() as i32, (scene.glass.len() + scene.lid.len()) as i32);
             gl.uniform_1_f32(self.u_lit.as_ref(), 1.0);
             gl.draw_arrays(glow::TRIANGLES, 0, nt);
             gl.uniform_1_f32(self.u_lit.as_ref(), 0.0);
