@@ -253,6 +253,10 @@ const U_LOWER_BACK: f64 = 0.03;
 const U_PLINTH: f64 = 0.06;
 /// An upright's rim's front, in front of its board.
 const U_RIM_FRONT: f64 = 0.015;
+/// A grand's outer rim, the case's wall up to the lid: of the rim's
+/// thickness, the rest is the inner rim under the board's glued edge
+/// (makers give 22–29 mm outer, 38–54 mm inner).
+const OUTER_RIM: f64 = 0.025;
 /// The name on a grand's fallboard: its middle's height above the keys.
 /// The fallboard shut: its top's height above the keys at the name board
 /// and over their front, its thickness, its front edge's radius, the lip's
@@ -1405,6 +1409,25 @@ fn fallboard(b: &mut Builder, shut: bool, x: (f64, f64), cx: f64, y: (f64, f64),
 /// panels and the top as solid as `o.front`. Across (plate y), the board
 /// and rim's `across` or the keys' `keys` with their cheeks, the wider.
 #[allow(clippy::too_many_arguments)]
+/// A grand's inner rim `inner` wide outside the board's `edge`, from `z0`
+/// up to the board's underside, and the board's edge glued over it, out
+/// to the outer rim.
+fn inner_rim(b: &mut Builder, edge: &[(f64, f64)], closed: bool, inner: f64, z0: f64, case: Color32, wood: Color32) {
+    b.wall(edge, closed, 0.0, inner, z0, &|_| -0.012, case);
+    let from = b.s.tris.len();
+    b.mat = Material::Spruce;
+    b.wall(edge, closed, 0.0, inner, -0.012, &|_| 0.0, wood);
+    b.mat = Material::Paint;
+    // The board's reflection out to the outer rim's wall.
+    let (lo, hi) = &mut b.s.board;
+    for v in &b.s.tris[from..] {
+        for i in 0..3 {
+            lo[i] = lo[i].min(v.pos[i]);
+            hi[i] = hi[i].max(v.pos[i]);
+        }
+    }
+}
+
 fn upright_case(b: &mut Builder, o: &Options, across: (f64, f64), keys: (f64, f64), kz: f64, key_front: f64, y_back: f64, case: Color32) {
     let (_, hi) = b.bounds();
     let (top, back) = (hi[2] as f64 + 0.01, hi[1] as f64 + 0.005);
@@ -1524,6 +1547,10 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     // the shut lid closes ([`SoundboardParams::lid_closure`]), the lid resting
     // on it. Only the rim below is in the structure's model.
     let lid_top = if vertical { z1 } else { sb.lid_hinge_height.max(z1) };
+    // A grand's outer rim alone rises to the lid; the inner one inside it
+    // stops under the board, whose glued edge covers it, and under the pin
+    // block's ends in front of the board.
+    let inner = if vertical { 0.0 } else { t - t.min(OUTER_RIM) };
     let n = outline.len();
     let front = (0..n).find(|&k| outline[k].0.abs() < 1e-6 && outline[(k + 1) % n].0.abs() < 1e-6);
     let (mut across_lo, mut across_hi) = (0.0, sb.b);
@@ -1533,9 +1560,16 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let sides: Vec<_> = (1..=n).map(|i| forward(outline[(k + i) % n])).collect();
         (across_lo, across_hi) = (p.1.min(q.1), p.1.max(q.1));
         if o.case {
-            b.wall(&sides, false, 0.0, t, z0, &|_| z1, case);
+            b.wall(&sides, false, inner, t, z0, &|_| z1, case);
             if lid_top > z1 {
-                b.wall(&sides, false, 0.0, t, z1, &|_| lid_top, CASE);
+                b.wall(&sides, false, inner, t, z1, &|_| lid_top, CASE);
+            }
+            if inner > 0.0 {
+                let edge: Vec<_> = (1..=n).map(|i| outline[(k + i) % n]).collect();
+                inner_rim(&mut b, &edge, false, inner, z0, case, wood);
+                for arm in [[sides[0], edge[0]], [edge[n - 1], sides[n - 1]]] {
+                    b.wall(&arm, false, 0.0, inner, z0, &|_| PIN_BLOCK_TOP, case);
+                }
             }
             // A grand's under the board, behind the hammers resting under
             // its edge and the keys' tails.
@@ -1543,9 +1577,12 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             b.wall(&[p, q], false, at, at + BELLY_RAIL, z0, &|_| -0.012, case);
         }
     } else if o.case {
-        b.wall(&outline, true, 0.0, t, z0, &|_| z1, case);
+        b.wall(&outline, true, inner, t, z0, &|_| z1, case);
         if lid_top > z1 {
-            b.wall(&outline, true, 0.0, t, z1, &|_| lid_top, CASE);
+            b.wall(&outline, true, inner, t, z1, &|_| lid_top, CASE);
+        }
+        if inner > 0.0 {
+            inner_rim(&mut b, &outline, true, inner, z0, case, wood);
         }
     }
 
@@ -1874,7 +1911,8 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             let shut = lid_top as f32 - 0.002;
             b.sweep(&along(-hi as f32, -lo as f32, (y_back + FRONT_T / 2.0) as f32, (PIN_BLOCK_TOP as f32, shut), FRONT_T as f32, 0.009), [0.0, 1.0, 0.0], case);
             let (c0, c1) = (case_front as f32, hx as f32);
-            b.cuboid([-across_hi as f32, c0, shut - COVER_T], [(across_hi - across_lo) as f32, 0.0, 0.0], [0.0, c1 - c0, 0.0], [0.0, 0.0, COVER_T], case);
+            let (a0, a1) = (across_lo - inner, across_hi + inner);
+            b.cuboid([-a1 as f32, c0, shut - COVER_T], [(a1 - a0) as f32, 0.0, 0.0], [0.0, c1 - c0, 0.0], [0.0, 0.0, COVER_T], case);
             b.see_through(from, o.front);
             fallboard(&mut b, o.fallboard, (-hi, -lo), cx as f64, (key_front, y_back), kz, case);
         }
@@ -2054,7 +2092,9 @@ mod tests {
             let sb = m.soundboard.unwrap().resolved();
             let outline = board_outline(&sb);
             assert!(outline.iter().all(|&(x, y)| (0.0..=sb.a).contains(&x) && (0.0..=sb.b).contains(&y)));
-            let s = build(&m, None, &options());
+            // Without the case, whose inner rim the board's glued edge
+            // covers beyond the outline.
+            let s = build(&m, None, &Options { case: false, ..options() });
             let top: f64 = s
                 .tris
                 .as_chunks::<3>()
