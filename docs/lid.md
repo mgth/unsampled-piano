@@ -45,7 +45,7 @@ Until 2026-10-31 the lid's hinge stood 25 cm above the board and the rim's top 5
 - the lid's hinge and the rim's top 16 cm above the board (`lid_hinge_height`, `rim.top`), the lid resting on the rim;
 - the rim 40 cm high (`rim.height`), its bottom where it was (−24 cm).
 
-`examples/case_heights.rs` renders C2, C4, C6 mf and a ff chord (room on) with each change alone, then both, new minus old, dB:
+`examples/case_heights.rs` renders C2, C4, C6 mf and a ff chord (room on) at the old heights, which it keeps as its reference (`OLD`: 25, 5 and 30 cm), then with each change alone, then both; new minus old, dB:
 
 | microphones | hinge alone | rim alone | both |
 |---|---|---|---|

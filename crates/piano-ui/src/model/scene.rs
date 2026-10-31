@@ -625,7 +625,7 @@ pub fn frame_outline(model: &PianoModel, sb: &SoundboardParams) -> Vec<(f64, f64
     p
 }
 
-fn signed_area(p: &[(f64, f64)]) -> f64 {
+pub fn signed_area(p: &[(f64, f64)]) -> f64 {
     0.5 * p.iter().zip(p.iter().cycle().skip(1)).map(|(a, b)| a.0 * b.1 - b.0 * a.1).sum::<f64>()
 }
 
