@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100">
   <title>Unsampled Piano</title>
   <!-- A string held at the agraffe (left) and the bridge (right), its
-       fundamental's envelope and its second mode, above a keyboard. -->
+       fundamental's envelope and its second mode, above an octave of
+       keyboard, C to B. -->
   <rect width="100" height="100" rx="22" fill="#1d2433"/>
   <path d="M18 50 Q50 14 82 50" fill="none" stroke="#f2b544" stroke-width="2" opacity=".5"/>
   <path d="M18 50 Q50 86 82 50" fill="none" stroke="#f2b544" stroke-width="2" opacity=".5"/>
@@ -9,8 +10,9 @@
   <circle cx="18" cy="50" r="5" fill="#e8e2d4"/>
   <circle cx="82" cy="50" r="5" fill="#c8722c"/>
   <rect x="18" y="74" width="64" height="10" rx="2" fill="#e8e2d4"/>
-  <rect x="27" y="74" width="5" height="6" fill="#1d2433"/>
-  <rect x="39" y="74" width="5" height="6" fill="#1d2433"/>
-  <rect x="56" y="74" width="5" height="6" fill="#1d2433"/>
-  <rect x="66" y="74" width="5" height="6" fill="#1d2433"/>
+  <rect x="24.6" y="74" width="5" height="6" fill="#1d2433"/>
+  <rect x="33.8" y="74" width="5" height="6" fill="#1d2433"/>
+  <rect x="52.1" y="74" width="5" height="6" fill="#1d2433"/>
+  <rect x="61.2" y="74" width="5" height="6" fill="#1d2433"/>
+  <rect x="70.4" y="74" width="5" height="6" fill="#1d2433"/>
 </svg>
