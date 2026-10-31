@@ -101,8 +101,12 @@ impl SongPlayer {
                     release_pedals(&mut push);
                 }
                 Command::Play if !self.playing => {
+                    // The pause let the pedals go: they come back as the
+                    // song has them here (at its start they are up).
                     if self.song.as_ref().is_some_and(|s| self.cursor >= s.events.len()) {
                         self.seek(0.0, rate, &mut push);
+                    } else if self.cursor > 0 {
+                        self.pedals(&mut push);
                     }
                     self.playing = self.song.is_some();
                 }
@@ -148,6 +152,12 @@ impl SongPlayer {
         let t = t.clamp(0.0, song.length);
         self.cursor = song.events.partition_point(|e| e.0 < t);
         self.frames = (t * rate) as u64;
+        self.pedals(push);
+    }
+
+    /// The pedals as the song has them at its cursor.
+    fn pedals(&self, push: &mut impl FnMut(u32, Event) -> bool) {
+        let Some(song) = &self.song else { return };
         for cc in PEDALS {
             let value = song.events[..self.cursor].iter().rev().find_map(|e| match e.1 {
                 Event::Control { cc: c, value } if c == cc => Some(value),
@@ -265,6 +275,12 @@ mod tests {
         let paused = run(&mut p, 100, rate);
         assert_eq!(paused[0], (0, Event::AllNotesOff));
         assert!(!t.state().playing() && (t.state().position() - 0.1).abs() < 1e-9);
+        // Played again where it paused: the pedal comes back down.
+        t.send(Command::Play);
+        let again = run(&mut p, 10, rate);
+        assert!(again.contains(&(0, Event::Control { cc: 64, value: 127 })), "{again:?}");
+        t.send(Command::Pause);
+        run(&mut p, 10, rate);
         // Back to 0.2 s: the pedal is down there.
         t.send(Command::Seek(0.2));
         t.send(Command::Play);

@@ -129,11 +129,10 @@ impl piano_ui::HostBar for SongBar {
         t.free();
         let (position, playing) = (t.state().position(), t.state().playing());
         let song = t.song().map(|s| (s.name.clone(), s.length));
+        let mut pick = false;
         ui.horizontal(|ui| {
             let open = ui.add_enabled(self.picking.is_none(), egui::Button::new("Open MIDI file…"));
-            if open.on_hover_text("Play a standard MIDI file (.mid); a file dropped on the window plays too").clicked() {
-                self.pick();
-            }
+            pick = open.on_hover_text("Play a standard MIDI file (.mid); a file dropped on the window plays too").clicked();
             let Some((name, length)) = song else {
                 ui.label(RichText::new("No MIDI file").weak());
                 if let Some(e) = &self.error {
@@ -176,6 +175,11 @@ impl piano_ui::HostBar for SongBar {
                 }
             });
         });
+        // The dialog opens the file it gives: on macOS, before returning.
+        drop(t);
+        if pick {
+            self.pick();
+        }
     }
 }
 
