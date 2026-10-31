@@ -906,10 +906,13 @@ mod tests {
     #[test]
     fn a_long_rest_does_not_light_what_is_left() {
         let mut v = ModelView::default();
-        // The reference long come down after the last note.
+        // The reference long come down after the last note, only what is
+        // left in the strings to see.
         v.levels.keys = 1e-30;
         let mut o = Observation::default();
         o.keys[100].energy = piano_core::engine::Shortcuts::DEFAULT.voice_silence;
+        assert_eq!(v.key_levels(&o)[100], 0.0);
+        // Then a soft note.
         o.keys[60].energy = 1.5;
         let l = v.key_levels(&o);
         assert_eq!(l[100], 0.0);
