@@ -58,6 +58,23 @@ const UNDERLEVER: f64 = 0.085;
 const DAMPER_LIFT: f64 = 0.015;
 const WIRE_R: f32 = 0.0008;
 
+/// The damper felts, cut to their strings: a single string sits in a
+/// groove, a bichord's wedge goes down between its two strings, a
+/// trichord's double wedge between its three (the middle one in the notch
+/// between the points); the treble's thin strings, from
+/// `FLAT_DAMPERS_FROM` up, take a flat felt. The wedges' and the grooves'
+/// half-angles; the felt's top above the strings' centres, the cloth glued
+/// over it under the head, the head's top.
+const FLAT_DAMPERS_FROM: u8 = 67;
+const WEDGE_HALF: f64 = 0.52;
+const GROOVE_HALF: f64 = 0.61;
+const DAMPER_FELT_TOP: f64 = 0.008;
+const DAMPER_CLOTH: f64 = 0.001;
+const DAMPER_TOP: f64 = 0.022;
+/// Steel's density: a string's radius from its mass per length (a wound
+/// string's a little under its winding's).
+const STEEL_DENSITY: f64 = 7850.0;
+
 const KEY_WOOD: Color32 = Color32::from_rgb(222, 198, 156);
 const ACTION_WOOD: Color32 = Color32::from_rgb(204, 172, 122);
 const SHANK_WOOD: Color32 = Color32::from_rgb(214, 188, 140);
@@ -70,8 +87,6 @@ const LEATHER: Color32 = Color32::from_rgb(120, 78, 48);
 const RAIL: Color32 = Color32::from_rgb(176, 178, 184);
 const BRACKET: Color32 = Color32::from_rgb(92, 94, 102);
 const LEAD: Color32 = Color32::from_rgb(112, 114, 122);
-const DAMPER_WOOD: Color32 = Color32::from_rgb(64, 46, 36);
-const DAMPER_FELT: Color32 = Color32::from_rgb(226, 222, 212);
 
 /// Where a run of drawn triangles and lines starts.
 #[derive(Clone, Copy)]
@@ -99,6 +114,38 @@ impl Builder {
             let mut n = Vertex { pos: v.normal, ..*v };
             spin(&mut n, false);
             v.normal = n.pos;
+        }
+    }
+
+    /// The polygon `p` (across, up) swept along from `a.0` to `a.1`, each
+    /// point placed by `at(along, across, up)`: flat faces turned
+    /// outwards, capped.
+    pub(super) fn extrude(&mut self, p: &[(f64, f64)], a: (f64, f64), at: &dyn Fn(f64, f64, f64) -> V3, c: Color32) {
+        let mut p = p.to_vec();
+        if signed_area(&p) < 0.0 {
+            p.reverse();
+        }
+        // Counter-clockwise across and up faces along, unless `at` mirrors
+        // (an upright's plate).
+        let o = at(0.0, 0.0, 0.0);
+        let mirror = dot(cross(sub(at(0.0, 1.0, 0.0), o), sub(at(0.0, 0.0, 1.0), o)), sub(at(1.0, 0.0, 0.0), o)) < 0.0;
+        let col = [rgba(c, 1.0); 3];
+        let w = |k: usize, a: f64| at(a, p[k].0, p[k].1);
+        let tri = |b: &mut Self, mut t: [V3; 3]| {
+            if mirror {
+                t.swap(1, 2);
+            }
+            b.tri(false, t, col);
+        };
+        for [i, j, k] in triangulate(&p) {
+            tri(self, [w(i, a.1), w(j, a.1), w(k, a.1)]);
+            tri(self, [w(i, a.0), w(k, a.0), w(j, a.0)]);
+        }
+        let n = p.len();
+        for e in 0..n {
+            let f = (e + 1) % n;
+            tri(self, [w(e, a.0), w(f, a.0), w(f, a.1)]);
+            tri(self, [w(e, a.0), w(f, a.1), w(e, a.1)]);
         }
     }
 
@@ -558,17 +605,10 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
         let l = (bx - ax).hypot(by - ay).max(1e-9);
         ((bx - ax) / l, (by - ay) / l)
     };
-    let (px, py) = (ax + (bx - ax) * d.position, ay + (by - ay) * d.position);
-    let strings = c.model.note(m).strings as f64;
-    let half = (strings - 1.0) * 0.00125 + 0.0025;
+    let (px, py) = damper_point(c.ends[(m - 21) as usize], d.position);
     let place = b.place;
     let corner = |a: f64, s: f64, h: f64| place.at(px + ux * a - uy * s, py + uy * a + ux * s, z + lift + h);
-    let cube = |a: (f64, f64), s: f64, h: (f64, f64), col: Color32, b: &mut Builder| {
-        let q = |h: f64| [corner(a.0, -s, h), corner(a.1, -s, h), corner(a.1, s, h), corner(a.0, s, h)];
-        b.hexa(q(h.0), q(h.1), col);
-    };
-    cube((-0.01, 0.01), half, (0.001, 0.008), c.pick(Part::DamperPoint, DAMPER_FELT), b);
-    cube((-0.009, 0.009), half - 0.0005, (0.008, 0.022), c.pick(Part::Damper, DAMPER_WOOD), b);
+    damper_head(b, &corner, c.model, m, false, c.pick(Part::DamperPoint, DAMPER_FELT), c.pick(Part::Damper, DAMPER_WOOD));
     // The wire: up from the underlever, through the gap to the next
     // unison, over to the head's back.
     let across = |n: u8| {
@@ -584,6 +624,80 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
     for p in path[if c.inside { 0 } else { 2 }..].windows(2) {
         b.rod(p[0], p[1], (WIRE_R, WIRE_R), STEEL);
     }
+}
+
+
+/// Where the strings of a key with `ends` pass at `t` of their speaking
+/// length (plate x, y): as they are drawn, towards their bridge pins'
+/// gap ([`build`]).
+pub(super) fn damper_point(ends: StringEnds, t: f64) -> (f64, f64) {
+    let ((ax, ay), (bx, by), _) = ends;
+    let (dx, dy) = (bx - ax, by - ay);
+    let l = dx.hypot(dy).max(1e-9);
+    let (ux, uy, nx, ny) = (dx / l, dy / l, -dy / l, dx / l);
+    let (cx, cy) = (-ux * BRIDGE_PIN_ALONG + nx * BRIDGE_PIN_SIDE, -uy * BRIDGE_PIN_ALONG + ny * BRIDGE_PIN_SIDE);
+    (ax + (dx + cx) * t, ay + (dy + cy) * t)
+}
+
+/// A damper's felt in section across its `strings` of radius `r`
+/// (across, up from their centres), cut to them unless `flat`, and its
+/// half-width.
+fn felt_section(strings: usize, r: f64, flat: bool) -> (Vec<(f64, f64)>, f64) {
+    let (g, top) = (UNISON_GAP, DAMPER_FELT_TOP);
+    let half = (strings as f64 - 1.0) * g / 2.0 + 0.0025;
+    if flat || !(1..=3).contains(&strings) {
+        return (vec![(-half, r), (half, r), (half, top), (-half, top)], half);
+    }
+    if strings == 1 {
+        // The groove's sides on the string, the felt's lips down to its
+        // lower half.
+        let r = r.min(0.003);
+        let (s, co) = GROOVE_HALF.sin_cos();
+        let (apex, lip) = (r / s, -0.5 * r);
+        let w = (apex - lip) * s / co;
+        let half = half.max(w + 0.0015);
+        return (vec![(-half, top), (-half, lip), (-w, lip), (0.0, apex), (w, lip), (half, lip), (half, top)], half);
+    }
+    // A point between each two strings, its flanks on both (the strings
+    // drawn as lines: a wound string's radius kept within the gap).
+    let r = r.min(0.4 * g);
+    let (s, co) = WEDGE_HALF.sin_cos();
+    let depth = (g / 2.0 * co - r) / s;
+    let rise = |across: f64| across * co / s - depth;
+    let tips: Vec<f64> = (0..strings - 1).map(|k| (k as f64 - (strings as f64 - 2.0) / 2.0) * g).collect();
+    let mut p = vec![(-half, top), (-half, rise(half + tips[0]))];
+    for (i, &t) in tips.iter().enumerate() {
+        p.push((t, -depth));
+        if let Some(&next) = tips.get(i + 1) {
+            p.push(((t + next) / 2.0, rise((next - t) / 2.0)));
+        }
+    }
+    let last = tips[tips.len() - 1];
+    p.extend([(half, rise(half - last)), (half, top)]);
+    (p, half)
+}
+
+/// Key `m`'s damper head, placed by `at(along, across, up)` from its
+/// strings' centres under it: the felt cut to them, as long as the
+/// engine's pad, the cloth over it and the wooden head. An upright's
+/// felt is two pads, one above the other, the cloth between them.
+pub(super) fn damper_head(b: &mut Builder, at: &dyn Fn(f64, f64, f64) -> V3, model: &PianoModel, m: u8, upright: bool, felt: Color32, wood: Color32) {
+    let n = model.note(m);
+    let r = (n.mu / (STEEL_DENSITY * std::f64::consts::PI)).sqrt();
+    let (section, half) = felt_section(n.strings, r, m >= FLAT_DAMPERS_FROM);
+    let l = model.damper.width / 2.0;
+    let rect = |s: f64, h: (f64, f64)| [(-s, h.0), (s, h.0), (s, h.1), (-s, h.1)];
+    let top = DAMPER_FELT_TOP;
+    if upright {
+        let gap = l / 4.0;
+        b.extrude(&section, (-l, -gap), at, felt);
+        b.extrude(&section, (gap, l), at, felt);
+        b.extrude(&rect(half - 0.0005, (top - 0.004, top)), (-gap, gap), at, CLOTH);
+    } else {
+        b.extrude(&section, (-l, l), at, felt);
+    }
+    b.extrude(&rect(half, (top, top + DAMPER_CLOTH)), (-l, l), at, CLOTH);
+    b.extrude(&rect(half - 0.0005, (top + DAMPER_CLOTH, DAMPER_TOP)), (-l + 0.001, l - 0.001), at, wood);
 }
 
 
@@ -711,6 +825,52 @@ fn rails(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_swept_profile_faces_outwards_grand_or_upright() {
+        for vertical in [false, true] {
+            let place = Place { vertical, top: 1.0 };
+            let mut b = Builder { s: Scene::default(), place };
+            let at = |a: f64, s: f64, h: f64| place.at(0.3 * a - 0.8 * s, 0.8 * a + 0.3 * s, h);
+            let (section, _) = felt_section(1, 0.001, false);
+            b.extrude(&section, (-0.01, 0.01), &at, Color32::WHITE);
+            for t in b.s.tris.chunks(3) {
+                // Every face seen from outside: its normal away from a point
+                // well inside the felt, above the groove.
+                let c = scale(add(add(t[0].pos, t[1].pos), t[2].pos), 1.0 / 3.0);
+                assert!(dot(t[0].normal, sub(c, at(0.0, 0.0, 0.0065))) > 0.0, "vertical {vertical}: {t:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_damper_felts_rest_on_their_strings_without_cutting_them() {
+        // Distance from q to the segment a–b.
+        let seg = |q: (f64, f64), a: (f64, f64), b: (f64, f64)| {
+            let (ex, ey) = (b.0 - a.0, b.1 - a.1);
+            let t = (((q.0 - a.0) * ex + (q.1 - a.1) * ey) / (ex * ex + ey * ey)).clamp(0.0, 1.0);
+            (q.0 - a.0 - t * ex).hypot(q.1 - a.1 - t * ey)
+        };
+        for strings in 1..=3 {
+            for r in [0.0004, 0.0008, 0.0015, 0.0025] {
+                for flat in [false, true] {
+                    let (p, half) = felt_section(strings, r, flat);
+                    let r = if strings == 1 { r.min(0.003) } else if flat { r } else { r.min(0.4 * UNISON_GAP) };
+                    assert!(p.iter().all(|q| q.0.abs() <= half + 1e-12 && q.1 <= DAMPER_FELT_TOP), "{p:?}");
+                    for s in 0..strings {
+                        let o = ((s as f64 - (strings as f64 - 1.0) / 2.0) * UNISON_GAP, 0.0);
+                        let inside = (0..p.len()).filter(|&k| {
+                            let (a, b) = (p[k], p[(k + 1) % p.len()]);
+                            (a.1 > o.1) != (b.1 > o.1) && o.0 < a.0 + (o.1 - a.1) / (b.1 - a.1) * (b.0 - a.0)
+                        });
+                        assert!(inside.count() % 2 == 0, "{strings} strings, r {r}, flat {flat}: string {s} in the felt");
+                        let gap = (0..p.len()).map(|k| seg(o, p[k], p[(k + 1) % p.len()])).fold(f64::MAX, f64::min);
+                        assert!((gap - r).abs() < 1e-9, "{strings} strings, r {r}, flat {flat}: string {s} {gap} from the felt");
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn the_hammers_reach_their_strings_and_clear_the_board_and_pin_block() {

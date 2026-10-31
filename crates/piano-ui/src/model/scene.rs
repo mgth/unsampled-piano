@@ -95,6 +95,8 @@ pub const BOARD_GRID: (usize, usize) = (36, 28);
 const BRIDGE_H: f64 = 0.03;
 const STRING_Z: f64 = 0.035;
 const BASS_RISE: f64 = 0.02;
+/// A unison's strings across, centre to centre.
+const UNISON_GAP: f64 = 0.0025;
 /// A grand's hammer line in front of its board: room for its hammers,
 /// leaning back at rest and forward on the strings, to swing past the
 /// board's edge, and for the dampers' wires behind them ([`action`]); the
@@ -202,6 +204,8 @@ const EBONY: Color32 = Color32::from_rgb(28, 26, 26);
 const FELT: Color32 = Color32::from_rgb(122, 28, 36);
 /// The one under the strings' dead lengths.
 const UNDER_FELT: Color32 = Color32::from_rgb(176, 48, 36);
+const DAMPER_WOOD: Color32 = Color32::from_rgb(64, 46, 36);
+const DAMPER_FELT: Color32 = Color32::from_rgb(226, 222, 212);
 const MIC: [Color32; 2] = [Color32::from_rgb(70, 140, 220), Color32::from_rgb(220, 80, 90)];
 
 fn rgba(c: Color32, a: f32) -> [f32; 4] {
@@ -817,7 +821,7 @@ pub fn tuning_pins(model: &PianoModel, sb: &SoundboardParams, ends: &[StringEnds
             let mid = s as f64 - (strings as f64 - 1.0) / 2.0;
             let row = if strings == 1 { (m % 2) as f64 } else { s as f64 };
             let (back, across) = (PIN_GAP + PIN_ROW * row, mid * pitch / strings as f64);
-            pins.push(TuningPin { at: (ax - ux * back + nx * across, even - uy * back + ny * across), hole: (ax + nx * mid * 0.0025, ay(m) + ny * mid * 0.0025), dir: (ux, uy) });
+            pins.push(TuningPin { at: (ax - ux * back + nx * across, even - uy * back + ny * across), hole: (ax + nx * mid * UNISON_GAP, ay(m) + ny * mid * UNISON_GAP), dir: (ux, uy) });
         }
     }
     pins
@@ -901,7 +905,7 @@ fn agraffe(b: &mut Builder, at: (f64, f64), u: (f64, f64), z: f64, foot: f64, st
     // The holes, on the faces the strings go in and out by.
     let (n, hole) = ((-u.1, u.0), rgba(Color32::from_rgb(40, 32, 20), 1.0));
     for s in 0..strings {
-        let off = (s as f64 - (strings as f64 - 1.0) / 2.0) * 0.0025;
+        let off = (s as f64 - (strings as f64 - 1.0) / 2.0) * UNISON_GAP;
         for side in [-1.0, 1.0] {
             let d = side * (hw + 0.0001);
             let (cx, cy) = (at.0 + u.0 * d + n.0 * off, at.1 + u.1 * d + n.1 * off);
@@ -1218,7 +1222,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         // the other side of the back pin (side bearing).
         let (pa, pd) = (BRIDGE_PIN_ALONG, BRIDGE_PIN_SIDE);
         for s in 0..n.strings {
-            let off = (s as f64 - (n.strings as f64 - 1.0) / 2.0) * 0.0025;
+            let off = (s as f64 - (n.strings as f64 - 1.0) / 2.0) * UNISON_GAP;
             let point = |t: f64| {
                 let amp = live.map_or(0.0, |l| {
                     let phase = l.time * std::f32::consts::TAU * (5.0 + 0.07 * m as f32) + s as f32;
@@ -1274,14 +1278,14 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let w = 0.0045;
         let (h0, h1) = (z + 0.002 + gap, z + 0.032 + gap);
         b.plate_box((sx - 0.012, sy - w, h0), (sx + 0.012, sy + w, h1), felt);
-        // The damper on the strings, lifted by the key or the pedal.
+        // The damper on the strings, in front of them, lifted by the key
+        // or the pedal.
         if m <= d.highest_note {
-            let (px, py) = (ax + dx * d.position, ay + dy * d.position);
+            let (px, py) = action::damper_point(ends[(m - 21) as usize], d.position);
             let lift = 0.015 * (1.0 - k.map_or(1.0, |k| k.damper)) as f64;
-            let felt = pick(Part::DamperPoint, pick(Part::Damper, Color32::from_rgb(90, 90, 96)));
-            // In front of the strings.
-            let (d0, d1) = (z + 0.002 + lift, z + 0.022 + lift);
-            b.plate_box((px - 0.01, py - w, d0), (px + 0.01, py + w, d1), felt);
+            let at = |a: f64, s: f64, h: f64| place.at(px + ux * a - uy * s, py + uy * a + ux * s, z + lift + h);
+            let (felt, wood) = (pick(Part::DamperPoint, DAMPER_FELT), pick(Part::Damper, DAMPER_WOOD));
+            action::damper_head(&mut b, &at, model, m, true, felt, wood);
         }
     }
     // The braid: a band of felt across each bridge's rear lengths, over
