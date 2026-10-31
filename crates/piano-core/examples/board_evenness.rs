@@ -16,12 +16,12 @@ fn main() {
         "close" => {
             p.mics_relative = true;
             p.mics = [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)];
-            p.lid_angle = 35.0;
+            (p.lid_angle, p.lid_removed) = (35.0, false);
         }
         "player" => {
             p.mics_relative = true;
             p.mics = [(-0.38, 0.55, 0.5), (-0.38, 0.45, 0.5)];
-            p.lid_angle = 35.0;
+            (p.lid_angle, p.lid_removed) = (35.0, false);
         }
         _ => {}
     }

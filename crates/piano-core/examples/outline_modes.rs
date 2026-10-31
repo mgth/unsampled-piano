@@ -106,7 +106,7 @@ fn main() {
     // The lowest modes: drive at A2 / B2's bridge, radiation (close mics).
     {
         use piano_core::params::PianoModel;
-        let close = |sbp: SoundboardParams| SoundboardParams { mics_relative: true, mics: [(0.294, 0.346, 0.4), (0.706, 0.654, 0.4)], lid_angle: 35.0, ..sbp }.resolved();
+        let close = |sbp: SoundboardParams| SoundboardParams { mics_relative: true, mics: [(0.294, 0.346, 0.4), (0.706, 0.654, 0.4)], lid_angle: 35.0, lid_removed: false, ..sbp }.resolved();
         for (name, sbp) in [("rectangle", base), ("outline", p)] {
             let sb = PianoModel { soundboard: Some(close(sbp)), ..PianoModel::default() }.board().unwrap();
             let rad = sb.radiation();

@@ -17,7 +17,7 @@ fn main() {
     let bands: Vec<f64> = (0..19).map(|i| 125.0 * 2f64.powf(i as f64 / 3.0)).collect();
     println!("{:22} {}", "dB", bands.iter().map(|f| format!("{:>6.0}", f)).collect::<String>());
     for (name, mics) in sets {
-        let sb = Soundboard::new(SoundboardParams { lid_angle: 35.0, mics_relative: true, mics, ..SoundboardParams::GRAND_2M }.resolved());
+        let sb = Soundboard::new(SoundboardParams { lid_angle: 35.0, lid_removed: false, mics_relative: true, mics, ..SoundboardParams::GRAND_2M }.resolved());
         let t = Instant::now();
         let w = sb.radiation();
         let ms = t.elapsed().as_secs_f64() * 1e3;

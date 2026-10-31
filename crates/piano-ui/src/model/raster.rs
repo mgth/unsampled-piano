@@ -108,8 +108,8 @@ fn shots() {
         }
         // The lid open at that angle, or shut.
         match std::env::var("PIANO_SHOT_LID").as_deref() {
-            Ok("shut") => sb.lid_shut = 1.0,
-            Ok(a) => sb.lid_angle = a.parse().unwrap(),
+            Ok("shut") => (sb.lid_removed, sb.lid_angle) = (false, 0.0),
+            Ok(a) => (sb.lid_removed, sb.lid_angle) = (false, a.parse().unwrap()),
             Err(_) => {}
         }
     }
