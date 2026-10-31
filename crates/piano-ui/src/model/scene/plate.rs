@@ -31,6 +31,11 @@ const DEPTH: f64 = 0.045;
 pub(super) const CLEAR: f64 = 0.093;
 const LOW: f64 = 0.068;
 const DAMPERS_END: f64 = 0.08;
+/// An upright's: low over the strings all along (its dampers and hammers
+/// between them), in front of the bass strings crossing the others; their
+/// depth.
+pub(super) const U_CLEAR: f64 = STRING_Z + BASS_RISE + 0.01;
+pub(super) const U_DEPTH: f64 = 0.025;
 /// A strut's web (thickness), its flange along the top (width, depth),
 /// how wide it flares to where it leaves the bar and over how long; how
 /// far past its bridge it goes down, and how far onto the plate it lands.
@@ -184,6 +189,7 @@ fn bridged(outer: &[(f64, f64)], holes: &[Vec<(f64, f64)>]) -> Mesh {
 pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, ends: &[StringEnds], c: Color32) {
     let place = b.place;
     let at = |x: f64, y: f64, z: f64| place.at(x, y, z);
+    let (over, low, depth) = if place.vertical { (U_CLEAR, U_CLEAR, U_DEPTH) } else { (CLEAR, LOW, DEPTH) };
     let board = board_outline(sb);
     // The case's inside, carried forward over the pin block.
     let case = frame_outline(model, sb);
@@ -339,7 +345,7 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
     let x = BAR_BACK - BAR_W / 2.0;
     let ring = |y: f64, z: (f64, f64), w: f64, r: f64| (at(x, y, (z.0 + z.1) / 2.0), ((z.1 - z.0) / 2.0) as f32, (w / 2.0) as f32, r as f32);
     let (y0, y1) = (y_lo + WALL, y_hi - WALL);
-    b.sweep(&[ring(y0, (CLEAR, CLEAR + DEPTH), BAR_W, 0.004), ring(y1, (CLEAR, CLEAR + DEPTH), BAR_W, 0.004)], side, c);
+    b.sweep(&[ring(y0, (over, over + depth), BAR_W, 0.004), ring(y1, (over, over + depth), BAR_W, 0.004)], side, c);
 
     // The struts: on edge, as deep all along, flaring where they leave the
     // bar, over the dampers, sloping gently down to their bridge, past
@@ -367,9 +373,9 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
             // Its underside over the dampers, sloping down to just over
             // the strings at its bridge, then down onto the plate; as deep
             // all along.
-            let slope = CLEAR + (LOW - CLEAR) * ((s - level) / (bridge - level).max(1e-6)).clamp(0.0, 1.0);
+            let slope = over + (low - over) * ((s - level) / (bridge - level).max(1e-6)).clamp(0.0, 1.0);
             let lo = slope + (RAIL_TOP - 0.001 - slope) * smooth((s - bridge - PAST_BRIDGE) / (t - bridge - PAST_BRIDGE).max(1e-6));
-            let hi = lo + DEPTH;
+            let hi = lo + depth;
             let f = if from_bar { (1.0 - s / FLARE_L).max(0.0) } else { 0.0 };
             let w = WEB + (FLARE_W - WEB) * f * f;
             let mid = |z: f64| add(at(x, y, 0.0), scale(up, z as f32));

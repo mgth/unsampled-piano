@@ -4,7 +4,9 @@
 //! (`name:yaw,pitch,dist,x,y,z[,key-down]` separated by `;`, the camera
 //! of [`Orbit`]; `key-down` presses that key, its hammer on the strings;
 //! `case` 1 draws the case; `cut` leaves out what lies across below it, a
-//! section).
+//! section). `PIANO_SHOT_PRESET=<file.toml>` draws that instrument preset,
+//! `PIANO_SHOT_UPRIGHT` stands the board, `PIANO_SHOT_FRONT` sets how
+//! solid the case's front is (0–1).
 
 use super::cam::{Mat4, Orbit};
 use super::paint::shade;
@@ -97,9 +99,10 @@ pub fn render(scene: &Scene, m: &Mat4, w: usize, h: usize) -> Vec<u8> {
 #[ignore]
 fn shots() {
     let dir = std::env::var("PIANO_SHOT_DIR").expect("PIANO_SHOT_DIR");
-    let mut model = PianoModel::default();
+    // An instrument preset's, or the default.
+    let mut model = std::env::var("PIANO_SHOT_PRESET").map_or_else(|_| PianoModel::default(), |p| piano_host::load_preset(p.as_ref()).unwrap());
     if let Some(sb) = model.soundboard.as_mut() {
-        sb.vertical = std::env::var("PIANO_SHOT_UPRIGHT").is_ok();
+        sb.vertical |= std::env::var("PIANO_SHOT_UPRIGHT").is_ok();
         if let Some(a) = std::env::var("PIANO_SHOT_SLANT").ok().and_then(|a| a.parse().ok()) {
             sb.main_string_slant = a;
         }
@@ -111,7 +114,8 @@ fn shots() {
         }
     }
     let lid = std::env::var("PIANO_SHOT_LID").is_ok();
-    let options = Options { key: 0, lit: &[], lid, frame: false, mics: false, case: false, fallboard: false, front: 1.0, ink: Color32::WHITE };
+    let front = std::env::var("PIANO_SHOT_FRONT").ok().and_then(|f| f.parse().ok()).unwrap_or(1.0);
+    let options = Options { key: 0, lit: &[], lid, frame: false, mics: false, case: false, fallboard: false, front, ink: Color32::WHITE };
     for view in std::env::var("PIANO_SHOTS").unwrap_or_default().split(';').filter(|s| !s.is_empty()) {
         let (name, v) = view.split_once(':').unwrap();
         let v: Vec<f32> = v.split(',').map(|x| x.parse().unwrap()).collect();

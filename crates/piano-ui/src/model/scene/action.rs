@@ -12,7 +12,7 @@
 //! rail; on the key's tail the backcheck, which catches the hammer as it
 //! falls, and over its end the damper's underlever, hinged behind it on
 //! the damper rail and lifted by it, its wire straight up under the damper
-//! head on the strings.
+//! head on the strings. An upright's is drawn too ([`Upright`]).
 
 use super::*;
 
@@ -520,7 +520,9 @@ impl Geo {
     }
 }
 
-/// The keyboard (and a grand's keys' sticks and action behind it).
+/// The keyboard and the keys' sticks and action behind it (a grand's
+/// only with its case left out, an upright's always: its front panels
+/// may be see-through).
 pub(super) fn keys(b: &mut Builder, c: &Ctx) {
     let g = Geo::new(c);
     let (klo, khi) = c.span;
@@ -528,8 +530,11 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
     let wx = |u: f32| u as f64 * white - khi;
     let shift = if c.vertical { 0.0 } else { 0.0025 * c.obs.map_or(0.0, |o| o.soft as f64) };
     let key_top = c.kz + 0.022;
-    // An upright's keys pivot out of sight behind the keyboard.
-    let balance = if c.vertical { (c.key_back + 0.15, c.kz) } else { g.balance };
+    let balance = g.balance;
+    // An upright's action, its hammers striking at the hammers' line; its
+    // keys' ends under its capstans.
+    let up = Upright::new(b.place.at(c.hx, 0.0, 0.0)[2] as f64);
+    let end = up.cap + 0.02;
     let dip = (KEY_DIP / (balance.0 - c.key_front)).asin();
     b.mat = Material::Wood;
     for m in 21..=108u8 {
@@ -576,8 +581,12 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
         };
         b.mat = Material::Wood;
         if c.vertical {
-            let angle = if k.down { dip } else { 0.0 };
-            b.turn(mark, balance, angle, shift);
+            let dip = if k.down { dip } else { 0.0 };
+            stick(b, c, m, tail, y1, end, balance.0);
+            let rings = [(0.0, 0.0028, false), (0.008, 0.0028, false), (0.008, 0.0046, false), (CAPSTAN_H as f32 - 0.001, 0.0046, false), (CAPSTAN_H as f32, 0.003, false)];
+            b.lathe(f32s([c.across(m), up.cap, key_top]), [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], &rings, &[BRASS]);
+            b.turn(mark, balance, dip, 0.0);
+            upright(b, c, &up, m, dip, balance);
             continue;
         }
         let cx = c.across(m);
@@ -591,20 +600,7 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
             action(b, c, &g, m, &hammer, shift, if k.down { dip } else { 0.0 });
             continue;
         }
-        // Cranked from the keyboard's spacing to the action's, then
-        // straight to the tail.
-        let stick = c.pitch(m) - STICK_GAP;
-        let (s0, s1) = (cx - stick / 2.0, cx + stick / 2.0);
-        let (yc, z0, z1) = (y1 + CRANK, c.kz, key_top);
-        let lo = [[tail.0, y1, z0], [tail.1, y1, z0], [s1, yc, z0], [s0, yc, z0]];
-        let hi = lo.map(|[x, y, _]| [x, y, z1]);
-        b.hexa(lo.map(f32s), hi.map(f32s), KEY_WOOD);
-        b.block((yc, end), (z0, z1), cx, stick, KEY_WOOD);
-        // Its leads, more in the bass, in front of the balance rail.
-        let leads = 1 + (108 - m as usize) / 30;
-        for i in 0..leads {
-            b.rod_x(s0 - 0.0003, s1 + 0.0003, g.balance.0 - 0.022 - i as f64 * 0.016, c.kz + 0.011, 0.0065, LEAD);
-        }
+        stick(b, c, m, tail, y1, end, g.balance.0);
         // The capstan under the wippen's heel.
         let k_hammer = hammer.rest;
         let wippen_rest = wippen_angle(&g, k_hammer);
@@ -626,7 +622,9 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
         b.turn(mark, g.balance, if k.down { dip } else { 0.0 }, shift);
         action(b, c, &g, m, &hammer, shift, if k.down { dip } else { 0.0 });
     }
-    if c.inside && !c.vertical {
+    if c.vertical {
+        upright_rails(b, c, &up, balance, end);
+    } else if c.inside {
         rails(b, c, &g, shift);
     }
     b.mat = Material::Paint;
@@ -705,13 +703,275 @@ fn wippen_angle(g: &Geo, angle: f64) -> f64 {
     -(drop / (g.jack - g.wippen.0)).atan()
 }
 
+/// Key `m`'s hammer head across at `cx`, its profile placed by
+/// `at(along, up)`: along its shank from the head's centre, up from the
+/// shank to its crown. The molding, its tail `tail` long at the back,
+/// under the underfelt and the felt, wrapped round its top; `mirror` when
+/// `at` mirrors the profile (an upright's: the crown towards the strings
+/// behind a shank standing up).
+#[allow(clippy::too_many_arguments)]
+fn head(b: &mut Builder, c: &Ctx, m: u8, h: &Hammer, cx: f64, tail: f64, at: &dyn Fn((f64, f64)) -> (f64, f64), mirror: bool) {
+    let (d, hh) = (h.d / 2.0, h.h);
+    let (mw, mt) = (d - h.side, hh - h.felt);
+    let under = (h.side * 0.35, h.felt * 0.35);
+    let base = mt - 0.6 * h.d;
+    let place = |p: Vec<(f64, f64)>| -> Vec<(f64, f64)> {
+        let mut p: Vec<_> = p.into_iter().map(at).collect();
+        if mirror {
+            p.reverse();
+        }
+        p
+    };
+    let mut molding = vec![(-mw, -0.0075), (mw + tail, -0.0075)];
+    if tail > 0.0 {
+        molding.push((mw + tail, -0.002));
+    }
+    molding.push((mw, 0.006));
+    let top = arch(mw, base + 0.004, mt - 0.006, mt);
+    molding.extend(top.iter().rev().skip(1).take(top.len() - 2).copied());
+    b.piece(&place(molding), cx, h.w, MOLDING);
+    let band = |inner: (f64, f64, f64), outer: (f64, f64, f64), col: Color32, b: &mut Builder| {
+        b.band(&place(arch(outer.0, base, outer.1, outer.2)), &place(arch(inner.0, base, inner.1, inner.2)), cx, h.w, col);
+    };
+    let felt = if c.state(m).hammer { sketches::HIGHLIGHT } else { mix(c.pick(Part::Strike, c.pick(Part::Felt, HAMMER_FELT)), sketches::HIGHLIGHT, (c.level)(m) * 0.3) };
+    let inner = (mw, mt - 0.006, mt);
+    let mid = (mw + under.0, mt - 0.006 + under.1 * 0.5, mt + under.1);
+    band(inner, mid, c.pick(Part::Core, UNDERFELT), b);
+    b.mat = Material::Felt;
+    band(mid, (d, mt - 0.006 + h.felt * 0.5, hh), felt, b);
+    b.mat = Material::Wood;
+}
+
+/// A key's stick behind the keyboard, from the back `y1` of its part the
+/// pianist sees, where it is `tail` across, cranked from the keyboard's
+/// spacing to the action's, then straight on to `end`; its leads in front
+/// of the balance rail at `balance` along.
+fn stick(b: &mut Builder, c: &Ctx, m: u8, tail: (f64, f64), y1: f64, end: f64, balance: f64) {
+    let cx = c.across(m);
+    let key_top = c.kz + 0.022;
+    let stick = c.pitch(m) - STICK_GAP;
+    let (s0, s1) = (cx - stick / 2.0, cx + stick / 2.0);
+    let (yc, z0, z1) = (y1 + CRANK, c.kz, key_top);
+    let lo = [[tail.0, y1, z0], [tail.1, y1, z0], [s1, yc, z0], [s0, yc, z0]];
+    let hi = lo.map(|[x, y, _]| [x, y, z1]);
+    b.hexa(lo.map(f32s), hi.map(f32s), KEY_WOOD);
+    b.block((yc, end), (z0, z1), cx, stick, KEY_WOOD);
+    // Its leads, more in the bass, in front of the balance rail.
+    let leads = 1 + (108 - m as usize) / 30;
+    for i in 0..leads {
+        b.rod_x(s0 - 0.0003, s1 + 0.0003, balance - 0.022 - i as f64 * 0.016, c.kz + 0.011, 0.0065, LEAD);
+    }
+}
+
+/// An upright's action, the same for every key (world y, z), as most are
+/// made: the hammers' shanks standing on their butts in front of the
+/// strings, pivoting on their flanges on the main rail, the hammers' line
+/// at the strikes' height; under the butts the wippens, pivoting under the
+/// main rail, their jacks under the butts, their heels on the keys'
+/// capstans (on stickers as tall as the hammers' line stands over the
+/// keys); the dampers on the strings below the hammers, on levers between
+/// the shanks and the strings, hinged above the butts.
+struct Upright {
+    /// The shanks' pivot.
+    pivot: (f64, f64),
+    /// The wippens' pivot, the jacks and the capstans along, the wippens'
+    /// heels' bottom.
+    wippen: (f64, f64),
+    jack: f64,
+    cap: f64,
+    heel: f64,
+    /// The main rail's top and bottom; the damper levers' hinges' height.
+    rail: (f64, f64),
+    hinge: f64,
+}
+
+/// An upright's hammer: its shank's length to the head's centre, the
+/// crown in front of the shank; the crown's distance from its strings at
+/// rest (the blow) and once checked.
+const U_SHANK_L: f64 = 0.125;
+const U_CROWN: f64 = 0.042;
+const U_BLOW: f64 = 0.045;
+const U_CHECKED: f64 = 0.015;
+/// The wippens' pivot behind the shanks' and below, their heels in front
+/// of it; the jacks in front of the shanks' pivot; the capstans' height.
+const U_WIPPEN: (f64, f64) = (0.012, -0.06);
+const U_HEEL: f64 = 0.065;
+const U_JACK: f64 = 0.011;
+const CAPSTAN_H: f64 = 0.012;
+/// The damper levers in front of their strings, their hinge above the
+/// shanks' pivot.
+const U_LEVER: f64 = 0.024;
+const U_HINGE_UP: f64 = 0.03;
+
+impl Upright {
+    /// The action whose hammers strike at the height `strike`.
+    fn new(strike: f64) -> Self {
+        // The treble's shanks upright on the strings.
+        let pivot = (-STRING_Z - U_CROWN, strike - U_SHANK_L);
+        let wippen = (pivot.0 + U_WIPPEN.0, pivot.1 + U_WIPPEN.1);
+        Self { pivot, wippen, jack: pivot.0 - U_JACK, cap: wippen.0 - U_HEEL, heel: wippen.1 - 0.02, rail: (pivot.1 - 0.015, pivot.1 - 0.045), hinge: pivot.1 + U_HINGE_UP }
+    }
+
+    /// Key `m`'s hammer, its shank's lean towards the strings (from
+    /// upright) at rest, on them and checked. The soft pedal moves the
+    /// rest rail half way to the strings if the model has a half blow.
+    fn hammer(&self, c: &Ctx, m: u8) -> Hammer {
+        let sy = -c.ends[(m - 21) as usize].2;
+        let mass = c.model.note(m).hammer.mass_kg;
+        let size = ((mass - 0.0054) / (0.011 - 0.0054)).clamp(0.0, 1.0);
+        let (r, phi) = (U_SHANK_L.hypot(U_CROWN), U_CROWN.atan2(U_SHANK_L));
+        let at = |y: f64| ((y - self.pivot.0) / r).clamp(-1.0, 1.0).asin() - phi;
+        let soft = if c.model.half_blow > 0.0 { 0.5 * c.obs.map_or(0.0, |o| o.soft as f64) } else { 0.0 };
+        let w = 0.0085 + 0.003 * size;
+        Hammer {
+            h: U_CROWN,
+            d: 0.017 + 0.008 * size,
+            w: w.min(c.pitch(m) - 0.0035),
+            felt: 0.011 + 0.007 * size,
+            side: 0.0032 + 0.002 * size,
+            rest: at(sy - U_BLOW * (1.0 - soft)),
+            blow: at(sy),
+            checked: at(sy - U_CHECKED),
+        }
+    }
+
+    /// Where a shank at `lean` passes the height `z`, along.
+    fn shank_at(&self, lean: f64, z: f64) -> f64 {
+        self.pivot.0 + (z - self.pivot.1) * lean.tan()
+    }
+}
+
+/// An upright's key `m`'s action over its key turned by `dip` about
+/// `balance`: the sticker on its capstan, the wippen and jack, the hammer
+/// at the angle the engine's state gives it, the damper on its lever.
+fn upright(b: &mut Builder, c: &Ctx, u: &Upright, m: u8, dip: f64, balance: (f64, f64)) {
+    let k = c.state(m);
+    let cx = c.across(m);
+    let h = u.hammer(c, m);
+    // The sticker, lifted with the capstan as the key goes down; the
+    // wippen turned by it.
+    let cap_top = c.kz + 0.022 + CAPSTAN_H;
+    let rise = rot((u.cap, cap_top), balance, dip).1 - cap_top;
+    let (wy, wz) = u.wippen;
+    if u.heel - cap_top > 0.005 {
+        b.rod(f32s([cx, u.cap, cap_top + rise]), f32s([cx, u.cap, u.heel + rise]), (0.0045, 0.0045), ACTION_WOOD);
+    }
+    let mark = b.mark();
+    let top = wz + 0.006;
+    let body = [(wy + 0.007, top), (wy + 0.007, wz - 0.006), (u.cap + 0.014, wz - 0.012), (u.cap + 0.008, u.heel), (u.cap - 0.008, u.heel), (u.cap - 0.014, wz - 0.012), (u.cap - 0.014, top)];
+    b.piece(&body, cx, 0.0105, c.pick(Part::Repetition, ACTION_WOOD));
+    b.block((u.cap - 0.008, u.cap + 0.008), (u.heel - 0.003, u.heel), cx, 0.0105, CLOTH);
+    // The jack on it under the butt, escaped once the key is down.
+    let jm = b.mark();
+    let (jy, jt) = (u.jack, u.pivot.1 - 0.0095);
+    b.piece(&[(jy - 0.003, top), (jy + 0.003, top), (jy + 0.003, jt), (jy - 0.003, jt - 0.0015), (jy - 0.003, top + 0.02), (jy - 0.012, top + 0.016), (jy - 0.012, top + 0.008)], cx, 0.007, ACTION_WOOD);
+    b.turn(jm, (jy, top), if k.down { 0.15 } else { 0.0 }, 0.0);
+    b.turn(mark, u.wippen, -(rise / (wy - u.cap)).atan(), 0.0);
+    // Its flange under the main rail.
+    b.block((wy - 0.004, wy + 0.008), (wz - 0.004, u.rail.1), cx, 0.008, ACTION_WOOD);
+
+    // The hammer on its butt, its shank at the angle the engine's state
+    // gives it; the butt's flange on the main rail behind the pivot.
+    let lean = if k.hammer {
+        h.blow
+    } else if k.down {
+        h.checked
+    } else {
+        h.rest
+    };
+    let (py, pz) = u.pivot;
+    let mark = b.mark();
+    b.rod(f32s([cx, py, pz]), f32s([cx, py, pz + U_SHANK_L + 0.002]), (SHANK_R * 0.88, SHANK_R), c.pick(Part::Shank, SHANK_WOOD));
+    b.block((py - 0.013, py + 0.011), (pz - 0.009, pz + 0.02), cx, 0.0105, ACTION_WOOD);
+    b.block((jy - 0.005, jy + 0.005), (pz - 0.011, pz - 0.009), cx, 0.0105, BUCKSKIN);
+    // The catcher in front, over the wippen.
+    b.rod(f32s([cx, py - 0.012, pz + 0.008]), f32s([cx, py - 0.032, pz - 0.002]), (WIRE_R * 1.5, WIRE_R * 1.5), STEEL);
+    b.block((py - 0.04, py - 0.03), (pz - 0.008, pz + 0.004), cx, 0.008, LEATHER);
+    head(b, c, m, &h, cx, 0.0, &|(a, z)| (py + z, pz + U_SHANK_L + a), true);
+    b.turn(mark, u.pivot, -lean, 0.0);
+    b.block((py + 0.002, py + 0.012), (u.rail.0, pz + 0.003), cx, 0.008, ACTION_WOOD);
+
+    // The damper below the hammer, lifted off its strings by the key or
+    // the pedal: its head along the strings, the lever in front of it
+    // hinged above the butt, a wire from its top into the head.
+    if m > c.model.damper.highest_note {
+        return;
+    }
+    let lift = DAMPER_LIFT * (1.0 - k.damper as f64);
+    let ends = c.ends[(m - 21) as usize];
+    let ((ax, ay), (bx, by), z) = ends;
+    let (ux, uy) = {
+        let l = (bx - ax).hypot(by - ay).max(1e-9);
+        ((bx - ax) / l, (by - ay) / l)
+    };
+    let (px, pyy) = damper_at(c.model, ends, m);
+    let place = b.place;
+    let corner = |a: f64, s: f64, h: f64| place.at(px + ux * a - uy * s, pyy + uy * a + ux * s, z + lift + h);
+    let (_, hole) = damper_head(b, &corner, c.model, m, c.pick(Part::DamperPoint, DAMPER_FELT), c.pick(Part::Damper, DAMPER_WOOD));
+    let into = corner(0.0, 0.0, hole);
+    let (dx, ly, top) = (into[0] as f64, -z - U_LEVER, into[2] as f64);
+    let len = (top - u.hinge).max(0.02);
+    let mark = b.mark();
+    b.block((ly - 0.003, ly + 0.003), (u.hinge - 0.005, u.hinge + len), dx, 0.008, c.pick(Part::Damper, ACTION_WOOD));
+    b.turn(mark, (ly, u.hinge), (lift / len).atan(), 0.0);
+    b.rod(f32s([dx, ly - lift, top]), into, (WIRE_R, WIRE_R), STEEL);
+    b.block((ly - 0.004, ly + 0.004), (u.hinge - 0.008, u.hinge + 0.002), dx, 0.009, ACTION_WOOD);
+}
+
+/// An upright's key frame under its keys, its action's rails across and
+/// the brackets holding them up from the keybed.
+fn upright_rails(b: &mut Builder, c: &Ctx, u: &Upright, balance: (f64, f64), end: f64) {
+    let (lo, hi) = (c.across(21).min(-c.span.1) - 0.01, c.across(108).max(-c.span.0) + 0.01);
+    let (x, w) = ((lo + hi) / 2.0, hi - lo);
+    let bed = c.kz - KEY_FRAME;
+    let frame = c.pick(Part::KeybedKnock, KEY_WOOD.gamma_multiply(0.85));
+    // The key frame: front rail, balance rail, back rail.
+    b.block((c.key_front + 0.008, c.key_front + 0.03), (bed, c.kz - 0.002), x, w, frame);
+    b.block((c.key_front + 0.008, c.key_front + 0.03), (c.kz - 0.002, c.kz), x, w, CLOTH);
+    b.block((balance.0 - 0.014, balance.0 + 0.014), (bed, c.kz), x, w, frame);
+    b.block((end - 0.03, end - 0.002), (bed, c.kz - 0.002), x, w, frame);
+    b.block((end - 0.03, end - 0.002), (c.kz - 0.002, c.kz), x, w, CLOTH);
+    // The main rail; the hammers' rest rail in front of their shanks
+    // half way up, one per section (the bass's strings nearer), felted.
+    let rail = c.pick(Part::ActionKnock, RAIL);
+    let (py, _) = u.pivot;
+    b.block((py + 0.002, py + 0.026), (u.rail.1, u.rail.0), x, w, rail);
+    let rest_z = u.pivot.1 + 0.055;
+    let mut m = 21;
+    while m <= 108 {
+        let bass = m < c.sb.main_bridge_from;
+        let last = (m..=108).take_while(|&n| (n < c.sb.main_bridge_from) == bass).last().unwrap_or(m);
+        let (x0, x1) = (c.across(m) - c.pitch(m) / 2.0 + 0.001, c.across(last) + c.pitch(last) / 2.0 - 0.001);
+        let (x0, x1) = (x0.min(x1), x0.max(x1));
+        let front = (m..=last).map(|n| u.shank_at(u.hammer(c, n).rest, rest_z)).fold(f64::MAX, f64::min) - SHANK_R as f64;
+        b.block((front - 0.003, front), (rest_z - 0.008, rest_z + 0.008), (x0 + x1) / 2.0, x1 - x0, CLOTH);
+        b.block((front - 0.02, front - 0.003), (rest_z - 0.01, rest_z + 0.01), (x0 + x1) / 2.0, x1 - x0, rail);
+        m = last + 1;
+    }
+    // The brackets, between keys: at both ends, at the bass's break and
+    // through the treble; from the keybed behind the keys up to the main
+    // rail.
+    let breaks = [20.5, c.sb.main_bridge_from as f64 - 0.5, 68.5, 88.5, 108.5];
+    let (foot, head) = ((end + 0.012, bed), (py + 0.014, u.rail.1));
+    for at in breaks {
+        let across = |m: f64| {
+            let k = m.clamp(21.0, 108.0);
+            c.across(k as u8) + (m - k) * c.pitch(k as u8)
+        };
+        let x = (across(at - 0.5) + across(at + 0.5)) / 2.0;
+        let col = c.pick(Part::ActionKnock, BRACKET);
+        let l = (head.0 - foot.0).hypot(head.1 - foot.1);
+        let (ny, nz) = (-(head.1 - foot.1) / l * 0.008, (head.0 - foot.0) / l * 0.008);
+        b.piece(&[(foot.0 - ny, foot.1 - nz), (head.0 - ny, head.1 - nz), (head.0 + ny, head.1 + nz), (foot.0 + ny, foot.1 + nz)], x, 0.012, col);
+    }
+}
+
 /// One key's action over its key turned by `dip`, shifted across by
 /// `shift`: only what shows through the case unless it is left out.
 #[allow(clippy::too_many_arguments)]
 fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip: f64) {
     let k = c.state(m);
     let cx = c.across(m);
-    let level = (c.level)(m);
     // The wippen, lifted by the capstan as the key goes down.
     if c.inside {
         let rest = wippen_angle(g, h.rest);
@@ -736,27 +996,7 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
         let kz = pz - SHANK_R as f64 - 0.85 * KNUCKLE_R as f64;
         b.rod_x(cx - 0.006, cx + 0.006, py + KNUCKLE_AT, kz, KNUCKLE_R as f64, BUCKSKIN);
     }
-    // The head: the molding, its tail at the back, under the underfelt
-    // and the felt, wrapped round its top.
-    let (d, hh) = (h.d / 2.0, h.h);
-    let (mw, mt) = (d - h.side, hh - h.felt);
-    let under = (h.side * 0.35, h.felt * 0.35);
-    let base = mt - 0.6 * h.d;
-    let at = |p: Vec<(f64, f64)>| -> Vec<(f64, f64)> { p.into_iter().map(|(a, z)| (hy + a, pz + z)).collect() };
-    let mut molding = vec![(-mw, -0.0075), (mw + TAIL, -0.0075), (mw + TAIL, -0.002), (mw, 0.006)];
-    let top = arch(mw, base + 0.004, mt - 0.006, mt);
-    molding.extend(top.iter().rev().skip(1).take(top.len() - 2).copied());
-    b.piece(&at(molding), cx, h.w, MOLDING);
-    let band = |inner: (f64, f64, f64), outer: (f64, f64, f64), col: Color32, b: &mut Builder| {
-        b.band(&at(arch(outer.0, base, outer.1, outer.2)), &at(arch(inner.0, base, inner.1, inner.2)), cx, h.w, col);
-    };
-    let felt = if k.hammer { sketches::HIGHLIGHT } else { mix(c.pick(Part::Strike, c.pick(Part::Felt, HAMMER_FELT)), sketches::HIGHLIGHT, level * 0.3) };
-    let inner = (mw, mt - 0.006, mt);
-    let mid = (mw + under.0, mt - 0.006 + under.1 * 0.5, mt + under.1);
-    band(inner, mid, c.pick(Part::Core, UNDERFELT), b);
-    b.mat = Material::Felt;
-    band(mid, (d, mt - 0.006 + h.felt * 0.5, hh), felt, b);
-    b.mat = Material::Wood;
+    head(b, c, m, h, cx, TAIL, &|(a, z)| (hy + a, pz + z), false);
     b.turn(mark, g.pivot, angle, shift);
     // Its flange on the rail in front of the pivot.
     if c.inside {
