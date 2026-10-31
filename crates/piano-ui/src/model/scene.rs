@@ -1281,11 +1281,11 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         // The damper on the strings, in front of them, lifted by the key
         // or the pedal.
         if m <= d.highest_note {
-            let (px, py) = action::damper_point(ends[(m - 21) as usize], d.position);
+            let (px, py) = action::damper_at(model, ends[(m - 21) as usize], m);
             let lift = 0.015 * (1.0 - k.map_or(1.0, |k| k.damper)) as f64;
             let at = |a: f64, s: f64, h: f64| place.at(px + ux * a - uy * s, py + uy * a + ux * s, z + lift + h);
             let (felt, wood) = (pick(Part::DamperPoint, DAMPER_FELT), pick(Part::Damper, DAMPER_WOOD));
-            action::damper_head(&mut b, &at, model, m, true, felt, wood);
+            action::damper_head(&mut b, &at, model, m, felt, wood);
         }
     }
     // The braid: a band of felt across each bridge's rear lengths, over
@@ -1316,7 +1316,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let n60 = model.note(60);
     let strike = (mid.0.0 + (mid.1.0 - mid.0.0) * n60.strike_pos, mid.0.1 + (mid.1.1 - mid.0.1) * n60.strike_pos);
     b.label(place.at(strike.0, strike.1 - 0.12, if vertical { mid.2 + 0.04 } else { mid.2 - 0.04 }), "Hammers", "Hammer");
-    let damp = (mid.0.0 + (mid.1.0 - mid.0.0) * d.position, mid.0.1 + (mid.1.1 - mid.0.1) * d.position);
+    let damp = action::damper_at(model, mid, 60);
     b.label(place.at(damp.0, damp.1 + 0.12, mid.2 + 0.03), "Dampers", "Dampers");
     b.label(place.at((mid.0.0 + mid.1.0) / 2.0, mid.0.1 - 0.25, mid.2), "Strings", "Strings");
     let a0 = string_ends(model, &sb, hx, 21);

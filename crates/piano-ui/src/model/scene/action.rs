@@ -10,8 +10,9 @@
 //! its toe under the let-off button; the shank pivoting on its flange rail,
 //! the hammer at its far end under the strings, resting on the hammer rest
 //! rail; on the key's tail the backcheck, which catches the hammer as it
-//! falls, and over the key the damper's underlever, lifted by it, its wire
-//! up to the damper head on the strings.
+//! falls, and over its end the damper's underlever, hinged behind it on
+//! the damper rail and lifted by it, its wire straight up under the damper
+//! head on the strings.
 
 use super::*;
 
@@ -51,10 +52,11 @@ const KNUCKLE_R: f32 = 0.0075;
 const WIPPEN_BACK: f64 = 0.08;
 const JACK_L: f64 = 0.04;
 
-/// The dampers' wires behind the hammers' line, the underlevers' hinge
-/// before it, and how far a damper lifts.
-const WIRE_BEHIND: f64 = 0.012;
-const UNDERLEVER: f64 = 0.085;
+/// The underlevers' hinge behind the hammers' line (on the damper rail, in
+/// front of the belly rail), its height over the keys, and how far a
+/// damper lifts.
+const HINGE_BEHIND: f64 = 0.085;
+const HINGE_UP: f64 = 0.008;
 const DAMPER_LIFT: f64 = 0.015;
 const WIRE_R: f32 = 0.0008;
 
@@ -64,13 +66,25 @@ const WIRE_R: f32 = 0.0008;
 /// between the points); the treble's thin strings, from
 /// `FLAT_DAMPERS_FROM` up, take a flat felt. The wedges' and the grooves'
 /// half-angles; the felt's top above the strings' centres, the cloth glued
-/// over it under the head, the head's top.
+/// over it under the head.
 const FLAT_DAMPERS_FROM: u8 = 67;
 const WEDGE_HALF: f64 = 0.52;
 const GROOVE_HALF: f64 = 0.61;
 const DAMPER_FELT_TOP: f64 = 0.008;
 const DAMPER_CLOTH: f64 = 0.001;
-const DAMPER_TOP: f64 = 0.022;
+/// The head in profile, a gendarme's hat: the felt in two, either side of
+/// the slit under the hole the wire goes into; the wood low over the
+/// felts, rising to a crown over the hole. Half the slit, the wood's
+/// height at its ends and at its crown above the cloth, the crown's half
+/// width and where the rise starts; the hole above the cloth, the
+/// slit's half-width up to it.
+const DAMPER_SLIT: f64 = 0.0015;
+const DAMPER_END: f64 = 0.003;
+const DAMPER_CROWN: f64 = 0.010;
+const DAMPER_CROWN_W: f64 = 0.0025;
+const DAMPER_RISE_AT: f64 = 0.0075;
+const DAMPER_HOLE: f64 = 0.0065;
+const DAMPER_SLOT: f64 = 0.0004;
 /// Steel's density: a string's radius from its mass per length (a wound
 /// string's a little under its winding's).
 const STEEL_DENSITY: f64 = 7850.0;
@@ -321,8 +335,7 @@ struct Geo {
     wippen_top: f64,
     heel: f64,
     knuckle: f64,
-    /// The dampers' wires and underlevers' hinge.
-    wire: f64,
+    /// The underlevers' hinge.
     hinge: (f64, f64),
 }
 
@@ -362,8 +375,7 @@ impl Geo {
             wippen_top,
             heel: wippen_top - 0.019,
             knuckle,
-            wire: yh + WIRE_BEHIND,
-            hinge: (yh - UNDERLEVER, key_top + 0.021),
+            hinge: (yh + HINGE_BEHIND, key_top + HINGE_UP),
         }
     }
 
@@ -456,7 +468,8 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
         let hammer = hammer(c, &g, m);
         let checked = tail_at(&g, &hammer, hammer.checked);
         let backcheck = checked.0 + 0.008;
-        let end = backcheck + 0.012;
+        // On to under its damper's wire.
+        let end = if m <= c.model.damper.highest_note { (backcheck + 0.012).max(damper_wire(c, m) + 0.008) } else { backcheck + 0.012 };
         if !c.inside {
             b.turn(mark, g.balance, if k.down { dip } else { 0.0 }, shift);
             action(b, c, &g, m, &hammer, shift, if k.down { dip } else { 0.0 });
@@ -580,24 +593,25 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
         b.block((py - 0.01, py + 0.004), (pz - 0.006, pz + 0.006), cx + shift, 0.009, ACTION_WOOD);
     }
 
-    // The damper: its underlever over the key, lifted by it (or the
-    // pedal), its wire up to the head on the strings. None in the high
-    // treble.
+    // The damper: its underlever, hinged behind on the damper rail, over
+    // the key's end, which lifts it (or the pedal does) by the cloth under
+    // its wire block; the wire straight up under the head on the strings.
+    // None in the high treble.
     let d = &c.model.damper;
     if m > d.highest_note {
         return;
     }
     let lift = DAMPER_LIFT * (1.0 - k.damper as f64);
-    let (hy0, hz) = g.hinge;
-    let wire = g.wire;
+    let (hy, hz) = g.hinge;
+    let wire = damper_wire(c, m);
     if c.inside {
         let key_top = c.kz + 0.022;
         let mark = b.mark();
-        b.block((hy0 - 0.006, wire + 0.006), (hz - 0.004, hz + 0.004), cx, 0.008, c.pick(Part::Damper, ACTION_WOOD));
-        let felt_y = (hy0 + wire) / 2.0;
-        b.block((felt_y - 0.006, felt_y + 0.006), (key_top + 0.003, hz - 0.004), cx, 0.008, CLOTH);
-        b.turn(mark, g.hinge, (lift / (wire - hy0)).atan(), 0.0);
-        b.block((hy0 - 0.009, hy0 + 0.003), (hz, hz + 0.014), cx, 0.008, ACTION_WOOD);
+        b.block((wire - 0.004, hy + 0.004), (hz - 0.004, hz + 0.004), cx, 0.008, c.pick(Part::Damper, ACTION_WOOD));
+        b.block((wire - 0.004, wire + 0.006), (key_top, hz - 0.004), cx, 0.008, CLOTH);
+        b.block((wire - 0.004, wire + 0.004), (hz + 0.004, hz + 0.01), cx, 0.01, ACTION_WOOD);
+        b.turn(mark, g.hinge, -(lift / (hy - wire)).atan(), 0.0);
+        b.block((hy - 0.004, hy + 0.006), (hz - 0.006, hz + 0.006), cx, 0.008, ACTION_WOOD);
     }
     // The head on the strings, along them.
     let ((ax, ay), (bx, by), z) = c.ends[(m - 21) as usize];
@@ -605,12 +619,12 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
         let l = (bx - ax).hypot(by - ay).max(1e-9);
         ((bx - ax) / l, (by - ay) / l)
     };
-    let (px, py) = damper_point(c.ends[(m - 21) as usize], d.position);
+    let (px, py) = damper_at(c.model, c.ends[(m - 21) as usize], m);
     let place = b.place;
     let corner = |a: f64, s: f64, h: f64| place.at(px + ux * a - uy * s, py + uy * a + ux * s, z + lift + h);
-    damper_head(b, &corner, c.model, m, false, c.pick(Part::DamperPoint, DAMPER_FELT), c.pick(Part::Damper, DAMPER_WOOD));
+    let (half, hole) = damper_head(b, &corner, c.model, m, c.pick(Part::DamperPoint, DAMPER_FELT), c.pick(Part::Damper, DAMPER_WOOD));
     // The wire: up from the underlever, through the gap to the next
-    // unison, over to the head's back.
+    // unison to the hole's height, and across into it.
     let across = |n: u8| {
         let ((ax, ay), (bx, by), _) = c.ends[(n - 21) as usize];
         ay + (wire - ax) * (by - ay) / (bx - ax)
@@ -618,14 +632,28 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
     let bass = |n: u8| n < c.sb.main_bridge_from;
     let next = if m < 108 && (bass(m + 1) == bass(m) || m == 21) { m + 1 } else { m - 1 };
     let gap = -(across(m) + across(next)) / 2.0;
-    let back = corner(0.0095, 0.0, 0.012);
-    let lever = hz + 0.004 + lift;
-    let path = [f32s([cx, wire, lever]), f32s([cx, wire, lever + 0.012]), f32s([gap, wire, lever + 0.024]), f32s([gap, wire, z + lift + 0.004]), back];
+    let side = [corner(0.0, -half, hole), corner(0.0, half, hole)];
+    let into = if (side[0][0] - gap as f32).abs() < (side[1][0] - gap as f32).abs() { side[0] } else { side[1] };
+    let lever = hz + 0.01 + lift;
+    let up = f32s([gap, wire, into[2] as f64]);
+    let path = [f32s([cx, wire, lever]), f32s([cx, wire, lever + 0.012]), f32s([gap, wire, lever + 0.024]), up, into];
     for p in path[if c.inside { 0 } else { 2 }..].windows(2) {
         b.rod(p[0], p[1], (WIRE_R, WIRE_R), STEEL);
     }
 }
 
+
+/// Where key `m`'s damper rests on its strings with `ends` (plate x, y):
+/// the engine's place, on the string as drawn.
+pub(super) fn damper_at(model: &PianoModel, ends: StringEnds, m: u8) -> (f64, f64) {
+    let ((ax, ay), (bx, by), _) = ends;
+    damper_point(ends, model.damper.place(model.note(m).strike_pos, (bx - ax).hypot(by - ay)))
+}
+
+/// A grand's key `m`'s damper wire along (world y): under its head.
+fn damper_wire(c: &Ctx, m: u8) -> f64 {
+    damper_at(c.model, c.ends[(m - 21) as usize], m).0
+}
 
 /// Where the strings of a key with `ends` pass at `t` of their speaking
 /// length (plate x, y): as they are drawn, towards their bridge pins'
@@ -678,26 +706,38 @@ fn felt_section(strings: usize, r: f64, flat: bool) -> (Vec<(f64, f64)>, f64) {
 }
 
 /// Key `m`'s damper head, placed by `at(along, across, up)` from its
-/// strings' centres under it: the felt cut to them, as long as the
-/// engine's pad, the cloth over it and the wooden head. An upright's
-/// felt is two pads, one above the other, the cloth between them.
-pub(super) fn damper_head(b: &mut Builder, at: &dyn Fn(f64, f64, f64) -> V3, model: &PianoModel, m: u8, upright: bool, felt: Color32, wood: Color32) {
+/// strings' centres under it: as long as the engine's pad, its felt cut
+/// to them in two pads either side of the slit, the cloth over them, the
+/// wooden head in a gendarme's hat. Its half-width across and its hole's
+/// height, for the wire.
+pub(super) fn damper_head(b: &mut Builder, at: &dyn Fn(f64, f64, f64) -> V3, model: &PianoModel, m: u8, felt: Color32, wood: Color32) -> (f64, f64) {
     let n = model.note(m);
     let r = (n.mu / (STEEL_DENSITY * std::f64::consts::PI)).sqrt();
     let (section, half) = felt_section(n.strings, r, m >= FLAT_DAMPERS_FROM);
     let l = model.damper.width / 2.0;
-    let rect = |s: f64, h: (f64, f64)| [(-s, h.0), (s, h.0), (s, h.1), (-s, h.1)];
-    let top = DAMPER_FELT_TOP;
-    if upright {
-        let gap = l / 4.0;
-        b.extrude(&section, (-l, -gap), at, felt);
-        b.extrude(&section, (gap, l), at, felt);
-        b.extrude(&rect(half - 0.0005, (top - 0.004, top)), (-gap, gap), at, CLOTH);
-    } else {
-        b.extrude(&section, (-l, l), at, felt);
+    let base = DAMPER_FELT_TOP + DAMPER_CLOTH;
+    for pad in [(-l, -DAMPER_SLIT), (DAMPER_SLIT, l)] {
+        b.extrude(&section, pad, at, felt);
     }
-    b.extrude(&rect(half, (top, top + DAMPER_CLOTH)), (-l, l), at, CLOTH);
-    b.extrude(&rect(half - 0.0005, (top + DAMPER_CLOTH, DAMPER_TOP)), (-l + 0.001, l - 0.001), at, wood);
+    let rect = |s: f64, h: (f64, f64)| [(-s, h.0), (s, h.0), (s, h.1), (-s, h.1)];
+    b.extrude(&rect(half, (DAMPER_FELT_TOP, base)), (-l, l), at, CLOTH);
+    // The wood in profile (along, up), swept across: its top from end to
+    // end, its ends' top corners rounded, then its bottom back with the
+    // slit up to the hole.
+    let top = |a: f64| {
+        let t = ((a.abs() - DAMPER_CROWN_W) / (DAMPER_RISE_AT - DAMPER_CROWN_W)).clamp(0.0, 1.0);
+        let crown = DAMPER_CROWN - 0.0015 * (a / DAMPER_CROWN_W).min(1.0).powi(2);
+        let h = DAMPER_END + (crown - DAMPER_END) * (1.0 + (std::f64::consts::PI * t).cos()) / 2.0;
+        let round = 0.0015;
+        let e = (a.abs() - (l - round)).max(0.0);
+        base + h - round + (round * round - e * e).max(0.0).sqrt()
+    };
+    let steps = 32;
+    let mut profile: Vec<(f64, f64)> = (0..=steps).map(|k| -l + 2.0 * l * k as f64 / steps as f64).map(|a| (a, top(a))).collect();
+    profile.extend([(l, base), (DAMPER_SLOT, base), (DAMPER_SLOT, base + DAMPER_HOLE), (-DAMPER_SLOT, base + DAMPER_HOLE), (-DAMPER_SLOT, base), (-l, base)]);
+    let w = half - 0.0005;
+    b.extrude(&profile, (-w, w), &|s, a, h| at(a, s, h), wood);
+    (half, base + DAMPER_HOLE)
 }
 
 
@@ -777,8 +817,7 @@ fn rails(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
     let (py, pz) = g.pivot;
     b.block((py - 0.032, py - 0.01), (pz - 0.012, pz + 0.008), x, w, rail);
     let (hy, hz) = g.hinge;
-    b.block((hy - 0.024, hy - 0.006), (hz + 0.006, hz + 0.022), x, w, rail);
-    b.block((hy - 0.009, hy + 0.003), (hz + 0.014, hz + 0.022), x, w, rail);
+    b.block((hy + 0.006, hy + 0.016), (hz - 0.012, hz + 0.012), x, w, rail);
     let rest_at = py + 0.085;
     let mut m = 21;
     while m <= 108 {
@@ -926,6 +965,16 @@ mod tests {
             // The key's tail and backcheck in front of the belly rail.
             let checked = tail_at(&g, &h, h.checked);
             assert!(checked.0 + 0.02 + 0.012 < BELLY_AT, "key {m}'s tail at {}", checked.0);
+            // The damper's underlever and wire behind the backcheck (its
+            // rod and its head, leaning back), the key's tail under them,
+            // the hinge in front of the belly rail.
+            if m <= model.damper.highest_note {
+                let backcheck = checked.0 + 0.008;
+                let wire = damper_wire(&c, m);
+                assert!(wire - 0.004 > backcheck + 0.003 + 0.0011, "key {m}'s underlever on its backcheck's rod: wire at {wire}, backcheck at {backcheck}");
+                assert!(wire - WIRE_R as f64 > backcheck + 0.006 + 0.06 * 0.026, "key {m}'s wire through its backcheck: {wire}, {backcheck}");
+                assert!(g.hinge.0 + 0.016 < BELLY_AT && g.hinge.0 > wire + 0.02, "key {m}'s hinge at {}", g.hinge.0);
+            }
         }
     }
 }
