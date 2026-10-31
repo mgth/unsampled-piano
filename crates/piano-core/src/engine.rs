@@ -550,13 +550,21 @@ impl Engine {
             let k = &mut own.keys[v.note as usize & 127];
             k.hammer |= v.contact.is_active();
             k.damper = k.damper.min(v.engagement as f32);
-            k.energy += v.bank.energy() + v.sym.energy();
+            // A sympathetic bank left alone below its threshold keeps its
+            // last state, silent: not shown (else the undamped strings,
+            // never freed, would glow once the views' scales come down).
+            let sym = v.sym.energy();
+            k.energy += v.bank.energy() + if sym < self.shortcuts.sym_silence { 0.0 } else { sym };
         }
         (own.sustain, own.soft, own.sostenuto) = (self.sustain as f32, self.soft as f32, self.sostenuto_down);
         // The low modes run apart when driven key by key: they come first.
         let mut n = self.board_low.as_ref().map_or(0, |b| b.amplitudes(&mut own.board));
         if let Some(b) = &self.board {
             n += b.amplitudes(&mut own.board[n..]);
+        }
+        // Asleep, the board keeps its last state, silent: at rest.
+        if !self.board_awake {
+            own.board[..n].fill(0.0);
         }
         own.board_modes = n;
         obs.merge(&own);

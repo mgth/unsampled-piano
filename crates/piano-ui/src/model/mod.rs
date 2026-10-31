@@ -145,6 +145,13 @@ impl Default for Levels {
 const REF_DECAY: f32 = 0.8;
 const KEY_RANGE_DB: f32 = 50.0;
 const BOARD_RANGE_DB: f32 = 40.0;
+/// The lowest the keys' reference comes down to: the energy below which
+/// the engine frees a voice at the bottom of the range, so that after a
+/// long rest what is left in the strings stays dark (a soft note lies a
+/// little above).
+fn key_floor() -> f32 {
+    piano_core::engine::Shortcuts::DEFAULT.voice_silence * 10f32.powf(KEY_RANGE_DB / 10.0)
+}
 /// Time constant of the meters' fall (s, on amplitudes), and how long a
 /// blow (1–3 ms on the strings) stays shown.
 const RELEASE_S: f32 = 0.3;
@@ -523,7 +530,7 @@ impl ModelView {
     fn key_levels(&mut self, obs: &Observation) -> [f32; 128] {
         let peak = obs.keys.iter().map(|k| k.energy).filter(|e| e.is_finite()).fold(0.0, f32::max);
         self.levels.keys = self.levels.keys.max(peak);
-        let r = self.levels.keys;
+        let r = self.levels.keys.max(key_floor());
         std::array::from_fn(|m| level(obs.keys[m].energy, r, KEY_RANGE_DB, 10.0))
     }
 
@@ -894,5 +901,18 @@ mod tests {
         assert_eq!(level(1.0, 1.0, 40.0, 20.0), 1.0);
         assert!((level(0.1, 1.0, 40.0, 20.0) - 0.5).abs() < 1e-6);
         assert_eq!(level(0.0, 1.0, 40.0, 20.0), 0.0);
+    }
+
+    #[test]
+    fn a_long_rest_does_not_light_what_is_left() {
+        let mut v = ModelView::default();
+        // The reference long come down after the last note.
+        v.levels.keys = 1e-30;
+        let mut o = Observation::default();
+        o.keys[100].energy = piano_core::engine::Shortcuts::DEFAULT.voice_silence;
+        o.keys[60].energy = 1.5;
+        let l = v.key_levels(&o);
+        assert_eq!(l[100], 0.0);
+        assert!(l[60] > 0.9, "a soft note still shows: {}", l[60]);
     }
 }
