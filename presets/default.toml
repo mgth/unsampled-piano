@@ -273,9 +273,10 @@ scatter_shadow = 0.0
 
 [damper]
 position = 0.14
+behind_strike = 0.06
 width = 0.02
 node_floor = 0.15
-strength = 0.1
+strength = 0.2
 contact_exponent = 1.5
 horizontal = 0.03
 highest_note = 86

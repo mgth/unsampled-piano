@@ -822,6 +822,13 @@ const HELP: &[(&str, &str, &str)] = &[
         "Fraction of the string length from the agraffe. A damper is a dashpot adding to partial \
          k a decay rate proportional to sin²(kπx/L) averaged over the pad (S_k).",
     ),
+    (
+        "damper.behind_strike",
+        "How far behind the hammer the dampers rest. On a grand they stand in a straight line \
+         behind the hammers, so they sit further along the short treble strings.",
+        "Distance (m) along the strings from the strike point to the pad's middle; 0 keeps \
+         `position` on every string (presets saved before it).",
+    ),
     ("damper.width", "Length of string the felt pad covers.", "Pad width (m) in the average of sin² (partials with a node under the pad are still damped by the rest of it)."),
     (
         "damper.node_floor",

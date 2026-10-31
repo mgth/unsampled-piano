@@ -142,6 +142,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
     const STRING: &[(&str, &[Part])] = &[
         ("strike_ratio", &[Strike, Partials]),
         ("damper.position", &[DamperPoint]),
+        ("damper.behind_strike", &[DamperPoint]),
         ("damper.width", &[DamperPoint]),
         ("damper.node_floor", &[DamperPoint]),
         ("damper.horizontal", &[DamperPoint, Polarization]),
