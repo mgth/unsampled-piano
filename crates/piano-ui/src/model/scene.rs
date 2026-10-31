@@ -837,8 +837,9 @@ pub fn board_outline(sb: &SoundboardParams) -> Vec<(f64, f64)> {
 /// bentside and tail are a few vertices in the model): through every
 /// vertex, its corners (bends over [`CORNER_DEG`]) kept and its edges along
 /// its bounding box straight; every other edge a cubic, tangent at each end
-/// to the straight edge beside it, else to its two edges' bisector, split
-/// every [`ROUND_STEP_DEG`] or so of turn.
+/// to the straight edge beside it, else to its two edges' bisector (along
+/// the box's side at a vertex on it), split every [`ROUND_STEP_DEG`] or so
+/// of turn. It stays within the box: a board's outline within its a × b.
 pub fn rounded(p: &[(f64, f64)]) -> Vec<(f64, f64)> {
     let n = p.len();
     if n < 3 {
@@ -868,14 +869,21 @@ pub fn rounded(p: &[(f64, f64)]) -> Vec<(f64, f64)> {
     // The tangent at a vertex that is not a corner.
     let tangent = |i: usize| -> Option<(f64, f64)> {
         let (u, v) = (edge(prev(i)).0, edge(i).0);
+        let on = |a: f64, lo: f64, hi: f64| (a - lo).abs() < 1e-9 || (a - hi).abs() < 1e-9;
         match (corner[i], straight[prev(i)], straight[i]) {
             (true, _, _) => None,
             (_, true, false) => Some(u),
             (_, false, true) => Some(v),
             _ => {
                 let (mx, my) = (u.0 + v.0, u.1 + v.1);
-                let l = mx.hypot(my).max(1e-12);
-                Some((mx / l, my / l))
+                Some(match (on(p[i].0, lo.0, hi.0), on(p[i].1, lo.1, hi.1)) {
+                    (true, false) => (0.0, my.signum()),
+                    (false, true) => (mx.signum(), 0.0),
+                    _ => {
+                        let l = mx.hypot(my).max(1e-12);
+                        (mx / l, my / l)
+                    }
+                })
             }
         }
     };
@@ -894,7 +902,7 @@ pub fn rounded(p: &[(f64, f64)]) -> Vec<(f64, f64)> {
             let (t2, t3) = (t * t, t * t * t);
             let (h0, h1, h2, h3) = (2.0 * t3 - 3.0 * t2 + 1.0, t3 - 2.0 * t2 + t, 3.0 * t2 - 2.0 * t3, t3 - t2);
             let at = |a: f64, ta: f64, b: f64, tb: f64| h0 * a + h1 * l * ta + h2 * b + h3 * l * tb;
-            out.push((at(p[k].0, t0.0, p[j].0, t1.0), at(p[k].1, t0.1, p[j].1, t1.1)));
+            out.push((at(p[k].0, t0.0, p[j].0, t1.0).clamp(lo.0, hi.0), at(p[k].1, t0.1, p[j].1, t1.1).clamp(lo.1, hi.1)));
         }
     }
     out
@@ -1988,6 +1996,31 @@ mod tests {
         let s = build(&m, None, &options());
         let corner = Place { vertical: false, top: 0.0 }.at(sb.a * 0.95, sb.b * 0.05, 0.0);
         assert!(!s.tris.iter().any(|v| v.pos[2] == 0.0 && (v.pos[0] - corner[0]).abs() < 0.02 && (v.pos[1] - corner[1]).abs() < 0.02));
+    }
+
+    #[test]
+    fn a_rounded_board_is_covered_by_its_top() {
+        // The grand's, and one edited: its spine's back end 5 cm forward,
+        // which would bend the tail out past the board's length.
+        let mut edited = SoundboardParams::GRAND_2M;
+        edited.outline[8].0 = 1.0 - 0.05 / edited.a;
+        for sb in [SoundboardParams::GRAND_2M, edited] {
+            let m = PianoModel { soundboard: Some(sb), ..PianoModel::default() };
+            let sb = m.soundboard.unwrap().resolved();
+            let outline = board_outline(&sb);
+            assert!(outline.iter().all(|&(x, y)| (0.0..=sb.a).contains(&x) && (0.0..=sb.b).contains(&y)));
+            let s = build(&m, None, &options());
+            let top: f64 = s
+                .tris
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .filter(|t| t.iter().all(|v| v.pos[2] == 0.0 && v.mat == Material::Spruce as u8 as f32))
+                .map(|t| 0.5 * (dot(cross(sub(t[1].pos, t[0].pos), sub(t[2].pos, t[0].pos)), cross(sub(t[1].pos, t[0].pos), sub(t[2].pos, t[0].pos))) as f64).sqrt())
+                .sum();
+            let area = signed_area(&outline);
+            assert!((top / area - 1.0).abs() < 1e-4, "{top} vs {area}");
+        }
     }
 
     #[test]
