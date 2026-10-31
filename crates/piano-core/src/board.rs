@@ -883,7 +883,10 @@ mod tests {
         let model = crate::params::PianoModel::default();
         let loaded = board_modes(&model.board().unwrap(), sr);
         let bare = board_modes(&Soundboard::new(model.soundboard.unwrap()), sr);
-        assert!(loaded.iter().filter(|m| m.freq_hz < 400.0).all(|m| m.load > 0.2 * m.sigma));
+        // The load is a fair share of every low mode's damping (≥ 0.197 since
+        // the board's mobility × 0.8, docs/board_hump.md: the (2,2) mode at
+        // 247 Hz has its nodal line along the bridge).
+        assert!(loaded.iter().filter(|m| m.freq_hz < 400.0).all(|m| m.load > 0.15 * m.sigma));
         let mut a = BoardBank::new(sr, &loaded, 64);
         let b = BoardBank::new(sr, &bare, 64);
         a.set_load(0.0);

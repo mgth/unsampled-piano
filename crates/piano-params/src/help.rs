@@ -225,7 +225,12 @@ const HELP: &[(&str, &str, &str)] = &[
         "The head (1 − share of the mass) is linked to the shank's effective mass by a spring and \
          a dashpot; both start at the hammer speed (docs/top_level.md).",
     ),
-    ("shank_freq", "How stiff the shank is: the frequency at which the head swings against it.", "Frequency (Hz) of the head-against-shank mode, k = m_r·(2πf)² with m_r the reduced mass."),
+    ("shank_freq", "How stiff the shank is in the top: the frequency at which the head swings against it, from C6 up.", "Frequency (Hz) of the head-against-shank mode from C6 up, k = m_r·(2πf)² with m_r the reduced mass."),
+    (
+        "shank_freq_mid",
+        "How stiff the shank is up to C5. Too supple, the head swings back against the string as the wave returns from the bridge, and a few keys of the middle buzz at the attack.",
+        "Frequency (Hz) of the head-against-shank mode up to C5, geometric to the top's at C6.",
+    ),
     ("shank_loss", "Damping of the shank's swing.", "Loss factor of the head-against-shank mode (c = loss·m_r·2πf)."),
     (
         "strike_ratio",

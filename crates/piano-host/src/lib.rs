@@ -271,6 +271,24 @@ mod tests {
     }
 
     #[test]
+    fn a_preset_saved_before_the_stiffer_shank_keeps_its_uniform_shank() {
+        // A full preset as saved before the field existed, and a partial one.
+        let mut text = preset_toml(&PianoModel::default());
+        let line = text.lines().find(|l| l.starts_with("shank_freq_mid")).unwrap().to_string();
+        text = text.replace(&format!("{line}\n"), "");
+        for old in [toml::from_str::<PianoModel>(&text).unwrap(), toml::from_str("shank_freq = 300.0\n").unwrap()] {
+            assert_eq!(old.shank_freq_mid, 0.0);
+            assert_eq!(old.shank_freq_at(63.0), old.shank_freq);
+        }
+        let new: PianoModel = toml::from_str(&preset_toml(&PianoModel::default())).unwrap();
+        assert_eq!(new.shank_freq_mid, PianoModel::default().shank_freq_mid);
+        assert!(new.shank_freq_at(63.0) > new.shank_freq);
+        // The shipped default keeps the new shank.
+        let shipped = load_preset(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/default.toml")).unwrap();
+        assert_eq!(shipped.shank_freq_mid, PianoModel::default().shank_freq_mid);
+    }
+
+    #[test]
     fn listening_and_touch_presets_are_laid_over_the_sound() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets");
         assert!(is_overlay(&root.join("listening/Microphones/close.toml")));

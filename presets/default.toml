@@ -28,6 +28,7 @@ hammer_mass_scale = 1.0
 shank_share = 0.3
 shank_freq = 300.0
 shank_loss = 0.1
+shank_freq_mid = 700.0
 strike_ratio = 0.12
 
 [velocity]
@@ -115,9 +116,9 @@ slope_from = 130.81
 [soundboard]
 a = 1.7
 b = 1.3
-rho_h = 8.4
-dx = 4590.0
-dy = 2040.0
+rho_h = 10.5
+dx = 5737.5
+dy = 2550.0
 loss_factor = 0.02
 loss_corner = 2500.0
 loss_low_corner = 200.0

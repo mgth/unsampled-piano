@@ -986,6 +986,15 @@ pub struct PianoModel {
     pub shank_share: f64,
     pub shank_freq: f64,
     pub shank_loss: f64,
+    /// The head-against-shank mode up to C5 (Hz), going to `shank_freq` at
+    /// C6 (geometric in between; 0: `shank_freq` everywhere). At 300 Hz,
+    /// whose period is the middle's contact time (3.3 ms), D#4–F#4's attack
+    /// had 10–15 dB more 8–11 kHz than their neighbours, at velocities
+    /// 40–75; at 700 Hz they sit on the real grands' (docs/felt.md). A
+    /// preset or saved state from before it reads 0, so that it keeps its
+    /// sound.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub shank_freq_mid: f64,
     /// Strike point (fraction of the speaking length from the agraffe) up
     /// to C6, 0.05 closer to the agraffe at C8.
     pub strike_ratio: f64,
@@ -1056,6 +1065,7 @@ impl Default for PianoModel {
             shank_share: 0.3,
             shank_freq: 300.0,
             shank_loss: 0.1,
+            shank_freq_mid: 700.0,
             strike_ratio: 0.12,
         }
     }
@@ -1082,6 +1092,15 @@ impl PianoModel {
         })
     }
 
+    /// The head-against-shank mode of key `m` (MIDI), Hz.
+    pub fn shank_freq_at(&self, m: f64) -> f64 {
+        if self.shank_freq_mid <= 0.0 {
+            return self.shank_freq;
+        }
+        let t = ((84.0 - m) / 12.0).clamp(0.0, 1.0);
+        self.shank_freq * (self.shank_freq_mid / self.shank_freq).powf(t)
+    }
+
     pub fn note(&self, note: u8) -> NoteParams {
         let f0 = note_freq(note, self.a4) * 2f64.powf((self.stretch.cents(note) + self.temperament.cents(note)) / 1200.0);
         let length = self.scale.length(note);
@@ -1099,7 +1118,7 @@ impl PianoModel {
             hammer.mass_kg = total * (1.0 - share);
             hammer.shank_mass = total * share;
             let reduced = hammer.mass_kg * hammer.shank_mass / total;
-            let w = std::f64::consts::TAU * self.shank_freq;
+            let w = std::f64::consts::TAU * self.shank_freq_at(m);
             hammer.shank_k = reduced * w * w;
             hammer.shank_c = self.shank_loss * reduced * w;
         }

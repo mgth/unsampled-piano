@@ -148,8 +148,10 @@ fn upright_soft_pedal_and_practice_mute() {
     assert!(b1 - b0 > -1.5, "half blow should barely darken: {:.1} dB", b1 - b0);
     // The graded felt (docs/felt.md) brightens less with the hammer's speed
     // than the two-layer hammer did (brighter at mf, as bright at ff), so
-    // the muted C4 loses 2.6 dB of the proxy where it lost 3.3.
-    assert!(b2 < b0 - 2.0 && l2 < l0 - 1.0, "the mute should be duller and quieter");
+    // the muted C4 loses 2.6 dB of the proxy where it lost 3.3. With the
+    // middle's stiffer shank (docs/felt.md) it loses 0.9 dB of level where
+    // it lost 1.2.
+    assert!(b2 < b0 - 2.0 && l2 < l0 - 0.7, "the mute should be duller and quieter");
     // With a mute, the middle pedal no longer holds the keys down.
     let middle = |script: &[(f64, Event)]| {
         let mut s = script.to_vec();
