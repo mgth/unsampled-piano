@@ -25,6 +25,7 @@
 
 use egui::{Align2, Color32, FontId, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, Vec2};
 use piano_core::params::PianoModel;
+use piano_core::soundboard::KEY_LINE_X;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Sketch {
@@ -171,6 +172,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("soundboard.treble_bridge", &[Bridges]),
         ("soundboard.bass_bridge", &[BassBridge]),
         ("soundboard.main_bridge_from", &[BassBridge]),
+        ("soundboard.main_string_slant", &[Bridges]),
         ("soundboard.bridge_", &[Bridges, BridgeSpread]),
         ("soundboard.piston_", &[Piston]),
         ("soundboard.back_", &[BackFace]),
@@ -801,9 +803,9 @@ pub fn plan(ui: &mut Ui, model: &PianoModel, lit: &[Part], key: &mut u8, width: 
     // Plan: (x along, y across) in metres → screen.
     let pl = |x: f64, y: f64| at(8.0 + (y1 - y) as f32 * s, top + (x1 - x) as f32 * s);
     let sec = |x: f64, z: f64| at(sec_x + (x - x0) as f32 * s2, sec_top + (z1 - z) as f32 * s2 * STRETCH);
-    let bridge_y = |m: u8| sb.bridge_point(m).1;
+    let bridge_y = |m: u8| sb.key_across(m);
 
-    // The keyboard picks the key whose bridge point is nearest across.
+    // The keyboard picks the key whose strings are nearest across.
     let keys = Rect::from_two_pos(pl(fx, 0.0), pl(front, sb.b));
     let pick = ui.interact(keys, ui.scope_id().with("piano-plan-key"), Sense::click_and_drag());
     if let Some(pos) = pick.interact_pointer_pos().filter(|_| pick.clicked() || pick.dragged()) {
@@ -869,12 +871,15 @@ pub fn plan(ui: &mut Ui, model: &PianoModel, lit: &[Part], key: &mut u8, width: 
         p.add(Shape::line(along(21, sb.main_bridge_from - 1), line(9.0, HIGHLIGHT.gamma_multiply(0.5))));
     }
 
-    // Every key's string, from its agraffe to its bridge point.
+    // Every key's string, from its agraffe to its bridge point, on the line
+    // from where it crosses the keys' line (the main strings slant).
     let agraffe = fx + if f.enabled { f.agraffe_x } else { 0.25 };
     for m in 21..=108u8 {
         let (bx, by) = sb.bridge_point(m);
+        let ky = sb.key_across(m);
+        let ay = ky + (by - ky) * (agraffe - KEY_LINE_X) / (bx - KEY_LINE_X);
         let c = if m == *key { ink } else { weak.gamma_multiply(0.35) };
-        p.line_segment([pl(agraffe, by), pl(bx, by)], line(if m == *key { 1.5 } else { 0.5 }, c));
+        p.line_segment([pl(agraffe, ay), pl(bx, by)], line(if m == *key { 1.5 } else { 0.5 }, c));
     }
 
     // Frame and agraffes.

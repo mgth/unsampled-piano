@@ -689,18 +689,19 @@ pub fn triangulate(p: &[(f64, f64)]) -> Vec<[usize; 3]> {
 /// Where each key's hammer strikes its strings across (m, plate y): evenly
 /// from one semitone to the next, as on a grand (whose keys are not: the
 /// action's shanks fan out to the strings), C8 and the main bridge's
-/// lowest key in line with their bridge points as their keys are
+/// lowest key in line with where their strings cross the keys' line
+/// ([`SoundboardParams::key_across`]) as their keys are
 /// ([`keyboard_span`]), the bass beyond at the same pitch.
 pub fn key_across(sb: &SoundboardParams, m: u8) -> f64 {
-    let y = |m: u8| sb.bridge_point_at(m as f64, true).1;
+    let y = |m: u8| sb.key_across(m);
     let lo_key = sb.main_bridge_from.min(107);
     y(108) + (y(lo_key) - y(108)) * (108 - m) as f64 / (108 - lo_key) as f64
 }
 
 /// The keyboard's extent across (plate y): C8 and the main bridge's lowest
-/// key in line with their bridge points, the bass keys beyond.
+/// key in line with their strings, the bass keys beyond.
 fn keyboard_span(sb: &SoundboardParams) -> (f64, f64) {
-    let y = |m: u8| sb.bridge_point_at(m as f64, true).1;
+    let y = |m: u8| sb.key_across(m);
     let mid = |m: u8| {
         let (x, w) = sketches::key_span(m);
         (x + w / 2.0) as f64
@@ -1670,7 +1671,9 @@ mod tests {
                 wire_gap = wire_gap.min((a.0 + ex * t - q.at.0).hypot(a.1 + ey * t - q.at.1) - PIN_R);
             }
         }
-        assert!(wire_gap > 0.0003, "a string touches a pin: {wire_gap}");
+        // 0.27 mm in A2's unison since the main strings fan (their agraffes,
+        // and so their pins, closer together in the tenor).
+        assert!(wire_gap > 0.00025, "a string touches a pin: {wire_gap}");
         assert!(pin_gap > 0.001, "two coils touch: {pin_gap}");
     }
 

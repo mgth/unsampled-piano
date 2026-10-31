@@ -271,6 +271,20 @@ mod tests {
     }
 
     #[test]
+    fn a_preset_saved_before_the_slant_keeps_upright_main_strings() {
+        let mut text = preset_toml(&PianoModel::default());
+        let line = text.lines().find(|l| l.starts_with("main_string_slant")).unwrap().to_string();
+        text = text.replace(&format!("{line}\n"), "");
+        let old: PianoModel = toml::from_str(&text).unwrap();
+        assert_eq!(old.soundboard.unwrap().main_string_slant, 0.0);
+        let new: PianoModel = toml::from_str(&preset_toml(&PianoModel::default())).unwrap();
+        assert_eq!(new.soundboard.unwrap().main_string_slant, piano_core::soundboard::SoundboardParams::GRAND_2M.main_string_slant);
+        // The shipped default keeps the slant.
+        let shipped = load_preset(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/default.toml")).unwrap();
+        assert_eq!(shipped.soundboard.unwrap().main_string_slant, piano_core::soundboard::SoundboardParams::GRAND_2M.main_string_slant);
+    }
+
+    #[test]
     fn a_preset_saved_before_the_stiffer_shank_keeps_its_uniform_shank() {
         // A full preset as saved before the field existed, and a partial one.
         let mut text = preset_toml(&PianoModel::default());

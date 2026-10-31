@@ -173,6 +173,7 @@ bass_bridge = [
 ]
 main_bridge_from = 45
 bass_bridge_bow = 0.034
+main_string_slant = 8.0
 mics = [
     [
     0.45,

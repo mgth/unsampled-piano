@@ -131,6 +131,19 @@ pub struct SoundboardParams {
     /// preset saved before the bow existed reads, so that it keeps its bridge.
     #[cfg_attr(feature = "serde", serde(default))]
     pub bass_bridge_bow: f64,
+    /// The main bridge's strings lean towards the bass side as they run
+    /// back from the keys, as on real grands (the bass strings, crossing
+    /// over them, lean the other way), and fan out: the tenor's are
+    /// oblique, the treble's nearly upright. This angle (degrees, from the
+    /// keyboard's normal) at the main bridge's lowest key, falling in
+    /// equal steps of keys to 0 at C8 ([`Self::string_slant`]). Each
+    /// string turns about its key's place on [`KEY_LINE_X`], keeping its
+    /// length: `treble_bridge` gives the bridge of upright strings, and
+    /// its points move towards the bass side by the string's length times
+    /// its angle's sine. 0: upright strings, and what a preset saved
+    /// before the slant existed reads, so that it keeps its bridge.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub main_string_slant: f64,
     /// First note on the main bridge (lower notes are on the bass bridge).
     pub main_bridge_from: u8,
     /// Microphones (m, plate coordinates, z above the board).
@@ -385,6 +398,12 @@ impl SoundboardParams {
         // at F2 on 227 and 274 cm concert grands (docs/bridges.md).
         main_bridge_from: 45,
         bass_bridge_bow: 0.034,
+        // The tenor's strings at 8° towards the spine, fanning to upright at
+        // C8 (A2's bridge point 16 cm towards the bass side, 16 cm from the
+        // spine; the bass strings cross over them at 12–15° the other way).
+        // No measured angle was found; the bench scores 1.04 with and
+        // without it, and 10° and 12° worse (docs/bridges.md).
+        main_string_slant: 8.0,
         mics: [(0.45, 0.35, 1.5), (1.15, 0.85, 1.5)],
         // 1.5 m in front of an upright's board, the left one on the bass side.
         mics_upright: [(0.7, 1.0, 1.5), (0.3, 0.45, 1.5)],
@@ -501,6 +520,43 @@ impl SoundboardParams {
 
     /// Point at a fractional key position along the main or the bass bridge.
     pub fn bridge_point_at(&self, note: f64, main: bool) -> (f64, f64) {
+        let (x, y) = self.upright_point_at(note, main);
+        let a = if main { self.string_slant(note) } else { 0.0 };
+        if a == 0.0 {
+            return (x, y);
+        }
+        let (s, c) = a.sin_cos();
+        (KEY_LINE_X + (x - KEY_LINE_X) * c, y + (x - KEY_LINE_X) * s)
+    }
+
+    /// A main bridge string's slant (rad, towards the bass side going
+    /// back): [`Self::main_string_slant`] at the main bridge's lowest key,
+    /// 0 at C8, but no more than keeps its bridge point [`SLANT_EDGE`]
+    /// inside the board's bass side (the spine for a grand) and its front
+    /// edge, whatever the angle asked. The strings lean only towards the
+    /// bass: a negative angle reads as 0.
+    pub fn string_slant(&self, note: f64) -> f64 {
+        let t = ((108.0 - note) / (108.0 - self.main_bridge_from as f64).max(1.0)).clamp(0.0, 1.0);
+        let a = self.main_string_slant.to_radians() * t;
+        let (x, y) = self.upright_point_at(note, true);
+        let d = (x - KEY_LINE_X).max(1e-9);
+        let side = ((self.b - SLANT_EDGE - y).max(0.0) / d).min(1.0).asin();
+        let front = ((SLANT_EDGE - KEY_LINE_X) / d).clamp(-1.0, 1.0).acos();
+        a.clamp(0.0, side.min(front))
+    }
+
+    /// Where a key's strings cross the keys' line ([`KEY_LINE_X`]), across
+    /// the board (m): the main bridge's strings come from there whatever
+    /// their slant. The bass strings are taken as running along x from
+    /// their bridge point, as the frame's agraffes always have.
+    pub fn key_across(&self, note: u8) -> f64 {
+        let main = note >= self.main_bridge_from;
+        if main { self.upright_point_at(note as f64, true).1 } else { self.bridge_point(note).1 }
+    }
+
+    /// The bridge point before the main strings' slant: the curve through
+    /// `treble_bridge`, or the bass bridge.
+    fn upright_point_at(&self, note: f64, main: bool) -> (f64, f64) {
         let lerp = |p: (f64, f64), q: (f64, f64), t: f64| (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
         let (u, v) = if main {
             // 0 at C8, 1 at the lowest note of the main bridge.
@@ -565,6 +621,15 @@ impl SoundboardParams {
         }
     }
 }
+
+/// The keys' line (m, plate x): where the bridges' layout puts the strings'
+/// front ends, 3 cm in front of the board's front edge; the main strings
+/// turn about it when they slant ([`SoundboardParams::main_string_slant`]).
+pub const KEY_LINE_X: f64 = -0.03;
+
+/// The slanting main strings' bridge points stay this far (m) inside the
+/// board's sides ([`SoundboardParams::string_slant`]).
+pub const SLANT_EDGE: f64 = 0.05;
 
 /// The radiation paths from a board cell to a point: (length, gain).
 #[derive(Clone, Copy)]
@@ -1412,8 +1477,52 @@ mod tests {
     }
 
     #[test]
+    fn slanting_main_strings_turn_about_their_keys() {
+        let upright = SoundboardParams { main_string_slant: 0.0, ..SoundboardParams::GRAND_2M };
+        let p = SoundboardParams { main_string_slant: 8.0, ..upright };
+        for n in p.main_bridge_from..=108 {
+            let tan = p.string_slant(n as f64).tan();
+            let (key, (x0, y0), (x, y)) = (p.key_across(n), upright.bridge_point(n), p.bridge_point(n));
+            // The key stays where it was, its string keeps its length...
+            assert!((key - upright.key_across(n)).abs() < 1e-12 && (key - y0).abs() < 1e-12, "key {n}");
+            let len = |x: f64, y: f64| (x - KEY_LINE_X).hypot(y - key);
+            assert!((len(x, y) - len(x0, y0)).abs() < 1e-9, "key {n}");
+            // ... and leans towards the bass side (+y) by the angle.
+            assert!(((y - key) / (x - KEY_LINE_X) - tan).abs() < 1e-9, "key {n}");
+        }
+        // Whatever the angle asked, the bridge stays on the board, at least
+        // SLANT_EDGE inside its sides; the editor's range keeps it inside
+        // the outline untouched.
+        let outline = Outline::new(&p).unwrap();
+        for a in [12.0, 20.0, 45.0, 90.0] {
+            let q = SoundboardParams { main_string_slant: a, ..upright };
+            for n in q.main_bridge_from..=108 {
+                let (x, y) = q.bridge_point(n);
+                assert!(outline.contains(x, y) && y <= q.b - SLANT_EDGE + 1e-9 && x >= SLANT_EDGE - 1e-9, "{a}°, key {n}: ({x}, {y})");
+            }
+        }
+        // Towards the treble: upright.
+        let back = SoundboardParams { main_string_slant: -5.0, ..upright };
+        assert!((back.main_bridge_from..=108).all(|n| back.bridge_point(n) == upright.bridge_point(n)));
+        let max = SoundboardParams { main_string_slant: 12.0, ..upright };
+        for n in max.main_bridge_from..=108 {
+            let fan = 12f64.to_radians() * (108.0 - n as f64) / (108.0 - max.main_bridge_from as f64);
+            assert!((max.string_slant(n as f64) - fan).abs() < 1e-12, "key {n}");
+        }
+        // They fan: the lowest key at the full angle, C8 upright.
+        assert!((p.string_slant(p.main_bridge_from as f64) - 8f64.to_radians()).abs() < 1e-12 && p.string_slant(108.0) == 0.0);
+        // The tenor moves most, C8 hardly; the bass bridge not at all.
+        let shift = |n: u8| p.bridge_point(n).1 - upright.bridge_point(n).1;
+        assert!(shift(p.main_bridge_from) > 0.15 && shift(108) == 0.0);
+        for n in 21..p.main_bridge_from {
+            assert_eq!(p.bridge_point(n), upright.bridge_point(n), "key {n}");
+            assert_eq!(p.key_across(n), upright.key_across(n), "key {n}");
+        }
+    }
+
+    #[test]
     fn the_main_bridge_is_smooth_through_its_points() {
-        let p = SoundboardParams::GRAND_2M;
+        let p = SoundboardParams { main_string_slant: 0.0, ..SoundboardParams::GRAND_2M };
         let lo = p.main_bridge_from as f64;
         for (i, &(u, v)) in p.treble_bridge.iter().enumerate() {
             let (x, y) = p.bridge_point_at(108.0 - (108.0 - lo) * i as f64 / 4.0, true);

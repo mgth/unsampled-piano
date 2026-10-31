@@ -91,3 +91,35 @@ Since 2026-10-30 the register measures take the channels' powers instead of thei
 - the bass on the bench (0.95 against 0.81 before): A0–G#2 lack 2–4 dB of partials 2–8 against p1, and the bridge's place only hides it;
 - the board, 1.70 m long, a ≈ 2.4 m grand's under a 2 m grand's strings;
 - the agraffes, 3 cm in front of the board for the bridges' layout and 15 cm for the frame, where a real grand's are 7–30 cm.
+
+## The main strings' slant
+
+2026-10-31. Until then the main bridge's strings ran straight back from their keys: each key's bridge point lay where the key is across the board, and only the bass strings slanted (towards the treble, crossing over the tenor). On real grands the tenor's strings lean the other way, towards the spine, and the main strings fan out: the tenor's oblique, the treble's nearly upright (Britannica, *Keyboard instrument: overstringing*; M. J. Richards, *The overstrung underdamper piano*). No measured angle was found: Chabassier's Steinway D geometry (above) is behind a bot check, and the technicians' threads give none.
+
+`soundboard.main_string_slant` (degrees) is the angle at the main bridge's lowest key, falling in equal steps of keys to 0 at C8. Each string turns about its key's place on the keys' line (`KEY_LINE_X`, 3 cm in front of the board, where the bridges' layout puts the strings' front ends) and keeps its length: `treble_bridge` still describes the bridge of upright strings, and each of its points moves towards the bass side by the string's length times its angle's sine, and forward a little. The keys, the hammers and the frame's agraffes stay where they were (`SoundboardParams::key_across`): only the board's drive points move. A preset saved before the field reads 0.
+
+At 8°, A2's bridge point moves 16 cm towards the spine and ends 16 cm from it, C4's 6.5 cm, C5's 2.7 cm, C7's 0.3 cm. The bass strings cross over the tenor at 12–15° the other way. 12° would bring A2 within 8 cm of the spine; it is the editor's top (0–12°). Whatever the angle asked, a string leans no further than keeps its bridge point `SLANT_EDGE` (5 cm) inside the board's bass side and front edge: at 20°, A2–B2 left the board (A2 7 cm beyond the spine). A negative angle reads as 0.
+
+### On the bench
+
+Same build, every run against the same baseline. "Middle 1 s" is the middle's envelope at 1 s (mf, dB from the peak), "balance" the treble's and bass's level against the middle's (ff).
+
+| Run | Score | Off | Harmonic OFF / WATCH | Middle 1 s | Treble balance | Bass balance |
+|---|---|---|---|---|---|---|
+| upright strings (before) | 1.04 | 12 | 359 / 49 | −18.6 | +2.4 | −4.7 |
+| one angle for all, 4° | 1.05 | 10 | 356 / 54 | −16.6 | +4.2 | −3.5 |
+| one angle for all, 6° | 1.05 | 9 | 368 / 48 | −15.0 | | |
+| one angle for all, 8° | 1.10 | 10 | 364 / 51 | −13.9 | +6.5 | −1.3 |
+| fan, 8° at A2 (default) | 1.04 | 9 | 364 / 52 | −14.9 | +5.6 | −2.1 |
+| fan, 10° | 1.06 | 9 | 352 / 57 | | | |
+| fan, 12° | 1.08 | 12 | 349 / 60 | | | |
+| fan 8°, `edge_loss` 1.5e-3 | 1.05 | 9 | 368 / 49 | | | |
+| fan 8°, `edge_loss` 2e-3 | 1.04 | 9 | 366 / 50 | | | |
+
+- **Only the tenor and the middle move** (A2–F♯5): their bridge points come nearer the spine, where the clamped board moves less. They lose about 3 dB at the attack (A2, C3, D♯3, F♯3, A3 at mf) and hold longer: at 1 s, 3–7 dB more on those keys. The bass and the top do not change; the treble's balance rises because the middle under it is quieter.
+- **Their fundamental now decays like the real pianos'.** `harmonic_diagnostic.py`, H1 at 1 s against its attack, A2–F♯5 at the three layers, median gap to the real pianos' median: −2.4 → −0.4 dB on A2–B4, −0.7 → +3.1 on C5–F♯5; H2 0 → +1.8 on A2–B4.
+- **One angle for all overdoes it.** It moves the middle and the treble's bridge as far as the tenor's in proportion to their length: at 8° the middle comes out 3.5 dB quieter and 4.7 dB longer at 1 s (score 1.10). The fan, as on real grands, keeps the score.
+- **C3 rings longer once released.** v96 held 1 s, level 0.8 s after the release against just before it: C3 −27.5 → −17.0 dB, D♯3 −33.0 → −28.6; A2, E4 and A4 within 2 dB; F♯3, A3 and C4 faster by 2–7 dB. The same drive point leaves a damped C3 19 dB under a held one on the upright's mute pedal (28 before), and the sostenuto test's held C3 39 dB over a damped C4 (44): the tests' margins were lowered to 15 dB and 35 dB.
+- **No rebalancing.** The fan at 8° scores as before, with 9 measures off instead of 12; its shifts (the middle's balance and sustain, z +0.8 to +1.4) stay within the real pianos' spread. The one lever tied to the bridges' place, the loss through the rim (`edge_loss`), works on the treble's corner, not on the tenor near the spine: no gain.
+
+The default is the fan at 8°, the plainest geometry that looks like a grand and leaves the bench where it was. With a measured stringing plan, the angle and the fan's shape (linear in keys here) could be set from it.

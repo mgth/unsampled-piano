@@ -92,7 +92,9 @@ fn sostenuto_holds_only_the_keys_down_when_pressed() {
     let energy = |n: u8| e.voice_energies().iter().find(|v| v.0 == n).map_or(0.0, |v| v.1);
     let (held, other) = (energy(48), energy(60));
     eprintln!("at 1.2 s: C3 (sostenuto) {held:e}, C4 (played after) {other:e}");
-    assert!(held > 1e4 * other.max(1e-30), "sostenuto did not hold C3");
+    // 39 dB apart since the main strings slant (docs/bridges.md): C3's
+    // drive point moved towards the spine, 44 dB before.
+    assert!(held > 3e3 * other.max(1e-30), "sostenuto did not hold C3");
 }
 
 /// Una corda: the shifted hammer meets softer felt (darker attack) and
@@ -162,8 +164,10 @@ fn upright_soft_pedal_and_practice_mute() {
     eprintln!("C3 0.8 s after release, middle pedal down: sostenuto {sostenuto:.0} dB, mute {mute:.0} dB");
     // Held, it would be level with the sostenuto. Damped, it lay 38 dB
     // under it; 28 since the sideways coupling of pol_B (h 0.6 at C3, which
-    // the dampers grip less: docs/fundamental_sustain.md).
-    assert!(mute < sostenuto - 20.0, "C3 held by the mute's pedal");
+    // the dampers grip less: docs/fundamental_sustain.md); 19 since the
+    // main strings slant (C3's drive point nearer the spine, where the
+    // board takes less of its damped string's energy: docs/bridges.md).
+    assert!(mute < sostenuto - 15.0, "C3 held by the mute's pedal");
 }
 
 /// Without the grand's double escapement, an upright re-strikes a key weaker

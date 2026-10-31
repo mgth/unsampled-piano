@@ -145,11 +145,12 @@ impl FrameParams {
         }
     }
 
-    /// Agraffe point of each region (frame coordinates): the strings run
-    /// along x, so a key's agraffe faces its bridge point across the board.
+    /// Agraffe point of each region (frame coordinates): a key's agraffe
+    /// stands where its strings cross the keys' line
+    /// ([`SoundboardParams::key_across`]), whatever their slant.
     pub fn agraffe_points(&self, board: &SoundboardParams) -> Vec<(f64, f64)> {
         (0..REGIONS)
-            .map(|r| (self.agraffe_x, board.bridge_point(board::region_center_note(r)).1.clamp(0.0, self.b)))
+            .map(|r| (self.agraffe_x, board.key_across(board::region_center_note(r)).clamp(0.0, self.b)))
             .collect()
     }
 }
@@ -178,8 +179,8 @@ impl FrameAdmittance {
         (frame.enabled && frame.coupling > 0.0).then(|| Self { plate: Soundboard::new(frame.plate(board)), agraffe_x: frame.agraffe_x, b: frame.b, coupling: frame.coupling })
     }
 
-    /// Admittance (s/kg) at the agraffe of the key whose bridge point is at
-    /// `y` across the board (the strings run along x), at ω.
+    /// Admittance (s/kg) at the agraffe of the key whose strings cross the
+    /// keys' line at `y` ([`SoundboardParams::key_across`]), at ω.
     pub fn at(&self, y: f64, omega: f64) -> C64 {
         self.plate.admittance(self.agraffe_x, y.clamp(0.0, self.b), omega).scale(self.coupling)
     }

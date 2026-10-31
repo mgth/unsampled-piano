@@ -619,6 +619,19 @@ const HELP: &[(&str, &str, &str)] = &[
          middle; positive towards the tail. The keys stay at equal steps along it. 0: straight; \
          a preset that does not set it gets a straight bridge.",
     ),
+    (
+        "soundboard.main_string_slant",
+        "How much the strings of the main bridge lean towards the bass side as they run back from \
+         the keys, as on real grands: the tenor's most, the treble's hardly. The bass strings \
+         cross over them leaning the other way.",
+        "Angle (degrees) from the keyboard's normal at the main bridge's lowest key, falling in \
+         equal steps of keys to 0 at C8 (the strings fan). Each string turns about its key's place \
+         on the keys' line, 3 cm in front of the board, keeping its length: the main bridge's \
+         points move towards the bass side by the string's length times its angle's sine. The \
+         frame's agraffes stay at the keys. A string leans no further than keeps its bridge point \
+         5 cm inside the board's bass side and front edge; negative angles read as 0. 0: \
+         upright strings; a preset that does not set it gets upright strings.",
+    ),
     ("soundboard.main_bridge_from", "Lowest key on the main bridge; the keys below are on the bass bridge.", "MIDI note."),
     (
         "soundboard.outline",

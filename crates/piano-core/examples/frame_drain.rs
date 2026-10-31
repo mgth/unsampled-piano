@@ -43,7 +43,7 @@ fn main() {
             let f = np.f0 * k as f64 * (1.0 + np.b * (k * k) as f64).sqrt();
             let w = TAU * f;
             let yb = board.bridge_admittance(&shapes, w).re;
-            let yf = frame.at(p.bridge_point(note).1, w).re;
+            let yf = frame.at(p.key_across(note), w).re;
             println!("{note:3} {k:7} {f:9.1} {yb:12.3e} {yf:13.3e} {:+9.1} dB", 10.0 * (yf / yb).log10());
         }
     }
