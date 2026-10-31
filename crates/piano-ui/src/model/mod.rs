@@ -32,7 +32,7 @@ use std::time::Instant;
 use egui::{Align2, Color32, FontId, Rect, RichText, Sense, Stroke, Ui, Vec2};
 use piano_core::observe::OBSERVED_MODES;
 use piano_core::params::PianoModel;
-use piano_core::soundboard::{Soundboard, SoundboardParams};
+use piano_core::soundboard::{Soundboard, SoundboardParams, KEY_LINE_X};
 use piano_core::Observation;
 use piano_params::{PianoControl, Registry, Value};
 
@@ -50,7 +50,7 @@ pub enum Mode {
 
 /// The geometry the editor lists beside the plan.
 const GEOMETRY: &[(&str, &[&str])] = &[
-    ("Soundboard", &["soundboard.a", "soundboard.b", "soundboard.outline_below", "soundboard.main_bridge_from"]),
+    ("Soundboard", &["soundboard.a", "soundboard.b", "soundboard.outline_below", "soundboard.main_bridge_from", "soundboard.main_string_slant"]),
     ("Frame", &["frame.offset_x", "frame.agraffe_x", "frame.a", "frame.b", "frame.height"]),
     ("Rim", &["rim.thickness", "rim.height", "rim.top"]),
     ("Lid", &["soundboard.lid_angle", "soundboard.lid_shut", "soundboard.lid_hinge_height"]),
@@ -196,31 +196,55 @@ fn level(x: f32, reference: f32, range_db: f32, db_per: f32) -> f32 {
 
 /// A handle of the editor: a point of the plan (plate metres) and the
 /// parameters its two coordinates set, with their scale (value = coordinate
-/// / scale − offset).
+/// / scale − offset). A main bridge point is drawn where its slanting
+/// string lands ([`SoundboardParams::main_string_slant`]): its coordinates
+/// are turned back by `slant` (rad) about the keys' line before they set
+/// the parameters.
 struct Handle {
     name: &'static str,
     at: (f64, f64),
     x: Option<(String, f64, f64)>,
     y: Option<(String, f64, f64)>,
+    slant: f64,
+}
+
+impl Handle {
+    /// A plan point (m) turned by the handle's slant about the keys' line,
+    /// forwards (as drawn) or back (as the parameters have it).
+    fn turn(&self, (x, y): (f64, f64), back: bool) -> (f64, f64) {
+        let (s, c) = self.slant.sin_cos();
+        if back {
+            let x = KEY_LINE_X + (x - KEY_LINE_X) / c;
+            (x, y - (x - KEY_LINE_X) * s)
+        } else {
+            (KEY_LINE_X + (x - KEY_LINE_X) * c, y + (x - KEY_LINE_X) * s)
+        }
+    }
 }
 
 fn handles(model: &PianoModel) -> Vec<Handle> {
     let Some(sb) = model.soundboard else { return Vec::new() };
     let mut h = vec![
-        Handle { name: "Board length", at: (sb.a, sb.b / 2.0), x: Some(("soundboard.a".into(), 1.0, 0.0)), y: None },
-        Handle { name: "Board width", at: (sb.a / 2.0, sb.b), x: None, y: Some(("soundboard.b".into(), 1.0, 0.0)) },
+        Handle { name: "Board length", at: (sb.a, sb.b / 2.0), x: Some(("soundboard.a".into(), 1.0, 0.0)), y: None, slant: 0.0 },
+        Handle { name: "Board width", at: (sb.a / 2.0, sb.b), x: None, y: Some(("soundboard.b".into(), 1.0, 0.0)), slant: 0.0 },
     ];
-    let point = |name, path: &str, i: usize, (u, v): (f64, f64)| Handle {
-        name,
-        at: (u * sb.a, v * sb.b),
-        x: Some((format!("soundboard.{path}[{i}][0]"), sb.a, 0.0)),
-        y: Some((format!("soundboard.{path}[{i}][1]"), sb.b, 0.0)),
+    let point = |name, path: &str, i: usize, (u, v): (f64, f64), slant: f64| {
+        let mut h = Handle {
+            name,
+            at: (u * sb.a, v * sb.b),
+            x: Some((format!("soundboard.{path}[{i}][0]"), sb.a, 0.0)),
+            y: Some((format!("soundboard.{path}[{i}][1]"), sb.b, 0.0)),
+            slant,
+        };
+        h.at = h.turn(h.at, false);
+        h
     };
+    let lo = sb.main_bridge_from as f64;
     for (i, &p) in sb.treble_bridge.iter().enumerate() {
-        h.push(point("Bridge point", "treble_bridge", i, p));
+        h.push(point("Bridge point", "treble_bridge", i, p, sb.string_slant(108.0 - (108.0 - lo) * i as f64 / 4.0)));
     }
     for (i, &p) in sb.bass_bridge.iter().enumerate() {
-        h.push(point("Bass bridge point", "bass_bridge", i, p));
+        h.push(point("Bass bridge point", "bass_bridge", i, p, 0.0));
     }
     if piano_core::soundboard::Outline::new(&sb).is_some() {
         // Repeated vertices (the unused ones) share one handle: the first.
@@ -233,13 +257,14 @@ fn handles(model: &PianoModel) -> Vec<Handle> {
                 at: (u * sb.a, v * sb.b),
                 x: Some((format!("soundboard.outline[{i}][0]"), sb.a, 0.0)),
                 y: Some((format!("soundboard.outline[{i}][1]"), sb.b, 0.0)),
+                slant: 0.0,
             });
         }
     }
     let f = &model.frame;
     if f.enabled {
-        h.push(Handle { name: "Agraffes", at: (scene::agraffe_x(model), sb.b * 0.08), x: Some(("frame.agraffe_x".into(), 1.0, f.offset_x)), y: None });
-        h.push(Handle { name: "Frame end", at: (f.offset_x + f.a, f.b * 0.75), x: Some(("frame.a".into(), 1.0, f.offset_x)), y: None });
+        h.push(Handle { name: "Agraffes", at: (scene::agraffe_x(model), sb.b * 0.08), x: Some(("frame.agraffe_x".into(), 1.0, f.offset_x)), y: None, slant: 0.0 });
+        h.push(Handle { name: "Frame end", at: (f.offset_x + f.a, f.b * 0.75), x: Some(("frame.a".into(), 1.0, f.offset_x)), y: None, slant: 0.0 });
     }
     let (list, field) = if sb.vertical { (sb.mics_upright, "mics_upright") } else { (sb.mics, "mics") };
     for (i, &(x, y, _)) in list.iter().enumerate() {
@@ -249,6 +274,7 @@ fn handles(model: &PianoModel) -> Vec<Handle> {
             at: (x * sa, y * sbb),
             x: Some((format!("soundboard.{field}[{i}][0]"), sa, 0.0)),
             y: Some((format!("soundboard.{field}[{i}][1]"), sbb, 0.0)),
+            slant: 0.0,
         });
     }
     h
@@ -551,7 +577,7 @@ impl ModelView {
                 paths().for_each(|p| control.begin_edit(p));
             }
             if resp.dragged() && let Some(pos) = resp.interact_pointer_pos() {
-                let (dx, dy) = to_plate(pos - o);
+                let (dx, dy) = hd.turn(to_plate(pos - o), true);
                 for ((path, s, off), v) in hd.x.iter().map(|a| (a, dx)).chain(hd.y.iter().map(|a| (a, dy))) {
                     let Some(param) = registry.get(path) else { continue };
                     let value = (v / s - off).clamp(param.meta.min, param.meta.max);

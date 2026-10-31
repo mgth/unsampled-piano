@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let omega = std::f64::consts::TAU * m.freq_hz;
             let fg = frame
                 .as_ref()
-                .map_or(0., |f| f.at(sb.params.bridge_point(note).1, omega).re);
+                .map_or(0., |f| f.at(sb.params.key_across(note), omega).re);
             writeln!(
                 budget,
                 "{note},{},{},{},{},{},{},{},{},{},{}",

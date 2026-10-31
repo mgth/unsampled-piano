@@ -100,6 +100,9 @@ fn shots() {
     let mut model = PianoModel::default();
     if let Some(sb) = model.soundboard.as_mut() {
         sb.vertical = std::env::var("PIANO_SHOT_UPRIGHT").is_ok();
+        if let Some(a) = std::env::var("PIANO_SHOT_SLANT").ok().and_then(|a| a.parse().ok()) {
+            sb.main_string_slant = a;
+        }
     }
     let options = Options { key: 0, lit: &[], lid: false, frame: false, mics: false, case: false, ink: Color32::WHITE };
     for view in std::env::var("PIANO_SHOTS").unwrap_or_default().split(';').filter(|s| !s.is_empty()) {

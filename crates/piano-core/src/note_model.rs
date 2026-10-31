@@ -186,7 +186,7 @@ impl NoteModel {
                 (Some(b), Some(sh)) => {
                     // The string's other end: the frame at its agraffe (the
                     // mode's slope is the same there, (−1)^(k+1)·kπ/L).
-                    let at_frame = frame.map_or(C64::ZERO, |f| f.at(b.params.bridge_point(note).1, tau * fv[0]));
+                    let at_frame = frame.map_or(C64::ZERO, |f| f.at(b.params.key_across(note), tau * fv[0]));
                     (b.bridge_admittance(sh, tau * fv[0]) + C64::new(b.edge_conductance(note, tau * fv[0]), 0.0) + at_frame).scale(np.tension / np.length)
                 }
                 _ => np.coupling(&model.bridge, fv[0]),
