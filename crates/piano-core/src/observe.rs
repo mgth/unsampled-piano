@@ -38,8 +38,8 @@ pub struct Observation {
     /// Modulus of the complex state of the board's modes, lowest first, in
     /// the order of [`crate::soundboard::Soundboard::new`] (the model's
     /// soundboard with the musician's controls applied); `board_modes` of
-    /// them are set. A mode's velocity at a point is its state times its
-    /// shape there.
+    /// them are set (0 while the board sleeps). A mode's velocity at a
+    /// point is its state times its shape there.
     pub board: [f32; OBSERVED_MODES],
     pub board_modes: usize,
 }
