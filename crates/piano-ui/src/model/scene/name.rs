@@ -1,6 +1,6 @@
 //! The maker's name on a grand's fallboard, as makers inlay theirs: the
 //! logo (assets/icon.svg: a string between its agraffe and its bridge, its
-//! first two modes, a keyboard) and "Unsampled" (Noto Serif Display,
+//! first two modes, an octave of keyboard) and "Unsampled" (Noto Serif Display,
 //! [`lettering`]) in gold, standing a fraction of a millimetre proud of
 //! the lacquer.
 
@@ -82,9 +82,10 @@ pub(super) fn name(b: &mut Builder, at: &dyn Fn(f64, f64, f64) -> V3) {
         let dot: Vec<_> = (0..24).map(|k| (std::f64::consts::TAU * k as f64 / 24.0).sin_cos()).map(|(s, c)| (x + 5.0 * c, 50.0 + 5.0 * s)).collect();
         piece(b, &to(dot), h, at);
     }
-    // The keyboard: a bar, its black keys cut into its top.
+    // The keyboard, an octave: a bar, its black keys cut into its top,
+    // two then three.
     let mut bar = vec![(18.0, 84.0), (82.0, 84.0), (82.0, 74.0)];
-    for x in [66.0, 56.0, 39.0, 27.0] {
+    for x in [70.4, 61.2, 52.1, 33.8, 24.6] {
         bar.extend([(x + 5.0, 74.0), (x + 5.0, 80.0), (x, 80.0), (x, 74.0)]);
     }
     bar.push((18.0, 74.0));
