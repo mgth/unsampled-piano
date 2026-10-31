@@ -507,8 +507,17 @@ impl PolarizationLaw {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct DamperLaw {
-    /// Contact point relative to the string length, from the agraffe end.
+    /// Contact point relative to the string length, from the agraffe end,
+    /// where `behind_strike` is 0.
     pub position: f64,
+    /// Distance (m) along the strings from the strike point to the pad's
+    /// middle. A grand's damper wires stand in a straight line behind the
+    /// hammers', so the felt rests a fixed distance behind the strike, not
+    /// at a fixed share of the length: further along the short treble
+    /// strings. 0: `position` on every string; a preset or saved state from
+    /// before it reads 0, so that it keeps its sound.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub behind_strike: f64,
     /// Width of the felt pad (m): partials with a node under the damper
     /// are still damped by the rest of the pad.
     pub width: f64,
@@ -520,9 +529,11 @@ pub struct DamperLaw {
     /// the bass (docs/release_ring.md).
     pub node_floor: f64,
     /// c_max / (2·Z0): 1 is the impedance-matched, most absorbing felt.
-    /// 0.1: a released note loses 15–30 dB in its first 0.25 s, as on a
-    /// Disklavier grand; at 1 the dampers stopped notes 2–4 times too fast
-    /// and left holes in pedalled passages (docs/release.md).
+    /// 0.1 was set against a Disklavier grand's releases read down into
+    /// the recordings' noise; above it, with `behind_strike`, 0.2 (the
+    /// bass and middle released too slowly). At 1 the dampers stopped
+    /// notes 2–4 times too fast and left holes in pedalled passages
+    /// (docs/release.md).
     pub strength: f64,
     /// Felt nonlinearity: the dashpot grows as contact^exponent (felt
     /// compression, as Stulov's p for hammers). With 1, a damper barely
@@ -559,12 +570,15 @@ pub struct DamperLaw {
 impl DamperLaw {
     pub const GRAND: Self = Self {
         position: 0.14,
+        // 6 cm, the wires behind the backchecks: A0 0.16·L, C4 0.22, C5
+        // 0.3, D6 against `place`'s 0.45 (docs/release.md).
+        behind_strike: 0.06,
         width: 0.02,
         // 15 % of a fully exposed partial's rate: the node partials of the
         // bass (7 at A0–C3) die 23–45 dB down within 1.3 s of the release,
         // as on a commercial modelled piano (−25 to −39 dB).
         node_floor: 0.15,
-        strength: 0.1,
+        strength: 0.2,
         contact_exponent: 1.5,
         horizontal: 0.03,
         highest_note: 86,
@@ -587,11 +601,22 @@ impl DamperLaw {
         ((self.pedal_contact - travel) / span).clamp(0.0, 1.0).powf(self.pedal_curve)
     }
 
-    /// Mean of sin²(kπx/L) over the pad: 1/2 − cos(2kπ·pos)·sinc(kπ·w/L)/2.
-    pub fn shape(&self, k: u32, length: f64) -> f64 {
+    /// Contact point (share of the length from the agraffe) on a string
+    /// `length` long struck at `strike` (share of the length).
+    pub fn place(&self, strike: f64, length: f64) -> f64 {
+        if self.behind_strike > 0.0 {
+            (strike + self.behind_strike / length.max(1e-6)).min(0.45)
+        } else {
+            self.position
+        }
+    }
+
+    /// Mean of sin²(kπx/L) over the pad at `place` (x/L):
+    /// 1/2 − cos(2kπ·place)·sinc(kπ·w/L)/2.
+    pub fn shape(&self, k: u32, place: f64, length: f64) -> f64 {
         let a = k as f64 * std::f64::consts::PI * self.width / length;
         let sinc = if a > 1e-9 { a.sin() / a } else { 1.0 };
-        let pad = 0.5 - 0.5 * (2.0 * k as f64 * std::f64::consts::PI * self.position).cos() * sinc;
+        let pad = 0.5 - 0.5 * (2.0 * k as f64 * std::f64::consts::PI * place).cos() * sinc;
         // ⟨sin²⟩ peaks at 1: the floor is a share of a fully exposed partial.
         self.node_floor + (1.0 - self.node_floor) * pad
     }
@@ -1321,6 +1346,21 @@ impl Default for VelocityLaw {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_dampers_rest_a_fixed_distance_behind_the_strike() {
+        let m = PianoModel::default();
+        let place = |n: u8| {
+            let p = m.note(n);
+            m.damper.place(p.strike_pos, p.length)
+        };
+        // Further along the shorter strings, never past the middle.
+        assert!((21..86).all(|n| place(n + 1) >= place(n) - 1e-9 || m.note(n + 1).length > m.note(n).length));
+        assert!(place(86) <= 0.45 && place(21) > m.note(21).strike_pos);
+        // 0: the share of the length everywhere.
+        let old = DamperLaw { behind_strike: 0.0, ..m.damper };
+        assert_eq!(old.place(0.12, 0.2), old.position);
+    }
 
     fn temperament(kind: i32, key: i32) -> [f64; 12] {
         TemperamentLaw { kind, key, ..TemperamentLaw::EQUAL }.class_cents()

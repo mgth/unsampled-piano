@@ -303,6 +303,23 @@ mod tests {
     }
 
     #[test]
+    fn a_preset_saved_before_the_damper_line_keeps_its_dampers_place() {
+        // A full preset as saved before the field existed, and a partial one.
+        let mut text = preset_toml(&PianoModel::default());
+        let line = text.lines().find(|l| l.starts_with("behind_strike")).unwrap().to_string();
+        text = text.replace(&format!("{line}\n"), "");
+        for old in [toml::from_str::<PianoModel>(&text).unwrap(), toml::from_str("[damper]\nposition = 0.14\n").unwrap()] {
+            assert_eq!(old.damper.behind_strike, 0.0);
+            assert_eq!(old.damper.place(0.12, 0.3), old.damper.position);
+        }
+        let new: PianoModel = toml::from_str(&preset_toml(&PianoModel::default())).unwrap();
+        assert_eq!(new.damper.behind_strike, PianoModel::default().damper.behind_strike);
+        // The shipped default keeps the line.
+        let shipped = load_preset(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/default.toml")).unwrap();
+        assert_eq!(shipped.damper, PianoModel::default().damper);
+    }
+
+    #[test]
     fn listening_and_touch_presets_are_laid_over_the_sound() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets");
         assert!(is_overlay(&root.join("listening/Microphones/close.toml")));

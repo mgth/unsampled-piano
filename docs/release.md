@@ -1,6 +1,6 @@
 # Releases and soft blows against a Disklavier grand
 
-Status as of 2026-10-24.
+Status as of 2026-10-31.
 
 ## Listening report
 
@@ -44,6 +44,26 @@ Quick pedal changes in Liang's four pedalled pieces (218 changes, pedal from ≥
 | 1.5–6 kHz | 6.8 | 8.4 | 8.2 |
 
 The pedal releases themselves (38, drops at 30–500 ms) did not change.
+
+## The dampers' line (2026-10-31)
+
+On a grand the damper wires stand in a straight line behind the hammers', so the felt rests a fixed distance behind the strike point, not at a fixed share of the length: much further along the short treble strings. New `damper.behind_strike` (m along the strings, 0: `position` everywhere, as presets saved before it read). In the Model page's action the wires must stand behind the backchecks: 6 cm, which puts A0's pad at 0.16·L (0.14 before), C4's at 0.22, C5's at 0.3 and D6's against the 0.45 the law stops at.
+
+**The release bench read the recordings' noise.** Liang's isolated notes reach their noise floor (−42 to −60 dB re the peak) within a second of the key-up, sooner in the treble: F#5 can drop only 6 dB before it. The treble's "slow tail" at −25 dB was that floor, and the model, which went on decaying, looked far too fast. Both the recording and the model are now read down to 3 dB above the recording's own noise (the louder of before the onset and its last 0.3 s), every damped key A0–D6, velocity 96, held 2 s. On that reading the treble was right (3.6 dB rms), and the bass and the middle released too slowly at 120–500 ms.
+
+Same presets otherwise (a partial preset reads `shank_freq_mid` 0: the comparisons set it to 700 Hz). RMS gap to the recording over the keys, 60 ms–1 s, mean (dB):
+
+| | bass | middle | treble | all |
+|---|---|---|---|---|
+| before (0.14·L, strength 0.1) | 9.0 | 7.2 | 3.6 | 7.6 |
+| 3.5 cm, 0.1 | 8.7 | 6.8 | 3.7 | 7.4 |
+| 6 cm, 0.1 | 8.7 | 6.3 | 3.7 | 7.2 |
+| 6 cm, 0.15 | 7.8 | 5.7 | 3.9 | 6.6 |
+| **6 cm, 0.2** | 7.5 | 5.3 | 4.0 | 6.3 |
+
+With 3.5 cm and strength 0.2 the pedal bench's "after" (0.3–0.6 s after the dampers fall) lost 0.5 dB in the bass; with 6 cm it did not. Pedal bench (tools/pedal_bench.py, RMS of model − recording over its rows): halo 6.2 → 5.9, hold 4.5 → 3.7, after 9.2 → 9.2. In Liang's four pedalled pieces (tools/piece_bench.py), partials 1–2 0.3 s after the damper falls, model − recording: bass +3.8 → +2.7 dB, middle +4.0 → +2.5, treble +7.3 → +3.7 (the decays while held unchanged). Note bench (tools/bench.py): 1.04 → 1.04.
+
+So `behind_strike` 0.06 and `strength` 0.1 → 0.2. The treble's first 120 ms now drop 3–4 dB faster than the recording: the rate grows as f0 (c ∝ Z0), the next thing to look at.
 
 ## Soft blows: the unison struck unevenly
 

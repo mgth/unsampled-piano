@@ -130,4 +130,16 @@ mod tests {
         let new: PianoModel = serde_json::from_str(&serde_json::to_string(&PianoModel::default()).unwrap()).unwrap();
         assert_eq!(new.shank_freq_mid, PianoModel::default().shank_freq_mid);
     }
+
+    /// A project saved before `damper.behind_strike` existed keeps its
+    /// dampers at `position` (the field reads 0).
+    #[test]
+    fn a_state_saved_before_the_damper_line_keeps_its_dampers_place() {
+        let mut v = serde_json::to_value(PianoModel::default()).unwrap();
+        v["damper"].as_object_mut().unwrap().remove("behind_strike").expect("a damper field");
+        let old: PianoModel = serde_json::from_value(v).unwrap();
+        assert_eq!(old.damper.behind_strike, 0.0);
+        let new: PianoModel = serde_json::from_str(&serde_json::to_string(&PianoModel::default()).unwrap()).unwrap();
+        assert_eq!(new.damper.behind_strike, PianoModel::default().damper.behind_strike);
+    }
 }
