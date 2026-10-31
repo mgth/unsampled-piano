@@ -16,11 +16,15 @@
 //! The plan (an orthographic view of the board's face) is drawn by egui
 //! everywhere. The 3D view, which turns around the instrument, is drawn by
 //! the GPU where the host enables it ([`ModelView::enable_gpu`], feature
-//! `gpu`): the standalone player does; the plugin not yet.
+//! `gpu`): the standalone player does; the plugin not yet. Its realistic
+//! look (materials, a studio's lights, shadows and reflections) is an
+//! option, heavier on the GPU.
 
 mod cam;
 #[cfg(feature = "gpu")]
 mod gpu;
+#[cfg(feature = "gpu")]
+mod real;
 mod paint;
 #[cfg(test)]
 mod raster;
@@ -60,11 +64,18 @@ const GEOMETRY: &[(&str, &[&str])] = &[
 pub struct ModelView {
     pub mode: Mode,
     three_d: bool,
+    /// The 3D view in its realistic look.
+    pub(crate) realistic: bool,
     orbit: Option<Orbit>,
     /// Upright or grand the orbit was framed for.
     framed_vertical: bool,
     lid: bool,
     case: bool,
+    /// A grand's fallboard shut over the keys.
+    pub(crate) fallboard: bool,
+    /// How see-through a grand's front above the fallboard and its cover
+    /// over the pin block are (0 solid … 1 left out).
+    pub(crate) front_clear: f32,
     frame: bool,
     mics: bool,
     labels: bool,
@@ -88,10 +99,13 @@ impl Default for ModelView {
         Self {
             mode: Mode::Static,
             three_d: true,
+            realistic: false,
             orbit: None,
             framed_vertical: false,
             lid: true,
             case: true,
+            fallboard: false,
+            front_clear: 0.0,
             frame: true,
             mics: true,
             labels: true,
@@ -281,6 +295,26 @@ fn handles(model: &PianoModel) -> Vec<Handle> {
 }
 
 impl ModelView {
+    /// Sets the 3D view's camera: yaw, pitch, distance and the point
+    /// looked at ([`Orbit`]).
+    pub(crate) fn set_orbit(&mut self, v: &[f32]) {
+        if let &[yaw, pitch, dist, x, y, z] = v {
+            self.orbit = Some(Orbit { yaw, pitch, dist, target: [x, y, z] });
+        }
+    }
+
+    /// Leaves out the names, lid, case, frame or mics.
+    pub(crate) fn hide(&mut self, part: &str) {
+        match part {
+            "names" => self.labels = false,
+            "lid" => self.lid = false,
+            "case" => self.case = false,
+            "frame" => self.frame = false,
+            "mics" => self.mics = false,
+            _ => {}
+        }
+    }
+
     /// Lets the 3D view draw on the GPU (the host paints with egui_glow).
     #[cfg(feature = "gpu")]
     pub fn enable_gpu(&mut self) {
@@ -292,6 +326,14 @@ impl ModelView {
         return self.gpu.is_some();
         #[cfg(not(feature = "gpu"))]
         false
+    }
+
+    /// Why the realistic look does not work here, once it was tried.
+    fn real_failed(&self) -> Option<String> {
+        #[cfg(feature = "gpu")]
+        return self.gpu.as_ref().and_then(|g| g.real_failed());
+        #[cfg(not(feature = "gpu"))]
+        None
     }
 
     /// Whether the 3D view can be shown, and why not.
@@ -321,7 +363,7 @@ impl ModelView {
         lit: &[Part],
     ) -> (Shown, Option<&'static str>) {
         let gpu = self.gpu_state();
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             for (m, name, tip) in [
                 (Mode::Static, "Static", "The instrument as the parameters build it"),
                 (Mode::Live, "Live", "The instrument as it plays: keys, hammers, dampers, strings and soundboard"),
@@ -335,9 +377,20 @@ impl ModelView {
                 Ok(()) => three.on_hover_text("Turn around the instrument: drag to turn, right-drag to move, scroll to come closer, double-click to frame it again"),
                 Err(e) => three.on_disabled_hover_text(e.as_str()),
             };
+            ui.add_enabled(gpu.is_ok() && self.three_d, egui::Checkbox::new(&mut self.realistic, "Realistic")).on_hover_text(
+                "The 3D view as a photograph: each part's material, a studio's lights, soft shadows, reflections, a floor. Heavier on the GPU",
+            );
             ui.checkbox(&mut self.labels, "Names");
             ui.checkbox(&mut self.lid, "Lid");
             ui.checkbox(&mut self.case, "Case");
+            ui.add_enabled(self.case, egui::Checkbox::new(&mut self.fallboard, "Fallboard"))
+                .on_hover_text("A grand's fallboard shut over the keys, the name on it")
+                .on_disabled_hover_text("The fallboard is the case's: tick Case");
+            ui.add_enabled(
+                self.case,
+                egui::Slider::new(&mut self.front_clear, 0.0..=1.0).text("Front see-through").custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
+            )
+            .on_hover_text("A grand's front above the fallboard and its cover over the tuning pins: solid, see-through, or left out");
             ui.checkbox(&mut self.frame, "Frame");
             ui.checkbox(&mut self.mics, "Mics");
         });
@@ -346,6 +399,12 @@ impl ModelView {
             && self.gpu_enabled()
         {
             ui.label(RichText::new(format!("{e} The plan is shown instead.")).small().weak());
+        }
+        if let Some(e) = self.real_failed()
+            && self.three_d
+            && self.realistic
+        {
+            ui.label(RichText::new(format!("{e} The plain look is shown instead.")).small().weak());
         }
         ui.add_space(4.0);
         let three_d = self.three_d && gpu.is_ok();
@@ -361,10 +420,12 @@ impl ModelView {
         let field = obs.as_ref().and_then(|o| self.board_field(model, o));
         let key_levels = obs.as_ref().map(|o| self.key_levels(o));
         let live = obs.as_ref().map(|o| Live { obs: o, keys: key_levels.as_ref().unwrap(), board: field.as_deref(), time: self.start.elapsed().as_secs_f32() / 8.0 });
-        let options = Options { key: *key, lit, lid: self.lid, frame: self.frame, mics: self.mics, case: self.case, ink: ui.visuals().text_color() };
+        let options = Options { key: *key, lit, lid: self.lid, frame: self.frame, mics: self.mics, case: self.case, fallboard: self.fallboard, front: 1.0 - self.front_clear, ink: ui.visuals().text_color() };
         let scene = Arc::new(scene::build(model, live.as_ref(), &options));
-        if self.orbit.is_none() || self.framed_vertical != scene.vertical {
-            self.orbit = Some(Orbit::framing(scene.body.0, scene.body.1));
+        // Framed again for the other kind of piano (by the view, which
+        // knows its shape).
+        if self.framed_vertical != scene.vertical {
+            self.orbit = None;
             self.framed_vertical = scene.vertical;
         }
 
@@ -393,7 +454,11 @@ impl ModelView {
             Mode::Static | Mode::Live => {
                 let side = 300.0;
                 let w = if avail > 700.0 { avail - side - 16.0 } else { avail };
-                let h = (w * 0.68).clamp(320.0, 760.0);
+                // Down to the bottom of the page as it shows (what lies
+                // above it measured from the page's top, not the screen's,
+                // so that scrolling does not grow it).
+                let above = ui.cursor().top() - ui.max_rect().top();
+                let h = (ui.clip_rect().height() - above - 8.0).max(320.0);
                 ui.horizontal_top(|ui| {
                     open = if three_d { self.view_3d(ui, &scene, w, h) } else { self.plan(ui, &scene, w, h) };
                     if avail > 700.0 {
@@ -475,7 +540,7 @@ impl ModelView {
     /// The instrument in 3D, the camera turned by the pointer.
     fn view_3d(&mut self, ui: &mut Ui, scene: &Arc<Scene>, w: f32, h: f32) -> Option<&'static str> {
         let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, h), Sense::click_and_drag());
-        let orbit = self.orbit.get_or_insert_with(|| Orbit::framing(scene.body.0, scene.body.1));
+        let orbit = self.orbit.get_or_insert_with(|| Orbit::framing(scene.body.0, scene.body.1, rect.aspect_ratio()));
         if resp.dragged_by(egui::PointerButton::Primary) {
             let d = resp.drag_delta();
             orbit.yaw -= d.x * 0.008;
@@ -490,13 +555,14 @@ impl ModelView {
             orbit.dist = (orbit.dist * (-scroll * 0.002).exp()).clamp(0.2, 30.0);
         }
         if resp.double_clicked() {
-            *orbit = Orbit::framing(scene.body.0, scene.body.1);
+            *orbit = Orbit::framing(scene.body.0, scene.body.1, rect.aspect_ratio());
         }
         let m = orbit.matrix(rect.aspect_ratio());
         let bg = ui.visuals().extreme_bg_color;
         #[cfg(feature = "gpu")]
         if let Some(g) = &self.gpu {
-            g.paint(ui, rect, scene.clone(), m, bg);
+            let real = self.realistic.then(|| orbit.camera(rect.aspect_ratio()));
+            g.paint(ui, rect, scene.clone(), m, bg, real);
         }
         #[cfg(not(feature = "gpu"))]
         {

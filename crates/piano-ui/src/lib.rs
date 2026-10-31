@@ -244,12 +244,31 @@ impl PianoUi {
         } else if let Some(mode) = title.strip_prefix("Model").or_else(|| title.strip_prefix("model")) {
             self.page = MODEL_PAGE;
             self.search.clear();
-            // "Model", "Model live", "Model editor".
-            match mode.trim().to_ascii_lowercase().as_str() {
-                "live" => self.model.mode = model::Mode::Live,
-                "editor" => self.model.mode = model::Mode::Editor,
-                "static" => self.model.mode = model::Mode::Static,
-                _ => {}
+            // "Model", "Model live", "Model editor", then "realistic" for
+            // the 3D view's realistic look, "fallboard" to shut it,
+            // "front=<0…1>" for how see-through the front above it is,
+            // "orbit=yaw,pitch,dist,x,y,z"
+            // for its camera and "hide=names,lid,case,frame,mics" (visual
+            // checks).
+            for word in mode.split_whitespace() {
+                match word.to_ascii_lowercase().as_str() {
+                    "live" => self.model.mode = model::Mode::Live,
+                    "editor" => self.model.mode = model::Mode::Editor,
+                    "static" => self.model.mode = model::Mode::Static,
+                    "realistic" => self.model.realistic = true,
+                    "fallboard" => self.model.fallboard = true,
+                    w => {
+                        if let Some(v) = w.strip_prefix("orbit=").and_then(|v| v.split(',').map(|x| x.parse().ok()).collect::<Option<Vec<f32>>>()) {
+                            self.model.set_orbit(&v);
+                        }
+                        if let Some(v) = w.strip_prefix("front=").and_then(|v| v.parse().ok()) {
+                            self.model.front_clear = v;
+                        }
+                        for part in w.strip_prefix("hide=").unwrap_or_default().split(',') {
+                            self.model.hide(part);
+                        }
+                    }
+                }
             }
         } else if self.host_page.as_ref().is_some_and(|h| h.title().eq_ignore_ascii_case(title)) {
             self.page = HOST_PAGE;

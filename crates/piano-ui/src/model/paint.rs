@@ -52,7 +52,7 @@ pub fn draw(painter: &egui::Painter, rect: Rect, scene: &Scene, m: &Mat4, line_w
         }
         Some(sum / vs.len() as f32)
     };
-    for t in scene.tris.as_chunks::<3>().0.iter().chain(scene.glass.as_chunks::<3>().0) {
+    for t in scene.tris.as_chunks::<3>().0.iter().chain(scene.glass.as_chunks::<3>().0).chain(scene.lid.as_chunks::<3>().0) {
         if let Some(d) = depth(t) {
             prims.push((d, Prim::Tri(t)));
         }
