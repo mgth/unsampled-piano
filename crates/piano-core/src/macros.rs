@@ -175,11 +175,16 @@ impl PianoModel {
         m.hammer_mass_scale *= scale(SIZE_HAMMER, z);
 
         // Lid: towards shut (−1) or fully open (+1) from the preset's
-        // angle; a removed lid is put back on, from shut.
+        // angle. A removed lid fades in from 0: fully open, its reflection
+        // and its shadow growing with |l|, then shutting on the negative
+        // side; at either end it is a whole lid.
         let l = v(c.lid);
         if let Some(sb) = m.soundboard.as_mut() {
             if l != 0.0 && sb.lid_removed {
-                (sb.lid_removed, sb.lid_angle) = (false, LID_MIN);
+                let p = l.abs();
+                (sb.lid_removed, sb.lid_angle) = (false, LID_MAX);
+                sb.lid_reflection *= p;
+                sb.lid_transmission = 1.0 - p * (1.0 - sb.lid_transmission);
             }
             let end = if l < 0.0 { LID_MIN } else { LID_MAX };
             sb.lid_angle += (end - sb.lid_angle) * l.abs();
@@ -222,6 +227,42 @@ mod tests {
         let mut end = c;
         end.macros.tone = 1.0;
         assert!(same(&far.with_macros(), &end.with_macros()));
+    }
+
+    /// From the default's removed lid the lid control moves the sound
+    /// gradually on both sides of 0: nothing changes by a hair, and the
+    /// shut side closes step by step.
+    #[test]
+    fn the_lid_fades_in_from_a_removed_lid() {
+        use crate::room::piano_directivity;
+        use crate::soundboard::Soundboard;
+        let at = |l: f64| {
+            let mut m = PianoModel::default();
+            m.macros.lid = l;
+            let m = m.with_macros();
+            let sb = crate::soundboard::SoundboardParams { f_max: 1000.0, grid_step: 0.05, ..m.soundboard.unwrap() };
+            (sb, piano_directivity(&m.room, &sb), sb.case_gain(std::f64::consts::TAU * 8000.0))
+        };
+        let (base, q0, g0) = at(0.0);
+        assert!(base.lid_removed);
+        let rad = |sb| Soundboard::new(crate::soundboard::SoundboardParams::resolved(sb)).radiation();
+        let w0 = rad(base);
+        for eps in [-1e-6, 1e-6] {
+            let (sb, q, g) = at(eps);
+            assert!(!sb.lid_removed);
+            assert!((q - q0).abs() < 1e-5 && (g - g0).abs() < 1e-5, "{eps}: Q {q}, gain {g}");
+            let w = rad(sb);
+            let d: f64 = w.iter().zip(&w0).flat_map(|(x, y)| (0..2).map(move |c| (x[c] - y[c]).norm_sqr())).sum();
+            let e: f64 = w0.iter().flat_map(|x| x.iter().map(|c| c.norm_sqr())).sum();
+            assert!((d / e).sqrt() < 1e-4, "{eps}");
+        }
+        // The shut side closes gradually: the highs fall step by step.
+        let g: Vec<f64> = [-0.9, -0.97, -1.0].iter().map(|&l| at(l).2).collect();
+        assert!(g0 > g[0] && g[0] > g[1] && g[1] > g[2], "{g:?}");
+        let (shut, q, _) = at(-1.0);
+        assert_eq!((shut.lid_angle, shut.lid_reflection, q), (LID_MIN, PianoModel::default().soundboard.unwrap().lid_reflection, 2.0));
+        let (open, q, _) = at(1.0);
+        assert_eq!((open.lid_angle, q), (LID_MAX, 3.0));
     }
 
     #[test]

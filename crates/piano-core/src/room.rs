@@ -166,7 +166,9 @@ pub fn to_room(p: &RoomParams, sb: &SoundboardParams, (x, y, z): (f64, f64, f64)
 /// [`RoomParams::directivity`] is 0:
 /// - a grand with its lid open beams towards the lid's opening: Q = 3
 ///   (directivity index ≈ 4–6 dB, Q ≈ 3–4, at mid and high frequencies),
-///   down to 2 as it shuts ([`SoundboardParams::lid_closure`]);
+///   down to 2 as it shuts ([`SoundboardParams::lid_closure`]) and as its
+///   reflection fades below a grand's (the lid control fading a removed
+///   lid in);
 /// - a grand with the lid closed or removed still radiates mostly up and
 ///   down, its two faces in antiphase: Q = 2;
 /// - an upright against a wall radiates into the half space in front of it:
@@ -181,8 +183,9 @@ pub fn piano_directivity(p: &RoomParams, sb: &SoundboardParams) -> f64 {
     }
     if sb.vertical {
         if sb.wall_distance > 0.0 { 2.0 } else { 1.5 }
-    } else if !sb.lid_removed && sb.lid_reflection > 0.0 {
-        3.0 - sb.lid_closure()
+    } else if !sb.lid_removed {
+        let reflects = (sb.lid_reflection / SoundboardParams::GRAND_2M.lid_reflection).clamp(0.0, 1.0);
+        2.0 + (1.0 - sb.lid_closure()) * reflects
     } else {
         2.0
     }

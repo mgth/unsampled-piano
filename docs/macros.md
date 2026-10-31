@@ -25,7 +25,7 @@ Measured with `tools/macro_sweep.py` (close microphones, the default instrument)
 | `unisons` (pure ↔ lively) | unison spread × 3^v (× 1.6^v towards pure), hit spread × 1.5^v | C5 over 1–2 s: −3.7 / −2.3 / +4.5 / +5.7 dB; C4: within 1 dB |
 | `mechanism` (discreet ↔ present) | action knock, keybed, damper and pedal noise × 8^v (defaults 7.5 dB below the real grands' level, which +0.42 reaches) | the knock under C7: −4.7 / −4.0 / +8.0 / +17.0 dB (lower down it sinks under the note's own sound) |
 | `size` (baby ↔ concert grand) | bass string length × 1.25^v (bass inharmonicity ∝ 1/L²), board and frame × 1.12^v, hammer mass × 1.1^v | (by construction) |
-| `lid` (shut ↔ open) | lid angle from the preset's towards 0 (shut) or 45°; a removed lid is put back on, shut, then opened | C4's centroid, engine's set-up, open side: +11 / +5 %; shut side: see [lid.md](lid.md) |
+| `lid` (shut ↔ open) | lid angle from the preset's towards 0 (shut) or 45°; a removed lid fades in, at 45° with its reflection and shadow × \|v\|, then shuts on the negative side | C4's centroid, engine's set-up, open side: +11 / +5 %; shut side: see [lid.md](lid.md) |
 | `space` (close ↔ roomy) | room tail × 3^v | room level after a staccato C4: −6.7 / −3.8 / +4.3 / +8.2 dB |
 | `stretch` (strict ↔ stretched) | stretch law × (1 + v) | equal temperament at −1, twice the preset's stretch at +1 |
 

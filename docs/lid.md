@@ -62,5 +62,5 @@ The lower lid sends a little more to the close pair; shut, the box's corner move
 - `soundboard.lid_angle` (0: shut), `soundboard.lid_removed`, `soundboard.lid_leak` (listening: the angle and `lid_removed` travel with the microphones' presets). The default instrument has its lid removed (the calibrated set-up).
 - `presets/listening/Microphones/audience_lid_closed.toml` shuts it; the other microphone presets open it at 35°, all with `lid_removed = false`.
 - Presets and plugin projects saved before 2026-10-31 keep their lid (`soundboard::deserialize_saved`, and `piano_host::overlay_preset` for listening overlays): without `lid_removed`, an angle of 0 reads as removed, `lid_shut` ≥ 0.5 as shut.
-- The `lid` macro moves the angle: towards 0 (shut) at −1, 45° at +1; a removed lid is put back on, from shut.
+- The `lid` macro moves the angle: towards 0 (shut) at −1, 45° at +1. A removed lid (the default) fades in so that the control is continuous through 0: at 45°, its reflection × |v| and its shadow's loss × |v|, and on the negative side the angle goes from 45° to 0 (test `the_lid_fades_in_from_a_removed_lid`). The room's directivity follows the reflection, 2 + (1 − closure)·reflection/0.85.
 - The microphones' page and the 3D view draw the shut lid.
