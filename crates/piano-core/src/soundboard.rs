@@ -521,19 +521,28 @@ impl SoundboardParams {
     /// Point at a fractional key position along the main or the bass bridge.
     pub fn bridge_point_at(&self, note: f64, main: bool) -> (f64, f64) {
         let (x, y) = self.upright_point_at(note, main);
-        if !main || self.main_string_slant == 0.0 {
+        let a = if main { self.string_slant(note) } else { 0.0 };
+        if a == 0.0 {
             return (x, y);
         }
-        let (s, c) = self.string_slant(note).sin_cos();
+        let (s, c) = a.sin_cos();
         (KEY_LINE_X + (x - KEY_LINE_X) * c, y + (x - KEY_LINE_X) * s)
     }
 
     /// A main bridge string's slant (rad, towards the bass side going
     /// back): [`Self::main_string_slant`] at the main bridge's lowest key,
-    /// 0 at C8.
+    /// 0 at C8, but no more than keeps its bridge point [`SLANT_EDGE`]
+    /// inside the board's bass side (the spine for a grand) and its front
+    /// edge, whatever the angle asked. The strings lean only towards the
+    /// bass: a negative angle reads as 0.
     pub fn string_slant(&self, note: f64) -> f64 {
         let t = ((108.0 - note) / (108.0 - self.main_bridge_from as f64).max(1.0)).clamp(0.0, 1.0);
-        self.main_string_slant.to_radians() * t
+        let a = self.main_string_slant.to_radians() * t;
+        let (x, y) = self.upright_point_at(note, true);
+        let d = (x - KEY_LINE_X).max(1e-9);
+        let side = ((self.b - SLANT_EDGE - y).max(0.0) / d).min(1.0).asin();
+        let front = ((SLANT_EDGE - KEY_LINE_X) / d).clamp(-1.0, 1.0).acos();
+        a.clamp(0.0, side.min(front))
     }
 
     /// Where a key's strings cross the keys' line ([`KEY_LINE_X`]), across
@@ -617,6 +626,10 @@ impl SoundboardParams {
 /// front ends, 3 cm in front of the board's front edge; the main strings
 /// turn about it when they slant ([`SoundboardParams::main_string_slant`]).
 pub const KEY_LINE_X: f64 = -0.03;
+
+/// The slanting main strings' bridge points stay this far (m) inside the
+/// board's sides ([`SoundboardParams::string_slant`]).
+pub const SLANT_EDGE: f64 = 0.05;
 
 /// The radiation paths from a board cell to a point: (length, gain).
 #[derive(Clone, Copy)]
@@ -1476,6 +1489,25 @@ mod tests {
             assert!((len(x, y) - len(x0, y0)).abs() < 1e-9, "key {n}");
             // ... and leans towards the bass side (+y) by the angle.
             assert!(((y - key) / (x - KEY_LINE_X) - tan).abs() < 1e-9, "key {n}");
+        }
+        // Whatever the angle asked, the bridge stays on the board, at least
+        // SLANT_EDGE inside its sides; the editor's range keeps it inside
+        // the outline untouched.
+        let outline = Outline::new(&p).unwrap();
+        for a in [12.0, 20.0, 45.0, 90.0] {
+            let q = SoundboardParams { main_string_slant: a, ..upright };
+            for n in q.main_bridge_from..=108 {
+                let (x, y) = q.bridge_point(n);
+                assert!(outline.contains(x, y) && y <= q.b - SLANT_EDGE + 1e-9 && x >= SLANT_EDGE - 1e-9, "{a}°, key {n}: ({x}, {y})");
+            }
+        }
+        // Towards the treble: upright.
+        let back = SoundboardParams { main_string_slant: -5.0, ..upright };
+        assert!((back.main_bridge_from..=108).all(|n| back.bridge_point(n) == upright.bridge_point(n)));
+        let max = SoundboardParams { main_string_slant: 12.0, ..upright };
+        for n in max.main_bridge_from..=108 {
+            let fan = 12f64.to_radians() * (108.0 - n as f64) / (108.0 - max.main_bridge_from as f64);
+            assert!((max.string_slant(n as f64) - fan).abs() < 1e-12, "key {n}");
         }
         // They fan: the lowest key at the full angle, C8 upright.
         assert!((p.string_slant(p.main_bridge_from as f64) - 8f64.to_radians()).abs() < 1e-12 && p.string_slant(108.0) == 0.0);

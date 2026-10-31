@@ -98,7 +98,7 @@ Since 2026-10-30 the register measures take the channels' powers instead of thei
 
 `soundboard.main_string_slant` (degrees) is the angle at the main bridge's lowest key, falling in equal steps of keys to 0 at C8. Each string turns about its key's place on the keys' line (`KEY_LINE_X`, 3 cm in front of the board, where the bridges' layout puts the strings' front ends) and keeps its length: `treble_bridge` still describes the bridge of upright strings, and each of its points moves towards the bass side by the string's length times its angle's sine, and forward a little. The keys, the hammers and the frame's agraffes stay where they were (`SoundboardParams::key_across`): only the board's drive points move. A preset saved before the field reads 0.
 
-At 8°, A2's bridge point moves 16 cm towards the spine and ends 16 cm from it, C4's 6.5 cm, C5's 2.7 cm, C7's 0.3 cm. The bass strings cross over the tenor at 12–15° the other way. 12° would bring A2 within 8 cm of the spine.
+At 8°, A2's bridge point moves 16 cm towards the spine and ends 16 cm from it, C4's 6.5 cm, C5's 2.7 cm, C7's 0.3 cm. The bass strings cross over the tenor at 12–15° the other way. 12° would bring A2 within 8 cm of the spine; it is the editor's top (0–12°). Whatever the angle asked, a string leans no further than keeps its bridge point `SLANT_EDGE` (5 cm) inside the board's bass side and front edge: at 20°, A2–B2 left the board (A2 7 cm beyond the spine). A negative angle reads as 0.
 
 ### On the bench
 

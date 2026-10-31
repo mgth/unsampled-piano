@@ -628,8 +628,9 @@ const HELP: &[(&str, &str, &str)] = &[
          equal steps of keys to 0 at C8 (the strings fan). Each string turns about its key's place \
          on the keys' line, 3 cm in front of the board, keeping its length: the main bridge's \
          points move towards the bass side by the string's length times its angle's sine. The \
-         frame's agraffes stay at the keys. 0: upright strings; a preset that does not set it \
-         gets upright strings.",
+         frame's agraffes stay at the keys. A string leans no further than keeps its bridge point \
+         5 cm inside the board's bass side and front edge; negative angles read as 0. 0: \
+         upright strings; a preset that does not set it gets upright strings.",
     ),
     ("soundboard.main_bridge_from", "Lowest key on the main bridge; the keys below are on the bass bridge.", "MIDI note."),
     (
