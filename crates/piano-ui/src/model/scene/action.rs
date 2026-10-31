@@ -55,7 +55,7 @@ const JACK_L: f64 = 0.04;
 /// The underlevers' hinge behind the hammers' line (on the damper rail, in
 /// front of the belly rail), its height over the keys, and how far a
 /// damper lifts.
-const HINGE_BEHIND: f64 = 0.085;
+const HINGE_BEHIND: f64 = 0.09;
 const HINGE_UP: f64 = 0.008;
 const DAMPER_LIFT: f64 = 0.015;
 const WIRE_R: f32 = 0.0008;
@@ -644,10 +644,12 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
 
 
 /// Where key `m`'s damper rests on its strings with `ends` (plate x, y):
-/// the engine's place, on the string as drawn.
+/// the share of the speaking length the engine damps at, from its own
+/// length (the drawn string's is the bridge's and the hammers' line's),
+/// laid on the string as drawn.
 pub(super) fn damper_at(model: &PianoModel, ends: StringEnds, m: u8) -> (f64, f64) {
-    let ((ax, ay), (bx, by), _) = ends;
-    damper_point(ends, model.damper.place(model.note(m).strike_pos, (bx - ax).hypot(by - ay)))
+    let n = model.note(m);
+    damper_point(ends, model.damper.place(n.strike_pos, n.length))
 }
 
 /// A grand's key `m`'s damper wire along (world y): under its head.
@@ -817,7 +819,7 @@ fn rails(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
     let (py, pz) = g.pivot;
     b.block((py - 0.032, py - 0.01), (pz - 0.012, pz + 0.008), x, w, rail);
     let (hy, hz) = g.hinge;
-    b.block((hy + 0.006, hy + 0.016), (hz - 0.012, hz + 0.012), x, w, rail);
+    b.block((hy + 0.004, hy + 0.014), (hz - 0.012, hz + 0.012), x, w, rail);
     let rest_at = py + 0.085;
     let mut m = 21;
     while m <= 108 {
@@ -973,7 +975,7 @@ mod tests {
                 let wire = damper_wire(&c, m);
                 assert!(wire - 0.004 > backcheck + 0.003 + 0.0011, "key {m}'s underlever on its backcheck's rod: wire at {wire}, backcheck at {backcheck}");
                 assert!(wire - WIRE_R as f64 > backcheck + 0.006 + 0.06 * 0.026, "key {m}'s wire through its backcheck: {wire}, {backcheck}");
-                assert!(g.hinge.0 + 0.016 < BELLY_AT && g.hinge.0 > wire + 0.02, "key {m}'s hinge at {}", g.hinge.0);
+                assert!(g.hinge.0 + 0.014 < BELLY_AT && g.hinge.0 > wire + 0.015, "key {m}'s hinge at {}", g.hinge.0);
             }
         }
     }

@@ -618,13 +618,15 @@ pub fn string(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, key: &m
     label(xs + 8.0, sy + 18.0, Align2::LEFT_CENTER, &format!("Hammer at {:.3} L", n.strike_pos), Some(Part::Strike));
     let d = &model.damper;
     if *key <= d.highest_note {
-        let xd = AGRAFFE_X + d.position as f32 * len_px;
+        // Where the engine puts it (`behind_strike` behind the hammer).
+        let place = d.place(n.strike_pos, n.length);
+        let xd = AGRAFFE_X + place as f32 * len_px;
         let w = (d.width / n.length) as f32 * len_px;
         let w = w.max(3.0);
         let pad = r(xd - w / 2.0, sy - 11.0, xd + w / 2.0, sy);
         p.rect_filled(pad, 1.0, if lit(Part::DamperPoint) { HIGHLIGHT } else { FELT });
         p.line_segment([at(xd, sy - 11.0), at(xd, sy - 22.0)], line(1.0, weak));
-        label(xd + w / 2.0 + 4.0, sy - 17.0, Align2::LEFT_CENTER, &format!("Damper at {:.2} L", d.position), Some(Part::DamperPoint));
+        label(xd + w / 2.0 + 4.0, sy - 17.0, Align2::LEFT_CENTER, &format!("Damper at {place:.2} L"), Some(Part::DamperPoint));
     } else {
         label(AGRAFFE_X + 60.0, sy - 17.0, Align2::LEFT_CENTER, "No damper: this string rings freely", Some(Part::DamperPoint));
     }
