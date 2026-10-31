@@ -23,8 +23,8 @@ fn main() {
     ];
     println!("{:28} {}", "shut − open (dB)", (0..7).map(|i| format!("{:>6.0}", 125.0 * 2f64.powi(i))).collect::<String>());
     for (name, angle, mics) in sets {
-        let open = SoundboardParams { lid_angle: angle, mics_relative: true, mics, ..SoundboardParams::GRAND_2M }.resolved();
-        let shut = SoundboardParams { lid_shut: 1.0, ..open };
+        let open = SoundboardParams { lid_angle: angle, lid_removed: angle <= 0.0, mics_relative: true, mics, ..SoundboardParams::GRAND_2M }.resolved();
+        let shut = SoundboardParams { lid_angle: 0.0, lid_removed: false, ..open };
         let (o, s) = (bands(&Soundboard::new(open)), bands(&Soundboard::new(shut)));
         let label = format!("{name} (lid {})", if angle > 0.0 { format!("{angle:.0}°") } else { "removed".into() });
         println!("{label:28} {}", o.iter().zip(&s).map(|(o, s)| format!("{:>+6.1}", s - o)).collect::<String>());

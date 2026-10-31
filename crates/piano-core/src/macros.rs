@@ -174,13 +174,15 @@ impl PianoModel {
         m.frame.b *= board;
         m.hammer_mass_scale *= scale(SIZE_HAMMER, z);
 
-        // Lid: towards shut (−1) or fully open (+1) from the preset's angle
-        // and closure.
+        // Lid: towards shut (−1) or fully open (+1) from the preset's
+        // angle; a removed lid is put back on, from shut.
         let l = v(c.lid);
         if let Some(sb) = m.soundboard.as_mut() {
-            let (end, shut) = if l < 0.0 { (LID_MIN, 1.0) } else { (LID_MAX, 0.0) };
+            if l != 0.0 && sb.lid_removed {
+                (sb.lid_removed, sb.lid_angle) = (false, LID_MIN);
+            }
+            let end = if l < 0.0 { LID_MIN } else { LID_MAX };
             sb.lid_angle += (end - sb.lid_angle) * l.abs();
-            sb.lid_shut += (shut - sb.lid_shut) * l.abs();
         }
 
         // Space: more or less of the room's reverberation.

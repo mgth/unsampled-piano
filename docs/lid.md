@@ -1,6 +1,6 @@
 # The lid
 
-Status as of 2026-10-31: the lid has the case's shape, and since 2026-10-30 it can be **shut** (`soundboard.lid_shut`). Until then an angle of 0 meant a lid taken away, and the "lid closed" listening preset was in fact a piano without its lid.
+Status as of 2026-10-31: the lid has the case's shape, and since 2026-10-30 it can be **shut**. Until then an angle of 0 meant a lid taken away, and the "lid closed" listening preset was in fact a piano without its lid. From 2026-10-30 to 2026-10-31 a separate `lid_shut` (0–1) shut it; since then an angle of 0 is the shut lid and `lid_removed` (a switch) takes it away.
 
 ## The open lid
 
@@ -22,7 +22,7 @@ Shut, the lid closes a box over the board's top face, 16 cm high (`lid_hinge_hei
 
   g(f) = 1 − s + s·(leak + (1 − leak)/√(1 + (f/fc)²)),  fc = c/2h,
 
-with s = `lid_shut` and leak = `lid_leak` (0.25, −12 dB in the highs). As s grows the open lid's image and shadow fade (reflection × (1 − s), shadowed paths from `lid_transmission` towards 1): at s = 1 there is no open lid, whatever `lid_angle` says, and the room's directivity goes from an open grand's Q = 3 to a closed one's 2. Shutting the lid or opening it from shut is so continuous (test `shutting_the_lid_is_continuous`). The back face is untouched. Grands only: an upright has its own case (`case_open`, docs/upright.md). The weights are per mode, so the real-time cost is nil.
+with s the closure (`SoundboardParams::lid_closure`): 1 at `lid_angle` = 0, 0 from `LID_CLOSING` (5°, a 13 cm gap at the front edge) open, linear between, and leak = `lid_leak` (0.25, −12 dB in the highs). As s grows the open lid's image and shadow fade (reflection × (1 − s), shadowed paths from `lid_transmission` towards 1): at 0° there is no open lid, and the room's directivity goes from an open grand's Q = 3 to a closed one's 2. Shutting the lid or opening it from shut is so continuous (test `shutting_the_lid_is_continuous`). The 5° are an estimate: no measurement of a lid nearly shut was found. The back face is untouched. Grands only: an upright has its own case (`case_open`, docs/upright.md). The weights are per mode, so the real-time cost is nil.
 
 No measurement of one piano with its lid open and shut was found (the corpora of `/mnt/local/SSD_B-CT4000/Piano/` have none; the literature found is qualitative: "mostly the timbre, a small level change"). `lid_leak` and the c/2h corner are estimates.
 
@@ -59,7 +59,8 @@ The lower lid sends a little more to the close pair; shut, the box's corner move
 
 ## Where it is
 
-- `soundboard.lid_shut`, `soundboard.lid_leak` (listening: `lid_shut` travels with the microphones' presets).
-- `presets/listening/Microphones/audience_lid_closed.toml` shuts it; the other microphone presets set `lid_shut = 0`.
-- The `lid` macro moves the closure with the angle: towards shut at −1, none at +1.
+- `soundboard.lid_angle` (0: shut), `soundboard.lid_removed`, `soundboard.lid_leak` (listening: the angle and `lid_removed` travel with the microphones' presets). The default instrument has its lid removed (the calibrated set-up).
+- `presets/listening/Microphones/audience_lid_closed.toml` shuts it; the other microphone presets open it at 35°, all with `lid_removed = false`.
+- Presets and plugin projects saved before 2026-10-31 keep their lid (`soundboard::deserialize_saved`, and `piano_host::overlay_preset` for listening overlays): without `lid_removed`, an angle of 0 reads as removed, `lid_shut` ≥ 0.5 as shut.
+- The `lid` macro moves the angle: towards 0 (shut) at −1, 45° at +1; a removed lid is put back on, from shut.
 - The microphones' page and the 3D view draw the shut lid.

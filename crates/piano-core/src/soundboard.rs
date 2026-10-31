@@ -193,25 +193,27 @@ pub struct SoundboardParams {
     /// `case_panel_mass` (kg/m²).
     pub case_open: f64,
     pub case_panel_mass: f64,
-    /// Lid opening angle (degrees); 0 = lid removed. It is hinged along the
-    /// board's long side y = b, `lid_hinge_height` m above the board, has
-    /// the case's shape ([`Self::lid_outline`]), and opens towards y < 0
-    /// (the audience).
+    /// Lid opening angle (degrees); 0: shut on the case. It is hinged
+    /// along the board's long side y = b, `lid_hinge_height` m above the
+    /// board, has the case's shape ([`Self::lid_outline`]), and opens
+    /// towards y < 0 (the audience). Shut, the board's front face sounds
+    /// into the box the case and the lid close, 16 cm high: below its
+    /// height resonance c/2h (≈ 1070 Hz) board, air and lid move together
+    /// and the sound gets out round the rim and through the lid; above, the
+    /// box rings and its felts and wood take a growing share. Gain on the
+    /// front face: `lid_leak` + (1 − `lid_leak`)/√(1 + (f·2h/c)²), mixed
+    /// in as the lid closes over its last [`LID_CLOSING`] degrees
+    /// ([`Self::lid_closure`]). Not on an upright (`case_open`).
     pub lid_angle: f64,
+    /// No lid at all (taken off the case): `lid_angle` is then unused.
+    /// Before 2026-10-31 an angle of 0 meant this; a preset saved then
+    /// keeps its removed lid ([`deserialize_saved`]).
+    pub lid_removed: bool,
     pub lid_hinge_height: f64,
     /// Pressure reflection coefficient of the lid, and transmission through
     /// it for a microphone behind it (no diffraction modelled).
     pub lid_reflection: f64,
     pub lid_transmission: f64,
-    /// How shut the lid is: 0 as `lid_angle` says, 1 shut on the case (no
-    /// open lid then, whatever the angle). The board's front face then
-    /// sounds into the box the case and the lid close, 16 cm high: below
-    /// its height resonance c/2h (≈ 1070 Hz) board, air and lid move
-    /// together and the sound gets out round the rim and through the lid;
-    /// above, the box rings and its felts and wood take a growing share.
-    /// Gain on the front face: `lid_leak` + (1 − `lid_leak`)/√(1 + (f·2h/c)²),
-    /// mixed with 1 by `lid_shut`. Not on an upright (`case_open`).
-    pub lid_shut: f64,
     /// Share of the front face's sound that still leaves the shut case at
     /// high frequencies (the gaps, the opening behind the music desk).
     pub lid_leak: f64,
@@ -289,10 +291,39 @@ pub const OUTLINE_POINTS: usize = 10;
 /// thick as [`crate::structure::RimParams`]' default.
 pub const LID_OVERHANG: f64 = 0.075;
 
+/// The last degrees of the lid's travel (a 13 cm gap at the front edge of
+/// a 1.5 m wide case), over which it goes from open to shut: its image and
+/// shadow fade into the shut box's gain, so that closing it is continuous.
+pub const LID_CLOSING: f64 = 5.0;
+
 impl Default for SoundboardParams {
     fn default() -> Self {
         Self::GRAND_2M
     }
+}
+
+/// A saved soundboard, its lid read as presets wrote it before 2026-10-31
+/// too: without `lid_removed`, an angle of 0 was a removed lid and
+/// `lid_shut` (0–1) a shut one.
+#[cfg(feature = "serde")]
+pub fn deserialize_saved<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<SoundboardParams>, D::Error> {
+    #[derive(serde::Deserialize)]
+    struct Saved {
+        #[serde(flatten)]
+        p: SoundboardParams,
+        lid_removed: Option<bool>,
+        lid_shut: Option<f64>,
+    }
+    let saved: Option<Saved> = serde::Deserialize::deserialize(d)?;
+    Ok(saved.map(|s| {
+        let mut p = s.p;
+        match (s.lid_removed, s.lid_shut) {
+            (Some(removed), _) => p.lid_removed = removed,
+            (None, Some(shut)) if shut >= 0.5 => (p.lid_removed, p.lid_angle) = (false, 0.0),
+            (None, _) => p.lid_removed = p.lid_angle <= 0.0,
+        }
+        p
+    }))
 }
 
 impl SoundboardParams {
@@ -428,11 +459,11 @@ impl SoundboardParams {
         // Removed lid: the default mics hang above the board (calibrated
         // set-up); see presets/listening/Microphones/concert.toml for an open lid.
         lid_angle: 0.0,
+        lid_removed: true,
         // On the rim's top (`RimParams::top`), as on a real grand.
         lid_hinge_height: 0.16,
         lid_reflection: 0.85,
         lid_transmission: 0.1,
-        lid_shut: 0.0,
         // −12 dB at high frequencies, no measurement behind it (docs/lid.md).
         lid_leak: 0.25,
         string_load: 1.0,
@@ -487,12 +518,21 @@ impl SoundboardParams {
         board.grown(LID_OVERHANG)
     }
 
+    /// How shut the lid is: 1 at an angle of 0, 0 from [`LID_CLOSING`]
+    /// degrees open, and with no lid or on an upright (`case_open`).
+    pub fn lid_closure(&self) -> f64 {
+        if self.vertical || self.lid_removed {
+            return 0.0;
+        }
+        (1.0 - self.lid_angle / LID_CLOSING).clamp(0.0, 1.0)
+    }
+
     /// Gain of the front face's sound through the case at ω, and through
-    /// the shut lid ([`Self::lid_shut`]).
+    /// the shut lid ([`Self::lid_closure`]).
     pub fn case_gain(&self, omega: f64) -> f64 {
         let tau = 1.0 / (1.0 + (omega * self.case_panel_mass / (2.0 * RHO0 * C0)).powi(2)).sqrt();
         let case = self.case_open + (1.0 - self.case_open) * tau;
-        let s = self.lid_shut.clamp(0.0, 1.0);
+        let s = self.lid_closure();
         if self.vertical || s == 0.0 {
             return case;
         }
@@ -689,8 +729,8 @@ impl Lid {
     /// lid's gain on every path ([`SoundboardParams::case_gain`]): none
     /// left at 1, so that closing it is continuous.
     fn new(p: &SoundboardParams) -> Option<Self> {
-        let s = if p.vertical { 0.0 } else { p.lid_shut.clamp(0.0, 1.0) };
-        (p.lid_angle > 0.0 && s < 1.0).then(|| {
+        let s = p.lid_closure();
+        (!p.lid_removed && p.lid_angle > 0.0 && s < 1.0).then(|| {
             let th = p.lid_angle.to_radians();
             Self {
                 p0: [0.0, p.b, p.lid_hinge_height],
@@ -1631,7 +1671,7 @@ mod tests {
     /// the front, none over the bentside's missing corner at the tail.
     #[test]
     fn the_lid_has_the_case_shape() {
-        let p = SoundboardParams { lid_angle: 35.0, ..SoundboardParams::GRAND_2M };
+        let p = SoundboardParams { lid_angle: 35.0, lid_removed: false, ..SoundboardParams::GRAND_2M };
         let lid = Lid::new(&p).unwrap();
         let th = p.lid_angle.to_radians();
         // The point of the open lid over (x, y) of the case.
@@ -1648,20 +1688,21 @@ mod tests {
     }
 
     /// Shutting the lid, or opening it from shut, is continuous: its image
-    /// and shadow fade out with the closure (close pair under a 35° lid;
-    /// the audience pair, shut, opened by a hair as the lid macro does).
+    /// and shadow fade out over its last degrees (close pair under a 35°
+    /// lid; the audience pair, shut, opened by a hair as the lid macro does).
     #[test]
     fn shutting_the_lid_is_continuous() {
         let close = SoundboardParams {
             f_max: 1000.0,
             grid_step: 0.05,
             lid_angle: 35.0,
+            lid_removed: false,
             mics_relative: true,
             mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
             ..SoundboardParams::GRAND_2M
         }
         .resolved();
-        let audience = SoundboardParams { lid_angle: 0.0, lid_shut: 1.0, mics: [(0.55, -1.6, 1.0), (1.25, -1.6, 1.0)], ..close };
+        let audience = SoundboardParams { lid_angle: 0.0, mics: [(0.55, -1.6, 1.0), (1.25, -1.6, 1.0)], ..close };
         let gap = |a: SoundboardParams, b: SoundboardParams| {
             let (a, b) = (Soundboard::new(a).radiation(), Soundboard::new(b).radiation());
             let d: f64 = a.iter().zip(&b).flat_map(|(x, y)| (0..2).map(move |m| (x[m] - y[m]).norm_sqr())).sum();
@@ -1669,10 +1710,12 @@ mod tests {
             (d / e).sqrt()
         };
         let eps = 1e-6;
-        assert!(gap(SoundboardParams { lid_shut: 1.0 - eps, ..close }, SoundboardParams { lid_shut: 1.0, ..close }) < 1e-4);
-        assert!(gap(audience, SoundboardParams { lid_angle: 45.0 * eps, lid_shut: 1.0 - eps, ..audience }) < 1e-4);
+        let at = |angle: f64, p: SoundboardParams| SoundboardParams { lid_angle: angle, ..p };
+        assert!(gap(at(LID_CLOSING * eps, close), at(0.0, close)) < 1e-4);
+        assert!(gap(audience, at(LID_CLOSING * eps, audience)) < 1e-4);
+        assert!(gap(at(LID_CLOSING, close), at(LID_CLOSING * (1.0 - eps), close)) < 1e-4);
         // An open lid still shapes the close pair's sound.
-        assert!(gap(SoundboardParams { lid_shut: 0.0, ..close }, SoundboardParams { lid_shut: 1.0, ..close }) > 0.1);
+        assert!(gap(close, at(0.0, close)) > 0.1);
     }
 
     /// No outline, or one without area: the rectangle, bit for bit.

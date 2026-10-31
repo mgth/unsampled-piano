@@ -123,11 +123,11 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("room.piano[1]", "Piano position y", "m", 0.0, 60.0, false),
     ("room.piano[2]", "Board height", "m", 0.3, 2.0, false),
     ("soundboard.main_string_slant", "Main strings' slant", "°", 0.0, 12.0, false),
-    ("soundboard.lid_angle", "Lid angle", "°", 0.0, 60.0, false),
+    ("soundboard.lid_angle", "Lid angle (0: shut)", "°", 0.0, 60.0, false),
+    ("soundboard.lid_removed", "Lid removed", "", 0.0, 1.0, false),
     ("soundboard.lid_hinge_height", "Lid hinge height", "m", 0.05, 0.6, false),
     ("soundboard.lid_reflection", "Lid reflection", "", 0.0, 1.0, false),
     ("soundboard.lid_transmission", "Sound through the lid", "", 0.0, 1.0, false),
-    ("soundboard.lid_shut", "Lid shut", "", 0.0, 1.0, false),
     ("soundboard.lid_leak", "Sound out of the shut lid", "", 0.0, 1.0, false),
 ];
 

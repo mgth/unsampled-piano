@@ -57,7 +57,7 @@ const GEOMETRY: &[(&str, &[&str])] = &[
     ("Soundboard", &["soundboard.a", "soundboard.b", "soundboard.outline_below", "soundboard.main_bridge_from", "soundboard.main_string_slant"]),
     ("Frame", &["frame.offset_x", "frame.agraffe_x", "frame.a", "frame.b", "frame.height"]),
     ("Rim", &["rim.thickness", "rim.height", "rim.top"]),
-    ("Lid", &["soundboard.lid_angle", "soundboard.lid_shut", "soundboard.lid_hinge_height"]),
+    ("Lid", &["soundboard.lid_angle", "soundboard.lid_removed", "soundboard.lid_hinge_height"]),
     ("Along the strings", &["strike_ratio", "damper.position", "damper.highest_note"]),
 ];
 
@@ -774,10 +774,15 @@ fn numbers(ui: &mut Ui, model: &PianoModel, counts: &mut Option<(SoundboardParam
                 row("Board modes", format!("{} under 1 kHz ({} in all)", c.below_1k, c.all));
                 row("First board mode", format!("{:.0} Hz", c.first));
                 row("Bass bridge", format!("A0 to {}", sketches::note_name(sb.main_bridge_from - 1)));
-                if !sb.vertical && sb.lid_shut >= 1.0 {
-                    row("Lid", "shut".into());
-                } else if sb.lid_angle > 0.0 && !sb.vertical {
-                    row("Lid", format!("open {:.0}°", sb.lid_angle));
+                if !sb.vertical {
+                    let lid = if sb.lid_removed {
+                        "removed".into()
+                    } else if sb.lid_angle <= 0.0 {
+                        "shut".into()
+                    } else {
+                        format!("open {:.0}°", sb.lid_angle)
+                    };
+                    row("Lid", lid);
                 }
                 for (i, (x, y, z)) in sb.mics.iter().enumerate() {
                     row(if i == 0 { "Mic L" } else { "Mic R" }, format!("{x:.2}, {y:.2}, {z:.2} m"));

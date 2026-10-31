@@ -142,4 +142,24 @@ mod tests {
         let new: PianoModel = serde_json::from_str(&serde_json::to_string(&PianoModel::default()).unwrap()).unwrap();
         assert_eq!(new.damper.behind_strike, PianoModel::default().damper.behind_strike);
     }
+
+    /// A project saved before `lid_removed` keeps its lid: an angle of 0
+    /// was a removed lid, `lid_shut` = 1 a shut one.
+    #[test]
+    fn a_state_saved_before_the_removed_lid_keeps_its_lid() {
+        let old = |angle: f64, shut: f64| {
+            let mut v = serde_json::to_value(PianoModel::default()).unwrap();
+            let sb = v["soundboard"].as_object_mut().unwrap();
+            sb.remove("lid_removed").expect("a soundboard field");
+            sb.insert("lid_angle".into(), angle.into());
+            sb.insert("lid_shut".into(), shut.into());
+            let sb = serde_json::from_value::<PianoModel>(v).unwrap().soundboard.unwrap();
+            (sb.lid_removed, sb.lid_angle)
+        };
+        assert_eq!(old(0.0, 0.0), (true, 0.0));
+        assert_eq!(old(35.0, 0.0), (false, 35.0));
+        assert_eq!(old(35.0, 1.0), (false, 0.0));
+        let new: PianoModel = serde_json::from_str(&serde_json::to_string(&PianoModel::default()).unwrap()).unwrap();
+        assert_eq!(new.soundboard, PianoModel::default().soundboard);
+    }
 }

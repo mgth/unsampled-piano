@@ -146,7 +146,7 @@ def main():
     os.makedirs(os.path.join(a.out, "check"), exist_ok=True)
     tmp = tempfile.mkdtemp(dir=a.out)
     if not a.keep_lid:
-        nolid = os.path.join(tmp, "nolid.toml"); open(nolid, "w").write("[soundboard]\nlid_angle = 0.0\n"); a.listening.append(nolid)
+        nolid = os.path.join(tmp, "nolid.toml"); open(nolid, "w").write("[soundboard]\nlid_removed = true\n"); a.listening.append(nolid)
     hold, tail, L = 4.8, 0.4, 1 << 18
     outputs = []
     for m in [int(k) for k in a.keys.split(",")]:
