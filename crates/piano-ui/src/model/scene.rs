@@ -9,9 +9,9 @@
 //! (−y, x, z). An upright's board stands in y = 0, its x pointing down
 //! from its top and its z towards the pianist.
 //!
-//! What the model has no geometry for is drawn plainly: the board and the
-//! case are the model's rectangles (not a grand's curved outline); the
-//! strings run from their key's place across the agraffes to their bridge
+//! What the model has no geometry for is drawn plainly: the board, the
+//! case and the lid follow the model's outline (or its rectangle), its
+//! polygon drawn as the curve it stands for ([`rounded`]); the strings run from their key's place across the agraffes to their bridge
 //! point, which crosses the bass over the tenor as on overstrung pianos;
 //! legs, keyboard and pedals only situate the instrument.
 
@@ -261,6 +261,12 @@ const PEDAL_PITCH: f32 = 0.07;
 /// Bends up to this angle (degrees) are shaded as a curve, sharper ones as
 /// corners.
 const SMOOTH_DEG: f64 = 40.0;
+/// An outline's bends sharper than this (degrees) stay corners in
+/// [`rounded`].
+const CORNER_DEG: f64 = 60.0;
+/// [`rounded`]'s curves turn about this much (degrees) from one point to
+/// the next.
+const ROUND_STEP_DEG: f64 = 1.5;
 
 const STEEL: Color32 = Color32::from_rgb(170, 172, 178);
 const COPPER: Color32 = Color32::from_rgb(184, 115, 70);
@@ -818,13 +824,80 @@ fn fillet(a: (f64, f64), c: (f64, f64), z: (f64, f64), r: f64) -> Vec<(f64, f64)
 }
 
 /// The board's outline in plate metres, counter-clockwise: the model's
-/// own (`soundboard.outline`), or the full a × b rectangle.
+/// own (`soundboard.outline`), [`rounded`], or the full a × b rectangle.
 pub fn board_outline(sb: &SoundboardParams) -> Vec<(f64, f64)> {
     let mut p = Outline::new(sb).map_or_else(|| vec![(0.0, 0.0), (sb.a, 0.0), (sb.a, sb.b), (0.0, sb.b)], |o| o.points);
     if signed_area(&p) < 0.0 {
         p.reverse();
     }
-    p
+    rounded(&p)
+}
+
+/// The closed polygon `p` drawn as the curve it stands for (a grand's
+/// bentside and tail are a few vertices in the model): through every
+/// vertex, its corners (bends over [`CORNER_DEG`]) kept and its edges along
+/// its bounding box straight; every other edge a cubic, tangent at each end
+/// to the straight edge beside it, else to its two edges' bisector, split
+/// every [`ROUND_STEP_DEG`] or so of turn.
+pub fn rounded(p: &[(f64, f64)]) -> Vec<(f64, f64)> {
+    let n = p.len();
+    if n < 3 {
+        return p.to_vec();
+    }
+    let (lo, hi) = p.iter().fold(((f64::MAX, f64::MAX), (f64::MIN, f64::MIN)), |(l, h), q| ((l.0.min(q.0), l.1.min(q.1)), (h.0.max(q.0), h.1.max(q.1))));
+    let edge = |k: usize| {
+        let (a, b) = (p[k], p[(k + 1) % n]);
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let l = dx.hypot(dy);
+        ((dx / l.max(1e-12), dy / l.max(1e-12)), l)
+    };
+    let prev = |i: usize| (i + n - 1) % n;
+    let corner: Vec<bool> = (0..n)
+        .map(|i| {
+            let (u, v) = (edge(prev(i)).0, edge(i).0);
+            u.0 * v.0 + u.1 * v.1 < CORNER_DEG.to_radians().cos()
+        })
+        .collect();
+    let side = |a: f64, b: f64, lo: f64, hi: f64| (a - b).abs() < 1e-9 && ((a - lo).abs() < 1e-9 || (a - hi).abs() < 1e-9);
+    let straight: Vec<bool> = (0..n)
+        .map(|k| {
+            let (a, b) = (p[k], p[(k + 1) % n]);
+            (corner[k] && corner[(k + 1) % n]) || side(a.0, b.0, lo.0, hi.0) || side(a.1, b.1, lo.1, hi.1) || edge(k).1 < 1e-9
+        })
+        .collect();
+    // The tangent at a vertex that is not a corner.
+    let tangent = |i: usize| -> Option<(f64, f64)> {
+        let (u, v) = (edge(prev(i)).0, edge(i).0);
+        match (corner[i], straight[prev(i)], straight[i]) {
+            (true, _, _) => None,
+            (_, true, false) => Some(u),
+            (_, false, true) => Some(v),
+            _ => {
+                let (mx, my) = (u.0 + v.0, u.1 + v.1);
+                let l = mx.hypot(my).max(1e-12);
+                Some((mx / l, my / l))
+            }
+        }
+    };
+    let mut out = Vec::with_capacity(4 * n);
+    for k in 0..n {
+        out.push(p[k]);
+        if straight[k] {
+            continue;
+        }
+        let (j, (c, l)) = ((k + 1) % n, edge(k));
+        let (t0, t1) = (tangent(k).unwrap_or(c), tangent(j).unwrap_or(c));
+        let off = |t: (f64, f64)| (t.0 * c.0 + t.1 * c.1).clamp(-1.0, 1.0).acos();
+        let pieces = ((off(t0) + off(t1)).to_degrees() / ROUND_STEP_DEG).ceil().clamp(1.0, 48.0) as usize;
+        for s in 1..pieces {
+            let t = s as f64 / pieces as f64;
+            let (t2, t3) = (t * t, t * t * t);
+            let (h0, h1, h2, h3) = (2.0 * t3 - 3.0 * t2 + 1.0, t3 - 2.0 * t2 + t, 3.0 * t2 - 2.0 * t3, t3 - t2);
+            let at = |a: f64, ta: f64, b: f64, tb: f64| h0 * a + h1 * l * ta + h2 * b + h3 * l * tb;
+            out.push((at(p[k].0, t0.0, p[j].0, t1.0), at(p[k].1, t0.1, p[j].1, t1.1)));
+        }
+    }
+    out
 }
 
 /// The iron frame's outline in plate coordinates, as the engine has it: the
@@ -839,7 +912,7 @@ pub fn frame_outline(model: &PianoModel, sb: &SoundboardParams) -> Vec<(f64, f64
     if signed_area(&p) < 0.0 {
         p.reverse();
     }
-    p
+    rounded(&p)
 }
 
 pub fn signed_area(p: &[(f64, f64)]) -> f64 {
@@ -1321,6 +1394,11 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             let piece = clip(&outline, &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)]);
             for k in 1..piece.len().saturating_sub(1) {
                 let t = [piece[0], piece[k], piece[k + 1]];
+                // The slivers where a cell's edge passes by a rounded
+                // outline's point aside.
+                if cross2(t[0], t[1], t[2]).abs() < 1e-7 {
+                    continue;
+                }
                 b.tri(false, t.map(|(x, y)| place.at(x, y, 0.0)), t.map(|(x, y)| colour(x, y)));
             }
         }
@@ -1592,8 +1670,8 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
 
     // The lid, hinged along the bass side, of the case's shape as the
     // radiation has it ([`SoundboardParams::lid_outline`]): over the rim,
-    // its bentside the board's.
-    let lid = sb.lid_outline().points;
+    // its bentside the board's, rounded as the board is.
+    let lid = Outline { points: outline.clone() }.grown(LID_OVERHANG).points;
     let lid_from = b.s.glass.len();
     if !vertical && sb.lid_shut >= 1.0 && o.lid {
         // Shut, with its front flap carried forward to the case's front.
@@ -1910,6 +1988,38 @@ mod tests {
         let s = build(&m, None, &options());
         let corner = Place { vertical: false, top: 0.0 }.at(sb.a * 0.95, sb.b * 0.05, 0.0);
         assert!(!s.tris.iter().any(|v| v.pos[2] == 0.0 && (v.pos[0] - corner[0]).abs() < 0.02 && (v.pos[1] - corner[1]).abs() < 0.02));
+    }
+
+    #[test]
+    fn a_rounded_outline_is_a_curve_through_the_models() {
+        let sb = SoundboardParams { outline: SoundboardParams::GRAND_OUTLINE, ..SoundboardParams::GRAND_2M };
+        let mut model = Outline::new(&sb).unwrap().points;
+        if signed_area(&model) < 0.0 {
+            model.reverse();
+        }
+        let round = rounded(&model);
+        assert!(round.len() > 3 * model.len(), "{}", round.len());
+        // Every vertex of the model's on it, in order.
+        let mut at = 0;
+        for p in &model {
+            at += round[at..].iter().position(|q| q == p).expect("a vertex left out");
+        }
+        // Close to the polygon: within 2.5 cm of it, its area within 1 %.
+        let near = Outline { points: model.clone() };
+        assert!(round.iter().all(|&(x, y)| near.edge_distance(x, y) < 0.025));
+        assert!((signed_area(&round) / signed_area(&model) - 1.0).abs() < 0.01);
+        // Smooth but at the three corners (front, spine): no bend over a
+        // few degrees elsewhere.
+        let n = round.len();
+        let bends = (0..n).filter(|&i| {
+            let (a, b, c) = (round[(i + n - 1) % n], round[i], round[(i + 1) % n]);
+            let (u, v) = ((b.0 - a.0, b.1 - a.1), (c.0 - b.0, c.1 - b.1));
+            (u.0 * v.0 + u.1 * v.1) / (u.0.hypot(u.1) * v.0.hypot(v.1)) < 8f64.to_radians().cos()
+        });
+        assert_eq!(bends.count(), 3);
+        // A rectangle stays one.
+        let rect = [(0.0, 0.0), (1.7, 0.0), (1.7, 1.3), (0.0, 1.3)];
+        assert_eq!(rounded(&rect), rect);
     }
 
     #[test]
