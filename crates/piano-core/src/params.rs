@@ -918,6 +918,7 @@ pub struct PianoModel {
     pub bridge: BridgeLaw,
     pub polarization: PolarizationLaw,
     /// Modal soundboard: bridge admittance at each key and radiation.
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "crate::soundboard::deserialize_saved"))]
     pub soundboard: Option<crate::soundboard::SoundboardParams>,
     pub damper: DamperLaw,
     pub sympathetic: SympatheticLaw,

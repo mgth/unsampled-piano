@@ -1521,7 +1521,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let (z0, z1) = if vertical { (U_RIM_FRONT - (z1 - z0), U_RIM_FRONT) } else { (z0, z1) };
     let case = pick(Part::Rim, CASE);
     // A grand's case goes on above the rim up to the lid's hinge: the box
-    // the shut lid closes ([`SoundboardParams::lid_shut`]), the lid resting
+    // the shut lid closes ([`SoundboardParams::lid_closure`]), the lid resting
     // on it. Only the rim below is in the structure's model.
     let lid_top = if vertical { z1 } else { sb.lid_hinge_height.max(z1) };
     let n = outline.len();
@@ -1743,7 +1743,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     // its bentside the board's, rounded as the board is.
     let lid = Outline { points: outline.clone() }.grown(LID_OVERHANG).points;
     let lid_from = b.s.glass.len();
-    if !vertical && sb.lid_shut >= 1.0 && o.lid {
+    if !vertical && !sb.lid_removed && sb.lid_angle <= 0.0 && o.lid {
         // Shut, with its front flap carried forward to the case's front.
         let h = sb.lid_hinge_height;
         let mut top: Vec<(f64, f64)> = lid.iter().map(|&p| if p.0 <= -LID_OVERHANG + 1e-9 { (case_front, p.1) } else { p }).collect();
@@ -1761,7 +1761,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             b.line(place.at(p.0, p.1, h), place.at(q.0, q.1, h), rgba(CASE, 0.9));
         }
         b.label(place.at(sb.a * 0.6, sb.b * 0.5, h), "Lid, shut", "Microphones");
-    } else if !vertical && sb.lid_angle > 0.0 && o.lid {
+    } else if !vertical && !sb.lid_removed && sb.lid_angle > 0.0 && o.lid {
         // Open, its front flap folded back on it, turned about the hinge
         // y = b: what lies past it is the rim's top.
         let (th, h) = (sb.lid_angle.to_radians(), sb.lid_hinge_height);

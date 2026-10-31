@@ -57,16 +57,13 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
             }
             r
         }
-        // An on/off number (0 or 1): a switch, one gesture per click.
+        // On/off, a flag or a number 0 or 1: a switch, one gesture per
+        // click (sent by `edit`).
+        (Value::Bool(on), _) => switch(ui, on),
         (Value::Float(x), _) if is_switch(&p.path) => {
             let mut on = *x >= 0.5;
-            let text = if on { "On" } else { "Off" };
-            let r = ui.checkbox(&mut on, text);
-            if r.changed() {
-                *x = if on { 1.0 } else { 0.0 };
-                set_once(&p.path, Value::Float(*x), control);
-                picked = true;
-            }
+            let r = switch(ui, &mut on);
+            *x = if on { 1.0 } else { 0.0 };
             r
         }
         (Value::Float(x), _) => ui.add(
@@ -81,7 +78,6 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
                 .clamping(egui::SliderClamping::Never)
                 .suffix(if m.unit.is_empty() { String::new() } else { format!(" {}", m.unit) }),
         ),
-        (Value::Bool(x), _) => ui.checkbox(x, ""),
     };
     edit(&r, &p.path, v, control);
     let reset = reset_button(ui, v != p.default).on_hover_text("Back to the default");
@@ -107,6 +103,11 @@ fn choices(path: &str) -> Option<&'static [&'static str]> {
         "temperament.key" => Some(&NOTE_CLASSES),
         _ => None,
     }
+}
+
+fn switch(ui: &mut Ui, on: &mut bool) -> egui::Response {
+    let text = if *on { "On" } else { "Off" };
+    ui.checkbox(on, text)
 }
 
 /// Numbers that are a switch: 0 off, 1 on.
