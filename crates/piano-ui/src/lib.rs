@@ -41,6 +41,12 @@ pub trait HostPage: Send {
     fn show(&mut self, ui: &mut Ui);
 }
 
+/// A bar the host adds above the status bar, on every page: the standalone
+/// player's MIDI file transport.
+pub trait HostBar: Send {
+    fn show(&mut self, ui: &mut Ui);
+}
+
 pub struct PianoUi {
     registry: Registry,
     /// Section of each registry parameter.
@@ -82,6 +88,7 @@ pub struct PianoUi {
     clip: Hold,
     limiting: LoadMeter,
     host_page: Option<Box<dyn HostPage>>,
+    host_bar: Option<Box<dyn HostBar>>,
 }
 
 /// A count held for `HOLD_S` after it was last non-zero.
@@ -150,6 +157,7 @@ impl PianoUi {
             clip: Hold::default(),
             limiting: LoadMeter::default(),
             host_page: None,
+            host_bar: None,
         }
     }
 
@@ -163,6 +171,11 @@ impl PianoUi {
     /// Adds the host's page, listed after the others.
     pub fn set_host_page(&mut self, page: Box<dyn HostPage>) {
         self.host_page = Some(page);
+    }
+
+    /// Adds the host's bar, above the status bar.
+    pub fn set_host_bar(&mut self, bar: Box<dyn HostBar>) {
+        self.host_bar = Some(bar);
     }
 
     /// Adds read-only preset folders, listed after the one saving writes to
@@ -360,6 +373,14 @@ impl PianoUi {
                 });
             });
         });
+
+        if let Some(bar) = self.host_bar.as_mut() {
+            egui::Panel::bottom("piano-host-bar").show(ui, |ui| {
+                ui.add_space(2.0);
+                bar.show(ui);
+                ui.add_space(2.0);
+            });
+        }
 
         egui::Panel::left("piano-pages").resizable(false).show(ui, |ui| {
             ui.add_space(6.0);

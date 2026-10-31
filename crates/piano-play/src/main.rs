@@ -5,8 +5,8 @@
 //! automatically. Elsewhere, and with `--host`, it plays through cpal
 //! (WASAPI or ASIO on Windows, CoreAudio on macOS; PipeWire, JACK or ALSA
 //! on Linux), with the keyboard read through midir and played at the start
-//! of each buffer. MIDI files play from a timeline owned by the audio
-//! thread, sample-accurately. The instrument is built on the main thread;
+//! of each buffer. MIDI files play from a song owned by the audio thread,
+//! sample-accurately, with a transport the window drives (see song.rs). The instrument is built on the main thread;
 //! the audio thread neither allocates nor locks. CPU load is reported once
 //! per second. With the window, its "Audio and MIDI" page changes the
 //! set-up while playing (see audio.rs).
@@ -20,6 +20,8 @@ mod console;
 mod node;
 mod player;
 mod settings;
+mod song;
+mod songbar;
 mod window;
 
 use audio::{Audio, Queue, Settings, Start};
@@ -30,6 +32,7 @@ use piano_control::Controller;
 use piano_params::midi::MidiMap;
 use piano_params::PianoControl;
 use player::Stats;
+use song::Song;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -199,13 +202,9 @@ fn run(mut args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let stats = Arc::new(Stats::default());
     // The keyboard, unless files play alone.
     let listen = args.file.is_empty() || args.midi.is_some();
-    let (mut pieces, mut end_s) = (Vec::new(), 0.0);
-    let (audio, control) = Audio::start(settings, &args.name, args.gain_db, stats.clone(), model, map, |sr| {
-        let (timeline, p, e) = file_timeline(&args, sr)?;
-        (pieces, end_s) = (p, e);
-        let demo: Option<Box<dyn FnOnce(Queue) + Send>> = if args.demo { Some(Box::new(demo)) } else { None };
-        Ok(Start { timeline, listen, demo })
-    })?;
+    let (song, pieces, end_s) = file_song(&args)?;
+    let demo: Option<Box<dyn FnOnce(Queue) + Send>> = if args.demo { Some(Box::new(demo)) } else { None };
+    let (audio, control) = Audio::start(settings, &args.name, args.gain_db, stats.clone(), model, map, Start { song, listen, demo })?;
     let sr = audio.sample_rate;
     eprintln!("instrument built at {} Hz in {:.0} ms", audio.engine_rate, control.status().last_build.unwrap_or_default().as_secs_f64() * 1e3);
     for (start, name, len) in &pieces {
@@ -561,19 +560,19 @@ impl PresetWatch {
     }
 }
 
-/// Files back to back with a gap: (sample, event) timeline, the pieces
-/// (start s, name, length s) and the end time. Pedals are released at the
-/// start of each file.
+/// Files back to back with a gap, as one song (None without files), the
+/// pieces (start s, name, length s) and the end time. Pedals are released
+/// at the start of each file.
 #[allow(clippy::type_complexity)]
-fn file_timeline(args: &Args, sr: f64) -> Result<(Vec<(u64, Event)>, Vec<(f64, String, f64)>, f64), String> {
-    let mut timeline: Vec<(u64, Event)> = Vec::new();
+fn file_song(args: &Args) -> Result<(Option<Song>, Vec<(f64, String, f64)>, f64), String> {
+    let mut timeline: Vec<(f64, Event)> = Vec::new();
     let mut pieces = Vec::new();
     let mut t0 = 0.5;
     for (i, f) in args.file.iter().enumerate() {
         let evs = piano_host::read_midi_file(f)?;
         let skip = if i == 0 { args.from } else { 0.0 };
         let len = evs.last().map_or(0.0, |e| e.0) - skip;
-        let at = |t: f64| ((t0 + t.max(0.0)) * sr) as u64;
+        let at = |t: f64| t0 + t.max(0.0);
         for cc in [64, 66, 67] {
             timeline.push((at(0.0), Event::Control { cc, value: 0 }));
         }
@@ -591,7 +590,9 @@ fn file_timeline(args: &Args, sr: f64) -> Result<(Vec<(u64, Event)>, Vec<(f64, S
         pieces.push((t0, name, len));
         t0 += len + GAP_S;
     }
-    Ok((timeline, pieces, t0))
+    let names: Vec<&str> = pieces.iter().map(|p| p.1.as_str()).collect();
+    let song = (!pieces.is_empty()).then(|| Song::new(names.join(", "), timeline));
+    Ok((song, pieces, t0))
 }
 
 /// Personal defaults from `play.toml` in the configuration directory
