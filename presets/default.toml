@@ -211,7 +211,7 @@ vertical = false
 case_open = 1.0
 case_panel_mass = 6.0
 lid_angle = 0.0
-lid_hinge_height = 0.25
+lid_hinge_height = 0.16
 lid_reflection = 0.85
 lid_transmission = 0.1
 lid_shut = 0.0
@@ -350,9 +350,9 @@ coupling = 1.0
 
 [rim]
 enabled = true
-height = 0.3
+height = 0.4
 thickness = 0.075
-top = 0.05
+top = 0.16
 young = 12000000000.0
 shear = 1000000000.0
 density = 650.0

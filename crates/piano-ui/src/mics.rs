@@ -152,7 +152,9 @@ fn lid_extent(sb: &SoundboardParams) -> (f64, f64) {
     if sb.lid_angle <= 0.0 || shut(sb) {
         return (0.0, sb.lid_hinge_height);
     }
-    let (th, len) = (sb.lid_angle.to_radians(), 1.05 * sb.b);
+    // From the hinge to the lid's edge farthest from it.
+    let len = sb.b - sb.lid_outline().points.iter().map(|p| p.1).fold(sb.b, f64::min);
+    let th = sb.lid_angle.to_radians();
     (len * th.cos(), sb.lid_hinge_height + len * th.sin())
 }
 
@@ -185,7 +187,7 @@ fn behind_lid(sb: &SoundboardParams, m: [f64; 3]) -> bool {
     let u = fc / (fc - fm);
     let x = [c[0] + u * (m[0] - c[0]), c[1] + u * (m[1] - c[1]), c[2] + u * (m[2] - c[2])];
     let t = dot(rel(x), up);
-    (0.0..=1.05 * sb.b).contains(&t) && (-0.05..=sb.a + 0.05).contains(&x[0])
+    t >= 0.0 && sb.lid_outline().contains(x[0], sb.b - t)
 }
 
 /// The pair of positions in use: the upright's own on a standing board.
@@ -502,7 +504,9 @@ impl MicView {
         }
         if model.rim.enabled {
             let r = &model.rim;
-            let case = Rect::from_two_pos(map.elev(-rim, r.top - r.height), map.elev(sb.b + rim, r.top));
+            // Up to the lid's hinge on a grand, the lid resting on it.
+            let top = if sb.vertical { r.top } else { r.top.max(sb.lid_hinge_height) };
+            let case = Rect::from_two_pos(map.elev(-rim, r.top - r.height), map.elev(sb.b + rim, top));
             p.rect_filled(case, 2.0, weak.gamma_multiply(0.35));
         }
         p.line_segment([map.elev(0.0, 0.0), map.elev(sb.b, 0.0)], Stroke::new(3.0, WOOD));

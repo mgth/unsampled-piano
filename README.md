@@ -160,7 +160,7 @@ For playing and setting up the instrument, see the [website](https://unsampled.m
 - Musician's controls (tone, touch, sustain, resonance, endings, unisons, noises, size, lid, space, stretch): [docs/macros.md](docs/macros.md)
 - A range of instruments from one engine (hammer mass, strike point, preset fitting): [docs/instrument_range.md](docs/instrument_range.md)
 - Room level (piano directivity, microphone patterns): [docs/room_level.md](docs/room_level.md)
-- The lid: its shape (no effect at the microphones) and the shut lid: [docs/lid.md](docs/lid.md)
+- The lid: its shape (the case's) and the shut lid: [docs/lid.md](docs/lid.md)
 - Uprights (half blow, practice mute, repetition, wall, case, placement in the room, directivity): [docs/upright.md](docs/upright.md)
 - The bridges: where the bass bridge ends on real grands, its place and bow on the bench: [docs/bridges.md](docs/bridges.md)
 

@@ -128,7 +128,7 @@ The model's lowest board mode, lightly damped once the pedal is down, makes one 
 
 - Above `outline_below` the rectangle's modes remain: their mass, and so their mobility, includes the part outside the outline (18 % for the grand). The modal density jumps at the corner.
 - The rim stays the rectangle's ring (its perimeter, radiation and modes); only the forces it receives follow the outline.
-- The lid stays a rectangle as wide as the board: following the outline changes nothing at the microphones ([lid.md](lid.md)).
+- The lid follows the outline, 7.5 cm wider over the rim, since 2026-10-31; at the listening presets' microphones it sounds as the rectangle did ([lid.md](lid.md#its-shape)).
 - The frame follows the case since 2026-10-28, with its own modes up to 3 kHz ([frame_rim.md](frame_rim.md#the-outline)); it had inherited the board's polygon on its own rectangle by accident.
 - Uprights keep the rectangle.
 
