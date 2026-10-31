@@ -25,6 +25,9 @@ use super::cam::{add, cross, dot, norm, scale, sub, V3};
 use crate::sketches::{self, Part};
 
 mod action;
+mod lettering;
+mod name;
+mod plate;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[repr(C)]
@@ -33,6 +36,45 @@ pub struct Vertex {
     pub normal: V3,
     /// sRGB, 0–1, straight alpha.
     pub color: [f32; 4],
+    /// What it is made of ([`Material`] as a number), for the realistic
+    /// view.
+    pub mat: f32,
+    /// A line's wire diameter (m), 0 for a stroke of the drawing.
+    pub width: f32,
+}
+
+/// What a part is made of, for the 3D view's realistic look (the plain
+/// views keep to its colour): the shader's numbering. Most parts' come
+/// from the colour they are drawn in ([`material_of`]); a colour that
+/// stands for no material (a part pointed at, a level) takes the one the
+/// part being drawn sets ([`Builder::mat`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Material {
+    /// A satin paint.
+    #[default]
+    Paint = 0,
+    /// The case, lid, legs and lyre: polished black lacquer.
+    Lacquer = 1,
+    /// The soundboard: varnished spruce.
+    Spruce = 2,
+    /// Keys' sticks, the action, bridges: maple, hornbeam.
+    Wood = 3,
+    /// The plate: cast iron in gold bronze paint.
+    Iron = 4,
+    Steel = 5,
+    /// The wound strings' copper.
+    Copper = 6,
+    Brass = 7,
+    /// Felts and cloths.
+    Felt = 8,
+    Leather = 9,
+    /// The white keys' tops, the black keys.
+    KeyTop = 10,
+    Ebony = 11,
+    /// The keys' leads.
+    Lead = 12,
+    /// The name's gold leaf.
+    Gilt = 13,
 }
 
 /// A named part: where its label goes, and the page that sets it.
@@ -49,6 +91,9 @@ pub struct Scene {
     pub tris: Vec<Vertex>,
     /// Translucent ones (frame, lid), drawn last.
     pub glass: Vec<Vertex>,
+    /// The lid: see-through in the drawing (drawn as [`Self::glass`]),
+    /// solid lacquer in the realistic look.
+    pub lid: Vec<Vertex>,
     /// Lines, two vertices each.
     pub lines: Vec<Vertex>,
     pub labels: Vec<Label>,
@@ -59,6 +104,12 @@ pub struct Scene {
     pub body: (V3, V3),
     /// The board stands (an upright).
     pub vertical: bool,
+    /// The floor's height (m).
+    pub floor: f32,
+    /// The soundboard's extent.
+    pub board: (V3, V3),
+    /// The engine's state laid on it: the board coloured by [`heat`].
+    pub live: bool,
 }
 
 /// What the live view lays on the instrument: the engine's state, and the
@@ -83,6 +134,12 @@ pub struct Options<'a> {
     /// The case (rim, arms, belly rail) drawn, or left out to show the
     /// action.
     pub case: bool,
+    /// A grand's fallboard shut over the keys.
+    pub fallboard: bool,
+    /// How solid a grand's front is above its fallboard, up to the case's
+    /// top, and the cover from there over the pin block (0 left out … 1
+    /// solid).
+    pub front: f32,
     /// Text colour of the theme (the key shown).
     pub ink: Color32,
 }
@@ -186,6 +243,18 @@ const AGRAFFE_EDGE: f64 = 0.025;
 const UPRIGHT_BASE: f64 = 0.2;
 const UPRIGHT_KEYS_Z: f64 = 0.72;
 const UPRIGHT_KEYS_Y: f64 = -0.27;
+/// The name on a grand's fallboard: its middle's height above the keys.
+/// The fallboard shut: its top's height above the keys at the name board
+/// and over their front, its thickness, its front edge's radius, the lip's
+/// thickness in front of the keys.
+const NAME_UP: f64 = 0.05;
+const FALL_BACK: f64 = 0.085;
+const FALL_FRONT: f64 = 0.018;
+const FALL_T: f64 = 0.014;
+const FALL_ROUND: f64 = 0.006;
+const FALL_LIP: f64 = 0.006;
+/// The cover over a grand's pin block: its thickness.
+const COVER_T: f32 = 0.018;
 /// The pedals' spacing across (m).
 const PEDAL_PITCH: f32 = 0.07;
 
@@ -211,6 +280,45 @@ const UNDER_FELT: Color32 = Color32::from_rgb(176, 48, 36);
 const DAMPER_WOOD: Color32 = Color32::from_rgb(64, 46, 36);
 const DAMPER_FELT: Color32 = Color32::from_rgb(226, 222, 212);
 const MIC: [Color32; 2] = [Color32::from_rgb(70, 140, 220), Color32::from_rgb(220, 80, 90)];
+const LYRE_ROD: Color32 = Color32::from_rgb(64, 64, 70);
+
+/// The material each of the scene's own colours stands for.
+const MATERIALS: [(Color32, Material); 19] = [
+    (name::GILT, Material::Gilt),
+    (STEEL, Material::Steel),
+    (PIN, Material::Steel),
+    (HITCH, Material::Steel),
+    (BRIDGE_PIN, Material::Steel),
+    (LYRE_ROD, Material::Steel),
+    (COPPER, Material::Copper),
+    (IRON, Material::Iron),
+    (BRASS, Material::Brass),
+    (BUSHING, Material::Wood),
+    (DAMPER_WOOD, Material::Wood),
+    (sketches::BRIDGE, Material::Wood),
+    (sketches::WOOD, Material::Spruce),
+    (CASE, Material::Lacquer),
+    (IVORY, Material::KeyTop),
+    (EBONY, Material::Ebony),
+    (FELT, Material::Felt),
+    (UNDER_FELT, Material::Felt),
+    (DAMPER_FELT, Material::Felt),
+];
+
+/// The material the colour `c` stands for, if any.
+fn material_of(c: [f32; 4]) -> Option<Material> {
+    let k = |x: f32| (x * 255.0).round() as u8;
+    let c = Color32::from_rgb(k(c[0]), k(c[1]), k(c[2]));
+    MATERIALS.iter().chain(&action::MATERIALS).find(|(k, _)| *k == c).map(|&(_, m)| m)
+}
+
+/// A string's diameter, from its mass per length as if all steel (a
+/// wound string's a little under its winding's), and its plain wire's
+/// beyond the bridge and round its tuning pin (a wound string's core).
+fn string_d(model: &PianoModel, m: u8) -> (f32, f32) {
+    let d = 2.0 * (model.note(m).mu / (action::STEEL_DENSITY * std::f64::consts::PI)).sqrt();
+    (d as f32, d.min(0.0016) as f32)
+}
 
 fn rgba(c: Color32, a: f32) -> [f32; 4] {
     [c.r() as f32 / 255.0, c.g() as f32 / 255.0, c.b() as f32 / 255.0, a]
@@ -250,21 +358,45 @@ impl Place {
 struct Builder {
     s: Scene,
     place: Place,
+    /// What the part being drawn is made of where its colour says
+    /// nothing ([`material_of`]).
+    mat: Material,
+    /// The last colour drawn, the material it had then and the one it
+    /// gave (a colour is drawn many times over).
+    last: ([f32; 4], Material, Material),
 }
 
 impl Builder {
+    fn new(place: Place) -> Self {
+        Self { s: Scene::default(), place, mat: Material::Paint, last: ([-1.0; 4], Material::Paint, Material::Paint) }
+    }
+
+    #[inline]
+    fn vertex(&mut self, pos: V3, normal: V3, color: [f32; 4]) -> Vertex {
+        if self.last.0 != color || self.last.1 != self.mat {
+            self.miss(color);
+        }
+        Vertex { pos, normal, color, mat: self.last.2 as u8 as f32, width: 0.0 }
+    }
+
+    #[cold]
+    fn miss(&mut self, color: [f32; 4]) {
+        self.last = (color, self.mat, material_of(color).unwrap_or(self.mat));
+    }
+
     fn tri(&mut self, glass: bool, p: [V3; 3], c: [[f32; 4]; 3]) {
         let n = norm(cross(sub(p[1], p[0]), sub(p[2], p[0])));
-        let out = if glass { &mut self.s.glass } else { &mut self.s.tris };
         for (pos, color) in p.into_iter().zip(c) {
-            out.push(Vertex { pos, normal: n, color });
+            let v = self.vertex(pos, n, color);
+            if glass { &mut self.s.glass } else { &mut self.s.tris }.push(v);
         }
     }
 
     /// A quad with a normal at each corner (smooth shading).
     fn quad_n(&mut self, p: [V3; 4], n: [V3; 4], c: [f32; 4]) {
         for k in [0, 1, 2, 0, 2, 3] {
-            self.s.tris.push(Vertex { pos: p[k], normal: n[k], color: c });
+            let v = self.vertex(p[k], n[k], c);
+            self.s.tris.push(v);
         }
     }
 
@@ -346,6 +478,54 @@ impl Builder {
             let d = pl.dir(along.0, along.1, 0.0);
             let (l, r) = (at(i, a), at(i, b));
             self.quad_n([w(l, lo), w(r, lo), w(r, hi), w(l, hi)], [d; 4], c);
+        }
+    }
+
+    /// A flat solid from `points` (u, v), its `loops` (first point,
+    /// count; outlines counter-clockwise, holes clockwise) and its face's
+    /// counter-clockwise `tris`, between the heights `h.0` and `h.1`;
+    /// `at(u, v, h)` places it. Its bottom face is left out on the
+    /// surface it stands on (h 0).
+    #[allow(clippy::too_many_arguments)]
+    fn prism(&mut self, points: &[(f64, f64)], loops: &[(usize, usize)], tris: &[[usize; 3]], h: (f64, f64), at: &dyn Fn(f64, f64, f64) -> V3, c: Color32) {
+        let c = rgba(c, 1.0);
+        let up = sub(at(0.0, 0.0, 1.0), at(0.0, 0.0, 0.0));
+        let faces = if h.0 > 0.0 { vec![(h.1, 1.0f32), (h.0, -1.0)] } else { vec![(h.1, 1.0)] };
+        for t in tris {
+            let [p, q, r] = t.map(|i| points[i]);
+            // Its slivers' rounding aside.
+            if ((q.0 - p.0) * (r.1 - p.1) - (r.0 - p.0) * (q.1 - p.1)).abs() < 1e-14 {
+                continue;
+            }
+            for &(z, side) in &faces {
+                let mut w = [p, q, r].map(|p| at(p.0, p.1, z));
+                if dot(cross(sub(w[1], w[0]), sub(w[2], w[0])), up) * side < 0.0 {
+                    w.swap(1, 2);
+                }
+                self.tri(false, w, [c; 3]);
+            }
+        }
+        for &(first, count) in loops {
+            for k in 0..count {
+                let (p, q) = (points[first + k], points[first + (k + 1) % count]);
+                let (du, dv) = (q.0 - p.0, q.1 - p.1);
+                let l = du.hypot(dv).max(1e-12);
+                // Outwards: to the right of the way round.
+                let n = norm(sub(at(p.0 + dv / l, p.1 - du / l, h.0), at(p.0, p.1, h.0)));
+                self.quad_n([at(p.0, p.1, h.0), at(q.0, q.1, h.0), at(q.0, q.1, h.1), at(p.0, p.1, h.1)], [n; 4], c);
+            }
+        }
+    }
+
+    /// Makes what was drawn solid since the `from`th vertex see-through,
+    /// as solid as `alpha` (left out at 0).
+    fn see_through(&mut self, from: usize, alpha: f32) {
+        if alpha >= 1.0 {
+            return;
+        }
+        let drawn = self.s.tris.split_off(from);
+        if alpha > 0.0 {
+            self.s.glass.extend(drawn.into_iter().map(|v| Vertex { color: [v.color[0], v.color[1], v.color[2], v.color[3] * alpha], ..v }));
         }
     }
 
@@ -580,8 +760,14 @@ impl Builder {
     }
 
     fn line(&mut self, a: V3, b: V3, c: [f32; 4]) {
+        self.wire(a, b, c, 0.0);
+    }
+
+    /// A line that is a wire `d` metres thick.
+    fn wire(&mut self, a: V3, b: V3, c: [f32; 4], d: f32) {
         for pos in [a, b] {
-            self.s.lines.push(Vertex { pos, normal: [0.0, 0.0, 1.0], color: c });
+            let v = Vertex { width: d, ..self.vertex(pos, [0.0, 0.0, 1.0], c) };
+            self.s.lines.push(v);
         }
     }
 
@@ -592,7 +778,7 @@ impl Builder {
     /// The extent of everything drawn so far.
     fn bounds(&self) -> (V3, V3) {
         let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
-        for v in self.s.tris.iter().chain(&self.s.glass).chain(&self.s.lines) {
+        for v in self.s.tris.iter().chain(&self.s.glass).chain(&self.s.lid).chain(&self.s.lines) {
             for i in 0..3 {
                 lo[i] = lo[i].min(v.pos[i]);
                 hi[i] = hi[i].max(v.pos[i]);
@@ -606,6 +792,29 @@ impl Builder {
         self.s.vertical = self.place.vertical;
         self.s
     }
+}
+
+/// The corner `c` of a profile from `a` on to `z`, rounded to radius `r`:
+/// the arc's points from the one side to the other.
+fn fillet(a: (f64, f64), c: (f64, f64), z: (f64, f64), r: f64) -> Vec<(f64, f64)> {
+    let unit = |p: (f64, f64)| {
+        let (x, y) = (p.0 - c.0, p.1 - c.1);
+        let l = x.hypot(y).max(1e-12);
+        (x / l, y / l)
+    };
+    let (u1, u2) = (unit(a), unit(z));
+    let half = (u1.0 * u2.0 + u1.1 * u2.1).clamp(-1.0, 1.0).acos() / 2.0;
+    let (t, d) = (r / half.tan(), r / half.sin());
+    let bis = unit((c.0 + u1.0 + u2.0, c.1 + u1.1 + u2.1));
+    let centre = (c.0 + bis.0 * d, c.1 + bis.1 * d);
+    let angle = |p: (f64, f64)| (p.1 - centre.1).atan2(p.0 - centre.0);
+    let (a0, mut a1) = (angle((c.0 + u1.0 * t, c.1 + u1.1 * t)), angle((c.0 + u2.0 * t, c.1 + u2.1 * t)));
+    if a1 - a0 > std::f64::consts::PI {
+        a1 -= std::f64::consts::TAU;
+    } else if a0 - a1 > std::f64::consts::PI {
+        a1 += std::f64::consts::TAU;
+    }
+    (0..=6).map(|k| a0 + (a1 - a0) * k as f64 / 6.0).map(|a| (centre.0 + r * a.cos(), centre.1 + r * a.sin())).collect()
 }
 
 /// The board's outline in plate metres, counter-clockwise: the model's
@@ -860,7 +1069,7 @@ pub fn tuning_pins(model: &PianoModel, sb: &SoundboardParams, ends: &[StringEnds
 /// little below the strings' height, a square head for the tuning hammer
 /// under a rounded top, its flats turned any way; and the string's dead
 /// length from the coil to its agraffe.
-fn tuning_pin(b: &mut Builder, p: &TuningPin, i: usize, z: f64, c: Color32) {
+fn tuning_pin(b: &mut Builder, p: &TuningPin, i: usize, z: f64, c: Color32, wire: f32) {
     let place = b.place;
     let hole = place.at(p.hole.0, p.hole.1, z);
     let (ux, uy) = p.dir;
@@ -898,9 +1107,9 @@ fn tuning_pin(b: &mut Builder, p: &TuningPin, i: usize, z: f64, c: Color32) {
     };
     let groove = rgba(mix(c, Color32::BLACK, 0.45), 1.0);
     for k in 0..steps {
-        b.line(helix(k), helix(k + 1), groove);
+        b.wire(helix(k), helix(k + 1), groove, wire);
     }
-    b.line(helix(steps), hole, rgba(c, 1.0));
+    b.wire(helix(steps), hole, rgba(c, 1.0), wire);
 }
 
 /// The agraffe at `at` (plate) for a unison of `strings` along `u` at
@@ -1064,7 +1273,7 @@ fn lyre(b: &mut Builder, cx: f32, y: f32, top: f32, floor: f32, brace: (f32, f32
         let d = norm(sub(z, a));
         let side = norm(cross(d, [1.0, 0.0, 0.0]));
         let rod = |p: V3, r: f32| (p, r, r, r);
-        b.sweep(&[rod(a, 0.006), rod(z, 0.006)], side, Color32::from_rgb(64, 64, 70));
+        b.sweep(&[rod(a, 0.006), rod(z, 0.006)], side, LYRE_ROD);
         for (p, q) in [(a, add(a, scale(d, 0.03))), (sub(z, scale(d, 0.03)), z)] {
             b.sweep(&[rod(p, 0.009), rod(q, 0.009)], side, BRASS);
         }
@@ -1082,7 +1291,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let sb = model.soundboard.map(|s| s.resolved()).unwrap_or_default();
     let vertical = sb.vertical;
     let place = Place { vertical, top: UPRIGHT_BASE + sb.a };
-    let mut b = Builder { s: Scene::default(), place };
+    let mut b = Builder::new(place);
     let lit = |p: Part| o.lit.contains(&p);
     let pick = |p: Part, c: Color32| if lit(p) { sketches::HIGHLIGHT } else { c };
     let (f, rim) = (&model.frame, &model.rim);
@@ -1104,6 +1313,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let level = (at(i, j) * (1.0 - fu) + at(i + 1, j) * fu) * (1.0 - fv) + (at(i, j + 1) * (1.0 - fu) + at(i + 1, j + 1) * fu) * fv;
         rgba(heat(level), 1.0)
     };
+    b.mat = Material::Spruce;
     for j in 0..gy - 1 {
         for i in 0..gx - 1 {
             let (x0, x1) = (sb.a * i as f64 / (gx - 1) as f64, sb.a * (i + 1) as f64 / (gx - 1) as f64);
@@ -1120,6 +1330,8 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     for [i, j, k] in triangulate(&outline) {
         b.tri(false, [outline[i], outline[k], outline[j]].map(|(x, y)| place.at(x, y, -0.012)), [under; 3]);
     }
+    b.mat = Material::Paint;
+    b.s.board = b.bounds();
     b.label(place.at(sb.a * 0.45, sb.b * 0.7, 0.0), "Soundboard", "Soundboard");
 
     // The strings' ends: their agraffes on a diagonal in front of the
@@ -1241,7 +1453,10 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let n = model.note(m);
         let ((ax, ay), (bx, by), z) = ends[(m - 21) as usize];
         let level = key_level(m);
-        let base = if m < sb.main_bridge_from || n.strings == 1 { COPPER } else { STEEL };
+        let wound = m < sb.main_bridge_from || n.strings == 1;
+        let base = if wound { COPPER } else { STEEL };
+        b.mat = if wound { Material::Copper } else { Material::Steel };
+        let (wire, plain) = string_d(model, m);
         let base = if lit(Part::Length) || lit(Part::Unison) { sketches::HIGHLIGHT } else { base };
         let c = if m == o.key { o.ink } else { mix(base, sketches::HIGHLIGHT, level * 0.8) };
         // Across the unison, 2.5 mm apart.
@@ -1271,24 +1486,26 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             };
             for k in 0..segments {
                 let (t0, t1) = (k as f64 / segments as f64, (k + 1) as f64 / segments as f64);
-                b.line(point(t0), point(t1), rgba(c, 1.0));
+                b.wire(point(t0), point(t1), rgba(c, 1.0), wire);
             }
             // Its tuning pin, and the string's dead length from the pin's
             // coil to the agraffe.
-            tuning_pin(&mut b, &pins[count], count, z, c);
+            tuning_pin(&mut b, &pins[count], count, z, c, plain);
             // The bridge pins, and the string between them.
             let (gx, gy) = (bx + ux * pa + nx * (off - pd), by + uy * pa + ny * (off - pd));
             let foot = z - (STRING_Z - BRIDGE_H);
             let front = (bx - ux * pa + nx * (off + pd + BRIDGE_PIN_R), by - uy * pa + ny * (off + pd + BRIDGE_PIN_R));
             b.plate_prism(front, BRIDGE_PIN_R, 6, 0.0, (foot, z + 0.004), BRIDGE_PIN);
             b.plate_prism((gx - nx * BRIDGE_PIN_R, gy - ny * BRIDGE_PIN_R), BRIDGE_PIN_R, 6, 0.0, (foot, z + 0.004), BRIDGE_PIN);
-            b.line(point(1.0), place.at(gx, gy, z), rgba(c, 1.0));
+            b.wire(point(1.0), place.at(gx, gy, z), rgba(c, 1.0), wire);
             // Its rear length, plain wire, round its hitch pin.
             let (hx, hy) = (bx + ux * rear + nx * off, by + uy * rear + ny * off);
-            b.line(place.at(gx, gy, z), place.at(hx - ux * HITCH_R, hy - uy * HITCH_R, z - HITCH_DROP), rgba(tail, 1.0));
-            b.plate_prism((hx, hy), HITCH_R, 6, 0.0, (z - HITCH_DROP - 0.012, z - HITCH_DROP + 0.004), HITCH);
+            b.wire(place.at(gx, gy, z), place.at(hx - ux * HITCH_R, hy - uy * HITCH_R, z - HITCH_DROP), rgba(tail, 1.0), plain);
+            // Standing on the plate's rail.
+            b.plate_prism((hx, hy), HITCH_R, 6, 0.0, (plate::RAIL_TOP - 0.001, z - HITCH_DROP + 0.004), HITCH);
             count += 1;
         }
+        b.mat = Material::Paint;
         // The felt woven through the rear lengths of the strings that have
         // dampers (the treble's ring free, a duplex).
         if m <= d.highest_note {
@@ -1361,29 +1578,23 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     let c8 = string_ends(model, &sb, hx, 108);
     b.label(place.at(c8.0.0 - PIN_GAP, c8.0.1, c8.2 + 0.015), "Tuning pins", "Frame & rim");
 
-    // The iron frame over the strings' anchoring, see-through.
+    // The iron frame over the strings, as a plate is cast ([`plate`]).
     if f.enabled && o.frame {
-        let c = rgba(pick(Part::Frame, IRON), if lit(Part::Frame) || lit(Part::FrameHeight) { 0.45 } else { 0.18 });
-        let z = f.height;
-        let outline = frame_outline(model, &sb);
-        let q: Vec<V3> = outline.iter().map(|&(x, y)| place.at(x, y, z)).collect();
-        for [i, j, k] in triangulate(&outline) {
-            b.tri(true, [q[i], q[j], q[k]], [c; 3]);
-            b.tri(true, [q[i], q[k], q[j]], [c; 3]);
-        }
-        let edge = rgba(pick(Part::Frame, IRON), 0.9);
-        for i in 0..q.len() {
-            b.line(q[i], q[(i + 1) % q.len()], edge);
-        }
+        let lit_frame = lit(Part::Frame) || lit(Part::FrameHeight);
+        b.mat = Material::Iron;
+        plate::plate(&mut b, model, &sb, &ends, if lit_frame { sketches::HIGHLIGHT } else { IRON });
+        b.mat = Material::Paint;
         // Labelled at its tail, the farthest point from the keyboard.
-        let tail = (0..outline.len()).max_by(|&i, &j| outline[i].0.total_cmp(&outline[j].0)).unwrap_or(0);
-        b.label(q[tail], "Frame", "Frame & rim");
+        let outline = frame_outline(model, &sb);
+        let tail = outline.iter().copied().max_by(|p, q| p.0.total_cmp(&q.0)).unwrap_or((0.0, 0.0));
+        b.label(place.at(tail.0, tail.1, f.height), "Frame", "Frame & rim");
     }
 
     // The lid, hinged along the bass side, of the case's shape as the
     // radiation has it ([`SoundboardParams::lid_outline`]): over the rim,
     // its bentside the board's.
     let lid = sb.lid_outline().points;
+    let lid_from = b.s.glass.len();
     if !vertical && sb.lid_shut >= 1.0 && o.lid {
         // Shut, with its front flap carried forward to the case's front.
         let h = sb.lid_hinge_height;
@@ -1428,6 +1639,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let edge = top.iter().copied().min_by(|p, q| p.1.total_cmp(&q.1)).unwrap_or((sb.a * 0.6, 0.0));
         b.label(up(edge), format!("Lid, {:.0}°", sb.lid_angle), "Microphones");
     }
+    b.s.lid = b.s.glass.split_off(lid_from);
 
     // The keyboard, the keys down pressed in, its back against the case's
     // front: a grand's on its keybed, at the usual height above the floor.
@@ -1501,11 +1713,43 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             let ring = |x: f32| ([x, y, (z.0 + z.1) / 2.0], d / 2.0, (z.1 - z.0) / 2.0, r);
             [ring(x0), ring(x1)]
         };
-        // The fallboard over the keys, which run on under it.
+        // The fallboard over the keys, which run on under it, the name
+        // on it; shut, a board over the keys from it to their front, the
+        // name on that.
         if o.case {
             b.sweep(&along(-hi as f32, -lo as f32, yf + KEY_SLIP as f32 / 2.0, (z0f, kz as f32 - 0.002), KEY_SLIP as f32, 0.005), [0.0, 1.0, 0.0], case);
             b.sweep(&along(-hi as f32, -lo as f32, (y_back + FRONT_T / 2.0) as f32, (top + 0.014, PIN_BLOCK_TOP as f32), FRONT_T as f32, 0.009), [0.0, 1.0, 0.0], case);
             b.cuboid([-(khi + 0.002) as f32, y_back as f32 - 0.006, top - 0.004], [(khi - klo + 0.004) as f32, 0.0, 0.0], [0.0, 0.006, 0.0], [0.0, 0.0, 0.012], FELT);
+            // Above it, the front closed up to the case's top, under the
+            // lid, and a cover from there back over the pin block to the
+            // hammers' line: as solid as asked.
+            let from = b.s.tris.len();
+            let shut = lid_top as f32 - 0.002;
+            b.sweep(&along(-hi as f32, -lo as f32, (y_back + FRONT_T / 2.0) as f32, (PIN_BLOCK_TOP as f32, shut), FRONT_T as f32, 0.009), [0.0, 1.0, 0.0], case);
+            let (c0, c1) = (case_front as f32, hx as f32);
+            b.cuboid([-across_hi as f32, c0, shut - COVER_T], [(across_hi - across_lo) as f32, 0.0, 0.0], [0.0, c1 - c0, 0.0], [0.0, 0.0, COVER_T], case);
+            b.see_through(from, o.front);
+            let (cx, kt) = (cx as f64, key_top);
+            if o.fallboard {
+                // Its top from high on the name board down to just in front
+                // of the keys, its front edge rounded, a lip down in front
+                // of them onto the key slip; under it, clear of the black
+                // keys.
+                let (back, front) = ((y_back, kt + FALL_BACK), (key_front - FALL_LIP - 0.003, kt + FALL_FRONT));
+                let mut profile = vec![back];
+                profile.extend(fillet(back, front, (front.0, kz), FALL_ROUND));
+                profile.extend([(front.0, kz), (front.0 + FALL_LIP, kz), (front.0 + FALL_LIP, kt + 0.004), (back.0, back.1 - FALL_T)]);
+                let profile: Vec<(f32, f32)> = profile.into_iter().map(|(y, z)| (y as f32, z as f32)).collect();
+                b.slab(&profile, -hi as f32, -lo as f32, case);
+                // The name on its top, a little behind the middle.
+                let (dy, dz) = (back.0 - front.0, back.1 - front.1);
+                let l = dy.hypot(dz);
+                let (dy, dz) = (dy / l, dz / l);
+                let (py, pz) = (front.0 + dy * 0.55 * l, front.1 + dz * 0.55 * l);
+                name::name(&mut b, &|u, v, h| [(cx + u) as f32, (py + dy * v - dz * h) as f32, (pz + dz * v + dy * h) as f32]);
+            } else {
+                name::name(&mut b, &|u, v, h| [(cx + u) as f32, (y_back - h) as f32, (kt + NAME_UP + v) as f32]);
+            }
         }
     }
     b.label([-((klo + khi) / 2.0) as f32, key_front as f32, (kz + 0.03) as f32], "Keyboard", "Player");
@@ -1517,6 +1761,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let v = values[i];
         (v, if v > 0.05 || (i != 1 && lit(parts[i])) { sketches::HIGHLIGHT } else { BRASS })
     });
+    b.mat = Material::Brass;
     if vertical {
         for (i, &(v, c)) in pedals.iter().enumerate() {
             pedal(&mut b, cx + (i as f32 - 1.0) * PEDAL_PITCH, key_front as f32, floor as f32 + 0.06, v, c);
@@ -1530,8 +1775,11 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             leg(&mut b, [x, y, z0 as f32], floor as f32);
         }
     }
+    b.mat = Material::Paint;
     b.label([cx, key_front as f32 - 0.1, floor as f32 + 0.08], "Pedals", "Player");
     b.s.body = b.bounds();
+    b.s.floor = floor as f32;
+    b.s.live = live.is_some();
 
     // The microphones and their stands.
     if o.mics {
@@ -1554,7 +1802,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
                 }
             }
             let foot = [p[0], p[1], floor as f32];
-            b.line(p, foot, rgba(c, 0.7));
+            b.wire(p, foot, rgba(c, 0.7), 0.012);
             b.label(p, if i == 0 { "Mic L" } else { "Mic R" }, "Microphones");
         }
     }
@@ -1567,7 +1815,7 @@ mod tests {
     use super::*;
 
     fn options() -> Options<'static> {
-        Options { key: 60, lit: &[], lid: true, frame: true, mics: true, case: true, ink: Color32::WHITE }
+        Options { key: 60, lit: &[], lid: true, frame: true, mics: true, case: true, fallboard: false, front: 1.0, ink: Color32::WHITE }
     }
 
     #[test]
@@ -1577,8 +1825,9 @@ mod tests {
         assert_eq!(s.tris.len() % 3, 0);
         assert_eq!(s.lines.len() % 2, 0);
         assert!(s.tris.iter().chain(&s.lines).all(|v| v.pos.iter().chain(&v.normal).all(|x| x.is_finite())));
-        // No flattened box: every face has an area.
-        for t in s.tris.as_chunks::<3>().0 {
+        // No flattened box: every face has an area (but the name's
+        // letters, whose curves leave thin slivers).
+        for t in s.tris.as_chunks::<3>().0.iter().filter(|t| t[0].mat != Material::Gilt as u8 as f32) {
             let area = dot(cross(sub(t[1].pos, t[0].pos), sub(t[2].pos, t[0].pos)), cross(sub(t[1].pos, t[0].pos), sub(t[2].pos, t[0].pos)));
             assert!(area > 1e-14, "flat triangle {t:?}");
         }
@@ -1669,7 +1918,7 @@ mod tests {
         m.soundboard.as_mut().unwrap().outline = SoundboardParams::GRAND_OUTLINE;
         let sb = m.soundboard.unwrap();
         let outline = board_outline(&sb);
-        let mut b = Builder { s: Scene::default(), place: Place { vertical: false, top: 0.0 } };
+        let mut b = Builder::new(Place { vertical: false, top: 0.0 });
         let (t, z0, z1) = (0.075, -0.25, 0.05);
         b.wall(&outline, true, 0.0, t, z0, &|_| z1, CASE);
         // Its top is the ring between the outline and its offset: its area
@@ -1759,8 +2008,46 @@ mod tests {
     }
 
     #[test]
+    fn the_parts_are_made_of_something() {
+        // Only the microphones and the agraffes' holes are plain paint;
+        // the strings are wires as thick as they are.
+        let mut model = PianoModel::default();
+        for (case, vertical) in [(true, false), (false, false), (true, true)] {
+            model.soundboard.as_mut().unwrap().vertical = vertical;
+            let s = build(&model, None, &Options { key: 0, case, ..options() });
+            let paint = Material::Paint as u8 as f32;
+            let mut colours: Vec<_> = s.tris.iter().filter(|v| v.mat == paint).map(|v| v.color.map(|c| (c * 255.0).round() as u8)).collect();
+            colours.sort();
+            colours.dedup();
+            let allowed = [rgba(MIC[0], 1.0), rgba(MIC[1], 1.0), rgba(Color32::from_rgb(40, 32, 20), 1.0)].map(|c| c.map(|c| (c * 255.0).round() as u8));
+            assert!(colours.iter().all(|c| allowed.contains(c)), "unmade colours {colours:?} (case {case}, upright {vertical})");
+            let strings = s.lines.iter().filter(|v| [Material::Steel, Material::Copper].map(|m| m as u8 as f32).contains(&v.mat));
+            assert!(strings.clone().count() > 400 && strings.clone().all(|v| v.width > 0.0005 && v.width < 0.007));
+        }
+    }
+
+    #[test]
+    fn the_plate_stands_over_the_dampers_lifted() {
+        // Every damper up (the pedal down): their heads under the plate's
+        // bar and struts, and behind the bar.
+        let m = PianoModel::default();
+        let mut obs = Observation::default();
+        for k in obs.keys.iter_mut() {
+            k.damper = 0.0;
+        }
+        let levels = [0.0f32; 128];
+        let live = Live { obs: &obs, keys: &levels, board: None, time: 0.0 };
+        let s = build(&m, Some(&live), &options());
+        let heads = [rgba(DAMPER_FELT, 1.0), rgba(DAMPER_WOOD, 1.0)];
+        let (top, front) = s.tris.iter().filter(|v| heads.contains(&v.color)).fold((f32::MIN, f32::MAX), |(z, y), v| (z.max(v.pos[2]), y.min(v.pos[1])));
+        assert!(top > 0.05 && (top as f64) < plate::CLEAR - 0.002, "heads up to {top}");
+        // World y is plate x on a grand.
+        assert!((front as f64) > plate::BAR_BACK, "heads from {front}");
+    }
+
+    #[test]
     fn faces_point_outwards() {
-        let mut b = Builder { s: Scene::default(), place: Place { vertical: false, top: 0.0 } };
+        let mut b = Builder::new(Place { vertical: false, top: 0.0 });
         b.cuboid([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], Color32::WHITE);
         for t in b.s.tris.chunks(3) {
             let c = scale(add(add(t[0].pos, t[1].pos), t[2].pos), 1.0 / 3.0);

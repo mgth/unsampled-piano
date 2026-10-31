@@ -82,6 +82,21 @@ impl Mat4 {
     }
 }
 
+/// The 3D view's vertical field of view (radians).
+pub const FOVY: f32 = 0.6;
+
+/// A perspective camera: its view and projection, where it stands, its
+/// aspect and depth range (near and far planes, m).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Camera {
+    pub view: Mat4,
+    pub proj: Mat4,
+    pub eye: V3,
+    pub aspect: f32,
+    pub near: f32,
+    pub far: f32,
+}
+
 /// A camera turning around the instrument: drag to turn, scroll to come
 /// closer, right-drag to move the point looked at.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -97,10 +112,12 @@ pub struct Orbit {
 
 impl Orbit {
     /// Three-quarter view from the pianist's left, looking at the centre of
-    /// `min`–`max` from far enough to see all of it.
-    pub fn framing(min: V3, max: V3) -> Self {
+    /// `min`–`max` from far enough to see all of it in a view of `aspect`
+    /// (narrower than 3:2, farther).
+    pub fn framing(min: V3, max: V3, aspect: f32) -> Self {
         let size = dot(sub(max, min), sub(max, min)).sqrt();
-        Self { yaw: -0.6, pitch: 0.55, dist: 1.25 * size.max(0.5), target: scale(add(min, max), 0.5) }
+        let narrow = (1.5 / aspect.max(0.1)).max(1.0);
+        Self { yaw: -0.6, pitch: 0.55, dist: 1.25 * size.max(0.5) * narrow, target: scale(add(min, max), 0.5) }
     }
 
     pub fn eye(&self) -> V3 {
@@ -110,8 +127,15 @@ impl Orbit {
     }
 
     pub fn matrix(&self, aspect: f32) -> Mat4 {
-        let proj = Mat4::perspective(0.6, aspect, 0.02 * self.dist, 20.0 * self.dist);
-        proj.mul(&Mat4::look_at(self.eye(), self.target, [0.0, 0.0, 1.0]))
+        let c = self.camera(aspect);
+        c.proj.mul(&c.view)
+    }
+
+    /// The camera's parts, for the realistic view.
+    pub fn camera(&self, aspect: f32) -> Camera {
+        let (near, far) = (0.02 * self.dist, 20.0 * self.dist);
+        let eye = self.eye();
+        Camera { view: Mat4::look_at(eye, self.target, [0.0, 0.0, 1.0]), proj: Mat4::perspective(FOVY, aspect, near, far), eye, aspect, near, far }
     }
 
     /// Moves the target by a drag of (dx, dy) points on a view `height` high.
@@ -119,7 +143,7 @@ impl Orbit {
         let f = norm(sub(self.target, self.eye()));
         let s = norm(cross(f, [0.0, 0.0, 1.0]));
         let u = cross(s, f);
-        let k = 2.0 * self.dist * (0.3f32).tan() / height.max(1.0);
+        let k = 2.0 * self.dist * (FOVY / 2.0).tan() / height.max(1.0);
         self.target = add(self.target, add(scale(s, -dx * k), scale(u, dy * k)));
     }
 }
@@ -160,7 +184,7 @@ mod tests {
 
     #[test]
     fn orbit_sees_its_target() {
-        let o = Orbit::framing([-1.0, -0.2, -0.3], [0.0, 1.8, 0.3]);
+        let o = Orbit::framing([-1.0, -0.2, -0.3], [0.0, 1.8, 0.3], 1.5);
         let c = o.matrix(1.5).project(o.target);
         assert!(c[3] > 0.0 && (c[0] / c[3]).abs() < 1e-4 && (c[1] / c[3]).abs() < 1e-4 && (c[2] / c[3]).abs() < 1.0, "{c:?}");
     }

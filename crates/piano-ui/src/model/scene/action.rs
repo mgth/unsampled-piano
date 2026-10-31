@@ -25,6 +25,25 @@ const STICK_GAP: f64 = 0.0034;
 const WHITE_HEAD: f64 = 0.05;
 const BLACK_H: f64 = 0.012;
 const BLACK_DEPTH: f64 = 0.093;
+/// A white key's top, as replacement keytops are sold: a cover (ivory,
+/// now plastic) some 2 mm thick (0.075–0.090 in) on the wood, its front
+/// edge 1.5 mm past the wood's front (the fitters' gauge) and rounded; a
+/// front plate (0.6–1.7 mm) over the whole of the wood's front, under the
+/// cover's edge, which stands a little proud of it. The cover's
+/// thickness, its overhang, the front plate's thickness, the cover's
+/// front edge's radius.
+const KEYTOP_T: f64 = 0.002;
+const KEYTOP_OVER: f64 = 0.0015;
+const KEY_FRONT_T: f64 = 0.001;
+const KEYTOP_ROUND: f64 = 0.0007;
+/// A black key's cap above the white keys: narrower at its top by this
+/// much on each side, its long top edges rounded to this radius; its
+/// front sloping back this far up to its top, the slope's top edge
+/// rounded to this radius.
+const BLACK_TAPER: f64 = 0.0012;
+const BLACK_FILLET: f64 = 0.002;
+const BLACK_SLOPE: f64 = 0.011;
+const BLACK_NOSE: f64 = 0.004;
 const CRANK: f64 = 0.035;
 /// The balance rail behind the keys' front.
 const BALANCE: f64 = 0.2;
@@ -87,7 +106,7 @@ const DAMPER_HOLE: f64 = 0.0065;
 const DAMPER_SLOT: f64 = 0.0004;
 /// Steel's density: a string's radius from its mass per length (a wound
 /// string's a little under its winding's).
-const STEEL_DENSITY: f64 = 7850.0;
+pub(super) const STEEL_DENSITY: f64 = 7850.0;
 
 const KEY_WOOD: Color32 = Color32::from_rgb(222, 198, 156);
 const ACTION_WOOD: Color32 = Color32::from_rgb(204, 172, 122);
@@ -101,6 +120,23 @@ const LEATHER: Color32 = Color32::from_rgb(120, 78, 48);
 const RAIL: Color32 = Color32::from_rgb(176, 178, 184);
 const BRACKET: Color32 = Color32::from_rgb(92, 94, 102);
 const LEAD: Color32 = Color32::from_rgb(112, 114, 122);
+
+/// The material each of the action's colours stands for.
+pub(super) const MATERIALS: [(Color32, Material); 13] = [
+    (KEY_WOOD, Material::Wood),
+    (ACTION_WOOD, Material::Wood),
+    (SHANK_WOOD, Material::Wood),
+    (MOLDING, Material::Wood),
+    (HAMMER_FELT, Material::Felt),
+    (UNDERFELT, Material::Felt),
+    (CLOTH, Material::Felt),
+    (sketches::FELT, Material::Felt),
+    (BUCKSKIN, Material::Leather),
+    (LEATHER, Material::Leather),
+    (RAIL, Material::Steel),
+    (BRACKET, Material::Steel),
+    (LEAD, Material::Lead),
+];
 
 /// Where a run of drawn triangles and lines starts.
 #[derive(Clone, Copy)]
@@ -185,6 +221,74 @@ impl Builder {
         }
     }
 
+    /// A solid through the `sections` (world points, each a closed loop of
+    /// as many points, the one joined to the next), capped at both ends,
+    /// its faces turned outwards; shaded smooth where two faces meet at
+    /// less than [`SMOOTH_DEG`], around a section or along.
+    pub(super) fn loft(&mut self, sections: &[Vec<V3>], c: Color32) {
+        let (n, m) = (sections.len(), sections[0].len());
+        if n < 2 || m < 3 {
+            return;
+        }
+        let col = rgba(c, 1.0);
+        let all = sections.iter().flatten();
+        let centre = scale(all.clone().fold([0.0; 3], |a, &p| add(a, p)), 1.0 / (n * m) as f32);
+        // Each quad's corners (section i or i + 1, point k or k + 1) and
+        // its outward normal; whether the loops' order turns them inwards.
+        let corners = |i: usize, k: usize| [sections[i][k], sections[i + 1][k], sections[i + 1][(k + 1) % m], sections[i][(k + 1) % m]];
+        let face = |i: usize, k: usize| {
+            let q = corners(i, k);
+            norm(cross(sub(q[2], q[0]), sub(q[3], q[1])))
+        };
+        let mid = |i: usize, k: usize| {
+            let q = corners(i, k);
+            scale(add(add(q[0], q[1]), add(q[2], q[3])), 0.25)
+        };
+        let votes: f32 = (0..n - 1).flat_map(|i| (0..m).map(move |k| (i, k))).map(|(i, k)| dot(face(i, k), sub(mid(i, k), centre)).signum()).sum();
+        let flip = if votes < 0.0 { -1.0 } else { 1.0 };
+        let normals: Vec<Vec<V3>> = (0..n - 1).map(|i| (0..m).map(|k| scale(face(i, k), flip)).collect()).collect();
+        let smooth = SMOOTH_DEG.to_radians().cos() as f32;
+        // At corner (i, k) of quad (qi, qk): the faces meeting there that
+        // bend from it gently.
+        let normal = |qi: usize, qk: usize, i: usize, k: usize| {
+            let own = normals[qi][qk];
+            let mut sum = [0.0; 3];
+            for fi in [i.wrapping_sub(1), i] {
+                for fk in [(k + m - 1) % m, k % m] {
+                    if fi < n - 1 && dot(normals[fi][fk], own) > smooth {
+                        sum = add(sum, normals[fi][fk]);
+                    }
+                }
+            }
+            norm(sum)
+        };
+        for i in 0..n - 1 {
+            for k in 0..m {
+                let mut q = corners(i, k);
+                let mut nn = [normal(i, k, i, k), normal(i, k, i + 1, k), normal(i, k, i + 1, k + 1), normal(i, k, i, k + 1)];
+                if flip < 0.0 {
+                    q.reverse();
+                    nn.reverse();
+                }
+                self.quad_n(q, nn, col);
+            }
+        }
+        // The caps, facing away from the other end.
+        let mean = |s: &[V3]| scale(s.iter().fold([0.0; 3], |a, &p| add(a, p)), 1.0 / m as f32);
+        let (first, last) = (mean(&sections[0]), mean(&sections[n - 1]));
+        for (i, out) in [(0, sub(first, last)), (n - 1, sub(last, first))] {
+            let s = &sections[i];
+            let c = mean(s);
+            for k in 0..m {
+                let mut t = [c, s[k], s[(k + 1) % m]];
+                if dot(cross(sub(t[1], t[0]), sub(t[2], t[0])), out) < 0.0 {
+                    t.swap(1, 2);
+                }
+                self.tri(false, t, [col; 3]);
+            }
+        }
+    }
+
     /// A rod of radius `r` across the keys (world x) from `x0` to `x1`,
     /// its centre at (y, z): a prism of ten faces, shaded smooth.
     fn rod_x(&mut self, x0: f64, x1: f64, y: f64, z: f64, r: f64, c: Color32) {
@@ -213,7 +317,10 @@ impl Builder {
         for (end, rr, n) in [(a, r.0, scale(axis, -1.0)), (b, r.1, axis)] {
             for k in 0..SIDES {
                 let l = (k + 1) % SIDES;
-                self.s.tris.extend([end, add(end, scale(out[k], rr)), add(end, scale(out[l], rr))].map(|pos| Vertex { pos, normal: n, color: col }));
+                for pos in [end, add(end, scale(out[k], rr)), add(end, scale(out[l], rr))] {
+                    let v = self.vertex(pos, n, col);
+                    self.s.tris.push(v);
+                }
             }
         }
     }
@@ -424,6 +531,7 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
     // An upright's keys pivot out of sight behind the keyboard.
     let balance = if c.vertical { (c.key_back + 0.15, c.kz) } else { g.balance };
     let dip = (KEY_DIP / (balance.0 - c.key_front)).asin();
+    b.mat = Material::Wood;
     for m in 21..=108u8 {
         let k = c.state(m);
         let black = sketches::is_black(m);
@@ -439,16 +547,14 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
         };
         let top = mix(top, sketches::HIGHLIGHT, (c.level)(m) * 0.4);
         let mark = b.mark();
+        b.mat = if black { Material::Ebony } else { Material::KeyTop };
         let (y0, y1) = (c.key_front, c.key_back);
         // The part the pianist sees, and where it leaves the keyboard:
         // a white key's narrow part between its black neighbours.
         let tail = if black {
             let yf = y1 - BLACK_DEPTH;
             b.block((yf, y1), (c.kz, key_top), (x0 + x1) / 2.0, x1 - x0, top);
-            let lo = [[x0, yf, key_top], [x1, yf, key_top], [x1, y1, key_top], [x0, y1, key_top]];
-            let (i0, i1) = (x0 + 0.0012, x1 - 0.0012);
-            let hi = [[i0, yf + 0.012, key_top + BLACK_H], [i1, yf + 0.012, key_top + BLACK_H], [i1, y1, key_top + BLACK_H], [i0, y1, key_top + BLACK_H]];
-            b.hexa(lo.map(f32s), hi.map(f32s), top);
+            b.loft(&black_cap((x0, x1), (yf, y1), key_top), top);
             (x0, x1)
         } else {
             let edge = |n: u8, left: bool| {
@@ -460,10 +566,15 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
                 }
             };
             let (n0, n1) = (edge(m.wrapping_sub(1), true).unwrap_or(x0), edge(m + 1, false).unwrap_or(x1));
-            b.block((y0, y0 + WHITE_HEAD), (c.kz, key_top), (x0 + x1) / 2.0, x1 - x0, top);
-            b.block((y0 + WHITE_HEAD, y1), (c.kz, key_top), (n0 + n1) / 2.0, n1 - n0, top);
+            // The wood under its cover and behind its lip; the cover.
+            let (yh, zc) = (y0 + WHITE_HEAD, key_top - KEYTOP_T);
+            b.block((y0, yh), (c.kz, zc), (x0 + x1) / 2.0, x1 - x0, KEY_WOOD);
+            b.block((yh, y1), (c.kz, zc), (n0 + n1) / 2.0, n1 - n0, KEY_WOOD);
+            b.piece(&keytop_head(y0, yh, (c.kz, key_top)), (x0 + x1) / 2.0, x1 - x0, top);
+            b.block((yh, y1), (zc, key_top), (n0 + n1) / 2.0, n1 - n0, top);
             (n0, n1)
         };
+        b.mat = Material::Wood;
         if c.vertical {
             let angle = if k.down { dip } else { 0.0 };
             b.turn(mark, balance, angle, shift);
@@ -518,6 +629,57 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
     if c.inside && !c.vertical {
         rails(b, c, &g, shift);
     }
+    b.mat = Material::Paint;
+}
+
+/// A quarter of a circle (y, z) about `c`, radius `r`, from angle `a0`
+/// to `a1` (degrees), both ends included.
+fn quarter(c: (f64, f64), r: f64, a0: f64, a1: f64) -> impl Iterator<Item = (f64, f64)> {
+    (0..=4).map(move |k| {
+        let a = (a0 + (a1 - a0) * k as f64 / 4.0).to_radians();
+        (c.0 + r * a.cos(), c.1 + r * a.sin())
+    })
+}
+
+/// A white key's cover over its head and its front plate, in (y, z):
+/// from the wood's front `y0` back to `yh`, the key from `z.0` up to its
+/// top `z.1`; the cover's front edge past the plate, rounded.
+fn keytop_head(y0: f64, yh: f64, z: (f64, f64)) -> Vec<(f64, f64)> {
+    let (top, zc) = (z.1, z.1 - KEYTOP_T);
+    let (yp, yf) = (y0 - KEY_FRONT_T, y0 - KEYTOP_OVER);
+    let mut p = vec![(yh, zc), (y0, zc), (y0, z.0), (yp, z.0), (yp, zc), (yf, zc)];
+    p.extend(quarter((yf + KEYTOP_ROUND, top - KEYTOP_ROUND), KEYTOP_ROUND, 180.0, 90.0));
+    p.push((yh, top));
+    p
+}
+
+/// A black key's cap from `x.0` to `x.1` across, `y.0` (its front) to
+/// `y.1`, standing on `base`: its sections along it, each narrower at its
+/// top, the top's long edges rounded, the front sloping back to the top
+/// over a rounded edge.
+fn black_cap(x: (f64, f64), y: (f64, f64), base: f64) -> Vec<Vec<V3>> {
+    let (h, f, r) = (BLACK_H, BLACK_SLOPE, BLACK_NOSE);
+    // The profile along (from the front, height): up the slope, round its
+    // top edge (a fillet between the slope and the top), on to the back.
+    let slope = h.atan2(f);
+    let t = r * (slope / 2.0).tan();
+    let (dy, dz) = (f / f.hypot(h), h / f.hypot(h));
+    let mut along = vec![(0.0, 0.0008), (f - dy * t, h - dz * t)];
+    along.extend(quarter((f + t, h - r), r, 90.0 + slope.to_degrees(), 90.0).skip(1));
+    along.push((y.1 - y.0, h));
+    let cx = (x.0 + x.1) / 2.0;
+    let w = x.1 - x.0;
+    along
+        .into_iter()
+        .map(|(a, hh)| {
+            let top = w / 2.0 - BLACK_TAPER * hh / h;
+            let rr = BLACK_FILLET.min(0.45 * hh).min(0.45 * top);
+            let mut s = vec![(cx - w / 2.0, base), (cx + w / 2.0, base)];
+            s.extend(quarter((cx + top - rr, base + hh - rr), rr, 0.0, 90.0));
+            s.extend(quarter((cx - top + rr, base + hh - rr), rr, 90.0, 180.0));
+            s.into_iter().map(|(sx, z)| f32s([sx, y.0 + a, z])).collect()
+        })
+        .collect()
 }
 
 fn f32s(p: [f64; 3]) -> V3 {
@@ -592,7 +754,9 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
     let inner = (mw, mt - 0.006, mt);
     let mid = (mw + under.0, mt - 0.006 + under.1 * 0.5, mt + under.1);
     band(inner, mid, c.pick(Part::Core, UNDERFELT), b);
+    b.mat = Material::Felt;
     band(mid, (d, mt - 0.006 + h.felt * 0.5, hh), felt, b);
+    b.mat = Material::Wood;
     b.turn(mark, g.pivot, angle, shift);
     // Its flange on the rail in front of the pivot.
     if c.inside {
@@ -791,7 +955,7 @@ fn wippen(b: &mut Builder, c: &Ctx, g: &Geo, cx: f64, down: bool, angle: f64, sh
     let rep = c.pick(Part::Repetition, SHANK_WOOD);
     b.piece(&[(py - 0.013, rl - 0.0035), (jy + 0.009, rl - 0.004), (jy + 0.012, rl - 0.001), (jy + 0.012, rl + 0.004), (py - 0.009, rl + 0.004), (py - 0.014, rl + 0.001)], cx, 0.006, rep);
     // Its spring, a wire from the post to under the lever.
-    b.line(f32s([cx + 0.0035, py + 0.004, wt + 0.006]), f32s([cx + 0.0035, jy - 0.01, rl - 0.004]), rgba(STEEL, 1.0));
+    b.wire(f32s([cx + 0.0035, py + 0.004, wt + 0.006]), f32s([cx + 0.0035, jy - 0.01, rl - 0.004]), rgba(STEEL, 1.0), 0.0008);
     b.turn(mark, g.wippen, angle, shift);
     // The let-off button over the jack's toe, the drop screw over the
     // repetition lever's front.
@@ -878,7 +1042,7 @@ mod tests {
     fn a_swept_profile_faces_outwards_grand_or_upright() {
         for vertical in [false, true] {
             let place = Place { vertical, top: 1.0 };
-            let mut b = Builder { s: Scene::default(), place };
+            let mut b = Builder::new(place);
             let at = |a: f64, s: f64, h: f64| place.at(0.3 * a - 0.8 * s, 0.8 * a + 0.3 * s, h);
             let (section, _) = felt_section(1, 0.001, false);
             b.extrude(&section, (-0.01, 0.01), &at, Color32::WHITE);
@@ -889,6 +1053,33 @@ mod tests {
                 assert!(dot(t[0].normal, sub(c, at(0.0, 0.0, 0.0065))) > 0.0, "vertical {vertical}: {t:?}");
             }
         }
+    }
+
+    #[test]
+    fn a_black_key_faces_outwards_and_rounds_its_edges() {
+        let mut b = Builder::new(Place { vertical: false, top: 0.0 });
+        b.loft(&black_cap((0.0, 0.011), (0.0, 0.093), 0.0), EBONY);
+        // A point well inside the cap, low and behind its sloping front.
+        let inside = [0.0055, 0.05, 0.004];
+        let mut slanted = 0;
+        for t in b.s.tris.chunks(3) {
+            let c = scale(add(add(t[0].pos, t[1].pos), t[2].pos), 1.0 / 3.0);
+            for v in t {
+                assert!(dot(v.normal, sub(c, inside)) > 0.0, "{t:?}");
+                // Rounded: normals between up and the sides.
+                let n = v.normal;
+                if n[2] > 0.2 && n[0].abs() > 0.2 {
+                    slanted += 1;
+                }
+            }
+        }
+        assert!(slanted > 50, "{slanted}");
+        // As wide as the key at its foot, narrower at its top.
+        let (lo, hi) = b.bounds();
+        assert!((hi[0] - lo[0] - 0.011).abs() < 1e-6 && (hi[2] - BLACK_H as f32).abs() < 1e-6);
+        let top = b.s.tris.iter().filter(|v| v.pos[2] > BLACK_H as f32 - 1e-6).map(|v| v.pos[0]);
+        let (a, z) = top.fold((f32::MAX, f32::MIN), |(a, z), x| (a.min(x), z.max(x)));
+        assert!(z - a < 0.011 - 2.0 * (BLACK_TAPER + 0.9 * BLACK_FILLET) as f32, "{a} {z}");
     }
 
     #[test]
