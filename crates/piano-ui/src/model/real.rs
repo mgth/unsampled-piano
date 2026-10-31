@@ -268,7 +268,10 @@ float box(vec3 d, int i, float b) {
 vec3 env(vec3 p, vec3 d, float rough, float key) {
     float b = 0.004 + 0.9 * rough * rough;
     vec3 c = room(d, rough);
-    vec2 inside = step(u_board.xy, p.xy) * step(p.xy, u_board.zw);
+    // A few millimetres beyond: the case's inner walls stand on these
+    // bounds, and an exact test flickers from one fragment to the next
+    // between the board's reflection and the room's.
+    vec2 inside = step(u_board.xy - 0.003, p.xy) * step(p.xy, u_board.zw + 0.003);
     if (inside.x * inside.y > 0.5 && p.z > u_board_z - 0.005 && p.z < u_board_z + 0.3) {
         c = mix(c, u_board_l, smoothstep(0.0, 0.15 + rough, -d.z));
     }
