@@ -178,6 +178,10 @@ const KEYBED_T: f64 = 0.035;
 const KEY_FRAME: f64 = 0.04;
 const KEY_HEIGHT: f64 = 0.72;
 const KEY_SLIP: f64 = 0.018;
+/// A grand's cheek blocks' least width, between the keys and the case's
+/// arms; the bass's agraffes' least distance from the board's bass side.
+const KEY_CHEEK: f64 = 0.03;
+const AGRAFFE_EDGE: f64 = 0.025;
 /// An upright's board bottom, keyboard height and distance in front.
 const UPRIGHT_BASE: f64 = 0.2;
 const UPRIGHT_KEYS_Z: f64 = 0.72;
@@ -694,16 +698,30 @@ pub fn triangulate(p: &[(f64, f64)]) -> Vec<[usize; 3]> {
 /// from one semitone to the next, as on a grand (whose keys are not: the
 /// action's shanks fan out to the strings), C8 and the main bridge's
 /// lowest key in line with where their strings cross the keys' line
-/// ([`SoundboardParams::key_across`]) as their keys are
-/// ([`keyboard_span`]), the bass beyond at the same pitch.
-pub fn key_across(sb: &SoundboardParams, m: u8) -> f64 {
+/// ([`SoundboardParams::key_across`]), the bass beyond at the same pitch,
+/// but closer together if that would bring A0's agraffe within
+/// [`AGRAFFE_EDGE`] of the board's bass side (the case's wall): its
+/// string runs on from its strike, away from its bridge, to its agraffe.
+/// The engine has no place across for the bass's hammers (it drives the
+/// frame in line with their bridge points).
+pub fn key_across(model: &PianoModel, sb: &SoundboardParams, m: u8) -> f64 {
     let y = |m: u8| sb.key_across(m);
     let lo_key = sb.main_bridge_from.min(107);
-    y(108) + (y(lo_key) - y(108)) * (108 - m) as f64 / (108 - lo_key) as f64
+    let pitch = (y(lo_key) - y(108)) / (108 - lo_key) as f64;
+    if m >= lo_key || pitch <= 0.0 {
+        return y(108) + pitch * (108 - m) as f64;
+    }
+    let s = model.note(21).strike_pos;
+    let a0 = (1.0 - s) * (sb.b - AGRAFFE_EDGE) + s * sb.bridge_point(21).1;
+    let bass = ((a0 - y(lo_key)) / (lo_key - 21) as f64).clamp(0.5 * pitch, pitch);
+    y(lo_key) + bass * (lo_key - m) as f64
 }
 
 /// The keyboard's extent across (plate y): C8 and the main bridge's lowest
-/// key in line with their strings, the bass keys beyond.
+/// key in line with their strings, the bass keys beyond, but moved
+/// towards the treble (or the bass) as far as leaves room for cheek
+/// blocks [`KEY_CHEEK`] wide inside the case's walls (centred if there is
+/// not that much room); the keys crank to their hammers behind it.
 fn keyboard_span(sb: &SoundboardParams) -> (f64, f64) {
     let y = |m: u8| sb.key_across(m);
     let mid = |m: u8| {
@@ -714,7 +732,14 @@ fn keyboard_span(sb: &SoundboardParams) -> (f64, f64) {
     let white = (y(lo_key) - y(108)) / (mid(108) - mid(lo_key));
     let hi = y(108) + mid(108) * white;
     let lo = hi - 52.0 * white;
-    (lo.min(hi), lo.max(hi))
+    let (lo, hi) = (lo.min(hi), lo.max(hi));
+    let room = (KEY_CHEEK, sb.b - KEY_CHEEK);
+    let shift = if hi - lo > room.1 - room.0 {
+        (sb.b - lo - hi) / 2.0
+    } else {
+        (room.0 - lo).max(0.0) + (room.1 - hi).min(0.0)
+    };
+    (lo + shift, hi + shift)
 }
 
 /// A string's rear length (m), from its bridge point `p` (plate) on along
@@ -777,7 +802,7 @@ pub fn string_ends(model: &PianoModel, sb: &SoundboardParams, hx: f64, m: u8) ->
     let (bx, by) = sb.bridge_point(m);
     let s = model.note(m).strike_pos;
     let back = |hit: f64, bridge: f64| (hit - s * bridge) / (1.0 - s);
-    ((back(hx, bx), back(key_across(sb, m), by)), (bx, by), z)
+    ((back(hx, bx), back(key_across(model, sb, m), by)), (bx, by), z)
 }
 
 /// A string's tuning pin: where it stands on the plate, the agraffe hole
@@ -794,11 +819,13 @@ pub struct TuningPin {
 /// agraffes, spread evenly across (each key's share of an even pitch,
 /// whatever the keys' own spacing), a unison's on a diagonal one row
 /// further from the agraffes per string (single strings alternating
-/// between two rows), so that the farther pins' strings pass between the
-/// nearer pins. `ends` are the keys' [`string_ends`] from A0.
+/// between two rows, the one next to the first unison in front, clear of
+/// that unison's nearer pin a row back), so that the farther pins'
+/// strings pass between the nearer pins. `ends` are the keys' [`string_ends`] from A0.
 pub fn tuning_pins(model: &PianoModel, sb: &SoundboardParams, ends: &[StringEnds]) -> Vec<TuningPin> {
     let ay = |m: u8| ends[(m - 21) as usize].0.1;
     let bass = |m: u8| m < sb.main_bridge_from;
+    let unison = (21..=108u8).find(|&m| model.note(m).strings > 1).unwrap_or(109);
     let mut pins = Vec::new();
     for m in 21..=108u8 {
         let ((ax, _), (bx, by), _) = ends[(m - 21) as usize];
@@ -819,7 +846,7 @@ pub fn tuning_pins(model: &PianoModel, sb: &SoundboardParams, ends: &[StringEnds
         let strings = model.note(m).strings;
         for s in 0..strings {
             let mid = s as f64 - (strings as f64 - 1.0) / 2.0;
-            let row = if strings == 1 { (m % 2) as f64 } else { s as f64 };
+            let row = if strings == 1 { (unison as i32 - 1 - m as i32).rem_euclid(2) as f64 } else { s as f64 };
             let (back, across) = (PIN_GAP + PIN_ROW * row, mid * pitch / strings as f64);
             pins.push(TuningPin { at: (ax - ux * back + nx * across, even - uy * back + ny * across), hole: (ax + nx * mid * UNISON_GAP, ay(m) + ny * mid * UNISON_GAP), dir: (ux, uy) });
         }
@@ -1444,7 +1471,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         // slip along the keys' front, and behind them the fallboard (open)
         // over a strip of felt. Across (plate y): the case's sides, wider
         // if the keys are.
-        let (lo, hi) = (across_lo.min(klo - 0.04), across_hi.max(khi + 0.04));
+        let (lo, hi) = (across_lo.min(klo - KEY_CHEEK), across_hi.max(khi + KEY_CHEEK));
         let (x_lo, x_hi) = (-(hi + t) as f32, -(lo - t) as f32);
         let (yf, yb) = ((key_front - KEY_SLIP - 0.002) as f32, (y_back + FRONT_T) as f32);
         let (z0f, top, bed) = (z0 as f32, key_top as f32, (z0 + KEYBED_T) as f32);
@@ -1593,14 +1620,14 @@ mod tests {
         for &(k, ((ax, ay), (bx, by), _)) in &ends {
             let s = m.note(k).strike_pos;
             assert!((ax + s * (bx - ax) - hx).abs() < 1e-12, "key {k} struck off the line");
-            assert!((ay + s * (by - ay) - key_across(&sb, k)).abs() < 1e-12, "key {k} struck off its key");
+            assert!((ay + s * (by - ay) - key_across(&m, &sb, k)).abs() < 1e-12, "key {k} struck off its key");
             assert!(ax < hx, "key {k}'s agraffe at {ax}");
         }
         // The hammers in front of the board; the bass's agraffe in front,
         // the treble's well behind it, just in front of the hammers.
         let (a0, c8) = (ends[0].1.0.0, ends[87].1.0.0);
         assert!(hx <= -HAMMER_CLEAR, "{hx}");
-        assert!(ends[0].1.0.1 > key_across(&sb, 21) + 0.03, "A0's agraffe not to the bass side");
+        assert!(ends[0].1.0.1 > key_across(&m, &sb, 21) + 0.03, "A0's agraffe not to the bass side");
         assert!(c8 - a0 > 0.1 && hx - c8 < 0.01, "A0 at {a0}, C8 at {c8}, hammers at {hx}");
         // A tuning pin per string, in front of its agraffe.
         let strings: usize = (21..=108u8).map(|k| m.note(k).strings).sum();
@@ -1673,6 +1700,30 @@ mod tests {
                     assert!(s.tris.iter().chain(&s.lines).all(|v| v.pos.iter().all(|x| x.is_finite())), "vertical {vertical}, main bridge from {from}, case {case}");
                 }
             }
+        }
+    }
+
+    #[test]
+    fn the_keys_and_the_strings_fit_inside_the_case() {
+        let m = PianoModel::default();
+        let sb = m.soundboard.unwrap().resolved();
+        // The keyboard and its cheek blocks between the rim's walls, its
+        // arms in line with them.
+        let (lo, hi) = keyboard_span(&sb);
+        assert!(lo >= KEY_CHEEK - 1e-9 && hi <= sb.b - KEY_CHEEK + 1e-9, "keys from {lo} to {hi}, board {}", sb.b);
+        // Every string's front end and tuning pin inside the bass side.
+        let hx = hammer_x(&m, &sb);
+        let ends: Vec<_> = (21..=108u8).map(|k| string_ends(&m, &sb, hx, k)).collect();
+        assert!(ends.iter().all(|e| e.0.1 <= sb.b - AGRAFFE_EDGE + 1e-9), "an agraffe in the wall");
+        let pins = tuning_pins(&m, &sb, &ends);
+        let far = pins.iter().map(|p| p.at.1).fold(f64::MIN, f64::max);
+        assert!(far + PIN_BUSH_R < sb.b, "a tuning pin at {far}");
+        // The bass's hammers closer together, but no closer than half the
+        // others' pitch, in order.
+        let main = key_across(&m, &sb, 107) - key_across(&m, &sb, 108);
+        for k in 21..sb.main_bridge_from {
+            let gap = key_across(&m, &sb, k) - key_across(&m, &sb, k + 1);
+            assert!(gap >= 0.5 * main - 1e-12 && gap <= main + 1e-12, "key {k}: {gap} vs {main}");
         }
     }
 

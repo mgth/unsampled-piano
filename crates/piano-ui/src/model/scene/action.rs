@@ -311,11 +311,18 @@ impl Ctx<'_> {
 
     /// World x across of key `m`'s action (its strings' strike point).
     fn across(&self, m: u8) -> f64 {
-        -key_across(self.sb, m)
+        -key_across(self.model, self.sb, m)
     }
 
-    fn pitch(&self) -> f64 {
-        (key_across(self.sb, 21) - key_across(self.sb, 108)).abs() / 87.0
+    /// The room across for key `m`'s action: the nearer of its
+    /// neighbours' (the bass's hammers may be closer than the rest's).
+    fn pitch(&self, m: u8) -> f64 {
+        let gap = |n: u8| (self.across(n) - self.across(n + 1)).abs();
+        match m {
+            ..=21 => gap(21),
+            108.. => gap(107),
+            _ => gap(m - 1).min(gap(m)),
+        }
     }
 }
 
@@ -413,8 +420,6 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
     let white = (khi - klo) / 52.0;
     let wx = |u: f32| u as f64 * white - khi;
     let shift = if c.vertical { 0.0 } else { 0.0025 * c.obs.map_or(0.0, |o| o.soft as f64) };
-    let pitch = c.pitch();
-    let stick = pitch - STICK_GAP;
     let key_top = c.kz + 0.022;
     // An upright's keys pivot out of sight behind the keyboard.
     let balance = if c.vertical { (c.key_back + 0.15, c.kz) } else { g.balance };
@@ -477,6 +482,7 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
         }
         // Cranked from the keyboard's spacing to the action's, then
         // straight to the tail.
+        let stick = c.pitch(m) - STICK_GAP;
         let (s0, s1) = (cx - stick / 2.0, cx + stick / 2.0);
         let (yc, z0, z1) = (y1 + CRANK, c.kz, key_top);
         let lo = [[tail.0, y1, z0], [tail.1, y1, z0], [s1, yc, z0], [s0, yc, z0]];
@@ -522,7 +528,7 @@ fn hammer(c: &Ctx, g: &Geo, m: u8) -> Hammer {
     let z = c.ends[(m - 21) as usize].2;
     let mass = c.model.note(m).hammer.mass_kg;
     let size = ((mass - 0.0054) / (0.011 - 0.0054)).clamp(0.0, 1.0);
-    Geo::hammer_at(g.pivot, g.yh, z, size, c.pitch())
+    Geo::hammer_at(g.pivot, g.yh, z, size, c.pitch(m))
 }
 
 /// The bottom of the molding's tail (world y, z) with the shank at `angle`.
@@ -825,8 +831,7 @@ fn rails(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
     while m <= 108 {
         let bass = m < c.sb.main_bridge_from;
         let last = (m..=108).take_while(|&n| (n < c.sb.main_bridge_from) == bass).last().unwrap_or(m);
-        let pitch = c.pitch();
-        let (x0, x1) = (c.across(m) - pitch / 2.0 + 0.001, c.across(last) + pitch / 2.0 - 0.001);
+        let (x0, x1) = (c.across(m) - c.pitch(m) / 2.0 + 0.001, c.across(last) + c.pitch(last) / 2.0 - 0.001);
         let (x0, x1) = (x0.min(x1), x0.max(x1));
         let lowest = (m..=last).map(|n| hammer(c, g, n).rest).fold(f64::MAX, f64::min);
         let top = pz + (rest_at - py) * lowest.tan() - SHANK_R as f64;
@@ -836,7 +841,6 @@ fn rails(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
     }
     // The brackets, between keys: at both ends, at the bass's break and
     // through the treble.
-    let pitch = c.pitch();
     let breaks = [20.5, c.sb.main_bridge_from as f64 - 0.5, 68.5, 88.5, 108.5];
     // A truss: a foot on the balance rail, struts up to the wippen rail,
     // the let-off rail, the flange rail and the rest rail.
@@ -850,7 +854,10 @@ fn rails(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
     ];
     let struts = [(0, 1, 0.011), (1, 2, 0.008), (2, 3, 0.008), (1, 3, 0.006), (3, 4, 0.006)];
     for at in breaks {
-        let across = |m: f64| -key_across(c.sb, m.clamp(21.0, 108.0) as u8) + (m - m.clamp(21.0, 108.0)) * pitch;
+        let across = |m: f64| {
+            let k = m.clamp(21.0, 108.0);
+            c.across(k as u8) + (m - k) * c.pitch(k as u8)
+        };
         let x = (across(at - 0.5) + across(at + 0.5)) / 2.0 + shift;
         let col = c.pick(Part::ActionKnock, BRACKET);
         b.block((g.balance.0 - 0.02, g.balance.0 + 0.02), (c.kz, c.kz + 0.006), x, 0.012, col);
