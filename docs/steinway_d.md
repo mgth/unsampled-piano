@@ -96,7 +96,9 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `unison.bichord_from` | 28 | 29 (F1) | 8 single strings |
 | `unison.trichord_from` | 45 | 34 (A♯1) | 5 bichords |
 | `losses.wound_until` | 48 | 41 | wound strings on the bass bridge only |
-| `soundboard.a` × `b` | 1.70 × 1.30 | 1.99 × 1.46 | Chabassier's Figure 6 |
+| `soundboard.a` × `b` | 1.70 × 1.30 | 2.124 × 1.46 | Chabassier's Figure 6, with the front edge's 12.4 cm slant |
+| `soundboard.outline` | the 2 m grand's | RT-425's figure 1, ten points | 2.10 m² (published 2.07), against 2.38 m² |
+| `soundboard.treble_bridge` | the 2 m grand's | RT-425's points | no slant added: they are the strings' real ends |
 | `soundboard.rib_spacing` | 0 (off) | ≈ 0.11 | 17 ribs over ≈ 2 m (an inference: spacing not found) |
 | `rim.thickness` | 0.075 | 0.083 | Steinway |
 | `strike_ratio` | 0.12 | 0.12 | C♯5 |
@@ -212,7 +214,7 @@ The default's `impedance_slope_bass` makes the bass side of the board move more 
 | + the bridge real down to the middle | 7.51 | 6.15 | 6.52 | 10.91 | 5.15 | 1.62 | 1.29 |
 | + the whole bridge real | 7.94 | 6.15 | 6.80 | 11.16 | 6.60 | 1.69 | 1.31 |
 
-The real geometry is kept where the model can carry it, at a cost in the distance to the D, not recovered yet. The whole bridge is not: at the top it runs along this outline's straight front edge (C8 12 dB short, its loudness 14.6 dB under the D's), while the D's front edge is slanted and B7 lies 9 cm inside its board.
+The real geometry is kept where the model can carry it, at a cost in the distance to the D, not recovered yet. The whole bridge is not: at the top it runs along this outline's straight front edge (C8 12 dB short, its loudness 14.6 dB under the D's), while the D's front edge is slanted and B7 lies 9 cm inside its board. The D's board, below, settles this.
 
 ### Voicing note by note
 
@@ -223,4 +225,20 @@ Each key rendered with its own preset, A0–B2, velocities 60 and 100, the parti
 
 Only the direct level of each partial brought the bell by ear (above). It would be a filter per note, not a voicing.
 
-Still false: the wound strings' lengths (2.01 → 1.38 m on the D, the law is straight), the fundamentals under 50 Hz, 2–4 kHz at mf, and the left and right channels above 2 kHz.
+### The D's board
+
+The model kept its 2 m grand's outline, stretched: 2.38 m², up to 28 cm too wide (at 60 cm from the front edge, 1.31 m against 1.03 m), a straight front edge, and 9 of RT-425's 84 bridge points outside it. Traced off RT-425's figure 1, the D's outline has 2.10 m² (published: 2.07), holds all 84, and its front edge runs 12.4 cm further forward on the treble side: B7 lies 9 cm inside the board, not on its edge. So the board's length becomes 2.124 m and every coordinate moves with its origin.
+
+| Against the D without hammer noise | Overall | Bass | Middle | Treble | Top | Bench | Loudness key to key |
+|---|---|---|---|---|---|---|---|
+| model's outline, break at F2 | 7.22 | 6.16 | 7.77 | 8.98 | 5.45 | 1.60 | 4.40 |
+| real outline | 7.65 | 6.66 | 9.87 | 7.98 | 5.38 | 1.64 | 3.61 |
+| + real bridge | 7.66 | 6.68 | 9.21 | 9.00 | 4.92 | 1.69 | 4.44 |
+| + no added string slant | 7.25 | 7.19 | 7.43 | 8.90 | 4.95 | 1.86 | 4.47 |
+| + `rho_h` 14.7, `crown_freq` 55: the preset | 6.54 | 5.73 | 5.45 | 8.25 | 6.35 | 1.50 | 3.83 |
+
+The smaller board had raised the modes: `rho_h` 14.7 (from 10.5) or the stiffnesses × 0.7 both bring them back, `rho_h` 18 goes too far. At the real outline alone, `rho_h` 14.7 takes the 4–8 kHz left-right imbalance at A0–B1 from 11.6 to 6.0 dB. `outline_below` 3000 and `impedance_slope` do not help. The bench's bass register is 1.34, its treble 1.10.
+
+The E6–F#6 that stood out by 12–15 dB are gone; D5, A#5 (−9 to −10 dB) and A7 (−10 dB) now fall short. The bass is 3.7 dB quieter in raw level and the top 5–7 dB, and at A0–D2 the attack's 50–100 Hz is −5.8 dB against the D. The rim is still the rectangle's ring around the board, and `rho_h` is still fitted, not derived from the plate, ribs and bridges.
+
+Still false: the wound strings' lengths (2.01 → 1.38 m on the D, the law is straight), the rim's shape, the ribs and the plate's varying thickness, the felt's exponent, the strike point above C6, 2–4 kHz at mf, and the left and right channels above 2 kHz.
