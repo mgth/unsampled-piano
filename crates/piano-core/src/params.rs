@@ -822,10 +822,36 @@ pub struct StringScale {
     /// (Chabassier & Duruflé, RT-425; docs/steinway_d.md): from C1, where the
     /// report starts, A0 to B0 holding C1's.
     pub tension_curve: [(f64, f64); TENSION_POINTS],
+    /// Below `break_note`, takes each string's length from `wound_length_curve`
+    /// instead of the straight line to `len_a0`.
+    pub wound_lengths_by_key: bool,
+    /// Speaking length (m) of the wound strings by key (MIDI note, ascending),
+    /// interpolated linearly and held beyond its ends. The default is the same
+    /// Steinway D's: its longest string is C1's, 2.007 m, and they shorten to
+    /// 1.378 m at E2, where the plain wire starts again at 1.837 m.
+    pub wound_length_curve: [(f64, f64); WOUND_LENGTH_POINTS],
 }
 
 /// Points of [`StringScale::tension_curve`].
 pub const TENSION_POINTS: usize = 12;
+/// Points of [`StringScale::wound_length_curve`].
+pub const WOUND_LENGTH_POINTS: usize = 6;
+
+/// A curve of (MIDI note, value), ascending, at `note`: linear between its
+/// points, held beyond its ends.
+fn interpolate(curve: &[(f64, f64)], note: u8) -> f64 {
+    let m = note as f64;
+    if m <= curve[0].0 {
+        return curve[0].1;
+    }
+    for w in curve.windows(2) {
+        if m <= w[1].0 {
+            let t = (m - w[0].0) / (w[1].0 - w[0].0).max(1e-9);
+            return w[0].1 + t * (w[1].1 - w[0].1);
+        }
+    }
+    curve[curve.len() - 1].1
+}
 
 impl StringScale {
     pub const GRAND_2M: Self = Self {
@@ -849,22 +875,18 @@ impl StringScale {
             (96.0, 670.0),
             (107.0, 588.0),
         ],
+        wound_lengths_by_key: false,
+        wound_length_curve: [(24.0, 2.007), (26.0, 1.975), (29.0, 1.91), (33.0, 1.76), (36.0, 1.6), (40.0, 1.378)],
     };
+
+    /// The wound strings' speaking length (m) of `note`, from the curve.
+    fn wound_length_at(&self, note: u8) -> f64 {
+        interpolate(&self.wound_length_curve, note)
+    }
 
     /// The tension each string of `note` carries, from the curve.
     pub fn tension_at(&self, note: u8) -> f64 {
-        let m = note as f64;
-        let c = &self.tension_curve;
-        if m <= c[0].0 {
-            return c[0].1;
-        }
-        for w in c.windows(2) {
-            if m <= w[1].0 {
-                let t = (m - w[0].0) / (w[1].0 - w[0].0).max(1e-9);
-                return w[0].1 + t * (w[1].1 - w[0].1);
-            }
-        }
-        c[TENSION_POINTS - 1].1
+        interpolate(&self.tension_curve, note)
     }
 
 
@@ -874,6 +896,8 @@ impl StringScale {
         let brk = self.break_note as f64;
         if m >= brk {
             free(m)
+        } else if self.wound_lengths_by_key {
+            self.wound_length_at(note)
         } else {
             let t = (brk - m) / (brk - 21.0);
             free(brk) + t * (self.len_a0 - free(brk))

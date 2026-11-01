@@ -89,6 +89,7 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `scale.len_c8` | 0.052 | 0.049 | fit, above |
 | `scale.ratio_per_octave` | 1.85 | 1.91 | fit, above |
 | `scale.break_note` | 48 | 41 (F2) | first plain-wire key; the wound strings' fall to 1.38 m at E2 does not fit the law (above) |
+| `scale.wound_lengths_by_key` | false | true | `scale.wound_length_curve`: RT-425's lengths of the wound strings, within 6 mm rms, 2.007 m at C1 down to 1.378 m at E2 |
 | `scale.tension_by_key` | false | true | `scale.tension_curve`: RT-425's tension of each string, within 11 N rms, 1.8 kN at D1 to 588 N at B7; it replaces `scale.tension` and `unison.load_ramp` |
 | `inharmonicity` | Salamander's fit | −0.1163, −6.727, 0.0903, −13.526 (RT-425); the preset takes the recorded D's, −0.1608, −5.842, 0.0843, −13.062 | fit, above; "Matched to the recorded D" |
 | `hammer_mass_scale` | 1.0 | 1.0–1.07 | RT-425 against Stulov |
@@ -108,11 +109,9 @@ The preset is `presets/instruments/Concert grand/concert_grand.toml`: these dime
 
 | | Model, with the preset | Steinway D (RT-425) |
 |---|---|---|
-| Wound strings' lengths | A1 1.90, C2 1.88, E2 1.84 m | 1.76, 1.60, 1.38 m |
 | Strike point above C6 | 0.12 falling to 0.07 at C8 | 0.115–0.12 |
 | Felt exponent | 3.7 (A0) to 5.0 (C8) | 2.3 to 3.5 |
 
-The wound strings' wave impedance √(T·μ) = T/(2Lf) is about half the D's in the single strings (C1: 5.8 against 13.1 kg/s).
 
 Left as they are for now: the board's surface mass and stiffnesses (`rho_h`, `dx`, `dy`), calibrated on the bench and not a raw plate's (spruce at 380 kg/m³ over 6–9 mm gives 2.3–3.4 kg/m² before the ribs, the model has 10.5); the felt's exponent and hardness; the frame, the lid and the case heights.
 
@@ -241,4 +240,8 @@ The smaller board had raised the modes: `rho_h` 14.7 (from 10.5) or the stiffnes
 
 The E6–F#6 that stood out by 12–15 dB are gone; D5, A#5 (−9 to −10 dB) and A7 (−10 dB) now fall short. The bass is 3.7 dB quieter in raw level and the top 5–7 dB, and at A0–D2 the attack's 50–100 Hz is −5.8 dB against the D. The rim is still the rectangle's ring around the board, and `rho_h` is still fitted, not derived from the plate, ribs and bridges.
 
-Still false: the wound strings' lengths (2.01 → 1.38 m on the D, the law is straight), the rim's shape, the ribs and the plate's varying thickness, the felt's exponent, the strike point above C6, 2–4 kHz at mf, and the left and right channels above 2 kHz.
+### The wound strings' lengths
+
+`scale.wound_lengths_by_key` gives the wound strings RT-425's lengths, 2.007 m at C1 to 1.378 m at E2, against a straight line ending at 1.84 m. Their mass follows, μ = T/(2Lf)²: 1.8 times heavier at E2. The whole keyboard's sound moves a little, every string being part of the same board and sympathy. It changes little: distance to the D 6.54 either way, A0–B1's 1–8 kHz 3.48 → 3.27 dB, partial 13 −2.2 → −1.1 dB, 2–4 kHz at mf 0.3 dB further, loudness unchanged but for 0.2 dB at A1–G#2; bench 1.50 → 1.48. Kept for being the real length.
+
+Still false: the rim's shape, the ribs and the plate's varying thickness, the felt's exponent, the strike point above C6, 2–4 kHz at mf, and the left and right channels above 2 kHz.

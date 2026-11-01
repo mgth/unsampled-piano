@@ -36,8 +36,9 @@ b2 = 2.0e-7
 wound_until = 41
 
 [scale]
-# Plain strings F2–B7: 1.91 per octave, C8 at 4.94 cm. Longest string
-# 2.01 m. The wound strings' fall to 1.38 m at E2 is not in the law.
+# Plain strings F2–B7: 1.91 per octave, C8 at 4.94 cm. Wound strings: RT-425's
+# lengths, 2.01 m at C1 down to 1.38 m at E2.
+wound_lengths_by_key = true
 # Tension: RT-425's, string by string, from 1.8 kN on the wound strings.
 tension_by_key = true
 len_c8 = 0.0494

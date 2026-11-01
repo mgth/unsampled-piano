@@ -360,6 +360,19 @@ const HELP: &[(&str, &str, &str)] = &[
          impedance √(T·μ) and the hammer's modal masses.",
     ),
     (
+        "scale.wound_lengths_by_key",
+        "Gives the wound bass strings their own lengths, from the curve below, instead of a \
+         straight line down to the lowest string.",
+        "Below `break_note`, replaces the line to `len_a0` (docs/steinway_d.md).",
+    ),
+    (
+        "scale.wound_length_curve",
+        "Length of each key's wound strings, when they follow a curve: on a concert grand they \
+         shorten towards the plain wire, whose first string is much longer than the last wound one.",
+        "Pairs of MIDI note and speaking length (m), ascending, interpolated linearly; default: a \
+         measured Steinway D (RT-425).",
+    ),
+    (
         "scale.tension_by_key",
         "Gives each key its own string tension, from the curve below, instead of one tension for \
          the whole keyboard.",
