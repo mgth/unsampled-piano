@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""Writes a MIDI file playing every third key from A0 (the Salamander set),
-held `hold` s, one per `slot` s, at each given velocity in turn; prints the
-note list (index, key, velocity, start s) for cutting the recording.
-  tools/note_sequence_midi.py <out.mid> <slot> <hold> <vel> [<vel> …]"""
+"""Writes a MIDI file playing every third key from A0 (the Salamander set;
+with --every, every n-th), held `hold` s, one per `slot` s, at each given
+velocity in turn; prints the note list (index, key, velocity, start s) for
+cutting the recording.
+  tools/note_sequence_midi.py [--every n] <out.mid> <slot> <hold> <vel> [<vel> …]"""
 import struct, sys
-out, slot, hold = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
-vels = [int(v) for v in sys.argv[4:]]
+args = sys.argv[1:]
+every = 3
+if args[0] == "--every":
+    every = int(args[1]); args = args[2:]
+out, slot, hold = args[0], float(args[1]), float(args[2])
+vels = [int(v) for v in args[3:]]
 TPQ, TEMPO = 1000, 1_000_000  # 1 tick = 1 ms
 evs = []
 t = 1.0
 i = 0
 for v in vels:
-    for key in range(21, 109, 3):
+    for key in range(21, 109, every):
         evs.append((t, 0x90, key, v)); evs.append((t + hold, 0x80, key, 64))
         print(i, key, v, f"{t:.3f}")
         t += slot; i += 1

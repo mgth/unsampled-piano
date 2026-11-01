@@ -1,0 +1,78 @@
+# A 274 cm concert grand, dimensioned after the IRCAM Steinway D
+# (Chabassier & Duruflé, INRIA RT-425, and the maker's figures;
+# docs/steinway_d.md), then matched to a recorded commercial modelled D.
+# Everything else is the default instrument's.
+
+# RT-425's hammer masses against Stulov's: 1.01 at A0, 1.05 at C4, 1.07 at C8.
+hammer_mass_scale = 1.05
+# Top felt over the core in the middle: the recorded D's middle attack is
+# darker than the default's.
+core_depth_mid = 0.5
+# Fields a partial preset would otherwise read as saved before them
+# (uniform shank, straight bass bridge, upright main strings): the default's.
+shank_freq_mid = 700.0
+
+[inharmonicity]
+# Fitted on the recorded commercial D (tools/fit_preset.py, log B rms 0.15);
+# within 5–10 % of RT-425's strings from C2 to C8.
+a_bass = -0.160799
+b_bass = -5.841641
+a_treble = 0.084324
+b_treble = -13.062355
+
+[stretch]
+# The recorded D's tuning: A0 −12, C2 −5, C6 +3, C8 +44 cents.
+a_t = 0.917211
+k_t = 0.1
+a_b = 0.265277
+k_b = 0.077178
+c = -1.402352
+
+[losses]
+# The recorded D's treble keeps little above its fundamental after 0.5 s:
+# 5 × the default's frequency-dependent string loss.
+b2 = 3.0e-7
+# Wound strings on the bass bridge only, A0–E2.
+wound_until = 41
+
+[scale]
+# Plain strings F2–B7: 1.91 per octave, C8 at 4.94 cm. Longest string
+# 2.01 m. The wound strings' fall to 1.38 m at E2 is not in the law.
+# Tension: the value closest to RT-425's plain wire through the model's
+# ramp (753 N, 1.4 dB rms); its wound strings' 1.7 kN is out of reach.
+len_c8 = 0.0494
+ratio_per_octave = 1.91
+break_note = 41
+len_a0 = 2.01
+tension = 750.0
+
+[unison]
+# 8 single strings (A0–E1), 5 bichords (F1–A1), then trichords.
+bichord_from = 29
+trichord_from = 34
+# Pinned: a partial [unison] section would read 0, full tension on the first
+# bichord and trichord, A#1 and the keys above it then too loud against the D.
+load_ramp = 36.0
+
+[soundboard]
+# Board 1.99 m along the spine, 1.46 m across. The D has 20 keys on the
+# bass bridge (main_bridge_from 41); in the model that spacing put A1's
+# strings where the board passes little 1–4 kHz (attack 8 dB short of the
+# recorded D's): the default's 24 keys are kept.
+a = 1.99
+b = 1.46
+main_bridge_from = 45
+# The D's 50–100 Hz, against the recorded D, one gain per set: at 110 Hz
+# A0–D2's attack is 5 dB short there and 100–200 Hz 5 dB over; at 80 Hz, level
+# and 3 dB over. A2's fundamental stays within 2.4 dB of its neighbours.
+crown_freq = 80.0
+bass_bridge_bow = 0.034
+main_string_slant = 8.0
+
+[frame]
+# The plate over the board and the pin block (offset_x −0.2), as the default's.
+a = 2.19
+b = 1.46
+
+[rim]
+thickness = 0.083
