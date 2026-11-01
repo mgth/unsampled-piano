@@ -252,4 +252,6 @@ With the real board and `impedance_slope_bass` −0.04, A0–B1 is 3.4 dB and C2
 
 Each key rendered with RT-425's own law through a preset of its own: exponent, stiffness, hysteresis time R_H/K_H (3.4 ms at C1, 2 µs at C7, against Stulov's 150 and 40 µs here) and mass, no core. It is not better: distance to the D 9.37 (6.54 with the model's felt), loudness key to key 6.95 (3.80), the top keys 16 dB short. The D's brightness grows far faster with velocity, 2–4 kHz at A0–B1 by 35.7 dB from velocity 60 to 100, the model's felt by 22.7, RT-425's by 15.8. These laws were set for another simulation, and the target is not that piano. A thicker top felt on a harder core (`core_depth_bass` 0.25, `core_hardness` 5) reaches 30.2 dB, at −8 to −9 dB in 4–8 kHz at ff: not settled.
 
+The model's own felt is the one kept: `core_depth_bass` 0.3 over `core_hardness` 8 takes the same growth from 22.7 to 31.2 dB and 2–4 kHz at mf from +13–16 to +4–7 dB, at −6 to −7 dB in 4–8 kHz at ff (−1 to −3 before). Thicker (0.4) overshoots at 4–8 kHz; a softer core (3, 4, 5 at 0.15–0.25 mm) gives less for as much. C2 and above hardly move.
+
 Still false: the rim's shape, the ribs and the plate's varying thickness, the strike point above C6, 2–4 kHz at mf, and the left and right channels above 2 kHz.

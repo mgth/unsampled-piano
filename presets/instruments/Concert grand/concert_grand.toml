@@ -5,9 +5,12 @@
 
 # RT-425's hammer masses against Stulov's: 1.01 at A0, 1.05 at C4, 1.07 at C8.
 hammer_mass_scale = 1.05
-# Top felt over the core in the middle: the recorded D's middle attack is
-# darker than the default's.
+# Top felt over a hard core: the recorded D's middle attack is darker than the
+# default's, and its low bass brightens far more from mf to ff (2–4 kHz at A0–B1,
+# 36 dB from velocity 60 to 100; 31 here, 23 without this felt in the bass).
+core_depth_bass = 0.3
 core_depth_mid = 0.5
+core_hardness = 8.0
 # Fields a partial preset would otherwise read as saved before them
 # (uniform shank, straight bass bridge, upright main strings): the default's.
 shank_freq_mid = 700.0
