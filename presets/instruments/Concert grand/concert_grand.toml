@@ -67,10 +67,10 @@ bass_bridge = [[0.5765, 0.562], [0.8707, 0.753]]
 # Above the plain plate's 2.3–3.4 kg/m² with its ribs and bridges (not modelled),
 # set on the recorded D: the smaller outline had raised the board's modes.
 rho_h = 14.7
-# The default's bass side moves too freely for strings at their real tension:
-# against the recorded D, A0–B1's 1–2 kHz 4–7 dB over at the default's slope, within
-# 1 dB at −0.04, and the partials up to the 24th decay close to the D's.
-impedance_slope_bass = -0.04
+# The default's bass side moves too freely for strings at their real tension;
+# at −0.04 the attack's 1–2 kHz meets the D but A0–B2 falls 3 dB too quiet against
+# the middle. −0.02 keeps their level within 2.7 dB rms, the decays within 1.9 dB/s.
+impedance_slope_bass = -0.02
 # That stiffer side and smaller board leave A0–D2 short at 50–100 Hz; lower modes
 # bring it back towards the D.
 crown_freq = 55.0

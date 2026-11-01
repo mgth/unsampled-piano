@@ -48,7 +48,7 @@ What could be found in print about the Steinway D-274 (the concert grand), gathe
 | Board damping | per mode, a = 2 × 10⁻⁵, b = 0.07, c = 0 (RT-425 eq. 1; the law's form is in the thesis) | RT-425 |
 | Keys | longest 62.2 cm; dip 0.400″ (10.2 mm, 0.390–0.420); down weight 51 g bass, 48 g middle; keybed 4.45 cm | Steinway, steinwayreference, Technical Reference Guide |
 
-RT-425 tunes A4 at 441 Hz and gives no A0–B0 or C8. Its C1 string, 2.007 m, is Steinway's "longest string, 201 cm": A0–B0, on the same bass bridge, are presumably no longer.
+RT-425's values are those its authors use in their own simulations, "based on measurements": the lengths are measured; six strings were measured (D#1, C2, F3, C#5, G6, C7) and the diameters, densities and tensions fitted on them so that the inharmonicity evolves smoothly, the wound strings as a homogenised material; the hammers are laws its authors propose, not measurements. RT-425 tunes A4 at 441 Hz and gives no A0–B0 or C8. Its C1 string, 2.007 m, is Steinway's "longest string, 201 cm": A0–B0, on the same bass bridge, are presumably no longer.
 
 Not found: height of the case and of the rim, the lid's size and its prop's angles, rib spacing and widths, the real bass strings' core and winding, the damper's highest key, plate dimensions.
 
@@ -175,7 +175,7 @@ So the bell lies in the level of each partial of each note, around 6–8 dB rms 
 
 The roughness of the partials' levels is the same in the D and the model (9.9 and 9.8 dB rms on B0), so nothing shows the model's pattern to be too smooth: the two differ in which partials stand out. Copying the D's levels note by note would reproduce it, and would no longer be a model. The tools, in the session's scratch files, are not versioned; `out/ab_*` holds the listening pages.
 
-### The measured tensions
+### RT-425's tensions
 
 The model had one tension, 750 N, a placeholder from its first days: the D's wound strings were at under half of theirs (375–550 N on F1–F2 through the unison's ramp, against 1.6–1.8 kN), and their mass, computed from the tension, under half as well. The rest of the model was then calibrated on the bench over these strings. `scale.tension_by_key` gives each key its tension. Heard: an attack much more credible. With nothing else changed the bass grew too bright and short: the bridge is driven by (T/L)·Y, so the same board takes twice as much from these strings.
 
@@ -195,7 +195,7 @@ The default's `impedance_slope_bass` makes the bass side of the board move more 
 |---|---|---|---|---|---|---|---|
 | default | 8.88 | 7.57 | 6.27 | 12.49 | 7.91 | 1.04 | |
 | 750 N | 6.86 | 6.31 | 7.36 | 8.48 | 4.74 | 2.06 | 1.64 |
-| measured tensions | 6.74 | 5.90 | 7.17 | 8.60 | 4.64 | 1.91 | 1.46 |
+| RT-425's tensions | 6.74 | 5.90 | 7.17 | 8.60 | 4.64 | 1.91 | 1.46 |
 | + slope −0.04, crown 70, `b2` 3.0e-7 | 6.58 | 5.63 | 7.11 | 8.31 | 4.66 | 1.90 | 1.39 |
 | + `b2` 2.0e-7: the preset | 6.72 | 5.64 | 7.03 | 8.47 | 5.25 | 1.64 | 1.30 |
 
@@ -244,4 +244,12 @@ The E6–F#6 that stood out by 12–15 dB are gone; D5, A#5 (−9 to −10 dB) a
 
 `scale.wound_lengths_by_key` gives the wound strings RT-425's lengths, 2.007 m at C1 to 1.378 m at E2, against a straight line ending at 1.84 m. Their mass follows, μ = T/(2Lf)²: 1.8 times heavier at E2. The whole keyboard's sound moves a little, every string being part of the same board and sympathy. It changes little: distance to the D 6.54 either way, A0–B1's 1–8 kHz 3.48 → 3.27 dB, partial 13 −2.2 → −1.1 dB, 2–4 kHz at mf 0.3 dB further, loudness unchanged but for 0.2 dB at A1–G#2; bench 1.50 → 1.48. Kept for being the real length.
 
-Still false: the rim's shape, the ribs and the plate's varying thickness, the felt's exponent, the strike point above C6, 2–4 kHz at mf, and the left and right channels above 2 kHz.
+### The bass's level
+
+With the real board and `impedance_slope_bass` −0.04, A0–B1 is 3.4 dB and C2–B2 2.2 dB too quiet against the middle, heard as much weaker than the D. Taken back: −0.03, −0.02, −0.01, 0 give A0–B2's loudness 3.07, 2.67, 2.31, 2.11 dB rms against 3.62, the attack's 50–100 Hz −4.6, −3.4, −2.2, −1.1 dB against −5.8, and the decay of A0–B1's partials 1.54, 1.92, 2.45, 3.19 dB/s from the D's against 1.36. The preset takes −0.02, where the partials' levels are also nearest (7.21 dB rms against 7.73), at the cost of 2–4 kHz at mf, 1–2 dB further.
+
+### RT-425's hammer
+
+Each key rendered with RT-425's own law through a preset of its own: exponent, stiffness, hysteresis time R_H/K_H (3.4 ms at C1, 2 µs at C7, against Stulov's 150 and 40 µs here) and mass, no core. It is not better: distance to the D 9.37 (6.54 with the model's felt), loudness key to key 6.95 (3.80), the top keys 16 dB short. The D's brightness grows far faster with velocity, 2–4 kHz at A0–B1 by 35.7 dB from velocity 60 to 100, the model's felt by 22.7, RT-425's by 15.8. These laws were set for another simulation, and the target is not that piano. A thicker top felt on a harder core (`core_depth_bass` 0.25, `core_hardness` 5) reaches 30.2 dB, at −8 to −9 dB in 4–8 kHz at ff: not settled.
+
+Still false: the rim's shape, the ribs and the plate's varying thickness, the strike point above C6, 2–4 kHz at mf, and the left and right channels above 2 kHz.

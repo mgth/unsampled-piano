@@ -818,9 +818,9 @@ pub struct StringScale {
     /// and the unison's ramp.
     pub tension_by_key: bool,
     /// Tension of each string (N) by key (MIDI note, ascending), interpolated
-    /// linearly and held beyond its ends. The default is a measured Steinway D
-    /// (Chabassier & Duruflé, RT-425; docs/steinway_d.md): from C1, where the
-    /// report starts, A0 to B0 holding C1's.
+    /// linearly and held beyond its ends. The default is the Steinway D of
+    /// Chabassier & Duruflé's RT-425 (docs/steinway_d.md), fitted there on six
+    /// measured strings: from C1, where the report starts, A0 to B0 holding C1's.
     pub tension_curve: [(f64, f64); TENSION_POINTS],
     /// Below `break_note`, takes each string's length from `wound_length_curve`
     /// instead of the straight line to `len_a0`.

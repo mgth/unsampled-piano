@@ -369,8 +369,8 @@ const HELP: &[(&str, &str, &str)] = &[
         "scale.wound_length_curve",
         "Length of each key's wound strings, when they follow a curve: on a concert grand they \
          shorten towards the plain wire, whose first string is much longer than the last wound one.",
-        "Pairs of MIDI note and speaking length (m), ascending, interpolated linearly; default: a \
-         measured Steinway D (RT-425).",
+        "Pairs of MIDI note and speaking length (m), ascending, interpolated linearly; default: the \
+         lengths measured on the Steinway D of RT-425.",
     ),
     (
         "scale.tension_by_key",
@@ -382,8 +382,8 @@ const HELP: &[(&str, &str, &str)] = &[
         "scale.tension_curve",
         "Tension of each key's strings, when they follow a curve: the bass wound strings of a \
          concert grand carry more than twice the tension of its plain wire.",
-        "Pairs of MIDI note and tension (N), ascending, interpolated linearly; default: a measured \
-         Steinway D (RT-425).",
+        "Pairs of MIDI note and tension (N), ascending, interpolated linearly; default: the Steinway \
+         D of RT-425, fitted on six measured strings.",
     ),
     (
         "unison.bichord_from",
