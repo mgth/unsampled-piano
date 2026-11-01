@@ -360,6 +360,19 @@ const HELP: &[(&str, &str, &str)] = &[
          impedance √(T·μ) and the hammer's modal masses.",
     ),
     (
+        "scale.tension_by_key",
+        "Gives each key its own string tension, from the curve below, instead of one tension for \
+         the whole keyboard.",
+        "Replaces `tension` and the unison's `load_ramp` (docs/steinway_d.md).",
+    ),
+    (
+        "scale.tension_curve",
+        "Tension of each key's strings, when they follow a curve: the bass wound strings of a \
+         concert grand carry more than twice the tension of its plain wire.",
+        "Pairs of MIDI note and tension (N), ascending, interpolated linearly; default: a measured \
+         Steinway D (RT-425).",
+    ),
+    (
         "unison.bichord_from",
         "Lowest key with two strings (below: one heavy wound string per key).",
         "MIDI note. The strings of a key are coupled through the bridge (Weinreich 1977): double \

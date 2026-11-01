@@ -29,17 +29,17 @@ k_b = 0.077178
 c = -1.402352
 
 [losses]
-# The recorded D's treble keeps little above its fundamental after 0.5 s:
-# 5 × the default's frequency-dependent string loss.
-b2 = 3.0e-7
+# 3.3 × the default's frequency-dependent string loss: A0–B1's high partials
+# then decay within 1.4 dB/s of the D's (3.3 at 3.0e-7, better for the top).
+b2 = 2.0e-7
 # Wound strings on the bass bridge only, A0–E2.
 wound_until = 41
 
 [scale]
 # Plain strings F2–B7: 1.91 per octave, C8 at 4.94 cm. Longest string
 # 2.01 m. The wound strings' fall to 1.38 m at E2 is not in the law.
-# Tension: the value closest to RT-425's plain wire through the model's
-# ramp (753 N, 1.4 dB rms); its wound strings' 1.7 kN is out of reach.
+# Tension: RT-425's, string by string, from 1.8 kN on the wound strings.
+tension_by_key = true
 len_c8 = 0.0494
 ratio_per_octave = 1.91
 break_note = 41
@@ -50,9 +50,6 @@ tension = 750.0
 # 8 single strings (A0–E1), 5 bichords (F1–A1), then trichords.
 bichord_from = 29
 trichord_from = 34
-# Pinned: a partial [unison] section would read 0, full tension on the first
-# bichord and trichord, A#1 and the keys above it then too loud against the D.
-load_ramp = 36.0
 
 [soundboard]
 # Board 1.99 m along the spine, 1.46 m across. The D has 20 keys on the
@@ -62,10 +59,13 @@ load_ramp = 36.0
 a = 1.99
 b = 1.46
 main_bridge_from = 45
-# The D's 50–100 Hz, against the recorded D, one gain per set: at 110 Hz
-# A0–D2's attack is 5 dB short there and 100–200 Hz 5 dB over; at 80 Hz, level
-# and 3 dB over. A2's fundamental stays within 2.4 dB of its neighbours.
-crown_freq = 80.0
+# The default's bass side moves too freely for strings at their real tension:
+# against the recorded D, A0–B1's 1–2 kHz 4–7 dB over at the default's slope, within
+# 1 dB at −0.04, and the partials up to the 24th decay close to the D's.
+impedance_slope_bass = -0.04
+# That stiffer side leaves A0–D2 short at 50–100 Hz; lower modes bring it back
+# to −4 dB at the attack, level in the body.
+crown_freq = 70.0
 bass_bridge_bow = 0.034
 main_string_slant = 8.0
 

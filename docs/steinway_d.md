@@ -89,7 +89,7 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `scale.len_c8` | 0.052 | 0.049 | fit, above |
 | `scale.ratio_per_octave` | 1.85 | 1.91 | fit, above |
 | `scale.break_note` | 48 | 41 (F2) | first plain-wire key; the wound strings' fall to 1.38 m at E2 does not fit the law (above) |
-| `scale.tension` | 750 | 750 | RT-425's plain wire through the model's ramp (`unison.tension_share`): 753 N fits F2–B7 within 1.4 dB rms. The mean, 825 N (200 kN over 243 strings), is the wound strings' 1.7 kN pulling it up |
+| `scale.tension_by_key` | false | true | `scale.tension_curve`: RT-425's tension of each string, within 11 N rms, 1.8 kN at D1 to 588 N at B7; it replaces `scale.tension` and `unison.load_ramp` |
 | `inharmonicity` | Salamander's fit | −0.1163, −6.727, 0.0903, −13.526 (RT-425); the preset takes the recorded D's, −0.1608, −5.842, 0.0843, −13.062 | fit, above; "Matched to the recorded D" |
 | `hammer_mass_scale` | 1.0 | 1.0–1.07 | RT-425 against Stulov |
 | `soundboard.main_bridge_from` | 45 | 41 | 20 keys on the bass bridge |
@@ -107,8 +107,6 @@ The preset is `presets/instruments/Concert grand/concert_grand.toml`: these dime
 | | Model, with the preset | Steinway D (RT-425) |
 |---|---|---|
 | Wound strings' lengths | A1 1.90, C2 1.88, E2 1.84 m | 1.76, 1.60, 1.38 m |
-| Bass tension | 750 N on the single strings (C1–E1), the ramp's 375–550 N on F1–F2 | 1.70–1.80 kN, 1.62 kN at F1, 0.74 kN at E2 |
-| Treble tension | 750 N from C5 up | 696 (C5), 670 (C7), 588 N (B7) |
 | Strike point above C6 | 0.12 falling to 0.07 at C8 | 0.115–0.12 |
 | Felt exponent | 3.7 (A0) to 5.0 (C8) | 2.3 to 3.5 |
 
@@ -175,3 +173,29 @@ Heard against the recorded D (2026-11-01, A0–D#1, mostly B0 and C1 at velocity
 So the bell lies in the level of each partial of each note, around 6–8 dB rms once the common profile is taken out (B0, C1), not in a law the model could follow. The rest of the gap, by partial number, is a pattern of period 8: the D is 8–27 dB under the model at partials 8, 16, 24, 32–33, 40, 48 and 4–9 dB over at 13, 21, 29. This does not look like a plain strike comb, whose peaks would fall half way between the notches, and it is not heard as the bell. An estimate fitted to a strike comb gives 0.113–0.1225 from A0 to B1; the notches at multiples of 8 would rather say 1/8, so the D's strike point in this register is not settled.
 
 The roughness of the partials' levels is the same in the D and the model (9.9 and 9.8 dB rms on B0), so nothing shows the model's pattern to be too smooth: the two differ in which partials stand out. Copying the D's levels note by note would reproduce it, and would no longer be a model. The tools, in the session's scratch files, are not versioned; `out/ab_*` holds the listening pages.
+
+### The measured tensions
+
+The model had one tension, 750 N, a placeholder from its first days: the D's wound strings were at under half of theirs (375–550 N on F1–F2 through the unison's ramp, against 1.6–1.8 kN), and their mass, computed from the tension, under half as well. The rest of the model was then calibrated on the bench over these strings. `scale.tension_by_key` gives each key its tension. Heard: an attack much more credible. With nothing else changed the bass grew too bright and short: the bridge is driven by (T/L)·Y, so the same board takes twice as much from these strings.
+
+The default's `impedance_slope_bass` makes the bass side of the board move more freely, which fitted the light strings. Taken down, against the D at A0–B1 with one gain per set, one setting at a time, the other settings left as above:
+
+| `impedance_slope_bass` | 1–2 kHz, first 30 ms | 2–4 kHz, first 30 ms | 2–4 kHz at mf | Decay, partial 6 (D −4.5 dB/s) | Partials 1–48, rms |
+|---|---|---|---|---|---|
+| 0.0076 (default) | +7.2 | +11.2 | +21.1 | −8.5 | 10.2 |
+| 0 | +6.1 | +10.2 | +20.1 | −8.0 | 9.6 |
+| −0.02 | +3.4 | +7.4 | +17.4 | −6.6 | 8.5 |
+| −0.04 | +0.8 | +4.7 | +14.8 | −5.9 | 8.0 |
+| −0.06 | −1.8 | +2.1 | +12.3 | −5.4 | 8.3 |
+
+`crown_freq` 70 then brings 50–100 Hz back (attack −5.6 → −4.1 dB, body −2.4 → −1.0) and evens 100–200 Hz; 60 goes further at the cost of the loudness of G2–G#2. `bridge_line_mass`, `edge_loss` and `hardness_slope_bass` hardly matter. `core_depth_bass` 0.25 takes the 2–4 kHz at mf from +15 to +4 dB, but 4–8 kHz at ff from −3 to −10 and below: not kept, the D's brightness grows faster with the velocity than this felt can follow.
+
+| Against the D without hammer noise | Overall | Bass | Middle | Treble | Top | Bench | Bench, bass |
+|---|---|---|---|---|---|---|---|
+| default | 8.88 | 7.57 | 6.27 | 12.49 | 7.91 | 1.04 | |
+| 750 N | 6.86 | 6.31 | 7.36 | 8.48 | 4.74 | 2.06 | 1.64 |
+| measured tensions | 6.74 | 5.90 | 7.17 | 8.60 | 4.64 | 1.91 | 1.46 |
+| + slope −0.04, crown 70, `b2` 3.0e-7 | 6.58 | 5.63 | 7.11 | 8.31 | 4.66 | 1.90 | 1.39 |
+| + `b2` 2.0e-7: the preset | 6.72 | 5.64 | 7.03 | 8.47 | 5.25 | 1.64 | 1.30 |
+
+`b2` 2.0e-7 costs 0.14 dB overall, in the top, and brings the decay of A0–B1's high partials within 1.4 dB/s of the D's (3.3 at 3.0e-7). Still false: the wound strings' lengths (2.01 → 1.38 m on the D, the law is straight), the fundamentals under 50 Hz, 2–4 kHz at mf, and the left and right channels above 2 kHz.

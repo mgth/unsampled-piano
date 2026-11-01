@@ -814,10 +814,59 @@ pub struct StringScale {
     pub break_note: u8,
     pub len_a0: f64,
     pub tension: f64,
+    /// Takes each string's tension from `tension_curve` instead of `tension`
+    /// and the unison's ramp.
+    pub tension_by_key: bool,
+    /// Tension of each string (N) by key (MIDI note, ascending), interpolated
+    /// linearly and held beyond its ends. The default is a measured Steinway D
+    /// (Chabassier & Duruflé, RT-425; docs/steinway_d.md): from C1, where the
+    /// report starts, A0 to B0 holding C1's.
+    pub tension_curve: [(f64, f64); TENSION_POINTS],
 }
 
+/// Points of [`StringScale::tension_curve`].
+pub const TENSION_POINTS: usize = 12;
+
 impl StringScale {
-    pub const GRAND_2M: Self = Self { len_c8: 0.052, ratio_per_octave: 1.85, break_note: 48, len_a0: 1.45, tension: 750.0 };
+    pub const GRAND_2M: Self = Self {
+        len_c8: 0.052,
+        ratio_per_octave: 1.85,
+        break_note: 48,
+        len_a0: 1.45,
+        tension: 750.0,
+        tension_by_key: false,
+        tension_curve: [
+            (24.0, 1722.0),
+            (26.0, 1798.0),
+            (29.0, 1618.0),
+            (33.0, 1190.0),
+            (36.0, 915.0),
+            (40.0, 741.0),
+            (41.0, 799.0),
+            (48.0, 759.0),
+            (60.0, 741.0),
+            (72.0, 696.0),
+            (96.0, 670.0),
+            (107.0, 588.0),
+        ],
+    };
+
+    /// The tension each string of `note` carries, from the curve.
+    pub fn tension_at(&self, note: u8) -> f64 {
+        let m = note as f64;
+        let c = &self.tension_curve;
+        if m <= c[0].0 {
+            return c[0].1;
+        }
+        for w in c.windows(2) {
+            if m <= w[1].0 {
+                let t = (m - w[0].0) / (w[1].0 - w[0].0).max(1e-9);
+                return w[0].1 + t * (w[1].1 - w[0].1);
+            }
+        }
+        c[TENSION_POINTS - 1].1
+    }
+
 
     pub fn length(&self, note: u8) -> f64 {
         let free = |m: f64| self.len_c8 * self.ratio_per_octave.powf((108.0 - m) / 12.0);
@@ -1130,7 +1179,11 @@ impl PianoModel {
     pub fn note(&self, note: u8) -> NoteParams {
         let f0 = note_freq(note, self.a4) * 2f64.powf((self.stretch.cents(note) + self.temperament.cents(note)) / 1200.0);
         let length = self.scale.length(note);
-        let tension = self.scale.tension * self.unison.tension_share(note);
+        let tension = if self.scale.tension_by_key {
+            self.scale.tension_at(note)
+        } else {
+            self.scale.tension * self.unison.tension_share(note)
+        };
         let mu = tension / (2.0 * length * f0).powi(2);
         // ≈1/8 of the length up to C6, closer to the agraffe in the high treble.
         let m = note as f64;
