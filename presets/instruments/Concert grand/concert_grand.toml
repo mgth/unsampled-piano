@@ -52,13 +52,14 @@ bichord_from = 29
 trichord_from = 34
 
 [soundboard]
-# Board 1.99 m along the spine, 1.46 m across. The D has 20 keys on the
-# bass bridge (main_bridge_from 41); in the model that spacing put A1's
-# strings where the board passes little 1–4 kHz (attack 8 dB short of the
-# recorded D's): the default's 24 keys are kept.
+# Board 1.99 m along the spine, 1.46 m across. The D's 20 keys on the bass bridge
+# and its main bridge's lowest point, F2, from RT-425: the rest of that bridge
+# stays the default's, the real one leaving this board's outline at the top
+# (C8 12 dB short; the D's front edge is slanted, this outline's is not).
 a = 1.99
 b = 1.46
-main_bridge_from = 45
+main_bridge_from = 41
+treble_bridge = [[0.035, 0.077], [0.051, 0.245], [0.136, 0.413], [0.327, 0.581], [0.794, 0.842]]
 # The default's bass side moves too freely for strings at their real tension:
 # against the recorded D, A0–B1's 1–2 kHz 4–7 dB over at the default's slope, within
 # 1 dB at −0.04, and the partials up to the 24th decay close to the D's.

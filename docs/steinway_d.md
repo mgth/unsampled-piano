@@ -198,4 +198,29 @@ The default's `impedance_slope_bass` makes the bass side of the board move more 
 | + slope −0.04, crown 70, `b2` 3.0e-7 | 6.58 | 5.63 | 7.11 | 8.31 | 4.66 | 1.90 | 1.39 |
 | + `b2` 2.0e-7: the preset | 6.72 | 5.64 | 7.03 | 8.47 | 5.25 | 1.64 | 1.30 |
 
-`b2` 2.0e-7 costs 0.14 dB overall, in the top, and brings the decay of A0–B1's high partials within 1.4 dB/s of the D's (3.3 at 3.0e-7). Still false: the wound strings' lengths (2.01 → 1.38 m on the D, the law is straight), the fundamentals under 50 Hz, 2–4 kHz at mf, and the left and right channels above 2 kHz.
+`b2` 2.0e-7 costs 0.14 dB overall, in the top, and brings the decay of A0–B1's high partials within 1.4 dB/s of the D's (3.3 at 3.0e-7).
+
+### The real bridge break
+
+`main_bridge_from` 45 had been kept against the D's 41 on a measure now known to be wrong (each note against its own total, strings at 750 N). Against the D without hammer noise, at these tensions:
+
+| | Overall | Bass | Middle | Treble | Top | Bench | Bench, bass |
+|---|---|---|---|---|---|---|---|
+| break at A2 | 6.72 | 5.64 | 7.03 | 8.47 | 5.25 | 1.64 | 1.30 |
+| break at F2 | 7.09 | 5.72 | 7.65 | 8.95 | 5.45 | | |
+| break at F2, F2's point real: the preset | 7.22 | 6.16 | 7.77 | 8.98 | 5.45 | 1.60 | 1.29 |
+| + the bridge real down to the middle | 7.51 | 6.15 | 6.52 | 10.91 | 5.15 | 1.62 | 1.29 |
+| + the whole bridge real | 7.94 | 6.15 | 6.80 | 11.16 | 6.60 | 1.69 | 1.31 |
+
+The real geometry is kept where the model can carry it, at a cost in the distance to the D, not recovered yet. The whole bridge is not: at the top it runs along this outline's straight front edge (C8 12 dB short, its loudness 14.6 dB under the D's), while the D's front edge is slanted and B7 lies 9 cm inside its board.
+
+### Voicing note by note
+
+Each key rendered with its own preset, A0–B2, velocities 60 and 100, the partials' levels at 60–200 ms against the D, 0.4–1.2 s left out as a check:
+
+- Strike point, hammer mass, felt depth and hardness, hysteresis: 5.75 → 5.54 dB, the settings jumping from key to key, the strike point staying at 0.12–0.125. The hammer is not the lever.
+- The whole bridge moved for that note alone, up to 22 cm: 6.88 → 5.57 dB, 6.36 → 5.51 on the check, better on 26 keys of 27, neighbouring keys in three zones asking the same shift. Heard: further from the D at A0–C1, closer at D#1–B1, no clear difference elsewhere. Not built into the engine.
+
+Only the direct level of each partial brought the bell by ear (above). It would be a filter per note, not a voicing.
+
+Still false: the wound strings' lengths (2.01 → 1.38 m on the D, the law is straight), the fundamentals under 50 Hz, 2–4 kHz at mf, and the left and right channels above 2 kHz.
