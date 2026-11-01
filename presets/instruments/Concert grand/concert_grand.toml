@@ -3,8 +3,11 @@
 # docs/steinway_d.md), then matched to a recorded commercial modelled D.
 # Everything else is the default instrument's.
 
-# RT-425's hammer masses against Stulov's: 1.01 at A0, 1.05 at C4, 1.07 at C8.
-hammer_mass_scale = 1.05
+# RT-425's hammer masses against Stulov's: 1.02 at C1, 1.05 at C4, 1.07 at C7.
+hammer_mass_scale = 1.053
+hammer_mass_slope = 0.00078
+# RT-425's strike point is 0.116–0.122 up to B7: no move towards the agraffe.
+strike_ratio_top = 0.0
 # Top felt over a hard core: the recorded D's middle attack is darker than the
 # default's, and its low bass brightens far more from mf to ff (2–4 kHz at A0–B1,
 # 36 dB from velocity 60 to 100; 31 here, 23 without this felt in the bass).
@@ -16,12 +19,11 @@ core_hardness = 8.0
 shank_freq_mid = 700.0
 
 [inharmonicity]
-# Fitted on the recorded commercial D (tools/fit_preset.py, log B rms 0.15);
-# within 5–10 % of RT-425's strings from C2 to C8.
-a_bass = -0.160799
-b_bass = -5.841641
-a_treble = 0.084324
-b_treble = -13.062355
+# RT-425's strings, fitted to the law (log B rms 0.064).
+a_bass = -0.1163
+b_bass = -6.727
+a_treble = 0.0903
+b_treble = -13.526
 
 [stretch]
 # The recorded D's tuning: A0 −12, C2 −5, C6 +3, C8 +44 cents.
@@ -56,6 +58,10 @@ bichord_from = 29
 trichord_from = 34
 
 [soundboard]
+# 17 ribs over the board's length: the spacing is inferred, their share is not known.
+rib_spacing = 0.11
+rib_share = 0.5
+rib_jitter = 0.3
 # The D's board, RT-425's figure 1: 2.1 m², along the spine from its front edge,
 # which runs 12.4 cm further forward on the treble side than at the spine, so a
 # is 2.124 m. The outline's ten points follow that slanted edge and the bentside.
@@ -86,4 +92,5 @@ a = 2.324
 b = 1.46
 
 [rim]
+follows_outline = true
 thickness = 0.083

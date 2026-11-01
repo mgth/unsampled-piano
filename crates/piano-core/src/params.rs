@@ -1075,6 +1075,8 @@ pub struct PianoModel {
     /// Multiplies Stulov's hammer masses (light leather-covered fortepiano
     /// hammers, small upright hammers).
     pub hammer_mass_scale: f64,
+    /// Added to `hammer_mass_scale` per key above C4, taken off below.
+    pub hammer_mass_slope: f64,
     /// The shank bends: of the hammer's effective mass, `shank_share` is
     /// the shank's, linked to the head by a spring whose mode (head against
     /// shank) is at `shank_freq` (Hz), with loss factor `shank_loss`. A
@@ -1097,6 +1099,9 @@ pub struct PianoModel {
     /// Strike point (fraction of the speaking length from the agraffe) up
     /// to C6, 0.05 closer to the agraffe at C8.
     pub strike_ratio: f64,
+    /// How much nearer the agraffe the strike point is at C8 than at C6, falling
+    /// linearly between them (share of the length).
+    pub strike_ratio_top: f64,
 }
 
 impl Default for PianoModel {
@@ -1161,11 +1166,13 @@ impl Default for PianoModel {
             hysteresis: 0.6,
             contact_width_scale: 1.0,
             hammer_mass_scale: 1.0,
+            hammer_mass_slope: 0.0,
             shank_share: 0.3,
             shank_freq: 300.0,
             shank_loss: 0.1,
             shank_freq_mid: 700.0,
             strike_ratio: 0.12,
+            strike_ratio_top: 0.05,
         }
     }
 }
@@ -1211,10 +1218,10 @@ impl PianoModel {
         let mu = tension / (2.0 * length * f0).powi(2);
         // ≈1/8 of the length up to C6, closer to the agraffe in the high treble.
         let m = note as f64;
-        let strike_pos = if m <= 84.0 { self.strike_ratio } else { self.strike_ratio - 0.05 * (m - 84.0) / 24.0 };
+        let strike_pos = if m <= 84.0 { self.strike_ratio } else { self.strike_ratio - self.strike_ratio_top * (m - 84.0) / 24.0 };
         let contact_width = (0.008 - 0.004 * (m - 21.0) / 87.0) * self.contact_width_scale;
         let mut hammer = hammer_stulov(note);
-        hammer.mass_kg *= self.hammer_mass_scale;
+        hammer.mass_kg *= self.hammer_mass_scale + self.hammer_mass_slope * (m - 60.0);
         if self.shank_share > 0.0 && self.shank_freq > 0.0 {
             let total = hammer.mass_kg;
             let share = self.shank_share.clamp(0.0, 0.9);

@@ -91,7 +91,7 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `scale.break_note` | 48 | 41 (F2) | first plain-wire key; the wound strings' fall to 1.38 m at E2 does not fit the law (above) |
 | `scale.wound_lengths_by_key` | false | true | `scale.wound_length_curve`: RT-425's lengths of the wound strings, within 6 mm rms, 2.007 m at C1 down to 1.378 m at E2 |
 | `scale.tension_by_key` | false | true | `scale.tension_curve`: RT-425's tension of each string, within 11 N rms, 1.8 kN at D1 to 588 N at B7; it replaces `scale.tension` and `unison.load_ramp` |
-| `inharmonicity` | Salamander's fit | −0.1163, −6.727, 0.0903, −13.526 (RT-425); the preset takes the recorded D's, −0.1608, −5.842, 0.0843, −13.062 | fit, above; "Matched to the recorded D" |
+| `inharmonicity` | Salamander's fit | −0.1163, −6.727, 0.0903, −13.526 (RT-425) | fit, above |
 | `hammer_mass_scale` | 1.0 | 1.0–1.07 | RT-425 against Stulov |
 | `soundboard.main_bridge_from` | 45 | 41 | 20 keys on the bass bridge |
 | `unison.bichord_from` | 28 | 29 (F1) | 8 single strings |
@@ -100,16 +100,18 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `soundboard.a` × `b` | 1.70 × 1.30 | 2.124 × 1.46 | Chabassier's Figure 6, with the front edge's 12.4 cm slant |
 | `soundboard.outline` | the 2 m grand's | RT-425's figure 1, ten points | 2.10 m² (published 2.07), against 2.38 m² |
 | `soundboard.treble_bridge` | the 2 m grand's | RT-425's points | no slant added: they are the strings' real ends |
-| `soundboard.rib_spacing` | 0 (off) | ≈ 0.11 | 17 ribs over ≈ 2 m (an inference: spacing not found) |
+| `soundboard.rib_spacing` | 0 (off) | 0.11, with `rib_share` 0.5 and `rib_jitter` 0.3 | 17 ribs over ≈ 2 m; the spacing is an inference, the share and the jitter are guesses, and the model's ribs lie across the board where the D's run diagonally |
 | `rim.thickness` | 0.075 | 0.083 | Steinway |
 | `strike_ratio` | 0.12 | 0.12 | C♯5 |
+| `strike_ratio_top` | 0.05 | 0 | RT-425's strike point stays at 0.116–0.122 up to B7 |
+| `hammer_mass_slope` | 0 | 0.00078, with `hammer_mass_scale` 1.053 | RT-425 against Stulov, 1.02 at C1 to 1.07 at C7 |
+| `rim.follows_outline` | false | true | the wall along the board's shape, 6.42 m against 6.9 m |
 | `soundboard.bass_bridge` | the D's proportions | unchanged | docs/bridges.md |
 
 The preset is `presets/instruments/Concert grand/concert_grand.toml`: these dimensions, then the recorded D's inharmonicity and stretch, `losses.b2` and `core_depth_mid` (below, "Matched to the recorded D"). What the model's laws cannot follow, per key:
 
 | | Model, with the preset | Steinway D (RT-425) |
 |---|---|---|
-| Strike point above C6 | 0.12 falling to 0.07 at C8 | 0.115–0.12 |
 | Felt exponent | 3.7 (A0) to 5.0 (C8) | 2.3 to 3.5 |
 
 
@@ -254,4 +256,20 @@ Each key rendered with RT-425's own law through a preset of its own: exponent, s
 
 The model's own felt is the one kept: `core_depth_bass` 0.3 over `core_hardness` 8 takes the same growth from 22.7 to 31.2 dB and 2–4 kHz at mf from +13–16 to +4–7 dB, at −6 to −7 dB in 4–8 kHz at ff (−1 to −3 before). Thicker (0.4) overshoots at 4–8 kHz; a softer core (3, 4, 5 at 0.15–0.25 mm) gives less for as much. C2 and above hardly move.
 
-Still false: the rim's shape, the ribs and the plate's varying thickness, the strike point above C6, 2–4 kHz at mf, and the left and right channels above 2 kHz.
+### The D's physics first
+
+Asked to follow the D's physics before making the result work, RT-425's values are taken even where they cost: against the recorded D, A0–B1 unchanged except as noted, one setting at a time.
+
+| | Overall | Bass | Middle | Treble | Top |
+|---|---|---|---|---|---|
+| the commit before | 6.58 | 5.86 | 5.38 | 8.30 | 6.39 |
+| RT-425's inharmonicity | 6.38 | 5.86 | 5.51 | 8.28 | 5.42 |
+| its hammer masses by key | 6.55 | 5.86 | 5.39 | 8.34 | 6.21 |
+| ribs | 6.55 | 5.84 | 5.44 | 8.20 | 6.38 |
+| its strike point at the top | 7.64 | 5.86 | 5.38 | 8.48 | 9.92 |
+| all four | 7.01 | 5.83 | 5.60 | 8.34 | 7.86 |
+| + the rim along the outline: the preset | 7.23 | 5.81 | 5.79 | 8.93 | 7.88 |
+
+The bench goes from 1.49 to 1.60. The strike point at the top costs most: not yet made to work. The D#7–F#7 fall 9.5 dB short.
+
+Still false: the board as a smeared plate aligned with its rectangle (the D's ribs run diagonally, its plate and bridges have varying thickness, `rho_h`, `dx` and `dy` are fitted), the ribs' share, the board's modal damping (RT-425's law is in the thesis), the rim's height (not found), the felt's law, 2–4 kHz at mf, and the left and right channels above 2 kHz.

@@ -233,6 +233,16 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("shank_loss", "Damping of the shank's swing.", "Loss factor of the head-against-shank mode (c = loss·m_r·2πf)."),
     (
+        "strike_ratio_top",
+        "How much nearer the end of the string the hammers strike at the very top of the keyboard.",
+        "Share of the length taken off `strike_ratio` at C8, linearly from C6.",
+    ),
+    (
+        "hammer_mass_slope",
+        "Makes the hammers grow lighter or heavier against their usual masses along the keyboard.",
+        "Added to `hammer_mass_scale` per key above C4, taken off below.",
+    ),
+    (
         "strike_ratio",
         "Where the hammer hits the string, as a share of its length from the tuning-pin end. Near \
          1/8 it barely excites the 8th partial, which would sound harsh; closer to the end the \
@@ -1046,6 +1056,12 @@ const HELP: &[(&str, &str, &str)] = &[
     ("rim.couple_f_max", "Highest soundboard resonance allowed to shake the rim.", "Board modes above it are not projected on the rim (Hz)."),
     ("rim.inner_gain", "How much the inner face of the rim, half hidden under the board, is heard.", "Radiation gain of the inner face."),
     ("rim.gain", "Loudness of the rim's sound (1: physical).", "Scales its radiated pressure."),
+    (
+        "rim.follows_outline",
+        "Makes the case's wall follow the soundboard's curved shape instead of the rectangle around it.",
+        "Its length, where the board's forces land on it and where it radiates from. Without an \
+         outline, the rectangle.",
+    ),
 ];
 
 #[cfg(test)]
