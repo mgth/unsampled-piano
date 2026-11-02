@@ -50,7 +50,7 @@ What could be found in print about the Steinway D-274 (the concert grand), gathe
 
 RT-425's values are those its authors use in their own simulations, "based on measurements": the lengths are measured; six strings were measured (D#1, C2, F3, C#5, G6, C7) and the diameters, densities and tensions fitted on them so that the inharmonicity evolves smoothly, the wound strings as a homogenised material; the hammers are laws its authors propose, not measurements. RT-425 tunes A4 at 441 Hz and gives no A0–B0 or C8. Its C1 string, 2.007 m, is Steinway's "longest string, 201 cm": A0–B0, on the same bass bridge, are presumably no longer.
 
-Not found: height of the case and of the rim, the lid's size and its prop's angles, rib spacing and widths, the real bass strings' core and winding, the damper's highest key, plate dimensions.
+Not found: height of the case and of the rim, the lid's size and its prop's angles, rib spacing and widths, the real bass strings' core and winding, plate dimensions. The last damper is not published either: the commercial D's is G6 (`Last Damper` 91/128; with short notes, G6 drops 19 dB after the key-up and G#6 not at all, and the setting moves that limit), a modeller's choice rather than a measurement.
 
 ## What the tables give the model
 
@@ -105,6 +105,7 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `strike_ratio` | 0.12 | 0.12 | C♯5 |
 | `strike_ratio_top` | 0.05 | 0 | RT-425's strike point stays at 0.116–0.122 up to B7 |
 | `hammer_mass_slope` | 0 | 0.00078, with `hammer_mass_scale` 1.053 | RT-425 against Stulov, 1.02 at C1 to 1.07 at C7 |
+| `damper.highest_note` | 86 (D6) | 91 (G6) | the commercial D's setting, checked on its key-ups |
 | `rim.follows_outline` | false | true | the wall along the board's shape, 6.42 m against 6.9 m |
 | `soundboard.bass_bridge` | the D's proportions | unchanged | docs/bridges.md |
 

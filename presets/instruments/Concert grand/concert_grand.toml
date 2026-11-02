@@ -94,3 +94,20 @@ b = 1.46
 [rim]
 follows_outline = true
 thickness = 0.083
+
+[damper]
+# The commercial D's last damper, G6, checked on its key-ups: the only damper value
+# not the default's; a partial section would lose the others.
+position = 0.14
+behind_strike = 0.06
+width = 0.02
+node_floor = 0.15
+strength = 0.2
+contact_exponent = 1.5
+horizontal = 0.03
+highest_note = 91
+pedal_free = 0.3
+pedal_contact = 0.6
+pedal_curve = 1.2
+fall_time = 0.015
+lift_time = 0.005
