@@ -139,7 +139,8 @@ impl PianoUi {
         Self {
             registry,
             section,
-            page: 0,
+            // The instrument as it plays, the musician's controls beside it.
+            page: MODEL_PAGE,
             search: String::new(),
             about: None,
             mics: mics::MicView::default(),
@@ -482,7 +483,7 @@ impl PianoUi {
             let s = &SECTIONS[self.page.min(SECTIONS.len() - 1)];
             ui.heading(s.title);
             if s.view == View::Simple {
-                let shown = simple::show(ui, &self.registry, &values, control);
+                let shown = simple::show(ui, &self.registry, &values, control, false);
                 if let Some(i) = shown.clicked {
                     self.about = if self.about == Some(i) { None } else { Some(i) };
                 }
@@ -986,6 +987,35 @@ mod slider_tests {
         assert!(after > before + 0.05, "board length {before} -> {after}");
         // Nothing else moved with it.
         assert_eq!(control.model().soundboard.unwrap().b, PianoModel::default().soundboard.unwrap().b);
+    }
+
+    /// The interface opens on the instrument playing, in 3D's realistic
+    /// look, the musician's controls beside it and working there.
+    #[test]
+    fn it_opens_on_the_live_view_with_the_controls_beside() {
+        let ctx = egui::Context::default();
+        let mut ui = PianoUi::new(None);
+        assert_eq!((ui.page, ui.model.mode, ui.model.realistic), (MODEL_PAGE, model::Mode::Live, true));
+        let mut control = MockControl::new(PianoModel::default());
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        // On the right of the window, a control's slider.
+        let at = (100..800)
+            .step_by(4)
+            .flat_map(|y| (750..1100).step_by(10).map(move |x| Pos2::new(x as f32, y as f32)))
+            .find(|&p| {
+                frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(p)]);
+                ui.hovered.is_some_and(|i| ui.registry.params()[i].path.starts_with("macros."))
+            })
+            .expect("a control on the right");
+        let path = ui.registry.params()[ui.hovered.unwrap()].path.clone();
+        let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Default::default() };
+        frame(&mut ui, &mut control, &ctx, vec![button(at, true)]);
+        for k in 1..=4 {
+            frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(at + Vec2::new(8.0 * k as f32, 0.0))]);
+        }
+        frame(&mut ui, &mut control, &ctx, vec![button(at + Vec2::new(32.0, 0.0), false)]);
+        assert_ne!(piano_params::get(&control.model(), &path).unwrap().as_f64(), 0.0, "{path}");
     }
 
     #[test]

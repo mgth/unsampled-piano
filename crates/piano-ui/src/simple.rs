@@ -39,19 +39,21 @@ pub fn ends(label: &str) -> (&str, &str, &str) {
     (name, low, high)
 }
 
-pub fn show(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], control: &mut dyn PianoControl) -> Shown {
+/// The controls as a page, or `compact` in a narrow column beside the
+/// Model page's live view: each control's two ends under its slider, no
+/// value shown.
+pub fn show(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], control: &mut dyn PianoControl, compact: bool) -> Shown {
     let mut shown = Shown::default();
     let index = |name: &str| registry.params().iter().position(|p| p.path == format!("macros.{name}"));
     let moved: Vec<usize> =
         (0..registry.params().len()).filter(|&i| registry.params()[i].path.starts_with("macros.") && values[i].is_some_and(|v| v.as_f64() != 0.0)).collect();
 
-    ui.label(
-        RichText::new(
-            "Each control moves a group of parameters together, on top of the preset: at 0 the preset plays as \
-             it is. The other pages show the preset's own values, before these controls.",
-        )
-        .weak(),
-    );
+    let intro = RichText::new(
+        "Each control moves a group of parameters together, on top of the preset: at 0 the preset plays as \
+         it is. The other pages show the preset's own values, before these controls.",
+    )
+    .weak();
+    ui.label(if compact { intro.small() } else { intro });
     ui.add_space(4.0);
     let all = ui.add_enabled(!moved.is_empty(), egui::Button::new("All back to the preset"));
     if all.on_hover_text("Every control back to 0").clicked() {
@@ -61,7 +63,8 @@ pub fn show(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], control:
     }
     ui.add_space(8.0);
 
-    egui::Grid::new("simple").num_columns(8).spacing([8.0, 6.0]).show(ui, |ui| {
+    let columns = if compact { 5 } else { 8 };
+    egui::Grid::new(("simple", compact)).num_columns(columns).spacing(if compact { [6.0, 3.0] } else { [8.0, 6.0] }).show(ui, |ui| {
         for (k, (title, names)) in GROUPS.iter().enumerate() {
             if k > 0 {
                 ui.end_row();
@@ -72,7 +75,7 @@ pub fn show(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], control:
                 let Some(Value::Float(v)) = values[i] else {
                     continue;
                 };
-                row(ui, i, &registry.params()[i], v, control, &mut shown);
+                row(ui, i, &registry.params()[i], v, control, &mut shown, compact);
                 ui.end_row();
             }
         }
@@ -80,8 +83,9 @@ pub fn show(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], control:
     shown
 }
 
-/// Name, low end, slider, high end, value, reset, live mark, MIDI.
-fn row(ui: &mut Ui, i: usize, p: &Param, mut v: f64, control: &mut dyn PianoControl, shown: &mut Shown) {
+/// Name, low end, slider, high end, value, reset, live mark, MIDI; when
+/// `compact`, name, slider with its ends under it, reset, live mark, MIDI.
+fn row(ui: &mut Ui, i: usize, p: &Param, mut v: f64, control: &mut dyn PianoControl, shown: &mut Shown, compact: bool) {
     let (name, low, high) = ends(&p.meta.label);
     let text = RichText::new(name);
     let label = ui.add(egui::Label::new(if v != 0.0 { text.color(ui.visuals().strong_text_color()) } else { text }).sense(Sense::click()));
@@ -94,12 +98,29 @@ fn row(ui: &mut Ui, i: usize, p: &Param, mut v: f64, control: &mut dyn PianoCont
         ui.label(RichText::new(&p.path).monospace().weak());
         ui.label(RichText::new("Click for details").small().weak());
     });
-    ui.label(RichText::new(low).weak());
+    if !compact {
+        ui.label(RichText::new(low).weak());
+    }
 
     // The fill runs over the rail from the centre (the preset) to the
     // handle's edge.
-    ui.spacing_mut().slider_width = 190.0;
-    let r = ui.add(egui::Slider::new(&mut v, -1.0..=1.0).show_value(false).step_by(0.01));
+    ui.spacing_mut().slider_width = if compact { 140.0 } else { 190.0 };
+    let r = if compact {
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            let r = ui.add(egui::Slider::new(&mut v, -1.0..=1.0).show_value(false).step_by(0.01));
+            let font = egui::FontId::proportional(10.5);
+            let (ends, _) = ui.allocate_exact_size(egui::vec2(r.rect.width(), font.size + 2.0), Sense::hover());
+            let painter = ui.painter();
+            let color = ui.visuals().weak_text_color();
+            painter.text(ends.left_center(), egui::Align2::LEFT_CENTER, low, font.clone(), color);
+            painter.text(ends.right_center(), egui::Align2::RIGHT_CENTER, high, font, color);
+            r
+        })
+        .inner
+    } else {
+        ui.add(egui::Slider::new(&mut v, -1.0..=1.0).show_value(false).step_by(0.01))
+    };
     let rect = r.rect;
     let radius = rect.height() / 2.5;
     let x = |t: f64| rect.left() + radius + (rect.width() - 2.0 * radius) * ((t as f32 + 1.0) / 2.0);
@@ -111,13 +132,16 @@ fn row(ui: &mut Ui, i: usize, p: &Param, mut v: f64, control: &mut dyn PianoCont
     let tick = ui.visuals().weak_text_color();
     ui.painter().line_segment([egui::pos2(x(0.0), y - 0.45 * rect.height()), egui::pos2(x(0.0), y - 0.25 * rect.height())], Stroke::new(1.0, tick));
     widgets::edit(&r, &p.path, Value::Float(v), control);
-    let r = r.on_hover_text(format!("{low} – preset – {high}; double-click: back to the preset"));
+    let at = if compact { format!(" ({v:+.2})") } else { String::new() };
+    let r = r.on_hover_text(format!("{low} – preset – {high}{at}; double-click: back to the preset"));
     // The slider senses drags only: a double click is read from the pointer.
     let double = ui.input(|i| i.pointer.button_double_clicked(egui::PointerButton::Primary));
     let reset_by_click = double && r.hovered() && v != 0.0;
 
-    ui.label(high);
-    ui.label(RichText::new(if v == 0.0 { "0".into() } else { format!("{v:+.2}") }).monospace().weak());
+    if !compact {
+        ui.label(high);
+        ui.label(RichText::new(if v == 0.0 { "0".into() } else { format!("{v:+.2}") }).monospace().weak());
+    }
     let reset = widgets::reset_button(ui, v != 0.0).on_hover_text("Back to the preset (0)");
     if reset.clicked() || reset_by_click {
         widgets::set_once(&p.path, Value::Float(0.0), control);

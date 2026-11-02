@@ -97,9 +97,9 @@ pub struct ModelView {
 impl Default for ModelView {
     fn default() -> Self {
         Self {
-            mode: Mode::Static,
+            mode: Mode::Live,
             three_d: true,
-            realistic: false,
+            realistic: true,
             orbit: None,
             framed_vertical: false,
             lid: true,
@@ -459,8 +459,14 @@ impl ModelView {
                 });
             }
             Mode::Static | Mode::Live => {
-                let side = 300.0;
-                let w = if avail > 700.0 { avail - side - 16.0 } else { avail };
+                // Live: the musician's controls beside the instrument
+                // playing, what it does now under them.
+                let live = self.mode == Mode::Live;
+                let side = if live { 340.0 } else { 300.0 };
+                let beside = avail > side + 400.0;
+                // The gap, and the spacing on both sides of it.
+                let gap = 16.0 + 2.0 * ui.spacing().item_spacing.x;
+                let w = if beside { avail - side - gap } else { avail };
                 // Down to the bottom of the page as it shows (what lies
                 // above it measured from the page's top, not the screen's,
                 // so that scrolling does not grow it).
@@ -468,25 +474,46 @@ impl ModelView {
                 let h = (ui.clip_rect().height() - above - 8.0).max(320.0);
                 ui.horizontal_top(|ui| {
                     open = if three_d { self.view_3d(ui, &scene, w, h) } else { self.plan(ui, &scene, w, h) };
-                    if avail > 700.0 {
+                    if beside {
                         ui.add_space(16.0);
                         ui.vertical(|ui| {
                             ui.set_width(side);
                             ui.set_max_width(side);
-                            if self.mode == Mode::Live {
-                                live_numbers(ui, obs.as_ref(), model);
-                            } else {
-                                numbers(ui, model, &mut self.board_counts);
-                            }
+                            shown = self.side(ui, control, model, registry, values, obs.as_ref(), true);
                         });
                     }
                 });
-                if avail <= 700.0 {
-                    if self.mode == Mode::Live { live_numbers(ui, obs.as_ref(), model) } else { numbers(ui, model, &mut self.board_counts) }
+                if !beside {
+                    shown = self.side(ui, control, model, registry, values, obs.as_ref(), false);
                 }
             }
         }
         (shown, open)
+    }
+
+    /// What goes beside the static or live view (`beside`) or under it:
+    /// the numbers, or live the musician's controls and the engine's state.
+    #[allow(clippy::too_many_arguments)]
+    fn side(
+        &mut self,
+        ui: &mut Ui,
+        control: &mut dyn PianoControl,
+        model: &PianoModel,
+        registry: &Registry,
+        values: &[Option<Value>],
+        obs: Option<&Observation>,
+        beside: bool,
+    ) -> Shown {
+        if self.mode != Mode::Live {
+            numbers(ui, model, &mut self.board_counts);
+            return Shown::default();
+        }
+        ui.label(RichText::new("Simple").strong());
+        let shown = crate::simple::show(ui, registry, values, control, beside);
+        ui.add_space(10.0);
+        ui.separator();
+        live_numbers(ui, obs, model);
+        shown
     }
 
     /// The state shown from the state read: energies and board motions
