@@ -100,12 +100,16 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `soundboard.a` × `b` | 1.70 × 1.30 | 2.124 × 1.46 | Chabassier's Figure 6, with the front edge's 12.4 cm slant |
 | `soundboard.outline` | the 2 m grand's | RT-425's figure 1, ten points | 2.10 m² (published 2.07), against 2.38 m² |
 | `soundboard.treble_bridge` | the 2 m grand's | RT-425's points | no slant added: they are the strings' real ends |
-| `soundboard.rib_spacing` | 0 (off) | 0.11, with `rib_share` 0.5 and `rib_jitter` 0.3 | 17 ribs over ≈ 2 m; the spacing is an inference, the share and the jitter are guesses, and the model's ribs lie across the board where the D's run diagonally |
+| `soundboard.rib_spacing` | 0 (off) | 0 (off) | the fitted plate's stiffness lines, 0.11 until 2026-11-02; the ribs are now in `soundboard.structure` |
 | `rim.thickness` | 0.075 | 0.083 | Steinway |
 | `strike_ratio` | 0.12 | 0.12 | C♯5 |
 | `strike_ratio_top` | 0.05 | 0 | RT-425's strike point stays at 0.116–0.122 up to B7 |
 | `hammer_mass_slope` | 0 | 0.00078, with `hammer_mass_scale` 1.053 | RT-425 against Stulov, 1.02 at C1 to 1.07 at C7 |
 | `damper.highest_note` | 86 (D6) | 91 (G6) | the commercial D's setting, checked on its key-ups |
+| `soundboard.structure.enabled` | false | true | plate, ribs and bridges by finite elements, docs/real_board.md |
+| `soundboard.crown_freq` | 90 | 36 | brings the flat board's first four modes to Conklin's on a real 2.74 m board (docs/real_board.md) |
+| `soundboard.loss_factor`, `loss_corner` | 0.02, 2500 | 0.0223, 3500 | the thesis's damping law, read as a decay constant |
+| `soundboard.exact_below` | 0 | 3000 | each key drives the board's modes at its own bridge point |
 | `rim.follows_outline` | false | true | the wall along the board's shape, 6.42 m against 6.9 m |
 | `soundboard.bass_bridge` | the D's proportions | unchanged | docs/bridges.md |
 
@@ -274,3 +278,7 @@ Asked to follow the D's physics before making the result work, RT-425's values a
 The bench goes from 1.49 to 1.60. The strike point at the top costs most: not yet made to work. The D#7–F#7 fall 9.5 dB short.
 
 Still false: the board as a smeared plate aligned with its rectangle (the D's ribs run diagonally, its plate and bridges have varying thickness, `rho_h`, `dx` and `dy` are fitted), the ribs' share, the board's modal damping (RT-425's law is in the thesis), the rim's height (not found), the felt's law, 2–4 kHz at mf, and the left and right channels above 2 kHz.
+
+### The real board
+
+The board as it is built, with its plate, 16 ribs and bridges, by finite elements: docs/real_board.md. Its modes agree with the thesis's 3D computation within 3.2 % over the first 20. Distance to the D 7.20 → 8.31, bench 1.83 → 1.99: it is further from the recording and nearer the real grands on the bass's decay and the treble's upper partials, and short on the treble's fundamentals.

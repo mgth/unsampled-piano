@@ -58,10 +58,12 @@ bichord_from = 29
 trichord_from = 34
 
 [soundboard]
-# 17 ribs over the board's length: the spacing is inferred, their share is not known.
-rib_spacing = 0.11
-rib_share = 0.5
-rib_jitter = 0.3
+# Each key drives the built board's modes at its own bridge point.
+exact_below = 3000.0
+# Chabassier's thesis, fve = 2e-5·f² + 0.07·f, read as its decay constant: 2 % at low
+# frequencies, as it says and as measured (docs/real_board.md).
+loss_factor = 0.0223
+loss_corner = 3500.0
 # The D's board, RT-425's figure 1: 2.1 m², along the spine from its front edge,
 # which runs 12.4 cm further forward on the treble side than at the spine, so a
 # is 2.124 m. The outline's ten points follow that slanted edge and the bentside.
@@ -73,18 +75,18 @@ outline = [[0.0, 0.0096], [0.1149, 0.0068], [0.2373, 0.1781], [0.3362, 0.3014], 
 main_bridge_from = 41
 treble_bridge = [[0.0443, 0.048], [0.0809, 0.202], [0.1596, 0.38], [0.3441, 0.579], [0.8023, 0.842]]
 bass_bridge = [[0.5765, 0.562], [0.8707, 0.753]]
-# Above the plain plate's 2.3–3.4 kg/m² with its ribs and bridges (not modelled),
-# set on the recorded D: the smaller outline had raised the board's modes.
+# Only the modes above the built board's, 3 kHz: their level comes from the structure.
 rho_h = 14.7
-# The default's bass side moves too freely for strings at their real tension;
-# at −0.04 the attack's 1–2 kHz meets the D but A0–B2 falls 3 dB too quiet against
-# the middle. −0.02 keeps their level within 2.7 dB rms, the decays within 1.9 dB/s.
-impedance_slope_bass = -0.02
-# That stiffer side and smaller board leave A0–D2 short at 50–100 Hz; lower modes
-# bring it back towards the D.
-crown_freq = 55.0
+# The flat board's first modes are 33, 52, 78, 89 Hz; a real 2.74 m board's, unstrung,
+# 49, 67, 89, 112 Hz (Conklin 1996). 36 Hz of crown gives 49, 63, 86, 96 Hz.
+crown_freq = 36.0
 bass_bridge_bow = 0.034
 main_string_slant = 0.0
+
+# The board as it is built, by finite elements: plate, ribs and bridges of the D
+# (fem::BoardStructure::STEINWAY_D, docs/real_board.md).
+[soundboard.structure]
+enabled = true
 
 [frame]
 # The plate over the board and the pin block (offset_x −0.2), as the default's.

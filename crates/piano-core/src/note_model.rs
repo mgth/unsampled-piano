@@ -42,7 +42,7 @@ pub struct NoteModel {
     pub region_mix: [(usize, f32); 2],
     /// Its weights on the low modes' drive profiles ([`board::LowDrive`]),
     /// when they run apart.
-    pub basis: Option<[f32; board::REGIONS]>,
+    pub basis: Option<[f32; board::KEYS]>,
     pub has_damper: bool,
     pub unison: crate::params::UnisonLaw,
     /// Output weight of the horizontal oscillators (polarization.radiation).

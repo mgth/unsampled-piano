@@ -141,6 +141,7 @@ impl FrameParams {
             lid_hinge_height: board.lid_hinge_height - self.height,
             piston_freq: 0.0,
             crown_freq: 0.0,
+            structure: crate::fem::BoardStructure { enabled: false, ..board.structure },
             ..*board
         }
     }
@@ -412,12 +413,14 @@ fn board_edge_forces(sb: &Soundboard, basis_edges: &[(Vec<f64>, [f64; 4])], md: 
     };
     let (ns, ds) = (s.len(), 2.0 * (bp.a + bp.b) / s.len() as f64);
     let (mut dens, mut cf) = (vec![0.0; ns], [0.0; 4]);
-    for ((bd, bc), c) in basis_edges.iter().zip(&sb.ritz[md.ritz.unwrap_or(0) as usize]) {
-        for (d, b) in dens.iter_mut().zip(bd) {
-            *d += c * b;
-        }
-        for (d, b) in cf.iter_mut().zip(bc) {
-            *d += c * b;
+    if let Some(r) = md.ritz {
+        for ((bd, bc), c) in basis_edges.iter().zip(&sb.ritz[r as usize]) {
+            for (d, b) in dens.iter_mut().zip(bd) {
+                *d += c * b;
+            }
+            for (d, b) in cf.iter_mut().zip(bc) {
+                *d += c * b;
+            }
         }
     }
     for (x, y, f) in forces {
