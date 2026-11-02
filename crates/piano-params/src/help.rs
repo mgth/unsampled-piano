@@ -770,6 +770,11 @@ const HELP: &[(&str, &str, &str)] = &[
          at heights spread about `scatter_height` so that they add in power above ≈ 2 kHz \
          (docs/board_radiation.md).",
     ),
+    (
+        "soundboard.case_field",
+        "The sound that comes back off the rim, the frame and the lid before it leaves the case.",
+        "Each mode adds a reverberant field to the microphones, in power, from the power it radiates (`structure.air`) and the openings of the case: p² = 4ρc·P/R, R the box's room constant, above the box's Schroeder frequency, ≈ 500 Hz with the lid at 35°. It adds no damping: that energy is already the mode's radiation loss (docs/real_board.md).",
+    ),
     ("soundboard.scatter_corner", "Frequency above which the scattering is full.", "Hz: the obstacles' size against the wavelength, (f/fc)²/(1 + (f/fc)²)."),
     ("soundboard.scatter_step", "Spacing of the scattering sources over the board.", "m; 0.1 gives about 180 sources on a 2 m grand."),
     ("soundboard.scatter_height", "Mean height of the scattering layer over the board.", "m; the heights are spread from 0.4 to 1.6 times it."),

@@ -108,11 +108,35 @@ What no longer acts in this preset: `impedance_slope_bass`, `rib_spacing`, `rib_
 
 `loss_low_corner` and `edge_loss` stand for what the rim and the case take from the low modes, which the rigid edge cannot. Without them, the bass's envelope falls on the real grands' (at 1 s −9.9 dB against their −10.0, late T60 14.2 s against 13.5 s). But the score goes to 2.12, and the 8–11 kHz unevenness of the middle jumps (z +2.9 → +7.3), for a reason not traced. They stay until the rim gives back.
 
+**The case's field** answers what the air left open: C6–B6 at −11.9 dB against A2–A5, the D at −2.8. Only the fundamentals were short, by 12 dB, partials 2 and up being right. Two causes add up. From the keys' bridge points, the direct field from force to microphones has a hole at 1–1.7 kHz (46–58 dB, against 61–72 at 2–3 kHz), below the plate's coincidence, whereas the board's total radiation there is healthy: η_rad 0.9–1.4 %, a radiation efficiency of 0.5–1. And these fundamentals lose 65 dB/s in their first 300 ms, 3·(T/L)·Re Y with Re Y ≈ 6e-4 to 1e-3 s/kg. The real grands' treble does as much (early T60 0.8 s, ours 0.9), so that part stays.
+
+So the sound is radiated, but not straight at a microphone 40 cm up: a plate near its coincidence sends it along its surface. There it meets the rim, the frame and the lid. `case_field` treats the box of the case and the lid as a small room, from each mode's own radiation loss:
+
+- **Power:** half of what a mode radiates goes up, P = (air·ω)·v²/4 for a peak modal velocity v.
+- **Inside the box:** p² = 4ρc·P/R in rms, R = A/(1 − A/S) its room constant. A is the openings plus 10 % of its other surfaces. With the lid at 35° the gap along the rim is 2.1 m², A 2.65 m², R 4.15 m². Outside the box, what leaves spreads over a half-sphere from the board's centre.
+- **Below the Schroeder frequency,** 2000·√(0.161/A) = 490 Hz here, the box's modes stand apart: the power is scaled by f²/(f² + f_S²).
+- **The microphone's pattern:** a cardioid hears a third of a diffuse field's energy.
+- **Phases:** each mode at each microphone has its own fixed phase, the field adding in power.
+
+It adds no damping: that energy is already the mode's radiation loss. It takes no fitted value, the 10 % hardly counting beside the openings. It has no build-up either: the box's T60 is about 80 ms, and the field arrives with the direct sound.
+
+| | distance | bass | middle | treble | top | bench | raw | C6–B6 | C7–B7 |
+|---|---|---|---|---|---|---|---|---|---|
+| no field | 8.85 | 7.86 | 7.29 | 12.15 | 7.14 | 2.02 | −26.7 | −11.9 | −18.5 |
+| `scatter` 2 (for comparison) | 8.67 | 8.23 | 6.81 | 12.38 | 5.78 | 1.88 | −25.9 | −6.4 | −12.8 |
+| field at all frequencies | 9.08 | 8.53 | 7.68 | 12.52 | 6.45 | 1.93 | −24.2 | −6.6 | −17.5 |
+| **field above Schroeder: the preset** | 9.00 | 8.48 | 7.62 | 12.40 | 6.36 | 1.89 | −25.4 | −5.6 | −16.7 |
+| the commercial D | | | | | | | −20.9 | −2.8 | −10.6 |
+
+The fundamentals of C6–F6 now start 1.2 dB under the D's (9.8 dB before). On the bench: the treble's balance (z −2.7 → −0.7), the top's attack partials 2–4 and its 2 kHz band get closer. Worse: the noise between the bass's partials (`between` late z −1.1 → −2.3) and the middle's 8–11 kHz unevenness (z +2.9 → +3.9). The distance to the D rises by 0.15, most of it in the bass and the middle's attack, though their mean bands hardly move, not traced further.
+
+`scatter` 2 scores about the same with a free constant. Its layer radiates more power than the board can (an efficiency near 5 above its corner) and takes it from nowhere; at 1, with a bench of 1.96, it is already at 1.2. The two are not to be added: the field stands for what the layer did.
+
 ## Still not in it
 
 - **Crown and bearing**: a foundation term set on four modes, not the shell under the strings' 200 kN.
 - **Coupling**: the rim and the frame receive the board's forces and do not give back. The clamped edge is rigid.
-- **Air between modes**: each mode loads only itself. The case's own volume, the lid and the room do not act back on the board.
+- **Air between modes**: each mode loads only itself. The case's own volume, the lid and the room do not act back on the board. The case's field is statistical: no individual reflection, no strut, the frame's real shape being unknown to the sources used here.
 - **Duplex lengths**, the 17th rib, the plate's real braces, the bridges' pins and notches.
 - **The modes above 3 kHz**: still a statistical plate, at the structure's level. Finer elements or second-order ones would extend the corner.
 - **The rib-plate glue line** and in-plane relaxation under a narrow rib: the section takes the stack as free to find its neutral plane, which softens a little what a 3D model keeps stiff.

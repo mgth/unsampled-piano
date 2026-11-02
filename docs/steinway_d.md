@@ -108,6 +108,7 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `damper.highest_note` | 86 (D6) | 91 (G6) | the commercial D's setting, checked on its key-ups |
 | `soundboard.structure.enabled` | false | true | plate, ribs and bridges by finite elements, docs/real_board.md |
 | `soundboard.crown_freq` | 90 | 40 | brings the first four modes under the air to Conklin's on a real 2.74 m board (docs/real_board.md) |
+| `soundboard.case_field` | false | true | what the board radiates comes back off the rim, the frame and the lid: the box as a small room, from each mode's radiation loss (docs/real_board.md) |
 | `soundboard.loss_factor`, `loss_corner` | 0.02, 2500 | 0.0223, 3500 | the thesis's damping law, read as a decay constant |
 | `soundboard.exact_below` | 0 | 3000 | each key drives the board's modes at its own bridge point |
 | `rim.follows_outline` | false | true | the wall along the board's shape, 6.42 m against 6.9 m |
@@ -281,4 +282,4 @@ Still false: the board as a smeared plate aligned with its rectangle (the D's ri
 
 ### The real board
 
-The board as it is built, with its plate, 16 ribs and bridges, by finite elements: docs/real_board.md. Its modes agree with the thesis's 3D computation within 3.2 % over the first 20. With the air on it, distance to the D 7.20 → 8.85, bench 1.83 → 2.02: it is further from the recording and nearer the real grands on the bass's decay and the treble's upper partials, and short on the treble's fundamentals.
+The board as it is built, with its plate, 16 ribs and bridges, by finite elements: docs/real_board.md. Its modes agree with the thesis's 3D computation within 3.2 % over the first 20. With the air on it and the case's field, distance to the D 7.20 → 9.00, bench 1.83 → 1.89: it is further from the recording and nearer the real grands on the bass's decay and the treble's upper partials. The treble's fundamentals, short with the air alone (C6–B6 −11.9 dB against A2–A5), are at −5.6, the D's being at −2.8.

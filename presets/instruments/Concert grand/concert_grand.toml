@@ -81,6 +81,8 @@ rho_h = 14.7
 # a real 2.74 m board's, unstrung, 49, 67, 89, 112 Hz (Conklin 1996). 40 Hz of crown
 # gives 49, 62, 83, 94 Hz.
 crown_freq = 40.0
+# What the board radiates comes back off the rim, the frame and the lid.
+case_field = true
 bass_bridge_bow = 0.034
 main_string_slant = 0.0
 

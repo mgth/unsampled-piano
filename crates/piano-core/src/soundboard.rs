@@ -36,6 +36,9 @@ use crate::complex::C64;
 use std::f64::consts::{PI, TAU};
 
 const RHO0: f64 = 1.2;
+/// Mean absorption of the case's wood, iron and felts; its openings count for
+/// far more ([`SoundboardParams::case_room_constant`]).
+const CASE_ABSORPTION: f64 = 0.1;
 const C0: f64 = 343.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -282,6 +285,14 @@ pub struct SoundboardParams {
     /// sound: the share of the direct field's power the layer intercepts
     /// at full scattering (the same frequency law), 0–1.
     pub scatter_shadow: f64,
+    /// What the board radiates into the box of the case and the lid does not
+    /// all leave at once: it comes back off the rim, the frame and the lid.
+    /// Each mode adds that reverberant field to the microphones, in power,
+    /// from the power it radiates ([`PlateMode::air`], so only with
+    /// `structure.air`) and the box's openings
+    /// ([`Self::case_room_constant`]). The energy is already the mode's own
+    /// radiation loss: nothing is added to its damping.
+    pub case_field: bool,
     /// The board as it is built: its modes below `structure.below` come from
     /// a plate, ribs and bridges by finite elements ([`crate::fem`]). Above
     /// that, the rectangle's modes remain, set on `rho_h`, `dx` and `dy` and
@@ -491,6 +502,7 @@ impl SoundboardParams {
         scatter_step: 0.1,
         scatter_height: 0.05,
         scatter_shadow: 0.0,
+        case_field: false,
         structure: crate::fem::BoardStructure::STEINWAY_D,
     };
 
@@ -560,6 +572,55 @@ impl SoundboardParams {
         let r = omega * 2.0 * self.lid_hinge_height.max(0.01) / (TAU * C0);
         let lid = self.lid_leak + (1.0 - self.lid_leak) / (1.0 + r * r).sqrt();
         case * (1.0 - s + s * lid)
+    }
+
+    /// The box of the case and the lid as a small room: its room constant
+    /// R = A/(1 − A/S) (m²), A being its openings plus what its walls absorb,
+    /// S all its surfaces, the share of A that leaves through the openings,
+    /// the gap along the rim under the lid, or the whole top with no lid, and
+    /// its Schroeder frequency 2000·√(T60/V) = 2000·√(0.161/A) (Hz): below
+    /// it the box's modes stand apart and no diffuse field builds up.
+    pub fn case_room_constant(&self) -> (f64, f64, f64) {
+        let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let relative: &[(f64, f64)] = if self.outline.iter().all(|&q| q == (0.0, 0.0)) { &corners } else { &self.outline };
+        let pts: Vec<(f64, f64)> = relative.iter().map(|&(u, v)| (u * self.a, v * self.b)).collect();
+        let (mut twice_area, mut perimeter, mut gap) = (0.0, 0.0, 0.0);
+        let sin = self.lid_angle.to_radians().sin();
+        for (i, &(x0, y0)) in pts.iter().enumerate() {
+            let (x1, y1) = pts[(i + 1) % pts.len()];
+            twice_area += x0 * y1 - x1 * y0;
+            let len = (x1 - x0).hypot(y1 - y0);
+            perimeter += len;
+            gap += len * 0.5 * ((self.b - y0).max(0.0) + (self.b - y1).max(0.0)) * sin;
+        }
+        let area = 0.5 * twice_area.abs();
+        let wall = perimeter * self.lid_hinge_height;
+        let (open, closed) = if self.lid_removed { (area, area + wall) } else { (gap, 2.0 * area + wall) };
+        let absorbing = open + CASE_ABSORPTION * closed;
+        (absorbing / (1.0 - absorbing / (open + closed)), open / absorbing, 2000.0 * (0.161 / absorbing).sqrt())
+    }
+
+    /// The case's reverberant pressure at the point `m` per unit modal
+    /// velocity, for a mode losing `rate` (1/s) to the air: half of its power
+    /// goes up. Inside the box p² = 4ρc·P/R; outside, what leaves through the
+    /// openings spreads over a half-sphere from the board's centre. A
+    /// microphone's pattern hears a diffuse field less.
+    fn case_field_gain(&self, room: (f64, f64, f64), omega: f64, rate: f64, m: [f64; 3]) -> f64 {
+        let (r, leaving, schroeder) = room;
+        let f2 = (omega / TAU).powi(2);
+        let diffuse = f2 / (f2 + schroeder * schroeder);
+        let top = self.lid_hinge_height + if self.lid_removed { 0.0 } else { (self.b - m[1]).max(0.0) * self.lid_angle.to_radians().tan() };
+        let inside = (0.0..=self.a).contains(&m[0]) && (0.0..=self.b).contains(&m[1]) && m[2] <= top;
+        let per_power = if inside {
+            4.0 / r
+        } else {
+            let d2 = (m[0] - 0.5 * self.a).powi(2) + (m[1] - 0.5 * self.b).powi(2) + (m[2] - self.lid_hinge_height).powi(2);
+            leaving / (TAU * d2.max(0.25))
+        };
+        let q = self.mic_pattern.clamp(0.0, 1.0);
+        let pattern = q * q + (1.0 - q).powi(2) / 3.0;
+        // Peak velocity: P = rate·v²/4 upwards, p peak² = 2·ρc·P·per_power.
+        (0.5 * RHO0 * C0 * rate * per_power * pattern * diffuse).sqrt()
     }
 
     /// Radiation paths from the board cell `c` to the point `m`.
@@ -1536,6 +1597,7 @@ impl Soundboard {
         } else {
             Vec::new()
         };
+        let case_room = (p.case_field && !p.vertical).then(|| p.case_room_constant());
         crate::par::map(n_modes, |i| {
             let md = &self.modes[i];
             let w = omega.unwrap_or(md.omega);
@@ -1625,7 +1687,17 @@ impl Soundboard {
                     }
                 }
             }
-            acc.into_iter().map(|a| pre * a).collect()
+            let mut out: Vec<C64> = acc.into_iter().map(|a| pre * a).collect();
+            if let Some(room) = case_room.filter(|_| md.air > 0.0) {
+                // In power: a phase of its own for each mode at each point.
+                let velocity = if md.fem.is_some() { 1.0 } else { self.above_radiation };
+                for (q, (a, m)) in out.iter_mut().zip(points).enumerate().filter(|(_, (_, m))| m[2] >= 0.0) {
+                    let seed = (i as u32).wrapping_mul(2_654_435_761).wrapping_add(q as u32).wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    let phase = TAU * (seed >> 8) as f64 / (1u32 << 24) as f64;
+                    *a += C64::polar(velocity * p.case_field_gain(room, md.omega, md.air * md.omega, *m), phase);
+                }
+            }
+            out
         })
     }
 
@@ -1652,6 +1724,44 @@ mod tests {
             impedance_slope_bass: 0.0,
             ..SoundboardParams::GRAND_2M
         }
+    }
+
+    #[test]
+    fn the_case_is_a_small_room() {
+        // 2.124 × 1.46 m, lid at 35°: 3.58 m of rim with a gap of 0.84 m at
+        // the far side, nothing at the hinge.
+        let p = SoundboardParams { a: 2.124, b: 1.46, outline: [(0.0, 0.0); OUTLINE_POINTS], lid_angle: 35.0, lid_removed: false, lid_hinge_height: 0.16, ..SoundboardParams::GRAND_2M };
+        let open = (2.124 + 1.46) * 1.46 * 35f64.to_radians().sin();
+        let closed = 2.0 * 2.124 * 1.46 + 2.0 * (2.124 + 1.46) * 0.16;
+        let a = open + 0.1 * closed;
+        let (r, leaving, schroeder) = p.case_room_constant();
+        assert!((r - a / (1.0 - a / (open + closed))).abs() < 1e-9, "{r}");
+        assert!((leaving - open / a).abs() < 1e-9, "{leaving}");
+        assert!((schroeder - 2000.0 * (0.161 / a).sqrt()).abs() < 1e-9, "{schroeder}");
+        // Shutting the lid closes the openings and nothing leaves.
+        let shut = SoundboardParams { lid_angle: 0.0, ..p };
+        assert_eq!(shut.case_room_constant().1, 0.0);
+    }
+
+    #[test]
+    fn the_case_field_follows_the_power_radiated() {
+        let p = SoundboardParams { a: 2.0, b: 1.4, lid_angle: 35.0, lid_removed: false, mic_pattern: 1.0, ..SoundboardParams::GRAND_2M };
+        let room = p.case_room_constant();
+        let w = TAU * 8000.0;
+        let inside = [1.0, 0.7, 0.4];
+        let g = p.case_field_gain(room, w, 100.0, inside);
+        let diffuse = 1.0 / (1.0 + (room.2 / 8000f64).powi(2));
+        // p² peak = 2ρc·(rate·v²/4)·4/R, per unit peak velocity.
+        let want = (2.0 * RHO0 * C0 * 100.0 * diffuse / room.0).sqrt();
+        assert!((g / want - 1.0).abs() < 1e-9, "{g} {want}");
+        assert!((p.case_field_gain(room, w, 400.0, inside) / g - 2.0).abs() < 1e-9);
+        // A cardioid hears a third of the energy of a diffuse field.
+        let cardioid = SoundboardParams { mic_pattern: 0.5, ..p };
+        assert!((cardioid.case_field_gain(room, w, 100.0, inside) / g - (1f64 / 3.0).sqrt()).abs() < 1e-9);
+        // Below the box's Schroeder frequency it fades; away from the case, too.
+        assert!(p.case_field_gain(room, TAU * 100.0, 100.0, inside) < 0.3 * g);
+        let (near, far) = (p.case_field_gain(room, w, 100.0, [1.0, -2.0, 1.0]), p.case_field_gain(room, w, 100.0, [1.0, -4.0, 1.0]));
+        assert!(far < near && near < g, "{near} {far} {g}");
     }
 
     #[test]
