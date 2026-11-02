@@ -55,6 +55,8 @@ pub struct PianoUi {
     search: String,
     /// Parameter whose help is shown (registry index).
     about: Option<usize>,
+    /// Help to open once the pointer is released ([`Self::model_page`]).
+    about_after: Option<usize>,
     mics: mics::MicView,
     model: model::ModelView,
     /// Parameter under the pointer (registry index), lighting its part in
@@ -143,6 +145,7 @@ impl PianoUi {
             page: MODEL_PAGE,
             search: String::new(),
             about: None,
+            about_after: None,
             mics: mics::MicView::default(),
             model: model::ModelView::default(),
             hovered: None,
@@ -555,8 +558,12 @@ impl PianoUi {
         if let Some(i) = shown.clicked {
             self.about = if self.about == Some(i) { None } else { Some(i) };
         }
-        if shown.touched.is_some() {
-            self.about = shown.touched;
+        // Help opening narrows the page, whose columns follow its width:
+        // the control being dragged would move under the pointer, its value
+        // with it. It waits for the gesture's end.
+        self.about_after = shown.touched.or(self.about_after);
+        if self.about_after.is_some() && !ui.input(|i| i.pointer.any_down()) {
+            self.about = self.about_after.take();
         }
         self.hovered = shown.hovered;
         if let Some(page) = open {
@@ -990,7 +997,8 @@ mod slider_tests {
     }
 
     /// The interface opens on the instrument playing, in 3D's realistic
-    /// look, the musician's controls beside it and working there.
+    /// look, the musician's controls beside it: a slider there follows the
+    /// pointer step by step and stays where it is, no help opening.
     #[test]
     fn it_opens_on_the_live_view_with_the_controls_beside() {
         let ctx = egui::Context::default();
@@ -999,23 +1007,80 @@ mod slider_tests {
         let mut control = MockControl::new(PianoModel::default());
         frame(&mut ui, &mut control, &ctx, vec![]);
         frame(&mut ui, &mut control, &ctx, vec![]);
-        // On the right of the window, a control's slider.
+        // On the right of the window, a control's slider, from its right
+        // end: the first thing met there that lights the control.
         let at = (100..800)
             .step_by(4)
-            .flat_map(|y| (750..1100).step_by(10).map(move |x| Pos2::new(x as f32, y as f32)))
-            .find(|&p| {
-                frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(p)]);
-                ui.hovered.is_some_and(|i| ui.registry.params()[i].path.starts_with("macros."))
+            .find_map(|y| {
+                (750..1100).rev().step_by(4).map(|x| Pos2::new(x as f32, y as f32)).find(|&p| {
+                    frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(p)]);
+                    ui.hovered.is_some_and(|i| ui.registry.params()[i].path.starts_with("macros."))
+                })
             })
             .expect("a control on the right");
         let path = ui.registry.params()[ui.hovered.unwrap()].path.clone();
+        let value = |c: &MockControl| piano_params::get(&c.model(), &path).unwrap().as_f64();
+        // From the rail's right end back towards its centre, a step at a time.
+        let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Default::default() };
+        frame(&mut ui, &mut control, &ctx, vec![button(at, true)]);
+        let mut seen = vec![value(&control)];
+        for k in 1..=5 {
+            frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(at - Vec2::new(8.0 * k as f32, 0.0))]);
+            seen.push(value(&control));
+        }
+        for pair in seen.windows(2) {
+            assert!(pair[1] <= pair[0] && pair[0] - pair[1] < 0.2, "{path}: {seen:?}");
+        }
+        assert!(seen[5] < seen[0] - 0.3, "{path}: {seen:?}");
+        frame(&mut ui, &mut control, &ctx, vec![button(at - Vec2::new(40.0, 0.0), false)]);
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        assert!(ui.about.is_none());
+    }
+
+    /// Help asked for by name leaves the controls beside the view, clear of
+    /// its panel.
+    #[test]
+    fn help_leaves_the_controls_in_sight() {
+        let ctx = egui::Context::default();
+        let mut ui = PianoUi::new(None);
+        let mut control = MockControl::new(PianoModel::default());
+        ui.show_help("macros.tone");
+        for _ in 0..3 {
+            frame(&mut ui, &mut control, &ctx, vec![]);
+        }
+        let column = ui.model.side_shown.expect("the controls beside the view");
+        assert!(column.right() <= 1100.0 - 320.0, "{column:?}");
+    }
+
+    /// The Editor's columns follow the page's width too: dragging one of
+    /// its sliders, help opens at the end.
+    #[test]
+    fn the_editors_help_waits_for_the_gesture_to_end() {
+        let ctx = egui::Context::default();
+        let mut ui = PianoUi::new(None);
+        ui.open_page("Model editor");
+        let mut control = MockControl::new(PianoModel::default());
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        // From the right: a row's slider before its name.
+        let at = (100..800)
+            .step_by(4)
+            .find_map(|y| {
+                (500..1100).rev().step_by(4).map(|x| Pos2::new(x as f32, y as f32)).find(|&p| {
+                    frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(p)]);
+                    ui.hovered.is_some()
+                })
+            })
+            .expect("a slider in the editor");
         let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Default::default() };
         frame(&mut ui, &mut control, &ctx, vec![button(at, true)]);
         for k in 1..=4 {
-            frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(at + Vec2::new(8.0 * k as f32, 0.0))]);
+            frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(at - Vec2::new(8.0 * k as f32, 0.0))]);
+            assert!(ui.about.is_none());
         }
-        frame(&mut ui, &mut control, &ctx, vec![button(at + Vec2::new(32.0, 0.0), false)]);
-        assert_ne!(piano_params::get(&control.model(), &path).unwrap().as_f64(), 0.0, "{path}");
+        frame(&mut ui, &mut control, &ctx, vec![button(at - Vec2::new(32.0, 0.0), false)]);
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        assert!(ui.about.is_some());
     }
 
     #[test]

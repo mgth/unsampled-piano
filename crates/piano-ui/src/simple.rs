@@ -64,7 +64,10 @@ pub fn show(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], control:
     ui.add_space(8.0);
 
     let columns = if compact { 5 } else { 8 };
-    egui::Grid::new(("simple", compact)).num_columns(columns).spacing(if compact { [6.0, 3.0] } else { [8.0, 6.0] }).show(ui, |ui| {
+    let grid = egui::Grid::new(("simple", compact)).num_columns(columns);
+    // Compact: no room for the columns' usual least width.
+    let grid = if compact { grid.spacing([6.0, 3.0]).min_col_width(0.0) } else { grid.spacing([8.0, 6.0]) };
+    grid.show(ui, |ui| {
         for (k, (title, names)) in GROUPS.iter().enumerate() {
             if k > 0 {
                 ui.end_row();
@@ -104,7 +107,7 @@ fn row(ui: &mut Ui, i: usize, p: &Param, mut v: f64, control: &mut dyn PianoCont
 
     // The fill runs over the rail from the centre (the preset) to the
     // handle's edge.
-    ui.spacing_mut().slider_width = if compact { 140.0 } else { 190.0 };
+    ui.spacing_mut().slider_width = if compact { 160.0 } else { 190.0 };
     let r = if compact {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;

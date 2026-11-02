@@ -91,6 +91,8 @@ pub struct ModelView {
     drag: Option<(usize, Mat4, Rect)>,
     /// The editor's handles as last drawn: name and place on the screen.
     pub(crate) handles_shown: Vec<(&'static str, egui::Pos2)>,
+    /// The column beside the static or live view as last drawn.
+    pub(crate) side_shown: Option<Rect>,
     start: Instant,
 }
 
@@ -116,6 +118,7 @@ impl Default for ModelView {
             board_counts: None,
             drag: None,
             handles_shown: Vec::new(),
+            side_shown: None,
             start: Instant::now(),
         }
     }
@@ -411,6 +414,8 @@ impl ModelView {
         lit: &[Part],
     ) -> (Shown, Option<&'static str>) {
         let gpu = self.gpu_state();
+        // Before the options, whose row can run wider than the page.
+        let avail = ui.available_width();
         ui.horizontal_wrapped(|ui| {
             for (m, name, tip) in [
                 (Mode::Static, "Static", "The instrument as the parameters build it"),
@@ -479,7 +484,6 @@ impl ModelView {
 
         let mut shown = Shown::default();
         let mut open = None;
-        let avail = ui.available_width();
         match self.mode {
             Mode::Editor => {
                 let plan_w = (avail * 0.58).clamp(300.0, 720.0);
@@ -504,7 +508,9 @@ impl ModelView {
                 // playing, what it does now under them.
                 let live = self.mode == Mode::Live;
                 let side = if live { 340.0 } else { 300.0 };
-                let beside = avail > side + 400.0;
+                // Down to a narrow view live: help opened by name must not
+                // send the controls away under it.
+                let beside = avail > side + if live { 240.0 } else { 400.0 };
                 // The gap, and the spacing on both sides of it.
                 let gap = 16.0 + 2.0 * ui.spacing().item_spacing.x;
                 let w = if beside { avail - side - gap } else { avail };
@@ -517,14 +523,16 @@ impl ModelView {
                     open = if three_d { self.view_3d(ui, &scene, w, h) } else { self.plan(ui, &scene, w, h) };
                     if beside {
                         ui.add_space(16.0);
-                        ui.vertical(|ui| {
+                        let column = ui.vertical(|ui| {
                             ui.set_width(side);
                             ui.set_max_width(side);
                             shown = self.side(ui, control, model, registry, values, obs.as_ref(), true);
                         });
+                        self.side_shown = Some(column.response.rect);
                     }
                 });
                 if !beside {
+                    self.side_shown = None;
                     shown = self.side(ui, control, model, registry, values, obs.as_ref(), false);
                 }
             }
@@ -550,7 +558,10 @@ impl ModelView {
             return Shown::default();
         }
         ui.label(RichText::new("Simple").strong());
-        let shown = crate::simple::show(ui, registry, values, control, beside);
+        let mut shown = crate::simple::show(ui, registry, values, control, beside);
+        // Moved while the piano plays, a control leaves the view its width:
+        // its help opens by its name alone (its hover tells what it does).
+        shown.touched = None;
         ui.add_space(10.0);
         ui.separator();
         live_numbers(ui, obs, model);
