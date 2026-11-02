@@ -215,6 +215,47 @@ fn level(x: f32, reference: f32, range_db: f32, db_per: f32) -> f32 {
     (1.0 + db_per * (x / reference).log10() / range_db).clamp(0.0, 1.0)
 }
 
+/// Where the names go, each given its point on the screen and its size:
+/// beside its point, on the first side (up right, down right, up left, down
+/// left) where it covers no other name or point, further up or down its
+/// side if none is free. Always in the same order, so that a still view's
+/// names stay put.
+fn place_labels(items: &[(egui::Pos2, Vec2)], bounds: Rect) -> Vec<Rect> {
+    /// From the point to the name, and rows tried up or down its side.
+    const GAP: f32 = 2.0;
+    const ROWS: usize = 12;
+    let mut placed: Vec<Rect> = Vec::with_capacity(items.len());
+    for (i, &(p, size)) in items.iter().enumerate() {
+        let candidates: Vec<Rect> = (0..ROWS)
+            .flat_map(|k| {
+                let d = GAP + k as f32 * (size.y + 1.0);
+                [
+                    (Align2::LEFT_BOTTOM, Vec2::new(GAP, -d)),
+                    (Align2::LEFT_TOP, Vec2::new(GAP, d)),
+                    (Align2::RIGHT_BOTTOM, Vec2::new(-GAP, -d)),
+                    (Align2::RIGHT_TOP, Vec2::new(-GAP, d)),
+                ]
+            })
+            .map(|(align, by)| align.anchor_size(p + by, size))
+            .collect();
+        let clear_of_names = |r: &Rect| bounds.contains_rect(*r) && !placed.iter().any(|o| o.expand(1.0).intersects(*r));
+        let clear_of_points = |r: &Rect| !items.iter().enumerate().any(|(j, o)| j != i && r.expand(2.0).contains(o.0));
+        let place = candidates
+            .iter()
+            .find(|r| clear_of_names(r) && clear_of_points(r))
+            .or_else(|| candidates.iter().find(|r| clear_of_names(r)))
+            .copied()
+            // No room at all: in the view at least.
+            .unwrap_or_else(|| {
+                let r = candidates[0];
+                let over = |lo: f32, hi: f32, min: f32, max: f32| (min - lo).max(0.0) + (max - hi).min(0.0);
+                r.translate(Vec2::new(over(r.left(), r.right(), bounds.left(), bounds.right()), over(r.top(), r.bottom(), bounds.top(), bounds.bottom())))
+            });
+        placed.push(place);
+    }
+    placed
+}
+
 /// A handle of the editor: a point of the plan (plate metres) and the
 /// parameters its two coordinates set, with their scale (value = coordinate
 /// / scale − offset). A main bridge point is drawn where its slanting
@@ -616,13 +657,24 @@ impl ModelView {
         let painter = ui.painter_at(rect);
         let vis = ui.visuals();
         let mut open = None;
-        for (i, l) in scene.labels.iter().enumerate() {
-            let Some((p, _)) = paint::to_screen(m, rect, l.at) else { continue };
-            if !rect.shrink(4.0).contains(p) {
-                continue;
+        let shown: Vec<_> = scene
+            .labels
+            .iter()
+            .enumerate()
+            .filter_map(|(i, l)| {
+                let (p, _) = paint::to_screen(m, rect, l.at)?;
+                rect.shrink(4.0).contains(p).then(|| (i, l, p, painter.layout_no_wrap(l.text.clone(), font.clone(), vis.text_color())))
+            })
+            .collect();
+        let items: Vec<_> = shown.iter().map(|(_, _, p, galley)| (*p, galley.size() + Vec2::splat(4.0))).collect();
+        let places = place_labels(&items, rect.shrink(2.0));
+        // The leaders under every name.
+        for (&(p, _), r) in items.iter().zip(&places) {
+            if r.distance_to_pos(p) > 4.0 {
+                painter.line_segment([p, r.clamp(p)], Stroke::new(1.0, vis.weak_text_color()));
             }
-            let galley = painter.layout_no_wrap(l.text.clone(), font.clone(), vis.text_color());
-            let r = Align2::LEFT_BOTTOM.anchor_size(p + Vec2::new(4.0, -4.0), galley.size()).expand(2.0);
+        }
+        for ((i, l, p, galley), r) in shown.into_iter().zip(places) {
             let resp = ui.interact(r, ui.scope_id().with(("model-label", i)), Sense::click());
             let fill = if resp.hovered() { vis.selection.bg_fill } else { vis.extreme_bg_color.gamma_multiply(0.8) };
             painter.rect_filled(r, 3.0, fill);
@@ -926,6 +978,25 @@ mod tests {
         let s = v.smooth(&dip);
         assert!(s.board[0] > 0.8 && s.keys[60].energy > 0.7, "{} {}", s.board[0], s.keys[60].energy);
         assert!(s.keys[60].hammer);
+    }
+
+    #[test]
+    fn names_never_overlap() {
+        let bounds = Rect::from_min_size(egui::pos2(0.0, 0.0), Vec2::new(600.0, 500.0));
+        let size = Vec2::new(70.0, 17.0);
+        // Points nearly on each other, others at the view's corners.
+        let mut items: Vec<_> = (0..8).map(|i| (egui::pos2(300.0 + i as f32, 250.0 + 2.0 * i as f32), size)).collect();
+        items.extend([(egui::pos2(5.0, 5.0), size), (egui::pos2(595.0, 495.0), size), (egui::pos2(595.0, 5.0), size)]);
+        let places = place_labels(&items, bounds);
+        for (i, a) in places.iter().enumerate() {
+            assert!(bounds.contains_rect(*a), "{i}: {a:?}");
+            for b in &places[..i] {
+                assert!(!a.intersects(*b), "{a:?} on {b:?}");
+            }
+        }
+        // A lone name stays where it always was, up right of its point.
+        let r = place_labels(&[(egui::pos2(100.0, 100.0), size)], bounds)[0];
+        assert_eq!(r.left_bottom(), egui::pos2(102.0, 98.0));
     }
 
     #[test]
