@@ -439,6 +439,10 @@ impl ModelView {
             ui.add_enabled(self.case, egui::Checkbox::new(&mut self.fallboard, "Fallboard"))
                 .on_hover_text("A grand's fallboard shut over the keys, the name on it")
                 .on_disabled_hover_text("The fallboard is the case's: tick Case");
+            // Wrapped by hand: a slider and its text do not wrap by themselves.
+            if ui.available_size_before_wrap().x < 270.0 {
+                ui.end_row();
+            }
             ui.add_enabled(
                 self.case,
                 egui::Slider::new(&mut self.front_clear, 0.0..=1.0).text("Front see-through").custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
@@ -486,7 +490,8 @@ impl ModelView {
         let mut open = None;
         match self.mode {
             Mode::Editor => {
-                let plan_w = (avail * 0.58).clamp(300.0, 720.0);
+                // What the rows beside it need, as far as it can.
+                let plan_w = (avail - 440.0).clamp(280.0, 720.0);
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.set_width(plan_w);
@@ -508,8 +513,8 @@ impl ModelView {
                 // playing, what it does now under them.
                 let live = self.mode == Mode::Live;
                 let side = if live { 340.0 } else { 300.0 };
-                // Down to a narrow view live: help opened by name must not
-                // send the controls away under it.
+                // Down to a narrow view live: the help panel beside it must
+                // not send the controls away under it.
                 let beside = avail > side + if live { 240.0 } else { 400.0 };
                 // The gap, and the spacing on both sides of it.
                 let gap = 16.0 + 2.0 * ui.spacing().item_spacing.x;
@@ -558,10 +563,7 @@ impl ModelView {
             return Shown::default();
         }
         ui.label(RichText::new("Simple").strong());
-        let mut shown = crate::simple::show(ui, registry, values, control, beside);
-        // Moved while the piano plays, a control leaves the view its width:
-        // its help opens by its name alone (its hover tells what it does).
-        shown.touched = None;
+        let shown = crate::simple::show(ui, registry, values, control, beside);
         ui.add_space(10.0);
         ui.separator();
         live_numbers(ui, obs, model);

@@ -22,9 +22,9 @@ const GROUPS: &[(&str, &[&str])] = &[
 pub struct Shown {
     /// A name pointed at, or a slider pointed at or moved.
     pub hovered: Option<usize>,
-    /// A name clicked (its help, again to close it).
+    /// A name clicked (its help).
     pub clicked: Option<usize>,
-    /// A value moved or reset (its help opens).
+    /// A value moved or reset (its help).
     pub touched: Option<usize>,
 }
 
@@ -99,7 +99,7 @@ fn row(ui: &mut Ui, i: usize, p: &Param, mut v: f64, control: &mut dyn PianoCont
             ui.add_space(4.0);
         }
         ui.label(RichText::new(&p.path).monospace().weak());
-        ui.label(RichText::new("Click for details").small().weak());
+        ui.label(RichText::new("Click for details in the help panel").small().weak());
     });
     if !compact {
         ui.label(RichText::new(low).weak());

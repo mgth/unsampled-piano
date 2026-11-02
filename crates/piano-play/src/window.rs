@@ -153,7 +153,7 @@ pub fn run(
         ui.open_page(&p);
     }
     let mut viewport = egui::ViewportBuilder::default()
-        .with_inner_size([1100.0, 760.0])
+        .with_inner_size([1360.0, 760.0])
         .with_min_inner_size([760.0, 480.0])
         .with_title(title)
         .with_app_id("unsampled-piano");
