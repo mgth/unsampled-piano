@@ -50,6 +50,15 @@ fn main() {
     let fem = sb.fem.as_ref().unwrap();
     println!("{} modes below {} Hz, grid {}×{}, {:.1} s; mass {:.1} kg on {:.2} m² ({:.1} kg/m²)", fem.omega.len(), s.below, fem.nx, fem.ny, t.elapsed().as_secs_f64(), fem.mass, fem.area, fem.mass / fem.area);
     let f: Vec<f64> = fem.omega.iter().map(|w| w / std::f64::consts::TAU).collect();
+    // The air: flat and without crown, the frequency it takes and its share of the losses.
+    let t = std::time::Instant::now();
+    let air = piano_core::fem::air_on(fem, &p, 1.2, 343.0);
+    println!("air in {:.1} s; mode: Hz, added mass, η of radiation; baffled board, the same", t.elapsed().as_secs_f64());
+    let baffled = piano_core::fem::air_on(fem, &SoundboardParams { back_gain: 0.0, ..p }, 1.2, 343.0);
+    for &i in [0usize, 1, 2, 3, 5, 10, 20, 40, 80, 120, 160, 200, 250, 300, 350].iter().filter(|&&i| i < f.len()) {
+        let eta = |(m, r): (f64, f64)| r / ((1.0 + m).sqrt() * fem.omega[i]);
+        println!("{:4}: {:6.0} Hz  +{:4.1} %  {:.4} | +{:4.1} %  {:.4}", i + 1, f[i], 100.0 * air[i].0, eta(air[i]), 100.0 * baffled[i].0, eta(baffled[i]));
+    }
     println!("mode  ours   thesis 3D");
     for (i, t3) in THESIS_3D.iter().enumerate() {
         println!("{:4} {:6.1} {:6.0}", i + 1, f.get(i).copied().unwrap_or(0.0), t3);

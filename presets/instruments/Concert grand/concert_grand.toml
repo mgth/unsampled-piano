@@ -77,9 +77,10 @@ treble_bridge = [[0.0443, 0.048], [0.0809, 0.202], [0.1596, 0.38], [0.3441, 0.57
 bass_bridge = [[0.5765, 0.562], [0.8707, 0.753]]
 # Only the modes above the built board's, 3 kHz: their level comes from the structure.
 rho_h = 14.7
-# The flat board's first modes are 33, 52, 78, 89 Hz; a real 2.74 m board's, unstrung,
-# 49, 67, 89, 112 Hz (Conklin 1996). 36 Hz of crown gives 49, 63, 86, 96 Hz.
-crown_freq = 36.0
+# The flat board's first modes are 33, 52, 78, 89 Hz, 31, 49, 74, 85 Hz under the air;
+# a real 2.74 m board's, unstrung, 49, 67, 89, 112 Hz (Conklin 1996). 40 Hz of crown
+# gives 49, 62, 83, 94 Hz.
+crown_freq = 40.0
 bass_bridge_bow = 0.034
 main_string_slant = 0.0
 

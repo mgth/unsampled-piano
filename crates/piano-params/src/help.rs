@@ -718,6 +718,12 @@ const HELP: &[(&str, &str, &str)] = &[
          then set only those; the impedance slopes and the bridge's spread do not act below.",
     ),
     (
+        "soundboard.structure.air",
+        "The air on the built board: it weighs on the low modes and takes energy as sound.",
+        "Each mode's Rayleigh integral on itself: an added mass and a radiation loss, on top of the \
+         wood's. No coupling between modes (docs/real_board.md).",
+    ),
+    (
         "soundboard.structure.clamped",
         "How the rim holds the board: glued and held at its edge, or free to rotate there.",
         "On: clamped. Off: simply supported, only its transverse movement held, as in the thesis's \

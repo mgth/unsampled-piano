@@ -17,6 +17,7 @@
 //! it has them all. A slice per thread; the result is kept on disk, by a hash
 //! of what it depends on.
 
+use crate::complex::C64;
 use crate::soundboard::{Outline, SoundboardParams};
 use std::collections::HashMap;
 use std::f64::consts::TAU;
@@ -36,6 +37,9 @@ pub const BASS_BRIDGE_POINTS: usize = 3;
 pub struct BoardStructure {
     /// The board's modes below `below` come from this structure.
     pub enabled: bool,
+    /// The air on it: each mode's own radiation, as a resistance and an added
+    /// mass ([`air_on`]).
+    pub air: bool,
     /// How the rim holds it: clamped (no rotation), or simply supported, the
     /// transverse movement alone held at the nodes along the outline.
     pub clamped: bool,
@@ -95,6 +99,7 @@ impl BoardStructure {
     /// measured them on the piano and counted 17).
     pub const STEINWAY_D: Self = Self {
         enabled: false,
+        air: true,
         clamped: true,
         step: 0.01,
         below: 3000.0,
@@ -862,12 +867,138 @@ impl BoardFem {
             omega,
             n_free,
             shapes,
-            supports: sup.chunks_exact(2).map(|c| (c[0], c[1])).collect(),
+            supports: sup.as_chunks::<2>().0.iter().map(|c| (c[0], c[1])).collect(),
             reactions,
             mass: scalars[2],
             area: scalars[3],
         })
     }
+}
+
+/// In-place FFT of a power-of-two length, `stride` apart.
+fn fft(x: &mut [C64], n: usize, start: usize, stride: usize, inverse: bool) {
+    let at = |i: usize| start + i * stride;
+    let mut j = 0;
+    for i in 1..n {
+        let mut bit = n >> 1;
+        while j & bit != 0 {
+            j ^= bit;
+            bit >>= 1;
+        }
+        j |= bit;
+        if i < j {
+            x.swap(at(i), at(j));
+        }
+    }
+    let mut len = 2;
+    while len <= n {
+        let sign = if inverse { 1.0 } else { -1.0 };
+        let step = C64::polar(1.0, sign * TAU / len as f64);
+        for block in (0..n).step_by(len) {
+            let mut w = C64::ONE;
+            for k in 0..len / 2 {
+                let (a, b) = (x[at(block + k)], x[at(block + k + len / 2)] * w);
+                x[at(block + k)] = a + b;
+                x[at(block + k + len / 2)] = a - b;
+                w = w * step;
+            }
+        }
+        len *= 2;
+    }
+}
+
+fn fft2(x: &mut [C64], n1: usize, n2: usize, inverse: bool) {
+    for i in 0..n1 {
+        fft(x, n2, i * n2, 1, inverse);
+    }
+    for j in 0..n2 {
+        fft(x, n1, j, n2, inverse);
+    }
+}
+
+/// ∫∫ φ(x)·(e^{−ikR}/R − β·e^{−ikR'}/R')·φ(x') dS dS' over a grid of cells
+/// dx × dy, R' = √(R² + depth²). The cell on itself is that of a disc of its
+/// area, 2π(1 − e^{−ika})/(ik). By FFT on the doubled grid.
+#[allow(clippy::too_many_arguments)]
+fn self_radiation(phi: &[f64], nx: usize, ny: usize, dx: f64, dy: f64, k: f64, depth: f64, beta: f64) -> C64 {
+    let (n1, n2) = ((2 * nx).next_power_of_two(), (2 * ny).next_power_of_two());
+    let ds = dx * dy;
+    let disc = (ds / std::f64::consts::PI).sqrt();
+    let mut kernel = vec![C64::ZERO; n1 * n2];
+    for i in 0..n1 {
+        let di = if i < n1 / 2 { i as f64 } else { i as f64 - n1 as f64 };
+        for j in 0..n2 {
+            let dj = if j < n2 / 2 { j as f64 } else { j as f64 - n2 as f64 };
+            let r = (di * dx).hypot(dj * dy);
+            let direct = if i == 0 && j == 0 {
+                let e = C64::polar(1.0, -k * disc);
+                let num = C64::new(1.0 - e.re, -e.im);
+                let over_ik = C64::new(num.im / k, -num.re / k);
+                over_ik.scale(TAU / ds)
+            } else {
+                C64::polar(1.0 / r, -k * r)
+            };
+            let image = if beta != 0.0 {
+                let rb = r.hypot(depth);
+                C64::polar(beta / rb, -k * rb)
+            } else {
+                C64::ZERO
+            };
+            kernel[i * n2 + j] = direct - image;
+        }
+    }
+    let mut field = vec![C64::ZERO; n1 * n2];
+    for i in 0..nx {
+        for j in 0..ny {
+            field[i * n2 + j] = C64::new(phi[i * ny + j], 0.0);
+        }
+    }
+    fft2(&mut kernel, n1, n2, false);
+    fft2(&mut field, n1, n2, false);
+    for (a, b) in field.iter_mut().zip(&kernel) {
+        *a = *a * *b;
+    }
+    fft2(&mut field, n1, n2, true);
+    let scale = ds * ds / (n1 * n2) as f64;
+    let mut sum = C64::ZERO;
+    for i in 0..nx {
+        for j in 0..ny {
+            sum += field[i * n2 + j].scale(phi[i * ny + j] * scale);
+        }
+    }
+    sum
+}
+
+/// Each mode's air: (added mass, resistance) on its unit modal mass, so that
+/// (1 + m)·q̈ + r·q̇ + ω²·q = F. Rayleigh's integral of the mode on itself, on
+/// both faces, the back one in antiphase as the microphones hear it:
+/// Z = 2·(iωρ₀/2π)·∫∫Φ·(e^{−ikR}/R − β·e^{−ikR'}/R')·Φ' = r + iω·m. The
+/// coupling between modes is left out.
+pub fn air_on(fem: &BoardFem, p: &SoundboardParams, rho0: f64, c0: f64) -> Arc<Vec<(f64, f64)>> {
+    type Air = Arc<Vec<(f64, f64)>>;
+    type AirCache = HashMap<(u64, u64, u64), Air>;
+    static MEMORY: OnceLock<Mutex<AirCache>> = OnceLock::new();
+    let id = (key(p), p.back_depth.to_bits(), p.back_gain.to_bits());
+    let memory = MEMORY.get_or_init(Default::default);
+    let mut held = memory.lock().unwrap_or_else(|e| e.into_inner());
+    held.entry(id).or_insert_with(|| Arc::new(air_of_modes(fem, p, rho0, c0))).clone()
+}
+
+fn air_of_modes(fem: &BoardFem, p: &SoundboardParams, rho0: f64, c0: f64) -> Vec<(f64, f64)> {
+    const STEP: f64 = 0.02;
+    let (nx, ny) = ((p.a / STEP).ceil() as usize, (p.b / STEP).ceil() as usize);
+    let (dx, dy) = (p.a / nx as f64, p.b / ny as f64);
+    crate::par::map(fem.omega.len(), |mode| {
+        let w = fem.omega[mode];
+        let mut phi = vec![0.0; nx * ny];
+        for i in 0..nx {
+            for j in 0..ny {
+                phi[i * ny + j] = fem.shape(mode, (i as f64 + 0.5) * dx, (j as f64 + 0.5) * dy);
+            }
+        }
+        let s = self_radiation(&phi, nx, ny, dx, dy, w / c0, p.back_depth, p.back_gain);
+        (rho0 * s.re / std::f64::consts::PI, -w * rho0 * s.im / std::f64::consts::PI)
+    })
 }
 
 /// What the modes depend on, as a hash (the crown only moves their
@@ -1013,6 +1144,53 @@ mod tests {
             }
             assert!((sum * 4.0 - 1.0).abs() < 0.01, "{sum}");
         }
+    }
+
+    /// A piston in a baffle, one face: mass 8ρa³/3, resistance ρc·A·(ka)²/2.
+    #[test]
+    fn a_piston_has_its_known_air() {
+        let (a, n) = (0.5f64, 200);
+        let d = 2.4 * a / n as f64;
+        let mut phi = vec![0.0; n * n];
+        let mut area = 0.0;
+        for i in 0..n {
+            for j in 0..n {
+                if ((i as f64 + 0.5) * d - 1.2 * a).hypot((j as f64 + 0.5) * d - 1.2 * a) < a {
+                    phi[i * n + j] = 1.0;
+                    area += d * d;
+                }
+            }
+        }
+        let k = 0.2 / a;
+        let s = self_radiation(&phi, n, n, d, d, k, 0.0, 0.0);
+        // One face: p = iωρ/(2π)·∫v·e^{−ikR}/R, with ρ = c = 1.
+        let mass = s.re / TAU;
+        let resistance = -k * s.im / TAU;
+        assert!((mass / (8.0 * a.powi(3) / 3.0) - 1.0).abs() < 0.03, "{mass}");
+        let known = area * (k * a).powi(2) / 2.0;
+        assert!((resistance / known - 1.0).abs() < 0.03, "{resistance} against {known}");
+    }
+
+    /// Wallace 1972: a baffled simply supported plate's (1, 1) mode at low
+    /// frequency radiates with efficiency 32·k²·a·b/π⁵.
+    #[test]
+    fn a_plate_mode_has_wallaces_efficiency() {
+        let (a, b, nx, ny) = (1.0f64, 0.7f64, 100, 70);
+        let (dx, dy) = (a / nx as f64, b / ny as f64);
+        let mut phi = vec![0.0; nx * ny];
+        let mut norm = 0.0;
+        for i in 0..nx {
+            for j in 0..ny {
+                let v = (std::f64::consts::PI * (i as f64 + 0.5) * dx / a).sin() * (std::f64::consts::PI * (j as f64 + 0.5) * dy / b).sin();
+                phi[i * ny + j] = v;
+                norm += v * v * dx * dy;
+            }
+        }
+        let k = 0.5;
+        let s = self_radiation(&phi, nx, ny, dx, dy, k, 0.0, 0.0);
+        let sigma = -k * s.im / TAU / norm;
+        let known = 32.0 * k * k * a * b / std::f64::consts::PI.powi(5);
+        assert!((sigma / known - 1.0).abs() < 0.05, "{sigma} against {known}");
     }
 
     #[test]

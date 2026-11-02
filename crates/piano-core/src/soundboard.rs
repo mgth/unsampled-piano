@@ -814,6 +814,8 @@ pub struct PlateMode {
     pub ritz: Option<u32>,
     /// A mode of the built board: its index in [`Soundboard::fem`].
     pub fem: Option<u32>,
+    /// Loss factor of its radiation into the air ([`crate::fem::air_on`]).
+    pub air: f64,
 }
 
 pub struct Soundboard {
@@ -834,6 +836,8 @@ pub struct Soundboard {
     held: Vec<f64>,
     /// The built board's modes, when [`SoundboardParams::structure`] is on.
     pub fem: Option<std::sync::Arc<crate::fem::BoardFem>>,
+    /// On each of its shapes, for the air's share of its modal mass.
+    fem_scale: Vec<f64>,
     /// The rectangle's modes above the built board's: on each key's drive
     /// (from A0) so that the bridge's conductance carries on at the corner,
     /// and on their radiation, as their mass is not the board's. 1 without one.
@@ -997,7 +1001,7 @@ impl Soundboard {
         let p = params;
         let w_max = TAU * p.f_max;
         let mut modes: Vec<PlateMode> =
-            rectangle_modes(&p, w_max).into_iter().map(|(m, n, omega)| PlateMode { m, n, omega, load: 0.0, ritz: None, fem: None }).collect();
+            rectangle_modes(&p, w_max).into_iter().map(|(m, n, omega)| PlateMode { m, n, omega, load: 0.0, ritz: None, fem: None, air: 0.0 }).collect();
         let mut sb = Self {
             params,
             modes: Vec::new(),
@@ -1008,6 +1012,7 @@ impl Soundboard {
             cells: Vec::new(),
             held: Vec::new(),
             fem: None,
+            fem_scale: Vec::new(),
             above_drive: Vec::new(),
             above_radiation: 1.0,
         };
@@ -1015,8 +1020,21 @@ impl Soundboard {
             let fem = crate::fem::board(&p);
             let (wc, crown) = (TAU * p.structure.below, (TAU * p.crown_freq).powi(2));
             modes.retain(|m| m.omega >= wc);
-            modes.extend(fem.omega.iter().enumerate().map(|(i, w)| PlateMode { m: 1, n: 1, omega: (w * w + crown).sqrt(), load: 0.0, ritz: None, fem: Some(i as u32) }));
+            let air = if p.structure.air { crate::fem::air_on(&fem, &p, RHO0, C0) } else { std::sync::Arc::new(vec![(0.0, 0.0); fem.omega.len()]) };
+            modes.extend(fem.omega.iter().zip(air.iter()).enumerate().map(|(i, (w, &(mass, r)))| {
+                let omega = ((w * w + crown) / (1.0 + mass)).sqrt();
+                PlateMode { m: 1, n: 1, omega, load: 0.0, ritz: None, fem: Some(i as u32), air: r / ((1.0 + mass) * omega) }
+            }));
+            // The modal mass grows with the air's: each shape falls by its root.
+            sb.fem_scale = air.iter().map(|&(mass, _)| 1.0 / (1.0 + mass).sqrt()).collect();
             sb.above_radiation = (p.rho_h * fem.area / fem.mass).sqrt();
+            if p.structure.air {
+                // Above the corner, where the plate radiates as a whole: η = 2ρ₀c/(ω·ρh).
+                let rho_h = fem.mass / fem.area;
+                for m in modes.iter_mut().filter(|m| m.fem.is_none()) {
+                    m.air = 2.0 * RHO0 * C0 / (m.omega * rho_h);
+                }
+            }
             sb.fem = Some(fem);
         } else if sb.outline.is_some() && p.outline_below > 0.0 {
             let wc = TAU * p.outline_below;
@@ -1025,7 +1043,7 @@ impl Soundboard {
             modes.extend(own.into_iter().filter(|m| m.omega <= w_max));
         }
         if p.piston_freq > 0.0 && p.piston_mass > 0.0 {
-            modes.push(PlateMode { m: 0, n: 0, omega: TAU * p.piston_freq, load: 0.0, ritz: None, fem: None });
+            modes.push(PlateMode { m: 0, n: 0, omega: TAU * p.piston_freq, load: 0.0, ritz: None, fem: None, air: 0.0 });
         }
         modes.sort_by(|x, y| x.omega.total_cmp(&y.omega));
         sb.modes = modes;
@@ -1165,7 +1183,7 @@ impl Soundboard {
             }
             let k = (0..nb).max_by(|&i, &j| v[i].abs().total_cmp(&v[j].abs())).unwrap_or(0);
             let (m, n, _) = self.basis[k];
-            modes.push(PlateMode { m, n, omega, load: 0.0, ritz: Some(self.ritz.len() as u32), fem: None });
+            modes.push(PlateMode { m, n, omega, load: 0.0, ritz: Some(self.ritz.len() as u32), fem: None, air: 0.0 });
             self.ritz.push(v);
         }
         modes
@@ -1236,7 +1254,7 @@ impl Soundboard {
             return self.ritz_shape(&self.ritz[r as usize], x, y);
         }
         if let (Some(i), Some(fem)) = (mode.fem, &self.fem) {
-            return fem.shape(i as usize, x, y);
+            return self.fem_scale[i as usize] * fem.shape(i as usize, x, y);
         }
         2.0 / (p.rho_h * p.a * p.b).sqrt() * (mode.m as f64 * PI * x / p.a).sin() * (mode.n as f64 * PI * y / p.b).sin()
     }
@@ -1258,7 +1276,8 @@ impl Soundboard {
     /// reactions, [`Self::ritz`]). None for the others.
     pub fn held_forces(&self, mode: &PlateMode) -> Option<Vec<(f64, f64, f64)>> {
         if let (Some(i), Some(fem)) = (mode.fem, &self.fem) {
-            return Some(fem.forces(i as usize));
+            let scale = self.fem_scale[i as usize];
+            return Some(fem.forces(i as usize).into_iter().map(|(x, y, f)| (x, y, scale * f)).collect());
         }
         let coefs = &self.ritz[mode.ritz? as usize];
         let nb = self.basis.len();
@@ -1276,7 +1295,7 @@ impl Soundboard {
 
     /// Loss factor of a mode.
     pub fn mode_eta(&self, mode: &PlateMode) -> f64 {
-        let own = if mode.m == 0 { self.params.piston_loss } else { self.eta(mode.omega) };
+        let own = if mode.m == 0 { self.params.piston_loss } else { self.eta(mode.omega) + mode.air };
         own + 2.0 * mode.load / mode.omega
     }
 
@@ -1487,7 +1506,7 @@ impl Soundboard {
         };
         let (bx, by) = if self.ritz.is_empty() { (Vec::new(), Vec::new()) } else { (tab(mm, nx, dx, p.a), tab(nm, ny, dy, p.b)) };
         let built = |i: usize, fem: &crate::fem::BoardFem| -> Vec<f64> {
-            (0..nx * ny).map(|c| fem.shape(i, (c / ny) as f64 * dx + 0.5 * dx, (c % ny) as f64 * dy + 0.5 * dy)).collect()
+            (0..nx * ny).map(|c| self.fem_scale[i] * fem.shape(i, (c / ny) as f64 * dx + 0.5 * dx, (c % ny) as f64 * dy + 0.5 * dy)).collect()
         };
         // The scattering layer: (x, y, z, area) of its sources, on a grid
         // inside the outline, their heights spread by a fixed pseudo-random
