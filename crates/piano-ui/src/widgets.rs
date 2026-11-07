@@ -26,7 +26,7 @@ pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn
         if !m.curated {
             ui.label(RichText::new("Range guessed from the default value").weak());
         }
-        ui.label(RichText::new("Click for details").small().weak());
+        ui.label(RichText::new("Click for details in the help panel").small().weak());
     });
     let Some(mut v) = value else {
         ui.label(RichText::new("off in this model").weak());
@@ -170,7 +170,8 @@ pub struct Row {
 /// The help of a parameter: where it acts, what it does on the piano, then
 /// how the model implements it.
 pub fn about(ui: &mut Ui, p: &Param, value: Option<Value>, model: &PianoModel, key: &mut u8) {
-    ui.horizontal(|ui| {
+    // Wrapped: a long name must not widen the panel, and the pages with it.
+    ui.horizontal_wrapped(|ui| {
         kind_mark(ui, matches!(p.kind, Kind::Live(_)));
         ui.heading(&p.meta.label);
     });

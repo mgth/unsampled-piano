@@ -91,15 +91,18 @@ pub struct ModelView {
     drag: Option<(usize, Mat4, Rect)>,
     /// The editor's handles as last drawn: name and place on the screen.
     pub(crate) handles_shown: Vec<(&'static str, egui::Pos2)>,
+    /// What goes beside the static or live view, or under it, as last
+    /// drawn.
+    pub(crate) side_shown: Option<Rect>,
     start: Instant,
 }
 
 impl Default for ModelView {
     fn default() -> Self {
         Self {
-            mode: Mode::Static,
+            mode: Mode::Live,
             three_d: true,
-            realistic: false,
+            realistic: true,
             orbit: None,
             framed_vertical: false,
             lid: true,
@@ -116,6 +119,7 @@ impl Default for ModelView {
             board_counts: None,
             drag: None,
             handles_shown: Vec::new(),
+            side_shown: None,
             start: Instant::now(),
         }
     }
@@ -213,6 +217,47 @@ fn level(x: f32, reference: f32, range_db: f32, db_per: f32) -> f32 {
         return 0.0;
     }
     (1.0 + db_per * (x / reference).log10() / range_db).clamp(0.0, 1.0)
+}
+
+/// Where the names go, each given its point on the screen and its size:
+/// beside its point, on the first side (up right, down right, up left, down
+/// left) where it covers no other name or point, further up or down its
+/// side if none is free. Always in the same order, so that a still view's
+/// names stay put.
+fn place_labels(items: &[(egui::Pos2, Vec2)], bounds: Rect) -> Vec<Rect> {
+    /// From the point to the name, and rows tried up or down its side.
+    const GAP: f32 = 2.0;
+    const ROWS: usize = 12;
+    let mut placed: Vec<Rect> = Vec::with_capacity(items.len());
+    for (i, &(p, size)) in items.iter().enumerate() {
+        let candidates: Vec<Rect> = (0..ROWS)
+            .flat_map(|k| {
+                let d = GAP + k as f32 * (size.y + 1.0);
+                [
+                    (Align2::LEFT_BOTTOM, Vec2::new(GAP, -d)),
+                    (Align2::LEFT_TOP, Vec2::new(GAP, d)),
+                    (Align2::RIGHT_BOTTOM, Vec2::new(-GAP, -d)),
+                    (Align2::RIGHT_TOP, Vec2::new(-GAP, d)),
+                ]
+            })
+            .map(|(align, by)| align.anchor_size(p + by, size))
+            .collect();
+        let clear_of_names = |r: &Rect| bounds.contains_rect(*r) && !placed.iter().any(|o| o.expand(1.0).intersects(*r));
+        let clear_of_points = |r: &Rect| !items.iter().enumerate().any(|(j, o)| j != i && r.expand(2.0).contains(o.0));
+        let place = candidates
+            .iter()
+            .find(|r| clear_of_names(r) && clear_of_points(r))
+            .or_else(|| candidates.iter().find(|r| clear_of_names(r)))
+            .copied()
+            // No room at all: in the view at least.
+            .unwrap_or_else(|| {
+                let r = candidates[0];
+                let over = |lo: f32, hi: f32, min: f32, max: f32| (min - lo).max(0.0) + (max - hi).min(0.0);
+                r.translate(Vec2::new(over(r.left(), r.right(), bounds.left(), bounds.right()), over(r.top(), r.bottom(), bounds.top(), bounds.bottom())))
+            });
+        placed.push(place);
+    }
+    placed
 }
 
 /// A handle of the editor: a point of the plan (plate metres) and the
@@ -370,6 +415,8 @@ impl ModelView {
         lit: &[Part],
     ) -> (Shown, Option<&'static str>) {
         let gpu = self.gpu_state();
+        // Before the options, whose row can run wider than the page.
+        let avail = ui.available_width();
         ui.horizontal_wrapped(|ui| {
             for (m, name, tip) in [
                 (Mode::Static, "Static", "The instrument as the parameters build it"),
@@ -393,6 +440,10 @@ impl ModelView {
             ui.add_enabled(self.case, egui::Checkbox::new(&mut self.fallboard, "Fallboard"))
                 .on_hover_text("A grand's fallboard shut over the keys, the name on it")
                 .on_disabled_hover_text("The fallboard is the case's: tick Case");
+            // Wrapped by hand: a slider and its text do not wrap by themselves.
+            if ui.available_size_before_wrap().x < 270.0 {
+                ui.end_row();
+            }
             ui.add_enabled(
                 self.case,
                 egui::Slider::new(&mut self.front_clear, 0.0..=1.0).text("Front see-through").custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
@@ -438,10 +489,10 @@ impl ModelView {
 
         let mut shown = Shown::default();
         let mut open = None;
-        let avail = ui.available_width();
         match self.mode {
             Mode::Editor => {
-                let plan_w = (avail * 0.58).clamp(300.0, 720.0);
+                // What the rows beside it need, as far as it can.
+                let plan_w = (avail - 440.0).clamp(280.0, 720.0);
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.set_width(plan_w);
@@ -459,8 +510,16 @@ impl ModelView {
                 });
             }
             Mode::Static | Mode::Live => {
-                let side = 300.0;
-                let w = if avail > 700.0 { avail - side - 16.0 } else { avail };
+                // Live: the musician's controls beside the instrument
+                // playing, what it does now under them.
+                let live = self.mode == Mode::Live;
+                let side = if live { 340.0 } else { 300.0 };
+                // Down to a narrow view live: the help panel beside it must
+                // not send the controls away under it.
+                let beside = avail > side + if live { 240.0 } else { 400.0 };
+                // The gap, and the spacing on both sides of it.
+                let gap = 16.0 + 2.0 * ui.spacing().item_spacing.x;
+                let w = if beside { avail - side - gap } else { avail };
                 // Down to the bottom of the page as it shows (what lies
                 // above it measured from the page's top, not the screen's,
                 // so that scrolling does not grow it).
@@ -468,25 +527,50 @@ impl ModelView {
                 let h = (ui.clip_rect().height() - above - 8.0).max(320.0);
                 ui.horizontal_top(|ui| {
                     open = if three_d { self.view_3d(ui, &scene, w, h) } else { self.plan(ui, &scene, w, h) };
-                    if avail > 700.0 {
+                    if beside {
                         ui.add_space(16.0);
-                        ui.vertical(|ui| {
+                        let column = ui.vertical(|ui| {
                             ui.set_width(side);
                             ui.set_max_width(side);
-                            if self.mode == Mode::Live {
-                                live_numbers(ui, obs.as_ref(), model);
-                            } else {
-                                numbers(ui, model, &mut self.board_counts);
-                            }
+                            shown = self.side(ui, control, model, registry, values, obs.as_ref());
                         });
+                        self.side_shown = Some(column.response.rect);
                     }
                 });
-                if avail <= 700.0 {
-                    if self.mode == Mode::Live { live_numbers(ui, obs.as_ref(), model) } else { numbers(ui, model, &mut self.board_counts) }
+                if !beside {
+                    let under = ui.vertical(|ui| {
+                        shown = self.side(ui, control, model, registry, values, obs.as_ref());
+                    });
+                    self.side_shown = Some(under.response.rect);
                 }
             }
         }
         (shown, open)
+    }
+
+    /// What goes beside the static or live view or under it: the numbers,
+    /// or live the musician's controls (compact either way: under the view
+    /// the page is narrow) and the engine's state.
+    #[allow(clippy::too_many_arguments)]
+    fn side(
+        &mut self,
+        ui: &mut Ui,
+        control: &mut dyn PianoControl,
+        model: &PianoModel,
+        registry: &Registry,
+        values: &[Option<Value>],
+        obs: Option<&Observation>,
+    ) -> Shown {
+        if self.mode != Mode::Live {
+            numbers(ui, model, &mut self.board_counts);
+            return Shown::default();
+        }
+        ui.label(RichText::new("Simple").strong());
+        let shown = crate::simple::show(ui, registry, values, control, true);
+        ui.add_space(10.0);
+        ui.separator();
+        live_numbers(ui, obs, model);
+        shown
     }
 
     /// The state shown from the state read: energies and board motions
@@ -589,13 +673,24 @@ impl ModelView {
         let painter = ui.painter_at(rect);
         let vis = ui.visuals();
         let mut open = None;
-        for (i, l) in scene.labels.iter().enumerate() {
-            let Some((p, _)) = paint::to_screen(m, rect, l.at) else { continue };
-            if !rect.shrink(4.0).contains(p) {
-                continue;
+        let shown: Vec<_> = scene
+            .labels
+            .iter()
+            .enumerate()
+            .filter_map(|(i, l)| {
+                let (p, _) = paint::to_screen(m, rect, l.at)?;
+                rect.shrink(4.0).contains(p).then(|| (i, l, p, painter.layout_no_wrap(l.text.clone(), font.clone(), vis.text_color())))
+            })
+            .collect();
+        let items: Vec<_> = shown.iter().map(|(_, _, p, galley)| (*p, galley.size() + Vec2::splat(4.0))).collect();
+        let places = place_labels(&items, rect.shrink(2.0));
+        // The leaders under every name.
+        for (&(p, _), r) in items.iter().zip(&places) {
+            if r.distance_to_pos(p) > 4.0 {
+                painter.line_segment([p, r.clamp(p)], Stroke::new(1.0, vis.weak_text_color()));
             }
-            let galley = painter.layout_no_wrap(l.text.clone(), font.clone(), vis.text_color());
-            let r = Align2::LEFT_BOTTOM.anchor_size(p + Vec2::new(4.0, -4.0), galley.size()).expand(2.0);
+        }
+        for ((i, l, p, galley), r) in shown.into_iter().zip(places) {
             let resp = ui.interact(r, ui.scope_id().with(("model-label", i)), Sense::click());
             let fill = if resp.hovered() { vis.selection.bg_fill } else { vis.extreme_bg_color.gamma_multiply(0.8) };
             painter.rect_filled(r, 3.0, fill);
@@ -899,6 +994,25 @@ mod tests {
         let s = v.smooth(&dip);
         assert!(s.board[0] > 0.8 && s.keys[60].energy > 0.7, "{} {}", s.board[0], s.keys[60].energy);
         assert!(s.keys[60].hammer);
+    }
+
+    #[test]
+    fn names_never_overlap() {
+        let bounds = Rect::from_min_size(egui::pos2(0.0, 0.0), Vec2::new(600.0, 500.0));
+        let size = Vec2::new(70.0, 17.0);
+        // Points nearly on each other, others at the view's corners.
+        let mut items: Vec<_> = (0..8).map(|i| (egui::pos2(300.0 + i as f32, 250.0 + 2.0 * i as f32), size)).collect();
+        items.extend([(egui::pos2(5.0, 5.0), size), (egui::pos2(595.0, 495.0), size), (egui::pos2(595.0, 5.0), size)]);
+        let places = place_labels(&items, bounds);
+        for (i, a) in places.iter().enumerate() {
+            assert!(bounds.contains_rect(*a), "{i}: {a:?}");
+            for b in &places[..i] {
+                assert!(!a.intersects(*b), "{a:?} on {b:?}");
+            }
+        }
+        // A lone name stays where it always was, up right of its point.
+        let r = place_labels(&[(egui::pos2(100.0, 100.0), size)], bounds)[0];
+        assert_eq!(r.left_bottom(), egui::pos2(102.0, 98.0));
     }
 
     #[test]
