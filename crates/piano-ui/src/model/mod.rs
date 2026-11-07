@@ -665,6 +665,21 @@ impl ModelView {
         self.keying = false;
     }
 
+    /// Holds down `key` (note, place along it), letting go of the one held
+    /// before; None lets go.
+    fn hold(&mut self, control: &mut dyn PianoControl, key: Option<(u8, f32)>) {
+        if key.map(|k| k.0) == self.playing {
+            return;
+        }
+        if let Some(n) = self.playing.take() {
+            control.play(n, 0);
+        }
+        if let Some((n, along)) = key {
+            control.play(n, click_velocity(along));
+            self.playing = Some(n);
+        }
+    }
+
     /// The instrument in 3D, the camera turned by the pointer; with a
     /// `control` (live), a press on the keys plays them, louder nearer
     /// their front, the key under the pointer held down as it moves along
@@ -672,34 +687,54 @@ impl ModelView {
     fn view_3d(&mut self, ui: &mut Ui, layers: &Layers, w: f32, h: f32, control: Option<&mut dyn PianoControl>) -> Option<&'static str> {
         let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, h), Sense::click_and_drag());
         let body = layers.body();
-        let orbit = self.orbit.get_or_insert_with(|| Orbit::framing(body.0, body.1, rect.aspect_ratio()));
+        let cam = *self.orbit.get_or_insert_with(|| Orbit::framing(body.0, body.1, rect.aspect_ratio()));
         let mut on_key = false;
         if let Some(control) = control {
-            let (pos, pressed, down) = ui.input(|i| (i.pointer.latest_pos(), i.pointer.primary_pressed(), i.pointer.primary_down()));
-            let under = pos.filter(|p| rect.contains(*p)).and_then(|p| {
-                let (x, y) = ((p.x - rect.left()) / rect.width() * 2.0 - 1.0, 1.0 - (p.y - rect.top()) / rect.height() * 2.0);
-                let (from, dir) = orbit.ray(rect.aspect_ratio(), x, y);
-                layers.key_at(from, dir)
+            let key = |p: egui::Pos2| {
+                rect.contains(p).then(|| {
+                    let (x, y) = ((p.x - rect.left()) / rect.width() * 2.0 - 1.0, 1.0 - (p.y - rect.top()) / rect.height() * 2.0);
+                    let (from, dir) = cam.ray(rect.aspect_ratio(), x, y);
+                    layers.key_at(from, dir)
+                })?
+            };
+            // The primary button's presses and releases in their order (a
+            // whole click may come within one frame), and whether the
+            // window lost the focus (the release may then go elsewhere).
+            let (buttons, blurred, pos, down) = ui.input(|i| {
+                let buttons: Vec<(egui::Pos2, bool)> = i
+                    .events
+                    .iter()
+                    .filter_map(|e| match e {
+                        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, .. } => Some((*pos, *pressed)),
+                        _ => None,
+                    })
+                    .collect();
+                let blurred = i.events.iter().any(|e| matches!(e, egui::Event::WindowFocused(false)));
+                (buttons, blurred, i.pointer.latest_pos(), i.pointer.primary_down())
             });
-            if pressed && resp.is_pointer_button_down_on() && under.is_some() {
-                self.keying = true;
-            }
-            self.keying &= down;
-            let held = under.filter(|_| self.keying);
-            if held.map(|k| k.0) != self.playing {
-                if let Some(n) = self.playing {
-                    control.play(n, 0);
+            if blurred {
+                self.release(control);
+            } else {
+                for (p, pressed) in buttons {
+                    if !pressed {
+                        self.keying = false;
+                        self.hold(control, None);
+                    } else if let Some(k) = key(p).filter(|_| resp.contains_pointer()) {
+                        self.keying = true;
+                        self.hold(control, Some(k));
+                    }
                 }
-                if let Some((n, along)) = held {
-                    control.play(n, click_velocity(along));
-                }
-                self.playing = held.map(|k| k.0);
+                self.keying &= down;
+                let held = pos.filter(|_| self.keying).and_then(key);
+                self.hold(control, held);
             }
+            let under = pos.and_then(key);
             on_key = under.is_some();
             if self.keying || (on_key && resp.hovered() && !resp.dragged()) {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
         }
+        let orbit = self.orbit.as_mut().expect("framed above");
         if resp.dragged_by(egui::PointerButton::Primary) && !self.keying {
             let d = resp.drag_delta();
             orbit.yaw -= d.x * 0.008;
@@ -1116,6 +1151,20 @@ mod tests {
         frame(&mut view, &mut keys, vec![button(back, true)]);
         frame(&mut view, &mut keys, vec![button(back, false)]);
         assert!(keys.0.len() == 2 && keys.0[0].1 < 30, "{:?}", keys.0);
+
+        // A whole click within one frame: struck, then let go.
+        keys.0.clear();
+        frame(&mut view, &mut keys, vec![Event::PointerMoved(c4), button(c4, true), button(c4, false)]);
+        assert!(keys.0.len() == 2 && keys.0[0].0 == 60 && keys.0[0].1 > 100 && keys.0[1] == (60, 0), "{:?}", keys.0);
+        // The window losing the focus while a key is held lets it go, and
+        // only a new press plays again.
+        keys.0.clear();
+        frame(&mut view, &mut keys, vec![button(c4, true)]);
+        frame(&mut view, &mut keys, vec![Event::WindowFocused(false)]);
+        assert!(keys.0.len() == 2 && keys.0[1] == (60, 0) && view.playing.is_none(), "{:?}", keys.0);
+        frame(&mut view, &mut keys, vec![Event::WindowFocused(true), Event::PointerMoved(d4)]);
+        assert_eq!(keys.0.len(), 2, "{:?}", keys.0);
+        frame(&mut view, &mut keys, vec![button(d4, false)]);
 
         // Pressed off the keys (the view's top corner): a drag turns it.
         keys.0.clear();

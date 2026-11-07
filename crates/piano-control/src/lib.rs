@@ -137,6 +137,8 @@ pub struct Controller {
     /// model takes the live parameters edited meanwhile.
     edited: Arc<Mutex<PianoModel>>,
     params: rtrb::Producer<Event>,
+    /// The notes the interface plays ([`EngineSlot::pop_note`]).
+    notes: rtrb::Producer<Event>,
     requests: Option<mpsc::Sender<(u64, PianoModel)>>,
     generation: u64,
     shared: Arc<Shared>,
@@ -162,6 +164,7 @@ pub fn new(model: PianoModel, cfg: EngineConfig) -> (Controller, EngineSlot) {
     let report = Arc::new(Mutex::new(Report { last_build: Some(t.elapsed()), error: None }));
     let shared = Arc::new(Shared::default());
     let (params_tx, params_rx) = rtrb::RingBuffer::new(1024);
+    let (notes_tx, notes_rx) = rtrb::RingBuffer::new(256);
     let (engine_tx, engine_rx) = rtrb::RingBuffer::new(2);
     let (reclaim_tx, reclaim_rx) = rtrb::RingBuffer::new(16);
     let (routes_tx, routes_rx) = rtrb::RingBuffer::new(4);
@@ -175,11 +178,12 @@ pub fn new(model: PianoModel, cfg: EngineConfig) -> (Controller, EngineSlot) {
             .spawn(move || worker(cfg, req_rx, engine_tx, reclaim_rx, edited, shared, report))
             .expect("spawn the rebuild worker")
     };
-    let slot = EngineSlot::new(engine, pool, engine_rx, reclaim_tx, params_rx, routes_rx, cc_tx, shared.clone());
+    let slot = EngineSlot::new(engine, pool, engine_rx, reclaim_tx, params_rx, notes_rx, routes_rx, cc_tx, shared.clone());
     let controller = Controller {
         model,
         edited,
         params: params_tx,
+        notes: notes_tx,
         requests: Some(req_tx),
         generation: 0,
         shared,
@@ -303,10 +307,10 @@ impl PianoControl for Controller {
         (o.published.load(Ordering::Relaxed) > 0).then(|| o.load())
     }
 
-    /// Through the parameters' queue, at the next audio block.
+    /// Through their own queue, at the next audio block.
     fn play(&mut self, note: u8, velocity: u8) {
         let event = if velocity > 0 { Event::NoteOn { note, velocity } } else { Event::NoteOff { note, velocity: 64 } };
-        let _ = self.params.push(event);
+        let _ = self.notes.push(event);
     }
 }
 
