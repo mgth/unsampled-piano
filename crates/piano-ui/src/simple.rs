@@ -17,6 +17,11 @@ const GROUPS: &[(&str, &[&str])] = &[
     ("Listening", &["lid", "space"]),
 ];
 
+/// The compact grid's spacing across, and the room its MIDI button takes at
+/// most ("CC 127", small).
+const COMPACT_GAP: f32 = 6.0;
+const MIDI_W: f32 = 40.0;
+
 /// What the page's controls did this frame (indices into the registry).
 #[derive(Default)]
 pub struct Shown {
@@ -39,9 +44,9 @@ pub fn ends(label: &str) -> (&str, &str, &str) {
     (name, low, high)
 }
 
-/// The controls as a page, or `compact` in a narrow column beside the
-/// Model page's live view: each control's two ends under its slider, no
-/// value shown.
+/// The controls as a page, or `compact` beside or under the Model page's
+/// live view: each control's two ends under its slider, no value shown, the
+/// slider as wide as the room left allows.
 pub fn show(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], control: &mut dyn PianoControl, compact: bool) -> Shown {
     let mut shown = Shown::default();
     let index = |name: &str| registry.params().iter().position(|p| p.path == format!("macros.{name}"));
@@ -63,10 +68,26 @@ pub fn show(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], control:
     }
     ui.add_space(8.0);
 
+    // Compact: what the name, reset, live mark and MIDI columns take, with
+    // the spacing between the five, the rest for the slider.
+    let slider_w = if compact {
+        let font = egui::TextStyle::Body.resolve(ui.style());
+        let painter = ui.painter();
+        let name_w = GROUPS
+            .iter()
+            .flat_map(|g| g.1.iter())
+            .filter_map(|n| index(n))
+            .map(|i| painter.layout_no_wrap(ends(&registry.params()[i].meta.label).0.into(), font.clone(), egui::Color32::WHITE).size().x)
+            .fold(0.0, f32::max);
+        let others = ui.spacing().interact_size.y + 12.0 + MIDI_W + 4.0 * COMPACT_GAP;
+        (ui.available_width() - name_w - COMPACT_GAP - others).clamp(60.0, 160.0)
+    } else {
+        190.0
+    };
     let columns = if compact { 5 } else { 8 };
     let grid = egui::Grid::new(("simple", compact)).num_columns(columns);
     // Compact: no room for the columns' usual least width.
-    let grid = if compact { grid.spacing([6.0, 3.0]).min_col_width(0.0) } else { grid.spacing([8.0, 6.0]) };
+    let grid = if compact { grid.spacing([COMPACT_GAP, 3.0]).min_col_width(0.0) } else { grid.spacing([8.0, 6.0]) };
     grid.show(ui, |ui| {
         for (k, (title, names)) in GROUPS.iter().enumerate() {
             if k > 0 {
@@ -78,7 +99,7 @@ pub fn show(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], control:
                 let Some(Value::Float(v)) = values[i] else {
                     continue;
                 };
-                row(ui, i, &registry.params()[i], v, control, &mut shown, compact);
+                row(ui, i, &registry.params()[i], v, control, &mut shown, compact, slider_w);
                 ui.end_row();
             }
         }
@@ -88,7 +109,8 @@ pub fn show(ui: &mut Ui, registry: &Registry, values: &[Option<Value>], control:
 
 /// Name, low end, slider, high end, value, reset, live mark, MIDI; when
 /// `compact`, name, slider with its ends under it, reset, live mark, MIDI.
-fn row(ui: &mut Ui, i: usize, p: &Param, mut v: f64, control: &mut dyn PianoControl, shown: &mut Shown, compact: bool) {
+#[allow(clippy::too_many_arguments)]
+fn row(ui: &mut Ui, i: usize, p: &Param, mut v: f64, control: &mut dyn PianoControl, shown: &mut Shown, compact: bool, slider_w: f32) {
     let (name, low, high) = ends(&p.meta.label);
     let text = RichText::new(name);
     let label = ui.add(egui::Label::new(if v != 0.0 { text.color(ui.visuals().strong_text_color()) } else { text }).sense(Sense::click()));
@@ -107,7 +129,7 @@ fn row(ui: &mut Ui, i: usize, p: &Param, mut v: f64, control: &mut dyn PianoCont
 
     // The fill runs over the rail from the centre (the preset) to the
     // handle's edge.
-    ui.spacing_mut().slider_width = if compact { 160.0 } else { 190.0 };
+    ui.spacing_mut().slider_width = slider_w;
     let r = if compact {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;

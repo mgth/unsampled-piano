@@ -91,7 +91,8 @@ pub struct ModelView {
     drag: Option<(usize, Mat4, Rect)>,
     /// The editor's handles as last drawn: name and place on the screen.
     pub(crate) handles_shown: Vec<(&'static str, egui::Pos2)>,
-    /// The column beside the static or live view as last drawn.
+    /// What goes beside the static or live view, or under it, as last
+    /// drawn.
     pub(crate) side_shown: Option<Rect>,
     start: Instant,
 }
@@ -531,22 +532,25 @@ impl ModelView {
                         let column = ui.vertical(|ui| {
                             ui.set_width(side);
                             ui.set_max_width(side);
-                            shown = self.side(ui, control, model, registry, values, obs.as_ref(), true);
+                            shown = self.side(ui, control, model, registry, values, obs.as_ref());
                         });
                         self.side_shown = Some(column.response.rect);
                     }
                 });
                 if !beside {
-                    self.side_shown = None;
-                    shown = self.side(ui, control, model, registry, values, obs.as_ref(), false);
+                    let under = ui.vertical(|ui| {
+                        shown = self.side(ui, control, model, registry, values, obs.as_ref());
+                    });
+                    self.side_shown = Some(under.response.rect);
                 }
             }
         }
         (shown, open)
     }
 
-    /// What goes beside the static or live view (`beside`) or under it:
-    /// the numbers, or live the musician's controls and the engine's state.
+    /// What goes beside the static or live view or under it: the numbers,
+    /// or live the musician's controls (compact either way: under the view
+    /// the page is narrow) and the engine's state.
     #[allow(clippy::too_many_arguments)]
     fn side(
         &mut self,
@@ -556,14 +560,13 @@ impl ModelView {
         registry: &Registry,
         values: &[Option<Value>],
         obs: Option<&Observation>,
-        beside: bool,
     ) -> Shown {
         if self.mode != Mode::Live {
             numbers(ui, model, &mut self.board_counts);
             return Shown::default();
         }
         ui.label(RichText::new("Simple").strong());
-        let shown = crate::simple::show(ui, registry, values, control, beside);
+        let shown = crate::simple::show(ui, registry, values, control, true);
         ui.add_space(10.0);
         ui.separator();
         live_numbers(ui, obs, model);
