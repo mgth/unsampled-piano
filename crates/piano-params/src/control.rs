@@ -31,6 +31,12 @@ pub trait PianoControl {
     fn observe(&self) -> Option<piano_core::Observation> {
         None
     }
+    /// A key played from the interface (the model page's keys): a
+    /// `velocity` of 1–127 strikes `note`, 0 lets it go. Nothing where the
+    /// host gives no way to the engine.
+    fn play(&mut self, note: u8, velocity: u8) {
+        let _ = (note, velocity);
+    }
     /// Whether a controller may be learnt for `path` (a plugin leaves its
     /// automatable parameters to the host's own MIDI mapping).
     fn midi_learnable(&self, path: &str) -> bool {

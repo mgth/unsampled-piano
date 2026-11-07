@@ -42,3 +42,25 @@ fn a_struck_key_shows_in_the_observation() {
     let k = control.observe().unwrap().keys[60];
     assert!(!k.down && k.damper > 0.9, "{k:?}");
 }
+
+#[test]
+fn a_key_played_from_the_interface_sounds_and_lets_go() {
+    let cfg = EngineConfig { max_block: BS, ..Default::default() };
+    let (mut control, mut slot) = piano_control::new(PianoModel::default(), cfg);
+    let (mut l, mut r) = ([0.0f32; BS], [0.0f32; BS]);
+    control.play(64, 80);
+    let mut peak = 0.0f32;
+    for _ in 0..(4_800 / BS) {
+        assert_no_alloc(|| slot.process_stereo(&[], &mut l, &mut r));
+        peak = l.iter().chain(&r).fold(peak, |m, x| m.max(x.abs()));
+    }
+    assert!(peak > 1e-3, "silent: {peak}");
+    let k = control.observe().unwrap().keys[64];
+    assert!(k.down && k.energy > 0.0, "{k:?}");
+    control.play(64, 0);
+    for _ in 0..(24_000 / BS) {
+        slot.process_stereo(&[], &mut l, &mut r);
+    }
+    let k = control.observe().unwrap().keys[64];
+    assert!(!k.down && k.damper > 0.9, "{k:?}");
+}
