@@ -302,6 +302,12 @@ impl PianoControl for Controller {
         let o = &self.shared.observed;
         (o.published.load(Ordering::Relaxed) > 0).then(|| o.load())
     }
+
+    /// Through the parameters' queue, at the next audio block.
+    fn play(&mut self, note: u8, velocity: u8) {
+        let event = if velocity > 0 { Event::NoteOn { note, velocity } } else { Event::NoteOff { note, velocity: 64 } };
+        let _ = self.params.push(event);
+    }
 }
 
 impl Drop for Controller {

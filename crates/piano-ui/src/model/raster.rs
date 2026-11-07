@@ -163,4 +163,11 @@ fn build_time() {
         tris = scene::build(&model, Some(&live), &options).tris.len() / 3;
     }
     eprintln!("{tris} triangles, {:?} a build", t.elapsed() / n);
+    for layer in scene::Layer::PARTS {
+        let t = std::time::Instant::now();
+        for _ in 0..n {
+            tris = scene::build_layer(&model, Some(&live), &options, layer).tris.len() / 3;
+        }
+        eprintln!("{layer:?}: {tris} triangles, {:?} a build", t.elapsed() / n);
+    }
 }

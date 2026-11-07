@@ -198,9 +198,12 @@ impl EngineSlot {
         self.swapped = swapped;
         self.journal_from = self.ev_new.len();
         while self.ev_new.len() < MAX_EVENTS / 2 {
+            // Parameters, and the notes the interface plays.
             let Ok(event) = self.params.pop() else { break };
             self.ev_new.push(TimedEvent { frame: 0, event });
-            self.ev_old.push(TimedEvent { frame: 0, event });
+            if !matches!(event, Event::NoteOn { .. }) {
+                self.ev_old.push(TimedEvent { frame: 0, event });
+            }
         }
         for &e in events {
             if self.ev_new.len() == MAX_EVENTS {

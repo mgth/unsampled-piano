@@ -21,11 +21,13 @@ pub struct MockControl {
     error: Option<String>,
     midi: MidiLearn,
     start: Instant,
+    /// The keys played from the interface: when struck, and whether held.
+    played: [(Option<Instant>, bool); 128],
 }
 
 impl MockControl {
     pub fn new(model: PianoModel) -> Self {
-        Self { registry: Registry::new(), model, pending: None, error: None, midi: MidiLearn::new(MidiMap::default()), start: Instant::now() }
+        Self { registry: Registry::new(), model, pending: None, error: None, midi: MidiLearn::new(MidiMap::default()), start: Instant::now(), played: [(None, false); 128] }
     }
 
     /// A controller moved (what the audio side reports to a real host).
@@ -71,6 +73,16 @@ impl PianoControl for MockControl {
         Some(&mut self.midi)
     }
 
+    /// Shown as the arpeggio's notes are, nothing heard.
+    fn play(&mut self, note: u8, velocity: u8) {
+        let k = &mut self.played[note as usize & 127];
+        if velocity > 0 {
+            *k = (Some(Instant::now()), true);
+        } else {
+            k.1 = false;
+        }
+    }
+
     /// An arpeggio of C major over two octaves, a note every 0.4 s held
     /// 0.3 s, the sustain pedal down every other bar.
     fn observe(&self) -> Option<Observation> {
@@ -95,6 +107,15 @@ impl PianoControl for MockControl {
                 let w = ((n as usize * 7 + m * 13) % 17) as f32 / 17.0;
                 o.board[m] = o.board[m].hypot(k.energy.sqrt() * w / (1.0 + m as f32 * 0.3));
             }
+        }
+        for (n, &(struck, held)) in self.played.iter().enumerate() {
+            let Some(at) = struck else { continue };
+            let age = at.elapsed().as_secs_f32();
+            let k = &mut o.keys[n];
+            k.down |= held;
+            k.hammer |= age < 0.004;
+            k.damper = if held { 0.0 } else { 1.0 - o.sustain };
+            k.energy = k.energy.max((-age * if held { 1.5 } else { 6.0 }).exp() * (1.0 + 0.1 * n as f32));
         }
         o.board_modes = 24;
         Some(o)
