@@ -43,7 +43,7 @@ use piano_params::{PianoControl, Registry, Value};
 use crate::simple::Shown;
 use crate::sketches::{self, Part};
 use cam::{Mat4, Orbit, V3};
-use scene::{Live, Options, Scene, BOARD_GRID};
+use scene::{Layer, Live, Options, Scene, BOARD_GRID};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -94,7 +94,82 @@ pub struct ModelView {
     /// What goes beside the static or live view, or under it, as last
     /// drawn.
     pub(crate) side_shown: Option<Rect>,
+    /// A press on the live 3D view's keys under way (it plays them rather
+    /// than turning the view), and the key it holds down.
+    keying: bool,
+    playing: Option<u8>,
+    /// The layers ([`Layer::PARTS`]) last built, and what from.
+    built: [Option<(Inputs, Arc<Scene>)>; 3],
     start: Instant,
+}
+
+/// What a layer of the scene was built from: built again only when it
+/// changes.
+#[derive(PartialEq)]
+struct Inputs {
+    model: PianoModel,
+    key: u8,
+    lit: Vec<Part>,
+    show: [bool; 5],
+    front: f32,
+    ink: egui::Color32,
+    /// The engine's state as the layer shows it, to the colours'
+    /// resolution, and the strings' clock while they move.
+    state: Vec<u8>,
+    time: f32,
+}
+
+impl Inputs {
+    fn new(model: &PianoModel, o: &Options, live: Option<&Live>, layer: Layer) -> Self {
+        let mut state = Vec::new();
+        let mut time = 0.0;
+        let q = |x: f32, steps: f32| (x.clamp(0.0, 1.0) * steps).round() as u8;
+        match (live, layer) {
+            // The keys and hammers glow faintly with their strings' level:
+            // a few steps of it.
+            (Some(l), Layer::Played) => {
+                for m in 21..=108 {
+                    let k = &l.obs.keys[m];
+                    state.extend([k.down as u8 | (k.hammer as u8) << 1, q(k.damper, 255.0), q(l.keys[m], 12.0)]);
+                }
+                state.extend([q(l.obs.sustain, 255.0), q(l.obs.soft, 255.0), l.obs.sostenuto as u8]);
+            }
+            (Some(l), Layer::Sounding) => {
+                state.extend(l.keys[21..=108].iter().map(|&k| q(k, 255.0)));
+                state.extend(l.board.into_iter().flatten().map(|&x| q(x, 255.0)));
+                // A string barely sounding is drawn straight.
+                if l.keys.iter().any(|&k| k > 0.02) {
+                    time = l.time;
+                }
+            }
+            _ => {}
+        }
+        Self { model: *model, key: o.key, lit: o.lit.to_vec(), show: [o.lid, o.frame, o.mics, o.case, o.fallboard], front: o.front, ink: o.ink, state, time }
+    }
+}
+
+/// The scene as drawn, in its layers ([`Layer::PARTS`]).
+#[derive(Clone)]
+pub(crate) struct Layers(pub [Arc<Scene>; 3]);
+
+impl Layers {
+    fn still(&self) -> &Scene {
+        &self.0[0]
+    }
+
+    /// The instrument's extent.
+    fn body(&self) -> (V3, V3) {
+        self.0.iter().filter(|s| !s.tris.is_empty()).map(|s| s.body).reduce(|a, b| (std::array::from_fn(|i| a.0[i].min(b.0[i])), std::array::from_fn(|i| a.1[i].max(b.1[i])))).unwrap_or(self.still().body)
+    }
+
+    /// All as one, for the painter's drawing (which sorts all of it).
+    fn merged(&self) -> Scene {
+        Scene::merged(&self.0.each_ref().map(|s| &**s))
+    }
+
+    fn key_at(&self, from: V3, dir: V3) -> Option<(u8, f32)> {
+        self.0.iter().find_map(|s| s.key_at(from, dir))
+    }
 }
 
 impl Default for ModelView {
@@ -120,6 +195,9 @@ impl Default for ModelView {
             drag: None,
             handles_shown: Vec::new(),
             side_shown: None,
+            keying: false,
+            playing: None,
+            built: [None, None, None],
             start: Instant::now(),
         }
     }
@@ -143,6 +221,16 @@ impl Default for Levels {
     fn default() -> Self {
         Self { keys: 0.0, board: 0.0, last: None, shown: Observation::default(), hammer: [0.0; 128] }
     }
+}
+
+/// How hard a key pressed in the live view is struck: as at its front,
+/// down to as at the back of its visible part.
+const FRONT_VELOCITY: f32 = 127.0;
+const BACK_VELOCITY: f32 = 20.0;
+
+/// The velocity of a press at `along` a key (0 front … 1 back).
+fn click_velocity(along: f32) -> u8 {
+    (FRONT_VELOCITY + (BACK_VELOCITY - FRONT_VELOCITY) * along.clamp(0.0, 1.0)).round() as u8
 }
 
 /// Decay of the references (per second), and the ranges shown (dB).
@@ -428,7 +516,9 @@ impl ModelView {
             ui.separator();
             let three = ui.add_enabled(gpu.is_ok(), egui::Checkbox::new(&mut self.three_d, "3D"));
             match &gpu {
-                Ok(()) => three.on_hover_text("Turn around the instrument: drag to turn, right-drag to move, scroll to come closer, double-click to frame it again"),
+                Ok(()) => three.on_hover_text(
+                    "Turn around the instrument: drag to turn, right-drag to move, scroll to come closer, double-click to frame it again. Live, press the keys to play them",
+                ),
                 Err(e) => three.on_disabled_hover_text(e.as_str()),
             };
             ui.add_enabled(gpu.is_ok() && self.three_d, egui::Checkbox::new(&mut self.realistic, "Realistic")).on_hover_text(
@@ -466,6 +556,9 @@ impl ModelView {
         }
         ui.add_space(4.0);
         let three_d = self.three_d && gpu.is_ok();
+        if self.mode != Mode::Live || !three_d {
+            self.release(control);
+        }
 
         let obs = if self.mode == Mode::Live { control.observe() } else { None };
         if self.mode == Mode::Live {
@@ -479,12 +572,12 @@ impl ModelView {
         let key_levels = obs.as_ref().map(|o| self.key_levels(o));
         let live = obs.as_ref().map(|o| Live { obs: o, keys: key_levels.as_ref().unwrap(), board: field.as_deref(), time: self.start.elapsed().as_secs_f32() / 8.0 });
         let options = Options { key: *key, lit, lid: self.lid, frame: self.frame, mics: self.mics, case: self.case, fallboard: self.fallboard, front: 1.0 - self.front_clear, ink: ui.visuals().text_color() };
-        let scene = Arc::new(scene::build(model, live.as_ref(), &options));
+        let layers = self.layers(model, live.as_ref(), &options);
         // Framed again for the other kind of piano (by the view, which
         // knows its shape).
-        if self.framed_vertical != scene.vertical {
+        if self.framed_vertical != layers.still().vertical {
             self.orbit = None;
-            self.framed_vertical = scene.vertical;
+            self.framed_vertical = layers.still().vertical;
         }
 
         let mut shown = Shown::default();
@@ -497,10 +590,10 @@ impl ModelView {
                     ui.vertical(|ui| {
                         ui.set_width(plan_w);
                         outline_buttons(ui, control, model);
-                        self.editor_plan(ui, control, model, registry, &scene, plan_w);
+                        self.editor_plan(ui, control, model, registry, &layers.merged(), plan_w);
                         if three_d {
                             ui.add_space(6.0);
-                            open = self.view_3d(ui, &scene, plan_w, plan_w * 0.7).or(open);
+                            open = self.view_3d(ui, &layers, plan_w, plan_w * 0.7, None).or(open);
                         }
                     });
                     ui.add_space(12.0);
@@ -526,7 +619,8 @@ impl ModelView {
                 let above = ui.cursor().top() - ui.max_rect().top();
                 let h = (ui.clip_rect().height() - above - 8.0).max(320.0);
                 ui.horizontal_top(|ui| {
-                    open = if three_d { self.view_3d(ui, &scene, w, h) } else { self.plan(ui, &scene, w, h) };
+                    let keys = (self.mode == Mode::Live).then_some(&mut *control);
+                    open = if three_d { self.view_3d(ui, &layers, w, h, keys) } else { self.plan(ui, &layers.merged(), w, h) };
                     if beside {
                         ui.add_space(16.0);
                         let column = ui.vertical(|ui| {
@@ -571,6 +665,25 @@ impl ModelView {
         ui.separator();
         live_numbers(ui, obs, model);
         shown
+    }
+
+    /// The scene's layers, each built again only when what it shows
+    /// changed: the still one when the instrument or the options do, the
+    /// others when the engine's state does too, as they draw it.
+    fn layers(&mut self, model: &PianoModel, live: Option<&Live>, o: &Options) -> Layers {
+        Layers(std::array::from_fn(|i| {
+            let layer = Layer::PARTS[i];
+            let live = live.filter(|_| layer != Layer::Still);
+            let inputs = Inputs::new(model, o, live, layer);
+            match &self.built[i] {
+                Some((kept, s)) if *kept == inputs => s.clone(),
+                _ => {
+                    let s = Arc::new(scene::build_layer(model, live, o, layer));
+                    self.built[i] = Some((inputs, s.clone()));
+                    s
+                }
+            }
+        }))
     }
 
     /// The state shown from the state read: energies and board motions
@@ -628,11 +741,85 @@ impl ModelView {
         self.labels(ui, rect, scene, &m)
     }
 
-    /// The instrument in 3D, the camera turned by the pointer.
-    fn view_3d(&mut self, ui: &mut Ui, scene: &Arc<Scene>, w: f32, h: f32) -> Option<&'static str> {
+    /// Lets go of the key the live view holds down.
+    fn release(&mut self, control: &mut dyn PianoControl) {
+        if let Some(n) = self.playing.take() {
+            control.play(n, 0);
+        }
+        self.keying = false;
+    }
+
+    /// Holds down `key` (note, place along it), letting go of the one held
+    /// before; None lets go.
+    fn hold(&mut self, control: &mut dyn PianoControl, key: Option<(u8, f32)>) {
+        if key.map(|k| k.0) == self.playing {
+            return;
+        }
+        if let Some(n) = self.playing.take() {
+            control.play(n, 0);
+        }
+        if let Some((n, along)) = key {
+            control.play(n, click_velocity(along));
+            self.playing = Some(n);
+        }
+    }
+
+    /// The instrument in 3D, the camera turned by the pointer; with a
+    /// `control` (live), a press on the keys plays them, louder nearer
+    /// their front, the key under the pointer held down as it moves along
+    /// them.
+    fn view_3d(&mut self, ui: &mut Ui, layers: &Layers, w: f32, h: f32, control: Option<&mut (dyn PianoControl + '_)>) -> Option<&'static str> {
         let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, h), Sense::click_and_drag());
-        let orbit = self.orbit.get_or_insert_with(|| Orbit::framing(scene.body.0, scene.body.1, rect.aspect_ratio()));
-        if resp.dragged_by(egui::PointerButton::Primary) {
+        let body = layers.body();
+        let cam = *self.orbit.get_or_insert_with(|| Orbit::framing(body.0, body.1, rect.aspect_ratio()));
+        let mut on_key = false;
+        if let Some(control) = control {
+            let key = |p: egui::Pos2| {
+                rect.contains(p).then(|| {
+                    let (x, y) = ((p.x - rect.left()) / rect.width() * 2.0 - 1.0, 1.0 - (p.y - rect.top()) / rect.height() * 2.0);
+                    let (from, dir) = cam.ray(rect.aspect_ratio(), x, y);
+                    layers.key_at(from, dir)
+                })?
+            };
+            // The primary button's presses and releases in their order (a
+            // whole click may come within one frame), and whether the
+            // window lost the focus (the release may then go elsewhere).
+            let (buttons, blurred, pos, down) = ui.input(|i| {
+                let buttons: Vec<(egui::Pos2, bool)> = i
+                    .events
+                    .iter()
+                    .filter_map(|e| match e {
+                        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, .. } => Some((*pos, *pressed)),
+                        _ => None,
+                    })
+                    .collect();
+                let blurred = i.events.iter().any(|e| matches!(e, egui::Event::WindowFocused(false)));
+                (buttons, blurred, i.pointer.latest_pos(), i.pointer.primary_down())
+            });
+            if blurred {
+                self.release(control);
+            } else {
+                for (p, pressed) in buttons {
+                    if !pressed {
+                        self.keying = false;
+                        self.hold(control, None);
+                    } else if let Some(k) = key(p).filter(|_| resp.contains_pointer()) {
+                        self.keying = true;
+                        self.hold(control, Some(k));
+                    }
+                }
+                self.keying &= down;
+                let held = pos.filter(|_| self.keying).and_then(key);
+                self.hold(control, held);
+            }
+            let under = pos.and_then(key);
+            on_key = under.is_some();
+            if self.keying || (on_key && resp.hovered() && !resp.dragged()) {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+        }
+        let orbit = self.orbit.as_mut().expect("framed above");
+        if resp.dragged_by(egui::PointerButton::Primary) && !self.keying {
             let d = resp.drag_delta();
             orbit.yaw -= d.x * 0.008;
             orbit.pitch = (orbit.pitch + d.y * 0.008).clamp(-1.2, 1.55);
@@ -645,23 +832,23 @@ impl ModelView {
             let scroll = ui.ctx().input_mut(|i| std::mem::take(&mut i.smooth_scroll_delta).y);
             orbit.dist = (orbit.dist * (-scroll * 0.002).exp()).clamp(0.2, 30.0);
         }
-        if resp.double_clicked() {
-            *orbit = Orbit::framing(scene.body.0, scene.body.1, rect.aspect_ratio());
+        if resp.double_clicked() && !on_key {
+            *orbit = Orbit::framing(body.0, body.1, rect.aspect_ratio());
         }
         let m = orbit.matrix(rect.aspect_ratio());
         let bg = ui.visuals().extreme_bg_color;
         #[cfg(feature = "gpu")]
         if let Some(g) = &self.gpu {
             let real = self.realistic.then(|| orbit.camera(rect.aspect_ratio()));
-            g.paint(ui, rect, scene.clone(), m, bg, real);
+            g.paint(ui, rect, layers.0.clone(), m, bg, real);
         }
         #[cfg(not(feature = "gpu"))]
         {
             let painter = ui.painter_at(rect);
             painter.rect_filled(rect, 4.0, bg);
-            paint::draw(&painter, rect, scene, &m, 1.0);
+            paint::draw(&painter, rect, &layers.merged(), &m, 1.0);
         }
-        self.labels(ui, rect, scene, &m)
+        self.labels(ui, rect, layers.still(), &m)
     }
 
     /// The parts' names, clickable: their page.
@@ -950,6 +1137,142 @@ fn live_numbers(ui: &mut Ui, obs: Option<&Observation>, model: &PianoModel) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn view_layers(model: &PianoModel, o: &Options) -> Layers {
+        Layers(Layer::PARTS.map(|l| Arc::new(scene::build_layer(model, None, o, l))))
+    }
+
+    /// Records the notes played.
+    struct Keys(Vec<(u8, u8)>);
+
+    impl PianoControl for Keys {
+        fn model(&self) -> PianoModel {
+            PianoModel::default()
+        }
+        fn begin_edit(&mut self, _: &str) {}
+        fn set(&mut self, _: &str, _: Value) {}
+        fn end_edit(&mut self, _: &str) {}
+        fn load(&mut self, _: PianoModel) {}
+        fn status(&self) -> piano_params::Status {
+            Default::default()
+        }
+        fn play(&mut self, note: u8, velocity: u8) {
+            self.0.push((note, velocity));
+        }
+    }
+
+    #[test]
+    fn layers_are_built_again_only_when_what_they_show_changes() {
+        let model = PianoModel::default();
+        let o = Options { key: 60, lit: &[], lid: true, frame: true, mics: true, case: true, fallboard: false, front: 1.0, ink: egui::Color32::WHITE };
+        let mut view = ModelView::default();
+        let mut obs = Observation::default();
+        let board = vec![0.0f32; BOARD_GRID.0 * BOARD_GRID.1];
+        let live = |view: &mut ModelView, obs: &Observation, levels: &[f32; 128], time: f32| -> [Arc<Scene>; 3] {
+            let l = Live { obs, keys: levels, board: Some(&board), time };
+            view.layers(&model, Some(&l), &o).0
+        };
+        let same = |a: &[Arc<Scene>; 3], b: &[Arc<Scene>; 3]| [0, 1, 2].map(|i| Arc::ptr_eq(&a[i], &b[i]));
+        let mut levels = [0.0f32; 128];
+        let a = live(&mut view, &obs, &levels, 0.0);
+        // At rest, the clock and a fading energy change nothing drawn.
+        obs.keys[60].energy = 1e-9;
+        let b = live(&mut view, &obs, &levels, 0.5);
+        assert_eq!(same(&a, &b), [true; 3]);
+        // A key down: what is played only.
+        obs.keys[60].down = true;
+        let c = live(&mut view, &obs, &levels, 0.5);
+        assert_eq!(same(&b, &c), [true, false, true]);
+        // Its strings sounding, on in time: what sounds only.
+        levels[60] = 0.5;
+        let d = live(&mut view, &obs, &levels, 0.5);
+        let e = live(&mut view, &obs, &levels, 0.51);
+        assert_eq!(same(&d, &e), [true, true, false]);
+        // Another option: all.
+        let f = view.layers(&model, None, &Options { lid: false, ..o }).0;
+        assert_eq!(same(&e, &f), [false; 3]);
+    }
+
+    #[test]
+    fn pressing_the_keys_plays_them_and_elsewhere_turns_the_view() {
+        use egui::{Event, PointerButton, Pos2, RawInput};
+        let model = PianoModel::default();
+        let options = Options { key: 60, lit: &[], lid: true, frame: true, mics: true, case: true, fallboard: false, front: 1.0, ink: egui::Color32::WHITE };
+        let layers = view_layers(&model, &options);
+        let scene = layers.0[1].clone();
+        let ctx = egui::Context::default();
+        let mut view = ModelView::default();
+        let mut keys = Keys(Vec::new());
+        let size = Vec2::new(800.0, 600.0);
+        let mut rect = Rect::NOTHING;
+        let mut frame = |view: &mut ModelView, keys: &mut Keys, events: Vec<Event>| {
+            let time = Some(ctx.input(|i| i.time) + 1.0 / 60.0);
+            let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1000.0, 800.0))), events, time, ..Default::default() };
+            ctx.run_ui(input, |ui| {
+                rect = Rect::from_min_size(ui.cursor().min, size);
+                view.view_3d(ui, &layers, size.x, size.y, Some(keys));
+            })
+            .drop_without_applying_deltas();
+            rect
+        };
+        let rect = frame(&mut view, &mut keys, vec![]);
+        let orbit = view.orbit.unwrap();
+        let m = orbit.matrix(rect.aspect_ratio());
+        // The middle of a white key's top, in front.
+        let on = |note: u8| {
+            let (_, lo, hi) = *scene.keys.iter().find(|k| k.0 == note).unwrap();
+            paint::to_screen(&m, rect, [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, hi[2]]).unwrap().0
+        };
+        let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Default::default() };
+        let (c4, d4) = (on(60), on(62));
+        frame(&mut view, &mut keys, vec![Event::PointerMoved(c4)]);
+        frame(&mut view, &mut keys, vec![button(c4, true)]);
+        // Near its front: loud.
+        let v = keys.0[0].1;
+        assert!(keys.0[0].0 == 60 && v > 100, "{:?}", keys.0);
+        // Along the keys: the next one, the view kept still.
+        for k in 1..=4 {
+            frame(&mut view, &mut keys, vec![Event::PointerMoved(c4 + (d4 - c4) * k as f32 / 4.0)]);
+        }
+        frame(&mut view, &mut keys, vec![button(d4, false)]);
+        assert_eq!(keys.0.iter().map(|k| k.0).collect::<Vec<_>>(), [60, 60, 62, 62]);
+        assert!(keys.0[1].1 == 0 && keys.0[3].1 == 0 && keys.0[2].1.abs_diff(v) <= 3, "{:?}", keys.0);
+        assert_eq!(view.orbit, Some(orbit));
+        // At the back of its visible part: soft.
+        keys.0.clear();
+        let (_, lo, hi) = *scene.keys.iter().rfind(|k| k.0 == 60).unwrap();
+        let back = paint::to_screen(&m, rect, [(lo[0] + hi[0]) / 2.0, hi[1] - 0.005, hi[2]]).unwrap().0;
+        frame(&mut view, &mut keys, vec![Event::PointerMoved(back)]);
+        frame(&mut view, &mut keys, vec![button(back, true)]);
+        frame(&mut view, &mut keys, vec![button(back, false)]);
+        assert!(keys.0.len() == 2 && keys.0[0].1 < 30, "{:?}", keys.0);
+
+        // A whole click within one frame: struck, then let go.
+        keys.0.clear();
+        frame(&mut view, &mut keys, vec![Event::PointerMoved(c4), button(c4, true), button(c4, false)]);
+        assert!(keys.0.len() == 2 && keys.0[0].0 == 60 && keys.0[0].1 > 100 && keys.0[1] == (60, 0), "{:?}", keys.0);
+        // The window losing the focus while a key is held lets it go, and
+        // only a new press plays again.
+        keys.0.clear();
+        frame(&mut view, &mut keys, vec![button(c4, true)]);
+        frame(&mut view, &mut keys, vec![Event::WindowFocused(false)]);
+        assert!(keys.0.len() == 2 && keys.0[1] == (60, 0) && view.playing.is_none(), "{:?}", keys.0);
+        frame(&mut view, &mut keys, vec![Event::WindowFocused(true), Event::PointerMoved(d4)]);
+        assert_eq!(keys.0.len(), 2, "{:?}", keys.0);
+        frame(&mut view, &mut keys, vec![button(d4, false)]);
+
+        // Pressed off the keys (the view's top corner): a drag turns it.
+        keys.0.clear();
+        let corner = rect.min + Vec2::splat(10.0);
+        frame(&mut view, &mut keys, vec![Event::PointerMoved(corner)]);
+        frame(&mut view, &mut keys, vec![button(corner, true)]);
+        for k in 1..=6 {
+            frame(&mut view, &mut keys, vec![Event::PointerMoved(corner + Vec2::new(10.0 * k as f32, 0.0))]);
+        }
+        frame(&mut view, &mut keys, vec![button(corner + Vec2::new(60.0, 0.0), false)]);
+        assert!(keys.0.is_empty(), "{:?}", keys.0);
+        assert_ne!(view.orbit.unwrap().yaw, orbit.yaw);
+    }
 
     #[test]
     fn handles_name_real_parameters() {

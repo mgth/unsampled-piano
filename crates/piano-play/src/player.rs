@@ -159,6 +159,13 @@ impl Player {
                 }
             }
         }
+        // The notes played from the interface, mirrored with the rest.
+        while self.all.len() < MAX_EVENTS * 3 / 8 {
+            match self.engine.pop_note() {
+                Some(event) => self.all.push(TimedEvent { frame: 0, event }),
+                None => break,
+            }
+        }
         for (frame, event) in input {
             if self.all.len() < MAX_EVENTS / 2 {
                 self.all.push(TimedEvent { frame: frame.min(frames as u32 - 1), event });
@@ -247,6 +254,26 @@ pub fn encode(e: Event) -> Option<[u8; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notes_played_from_the_interface_are_mirrored() {
+        use piano_core::{EngineConfig, Quality};
+        use piano_params::PianoControl;
+        let model = piano_core::params::PianoModel::default();
+        let cfg = EngineConfig { sample_rate: 48_000.0, max_block: MAX_BLOCK, model, quality: Quality::Light, ..Default::default() };
+        let (mut control, engine) = piano_control::new(model, cfg);
+        let mut player = Player::new(engine, 48_000.0, 1, None, None, Arc::default());
+        let mut mirrored = Vec::new();
+        let render = |player: &mut Player, mirrored: &mut Vec<Event>| player.render(256, std::iter::empty(), |_, _, _| {}, |_, e| mirrored.push(e));
+        control.play(60, 100);
+        render(&mut player, &mut mirrored);
+        let mut obs = piano_core::Observation::default();
+        player.engine.current().observe(&mut obs);
+        assert!(obs.keys[60].down);
+        control.play(60, 0);
+        render(&mut player, &mut mirrored);
+        assert_eq!(mirrored, [Event::NoteOn { note: 60, velocity: 100 }, Event::NoteOff { note: 60, velocity: 64 }]);
+    }
 
     #[test]
     fn engine_rate_stays_at_48_khz() {

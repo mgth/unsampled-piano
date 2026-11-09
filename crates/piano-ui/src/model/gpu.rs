@@ -33,6 +33,8 @@ struct Resources {
     program: glow::Program,
     vao: glow::VertexArray,
     vbo: glow::Buffer,
+    /// What `vbo` holds: tris, lines, glass and lid counts per layer.
+    runs: Runs<(i32, i32, i32)>,
     u_mvp: Option<glow::UniformLocation>,
     u_light: Option<glow::UniformLocation>,
     u_lit: Option<glow::UniformLocation>,
@@ -85,7 +87,7 @@ impl Gpu {
 
     /// Queues the scene's drawing into `rect` (filled with `background`),
     /// in the realistic look through `real`'s camera if given.
-    pub fn paint(&self, ui: &egui::Ui, rect: egui::Rect, scene: Arc<Scene>, mvp: Mat4, background: egui::Color32, real: Option<Camera>) {
+    pub fn paint(&self, ui: &egui::Ui, rect: egui::Rect, scene: [Arc<Scene>; 3], mvp: Mat4, background: egui::Color32, real: Option<Camera>) {
         let state = self.state.clone();
         let bg = egui::Rgba::from(background);
         let callback = egui_glow::CallbackFn::new(move |info, painter| {
@@ -128,9 +130,67 @@ impl Gpu {
     }
 }
 
-fn bytes(v: &[Vertex]) -> &[u8] {
-    // SAFETY: Vertex is repr(C), twelve f32 with no padding.
-    unsafe { std::slice::from_raw_parts(v.as_ptr().cast::<u8>(), std::mem::size_of_val(v)) }
+/// The scene's layers ([`super::scene::Layer::PARTS`]) in one vertex
+/// buffer, one run of vertices each, in their order: each sent to the GPU
+/// only when it is another scene than the one it holds, so that the
+/// still layer goes once and the others as often as they change. `M` is
+/// what the draws need to know of a run.
+pub(super) struct Runs<M> {
+    /// Per layer: the scene, its run's first vertex and length, what to
+    /// know of it.
+    held: Vec<(Arc<Scene>, i32, i32, M)>,
+    /// The buffer's size (bytes).
+    cap: usize,
+}
+
+impl<M> Default for Runs<M> {
+    fn default() -> Self {
+        Self { held: Vec::new(), cap: 0 }
+    }
+}
+
+impl<M: Copy> Runs<M> {
+    /// Brings the bound array buffer up to `layers`, `run` giving a
+    /// layer's vertices (of `T`, plain data) and what to know of them;
+    /// returns each run's first vertex and that.
+    pub(super) unsafe fn upload<T: Copy>(&mut self, gl: &glow::Context, layers: &[Arc<Scene>], run: impl Fn(&Scene) -> (Vec<T>, M)) -> Vec<(i32, M)> {
+        let size = std::mem::size_of::<T>();
+        // SAFETY: the vertices are repr(C) f32 records with no padding.
+        let as_bytes = |v: &[T]| unsafe { std::slice::from_raw_parts(v.as_ptr().cast::<u8>(), std::mem::size_of_val(v)) };
+        let changed = (0..layers.len()).find(|&i| self.held.get(i).is_none_or(|h| !Arc::ptr_eq(&h.0, &layers[i])));
+        if let Some(k) = changed {
+            // From the first layer changed on (those after it move).
+            let fresh: Vec<_> = layers[k..].iter().map(|s| run(s)).collect();
+            let from = self.held.get(k.wrapping_sub(1)).map_or(0, |h| (h.1 + h.2) as usize);
+            let end = from + fresh.iter().map(|f| f.0.len()).sum::<usize>();
+            self.held.truncate(k);
+            unsafe {
+                let mut at = from;
+                let runs = if k > 0 && end * size <= self.cap {
+                    fresh
+                } else {
+                    // All of it again, with room for what moves to grow
+                    // (keys pressed, strings drawn in segments as they
+                    // sound).
+                    let mut all: Vec<_> = layers[..k].iter().map(|s| run(s)).collect();
+                    all.extend(fresh);
+                    let first = all[0].0.len();
+                    let total: usize = all.iter().map(|f| f.0.len()).sum();
+                    self.cap = (first + 2 * (total - first).max(1)) * size;
+                    gl.buffer_data_size(glow::ARRAY_BUFFER, self.cap as i32, glow::DYNAMIC_DRAW);
+                    self.held.clear();
+                    at = 0;
+                    all
+                };
+                for ((v, m), s) in runs.into_iter().zip(&layers[self.held.len()..]) {
+                    gl.buffer_sub_data_u8_slice(glow::ARRAY_BUFFER, (at * size) as i32, as_bytes(&v));
+                    self.held.push((s.clone(), at as i32, v.len() as i32, m));
+                    at += v.len();
+                }
+            }
+        }
+        self.held.iter().map(|h| (h.1, h.3)).collect()
+    }
 }
 
 impl Resources {
@@ -182,6 +242,7 @@ impl Resources {
                 program,
                 vao,
                 vbo,
+                runs: Runs::default(),
                 target: None,
                 samples,
             })
@@ -224,7 +285,7 @@ impl Resources {
         gl: &glow::Context,
         info: &egui::PaintCallbackInfo,
         out: Option<glow::Framebuffer>,
-        scene: &Scene,
+        scene: &[Arc<Scene>],
         mvp: &Mat4,
         bg: [f32; 3],
     ) -> Result<(), String> {
@@ -254,17 +315,18 @@ impl Resources {
             gl.uniform_3_f32(self.u_light.as_ref(), LIGHT[0], LIGHT[1], LIGHT[2]);
             gl.bind_vertex_array(Some(self.vao));
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
-            let mut all = Vec::with_capacity(scene.tris.len() + scene.lines.len() + scene.glass.len() + scene.lid.len());
-            all.extend_from_slice(&scene.tris);
-            all.extend_from_slice(&scene.lines);
-            all.extend_from_slice(&scene.glass);
-            all.extend_from_slice(&scene.lid);
-            gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes(&all), glow::STREAM_DRAW);
-            let (nt, nl, ng) = (scene.tris.len() as i32, scene.lines.len() as i32, (scene.glass.len() + scene.lid.len()) as i32);
+            let runs = self.runs.upload(gl, scene, |s| {
+                let all = [&s.tris[..], &s.lines, &s.glass, &s.lid].concat();
+                (all, (s.tris.len() as i32, s.lines.len() as i32, (s.glass.len() + s.lid.len()) as i32))
+            });
             gl.uniform_1_f32(self.u_lit.as_ref(), 1.0);
-            gl.draw_arrays(glow::TRIANGLES, 0, nt);
+            for &(first, (nt, _, _)) in &runs {
+                gl.draw_arrays(glow::TRIANGLES, first, nt);
+            }
             gl.uniform_1_f32(self.u_lit.as_ref(), 0.0);
-            gl.draw_arrays(glow::LINES, nt, nl);
+            for &(first, (nt, nl, _)) in &runs {
+                gl.draw_arrays(glow::LINES, first + nt, nl);
+            }
             // The see-through parts over the rest, not hiding each other.
             gl.enable(glow::BLEND);
             // The target's alpha stays 1: copied into a window surface that
@@ -273,7 +335,9 @@ impl Resources {
             gl.blend_func_separate(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA, glow::ZERO, glow::ONE);
             gl.depth_mask(false);
             gl.uniform_1_f32(self.u_lit.as_ref(), 1.0);
-            gl.draw_arrays(glow::TRIANGLES, nt + nl, ng);
+            for &(first, (nt, nl, ng)) in &runs {
+                gl.draw_arrays(glow::TRIANGLES, first + nt + nl, ng);
+            }
             gl.depth_mask(true);
             gl.disable(glow::DEPTH_TEST);
             // Into egui's target, clipped as egui clips the view.

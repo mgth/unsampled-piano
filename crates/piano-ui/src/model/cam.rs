@@ -138,6 +138,17 @@ impl Orbit {
         Camera { view: Mat4::look_at(eye, self.target, [0.0, 0.0, 1.0]), proj: Mat4::perspective(FOVY, aspect, near, far), eye, aspect, near, far }
     }
 
+    /// The ray through a point of the view (`x`, `y` from -1 to 1, up
+    /// positive): where it starts, its direction.
+    pub fn ray(&self, aspect: f32, x: f32, y: f32) -> (V3, V3) {
+        let eye = self.eye();
+        let f = norm(sub(self.target, eye));
+        let s = norm(cross(f, [0.0, 0.0, 1.0]));
+        let u = cross(s, f);
+        let t = (FOVY / 2.0).tan();
+        (eye, norm(add(f, add(scale(s, x * t * aspect), scale(u, y * t)))))
+    }
+
     /// Moves the target by a drag of (dx, dy) points on a view `height` high.
     pub fn pan(&mut self, dx: f32, dy: f32, height: f32) {
         let f = norm(sub(self.target, self.eye()));
@@ -180,6 +191,17 @@ mod tests {
         assert!(m.project([0.0, 0.5, 0.0])[0] > m.project([-1.0, 0.5, 0.0])[0]);
         // Higher parts nearer (smaller depth).
         assert!(m.project([-0.5, 0.5, 0.2])[2] < m.project([-0.5, 0.5, -0.2])[2]);
+    }
+
+    #[test]
+    fn rays_go_through_what_they_point_at() {
+        let o = Orbit::framing([-1.0, -0.2, -0.3], [0.0, 1.8, 0.3], 1.5);
+        let m = o.matrix(1.5);
+        let p = [-0.3, 1.1, 0.2];
+        let c = m.project(p);
+        let (eye, d) = o.ray(1.5, c[0] / c[3], c[1] / c[3]);
+        let to = norm(sub(p, eye));
+        assert!(dot(to, d) > 1.0 - 1e-6, "{to:?} {d:?}");
     }
 
     #[test]

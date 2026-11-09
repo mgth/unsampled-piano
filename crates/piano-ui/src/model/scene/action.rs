@@ -171,6 +171,9 @@ impl Builder {
     /// point placed by `at(along, across, up)`: flat faces turned
     /// outwards, capped.
     pub(super) fn extrude(&mut self, p: &[(f64, f64)], a: (f64, f64), at: &dyn Fn(f64, f64, f64) -> V3, c: Color32) {
+        if !self.draw {
+            return;
+        }
         let mut p = p.to_vec();
         if signed_area(&p) < 0.0 {
             p.reverse();
@@ -202,6 +205,9 @@ impl Builder {
     /// A solid between the quads `lo` and `hi` (corresponding corners
     /// joined), its faces flat and turned outwards.
     pub(super) fn hexa(&mut self, lo: [V3; 4], hi: [V3; 4], c: Color32) {
+        if !self.draw {
+            return;
+        }
         let c = rgba(c, 1.0);
         let all: Vec<V3> = lo.iter().chain(&hi).copied().collect();
         let centre = scale(all.iter().fold([0.0; 3], |a, &p| add(a, p)), 1.0 / 8.0);
@@ -226,6 +232,9 @@ impl Builder {
     /// its faces turned outwards; shaded smooth where two faces meet at
     /// less than [`SMOOTH_DEG`], around a section or along.
     pub(super) fn loft(&mut self, sections: &[Vec<V3>], c: Color32) {
+        if !self.draw {
+            return;
+        }
         let (n, m) = (sections.len(), sections[0].len());
         if n < 2 || m < 3 {
             return;
@@ -299,6 +308,9 @@ impl Builder {
     /// A rod from `a` to `b` (world), its radius `r.0` at `a` and `r.1`
     /// at `b`: a prism of eight faces, shaded smooth, capped.
     fn rod(&mut self, a: V3, b: V3, r: (f32, f32), c: Color32) {
+        if !self.draw {
+            return;
+        }
         const SIDES: usize = 8;
         let axis = norm(sub(b, a));
         let side = if axis[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
@@ -559,6 +571,7 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
         let tail = if black {
             let yf = y1 - BLACK_DEPTH;
             b.block((yf, y1), (c.kz, key_top), (x0 + x1) / 2.0, x1 - x0, top);
+            b.s.keys.push((m, f32s([x0, yf, c.kz]), f32s([x1, y1, key_top + BLACK_H])));
             b.loft(&black_cap((x0, x1), (yf, y1), key_top), top);
             (x0, x1)
         } else {
@@ -577,6 +590,8 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
             b.block((yh, y1), (c.kz, zc), (n0 + n1) / 2.0, n1 - n0, KEY_WOOD);
             b.piece(&keytop_head(y0, yh, (c.kz, key_top)), (x0 + x1) / 2.0, x1 - x0, top);
             b.block((yh, y1), (zc, key_top), (n0 + n1) / 2.0, n1 - n0, top);
+            b.s.keys.push((m, f32s([x0, y0 - KEYTOP_OVER, c.kz]), f32s([x1, yh, key_top])));
+            b.s.keys.push((m, f32s([n0, yh, c.kz]), f32s([n1, y1, key_top])));
             (n0, n1)
         };
         b.mat = Material::Wood;
@@ -1282,7 +1297,7 @@ mod tests {
     fn a_swept_profile_faces_outwards_grand_or_upright() {
         for vertical in [false, true] {
             let place = Place { vertical, top: 1.0 };
-            let mut b = Builder::new(place);
+            let mut b = Builder::new(place, Layer::All);
             let at = |a: f64, s: f64, h: f64| place.at(0.3 * a - 0.8 * s, 0.8 * a + 0.3 * s, h);
             let (section, _) = felt_section(1, 0.001, false);
             b.extrude(&section, (-0.01, 0.01), &at, Color32::WHITE);
@@ -1297,7 +1312,7 @@ mod tests {
 
     #[test]
     fn a_black_key_faces_outwards_and_rounds_its_edges() {
-        let mut b = Builder::new(Place { vertical: false, top: 0.0 });
+        let mut b = Builder::new(Place { vertical: false, top: 0.0 }, Layer::All);
         b.loft(&black_cap((0.0, 0.011), (0.0, 0.093), 0.0), EBONY);
         // A point well inside the cap, low and behind its sloping front.
         let inside = [0.0055, 0.05, 0.004];

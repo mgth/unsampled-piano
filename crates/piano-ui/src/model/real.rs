@@ -19,10 +19,12 @@
 //! target.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use egui_glow::glow::{self, HasContext};
 
 use super::cam::{add, cross, dot, norm, scale, sub, Camera, Mat4, V3, FOVY};
+use super::gpu::Runs;
 use super::scene::{Scene, Vertex};
 
 /// The shadow map's size (texels).
@@ -62,11 +64,6 @@ struct WireVertex {
     mat: f32,
     width: f32,
     at: [f32; 2],
-}
-
-fn bytes<T: Copy>(v: &[T]) -> &[u8] {
-    // SAFETY: plain repr(C) f32 records with no padding.
-    unsafe { std::slice::from_raw_parts(v.as_ptr().cast::<u8>(), std::mem::size_of_val(v)) }
 }
 
 const COMMON: &str = r#"
@@ -953,6 +950,9 @@ pub struct Real {
     vbo: glow::Buffer,
     wire_vao: glow::VertexArray,
     wire_vbo: glow::Buffer,
+    /// What `vbo` and `wire_vbo` hold, per layer of the scene.
+    runs: Runs<Batches>,
+    wire_runs: Runs<i32>,
     /// For the full-screen passes, which have no attributes.
     empty: glow::VertexArray,
     shadow: Canvas,
@@ -962,26 +962,30 @@ pub struct Real {
 }
 
 /// The vertices drawn, in the order of the passes: what casts shadows and
-/// hides (the scene's opaque triangles, then `rest`: the lid, the floor),
-/// the wires (lines), then what one sees through.
+/// hides (the scene's opaque triangles, the lid), the floor, the wires
+/// (lines), then what one sees through; how many of each.
+#[derive(Clone, Copy)]
 struct Batches {
-    rest: Vec<Vertex>,
     opaque: i32,
     floor: i32,
     lines: i32,
     glass: i32,
 }
 
-fn batches(scene: &Scene) -> Batches {
-    let mut rest = Vec::with_capacity(scene.lines.len() + scene.lid.len() + scene.glass.len() + 6);
+/// A layer's vertices (the floor under it with `floor`) and their batches.
+fn batches(scene: &Scene, floor: bool) -> (Vec<Vertex>, Batches) {
+    let mut rest = Vec::with_capacity(scene.tris.len() + scene.lines.len() + scene.lid.len() + scene.glass.len() + 6);
+    rest.extend_from_slice(&scene.tris);
     // The lid is lacquered wood, not glass.
     rest.extend(scene.lid.iter().map(|v| Vertex { color: [v.color[0], v.color[1], v.color[2], 1.0], ..*v }));
-    let opaque = (scene.tris.len() + rest.len()) as i32;
+    let opaque = rest.len() as i32;
     let (lo, hi) = scene.body;
     let (cx, cy, z) = ((lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, scene.floor);
     let corner = |x: f32, y: f32| Vertex { pos: [cx + x * FLOOR_R, cy + y * FLOOR_R, z], normal: [0.0, 0.0, 1.0], color: [1.0; 4], mat: FLOOR, width: 0.0 };
-    rest.extend([corner(-1.0, -1.0), corner(1.0, -1.0), corner(1.0, 1.0), corner(-1.0, -1.0), corner(1.0, 1.0), corner(-1.0, 1.0)]);
-    let floor = 6;
+    if floor {
+        rest.extend([corner(-1.0, -1.0), corner(1.0, -1.0), corner(1.0, 1.0), corner(-1.0, -1.0), corner(1.0, 1.0), corner(-1.0, 1.0)]);
+    }
+    let floor = rest.len() as i32 - opaque;
     // The strokes of the drawing are not parts of the instrument: left
     // out.
     let from = rest.len();
@@ -990,7 +994,7 @@ fn batches(scene: &Scene) -> Batches {
     let from = rest.len();
     rest.extend_from_slice(&scene.glass);
     let glass = (rest.len() - from) as i32;
-    Batches { rest, opaque, floor, lines, glass }
+    (rest, Batches { opaque, floor, lines, glass })
 }
 
 /// The wires' ribbons: two triangles per line.
@@ -1071,7 +1075,7 @@ impl Real {
             let shadow_size = SHADOW.min(gl.get_parameter_i32(glow::MAX_TEXTURE_SIZE));
             let shadow = canvas(gl, texture(gl, (shadow_size, shadow_size), glow::DEPTH_COMPONENT24, glow::DEPTH_COMPONENT, glow::UNSIGNED_INT, glow::NEAREST)?, true)?;
             let samples = gl.get_parameter_i32(glow::MAX_SAMPLES).clamp(1, 8);
-            Ok(Self { depth, surface, wire, sky, ssao, blur_ao, bright, gauss, photo, vao, vbo, wire_vao, wire_vbo, empty, shadow, shadow_size, targets: None, samples })
+            Ok(Self { depth, surface, wire, sky, ssao, blur_ao, bright, gauss, photo, vao, vbo, wire_vao, wire_vbo, runs: Runs::default(), wire_runs: Runs::default(), empty, shadow, shadow_size, targets: None, samples })
         }
     }
 
@@ -1140,13 +1144,16 @@ impl Real {
         }
     }
 
-    pub unsafe fn draw(&mut self, gl: &glow::Context, info: &egui::PaintCallbackInfo, out: Option<glow::Framebuffer>, scene: &Scene, cam: &Camera) -> Result<(), String> {
+    pub unsafe fn draw(&mut self, gl: &glow::Context, info: &egui::PaintCallbackInfo, out: Option<glow::Framebuffer>, layers: &[Arc<Scene>], cam: &Camera) -> Result<(), String> {
         let vp = info.viewport_in_pixels();
         let clip = info.clip_rect_in_pixels();
         let size = (vp.width_px.max(1), vp.height_px.max(1));
-        let b = batches(scene);
-        let lines_from = b.rest.len() - (b.lines + b.glass) as usize;
-        let wire = wires(&b.rest[lines_from..lines_from + b.lines as usize]);
+        // What the lights and the room need of the instrument: the layers'
+        // extent, the still one's board and floor.
+        let still = &layers[0];
+        let body = layers.iter().filter(|s| !s.tris.is_empty()).map(|s| s.body).reduce(|a, b| (std::array::from_fn(|i| a.0[i].min(b.0[i])), std::array::from_fn(|i| a.1[i].max(b.1[i])))).unwrap_or(still.body);
+        let meta = Scene { body, vertical: still.vertical, floor: still.floor, board: still.board, live: layers.iter().any(|s| s.live), ..Default::default() };
+        let scene = &meta;
         let key = norm(BOXES[0].0);
         let (light, range, width) = key_view(scene, key);
         let vp_m = cam.proj.mul(&cam.view);
@@ -1167,10 +1174,15 @@ impl Real {
             gl.depth_mask(true);
             gl.bind_vertex_array(Some(self.vao));
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
-            let (tris, rest) = (bytes(&scene.tris), bytes(&b.rest));
-            gl.buffer_data_size(glow::ARRAY_BUFFER, (tris.len() + rest.len()) as i32, glow::STREAM_DRAW);
-            gl.buffer_sub_data_u8_slice(glow::ARRAY_BUFFER, 0, tris);
-            gl.buffer_sub_data_u8_slice(glow::ARRAY_BUFFER, tris.len() as i32, rest);
+            let runs = self.runs.upload(gl, layers, |s| batches(s, std::ptr::eq(s, &**still)));
+            let each = |mode: u32, part: &dyn Fn(&Batches) -> (i32, i32)| {
+                for (first, b) in &runs {
+                    let (from, n) = part(b);
+                    if n > 0 {
+                        gl.draw_arrays(mode, first + from, n);
+                    }
+                }
+            };
 
             // The key light's shadow map: what is opaque, and the wires as
             // lines.
@@ -1181,8 +1193,8 @@ impl Real {
             gl.polygon_offset(1.5, 2.0);
             self.depth.use_(gl);
             self.depth.m4(gl, "u_vp", &light);
-            gl.draw_arrays(glow::TRIANGLES, 0, b.opaque);
-            gl.draw_arrays(glow::LINES, b.opaque + b.floor, b.lines);
+            each(glow::TRIANGLES, &|b| (0, b.opaque));
+            each(glow::LINES, &|b| (b.opaque + b.floor, b.lines));
             gl.disable(glow::POLYGON_OFFSET_FILL);
 
             // The view's depth, and the occlusion from it.
@@ -1190,7 +1202,7 @@ impl Real {
             gl.viewport(0, 0, size.0, size.1);
             gl.clear(glow::DEPTH_BUFFER_BIT);
             self.depth.m4(gl, "u_vp", &vp_m);
-            gl.draw_arrays(glow::TRIANGLES, 0, b.opaque + if above { b.floor } else { 0 });
+            each(glow::TRIANGLES, &|b| (0, b.opaque + if above { b.floor } else { 0 }));
             gl.disable(glow::DEPTH_TEST);
             gl.depth_mask(false);
             let proj = [cam.proj.0[0], cam.proj.0[5], cam.near, cam.far];
@@ -1244,7 +1256,7 @@ impl Real {
                 self.surface.m4(gl, "u_vp", &vp_m.mul(&m));
                 self.surface.f3(gl, "u_eye", [eye[0], eye[1], eye[2]]);
                 self.surface.f1(gl, "u_mirror", 1.0);
-                gl.draw_arrays(glow::TRIANGLES, 0, b.opaque);
+                each(glow::TRIANGLES, &|b| (0, b.opaque));
             }
             self.surface.m4(gl, "u_vp", &vp_m);
             self.surface.f3(gl, "u_eye", cam.eye);
@@ -1252,16 +1264,20 @@ impl Real {
             if above {
                 gl.enable(glow::BLEND);
                 gl.blend_func_separate(glow::ONE, glow::SRC_ALPHA, glow::ZERO, glow::ONE);
-                gl.draw_arrays(glow::TRIANGLES, b.opaque, b.floor);
+                each(glow::TRIANGLES, &|b| (b.opaque, b.floor));
                 gl.disable(glow::BLEND);
             }
-            gl.draw_arrays(glow::TRIANGLES, 0, b.opaque);
+            each(glow::TRIANGLES, &|b| (0, b.opaque));
             // The wires, as thick as they are: thinner than their ribbon,
             // blended by the share of it they cover, over what is opaque.
-            if !wire.is_empty() {
-                gl.bind_vertex_array(Some(self.wire_vao));
-                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.wire_vbo));
-                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes(&wire), glow::STREAM_DRAW);
+            gl.bind_vertex_array(Some(self.wire_vao));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.wire_vbo));
+            let wire = self.wire_runs.upload(gl, layers, |s| {
+                let w = wires(&s.lines.chunks(2).filter(|l| l[0].width > 0.0).flatten().copied().collect::<Vec<_>>());
+                let n = w.len() as i32;
+                (w, n)
+            });
+            if wire.iter().any(|w| w.1 > 0) {
                 self.wire.use_(gl);
                 self.studio(gl, &self.wire, scene, &light, range, width, size);
                 self.wire.m4(gl, "u_vp", &vp_m);
@@ -1271,20 +1287,22 @@ impl Real {
                 gl.enable(glow::BLEND);
                 gl.blend_func_separate(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA, glow::ZERO, glow::ONE);
                 gl.depth_mask(false);
-                gl.draw_arrays(glow::TRIANGLES, 0, wire.len() as i32);
+                for &(first, n) in &wire {
+                    gl.draw_arrays(glow::TRIANGLES, first, n);
+                }
                 gl.depth_mask(true);
                 gl.disable(glow::BLEND);
-                gl.bind_vertex_array(Some(self.vao));
-                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
                 self.surface.use_(gl);
             }
+            gl.bind_vertex_array(Some(self.vao));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
             // What one sees through (the case's front, as see-through as
             // asked), over the rest.
-            if b.glass > 0 {
+            if runs.iter().any(|r| r.1.glass > 0) {
                 gl.enable(glow::BLEND);
                 gl.blend_func_separate(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA, glow::ZERO, glow::ONE);
                 gl.depth_mask(false);
-                gl.draw_arrays(glow::TRIANGLES, b.opaque + b.floor + b.lines, b.glass);
+                each(glow::TRIANGLES, &|b| (b.opaque + b.floor + b.lines, b.glass));
                 gl.depth_mask(true);
                 gl.disable(glow::BLEND);
             }

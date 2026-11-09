@@ -110,6 +110,67 @@ pub struct Scene {
     pub board: (V3, V3),
     /// The engine's state laid on it: the board coloured by [`heat`].
     pub live: bool,
+    /// The keys where they can be played (none under a shut fallboard):
+    /// each its note and a box (min, max) round a part of it at rest, the
+    /// part the pianist sees.
+    pub keys: Vec<(u8, V3, V3)>,
+}
+
+impl Scene {
+    /// The layers ([`Layer::PARTS`]) as one scene.
+    pub fn merged(layers: &[&Scene]) -> Scene {
+        let cat = |part: fn(&Scene) -> &[Vertex]| layers.iter().flat_map(|s| part(s).iter().copied()).collect::<Vec<_>>();
+        let drawn = || layers.iter().filter(|s| !s.tris.is_empty() || !s.lines.is_empty());
+        let union = |of: fn(&Scene) -> (V3, V3)| {
+            drawn().map(|s| of(s)).reduce(|a, b| (std::array::from_fn(|i| a.0[i].min(b.0[i])), std::array::from_fn(|i| a.1[i].max(b.1[i])))).unwrap_or(of(layers[0]))
+        };
+        let (min, max) = union(|s| (s.min, s.max));
+        Scene {
+            tris: cat(|s| &s.tris),
+            glass: cat(|s| &s.glass),
+            lid: cat(|s| &s.lid),
+            lines: cat(|s| &s.lines),
+            labels: layers.iter().flat_map(|s| s.labels.iter().cloned()).collect(),
+            min,
+            max,
+            body: union(|s| s.body),
+            vertical: layers[0].vertical,
+            floor: layers[0].floor,
+            board: layers[0].board,
+            live: layers.iter().any(|s| s.live),
+            keys: layers.iter().flat_map(|s| s.keys.iter().copied()).collect(),
+        }
+    }
+
+    /// The key a ray from `from` along `dir` meets first, if any, and
+    /// where along it (0 at its front … 1 at the back of its visible part).
+    pub fn key_at(&self, from: V3, dir: V3) -> Option<(u8, f32)> {
+        let mut best: Option<(f32, u8)> = None;
+        for &(note, lo, hi) in &self.keys {
+            // The slabs' method: the ray's stretch within each pair of
+            // faces, the box's where they overlap.
+            let (mut t0, mut t1) = (0.0f32, f32::MAX);
+            for i in 0..3 {
+                let (a, b) = (lo[i].min(hi[i]), lo[i].max(hi[i]));
+                if dir[i].abs() < 1e-9 {
+                    if from[i] < a || from[i] > b {
+                        t1 = -1.0;
+                    }
+                    continue;
+                }
+                let (ta, tb) = ((a - from[i]) / dir[i], (b - from[i]) / dir[i]);
+                t0 = t0.max(ta.min(tb));
+                t1 = t1.min(ta.max(tb));
+            }
+            if t0 <= t1 && best.is_none_or(|(t, _)| t0 < t) {
+                best = Some((t0, note));
+            }
+        }
+        let (t, note) = best?;
+        let (front, back) = self.keys.iter().filter(|k| k.0 == note).fold((f32::MAX, f32::MIN), |(f, b), k| (f.min(k.1[1].min(k.2[1])), b.max(k.1[1].max(k.2[1]))));
+        let y = from[1] + t * dir[1];
+        Some((note, ((y - front) / (back - front).max(1e-6)).clamp(0.0, 1.0)))
+    }
 }
 
 /// What the live view lays on the instrument: the engine's state, and the
@@ -253,6 +314,10 @@ const U_LOWER_BACK: f64 = 0.03;
 const U_PLINTH: f64 = 0.06;
 /// An upright's rim's front, in front of its board.
 const U_RIM_FRONT: f64 = 0.015;
+/// A grand's outer rim, the case's wall up to the lid: of the rim's
+/// thickness, the rest is the inner rim under the board's glued edge
+/// (makers give 22–29 mm outer, 38–54 mm inner).
+const OUTER_RIM: f64 = 0.025;
 /// The name on a grand's fallboard: its middle's height above the keys.
 /// The fallboard shut: its top's height above the keys at the name board
 /// and over their front, its thickness, its front edge's radius, the lip's
@@ -371,9 +436,37 @@ impl Place {
     }
 }
 
+/// Which of the instrument's parts a scene holds: all of them, or one of
+/// three layers, each built again only when what it shows changes: what
+/// stays still while the instrument plays (built once), what the pianist
+/// moves (keys, action, dampers, pedals: at each key or pedal), and what
+/// sounds (the strings' speaking lengths, the board: at each look while
+/// they do).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Layer {
+    All,
+    Still,
+    Played,
+    Sounding,
+}
+
+impl Layer {
+    /// The layers a scene is drawn in, in their order.
+    pub const PARTS: [Layer; 3] = [Layer::Still, Layer::Played, Layer::Sounding];
+
+    /// Whether the parts of layer `of` are in it.
+    fn has(self, of: Layer) -> bool {
+        self == Layer::All || self == of
+    }
+}
+
 struct Builder {
     s: Scene,
     place: Place,
+    layer: Layer,
+    /// What is being drawn goes into the scene (is of its layer): else
+    /// the drawing calls do nothing.
+    draw: bool,
     /// What the part being drawn is made of where its colour says
     /// nothing ([`material_of`]).
     mat: Material,
@@ -383,8 +476,13 @@ struct Builder {
 }
 
 impl Builder {
-    fn new(place: Place) -> Self {
-        Self { s: Scene::default(), place, mat: Material::Paint, last: ([-1.0; 4], Material::Paint, Material::Paint) }
+    fn new(place: Place, layer: Layer) -> Self {
+        Self { s: Scene::default(), place, layer, draw: layer.has(Layer::Still), mat: Material::Paint, last: ([-1.0; 4], Material::Paint, Material::Paint) }
+    }
+
+    /// What follows is of layer `of`.
+    fn layer_of(&mut self, of: Layer) {
+        self.draw = self.layer.has(of);
     }
 
     #[inline]
@@ -401,6 +499,9 @@ impl Builder {
     }
 
     fn tri(&mut self, glass: bool, p: [V3; 3], c: [[f32; 4]; 3]) {
+        if !self.draw {
+            return;
+        }
         let n = norm(cross(sub(p[1], p[0]), sub(p[2], p[0])));
         for (pos, color) in p.into_iter().zip(c) {
             let v = self.vertex(pos, n, color);
@@ -410,6 +511,9 @@ impl Builder {
 
     /// A quad with a normal at each corner (smooth shading).
     fn quad_n(&mut self, p: [V3; 4], n: [V3; 4], c: [f32; 4]) {
+        if !self.draw {
+            return;
+        }
         for k in [0, 1, 2, 0, 2, 3] {
             let v = self.vertex(p[k], n[k], c);
             self.s.tris.push(v);
@@ -423,6 +527,9 @@ impl Builder {
     /// [`SMOOTH_DEG`], with a step where two segments' tops differ.
     #[allow(clippy::too_many_arguments)]
     fn wall(&mut self, line: &[(f64, f64)], closed: bool, a: f64, b: f64, z0: f64, top: &dyn Fn(usize) -> f64, c: Color32) {
+        if !self.draw {
+            return;
+        }
         let n = line.len();
         if n < 2 {
             return;
@@ -504,6 +611,9 @@ impl Builder {
     /// surface it stands on (h 0).
     #[allow(clippy::too_many_arguments)]
     fn prism(&mut self, points: &[(f64, f64)], loops: &[(usize, usize)], tris: &[[usize; 3]], h: (f64, f64), at: &dyn Fn(f64, f64, f64) -> V3, c: Color32) {
+        if !self.draw {
+            return;
+        }
         let c = rgba(c, 1.0);
         let up = sub(at(0.0, 0.0, 1.0), at(0.0, 0.0, 0.0));
         let faces = if h.0 > 0.0 { vec![(h.1, 1.0f32), (h.0, -1.0)] } else { vec![(h.1, 1.0)] };
@@ -553,6 +663,9 @@ impl Builder {
     /// A box from corner `o` along the edges `u`, `v`, `w` (world), its
     /// faces turned outwards.
     fn cuboid(&mut self, o: V3, u: V3, v: V3, w: V3, c: Color32) {
+        if !self.draw {
+            return;
+        }
         let c = rgba(c, 1.0);
         let centre = add(o, scale(add(add(u, v), w), 0.5));
         for (a, b, d) in [(u, v, w), (v, w, u), (w, u, v)] {
@@ -572,6 +685,9 @@ impl Builder {
     /// `z.1`: `sides` flat faces, its corners `r` from the axis, the first
     /// at the plate angle `turn`; capped at both ends.
     fn plate_prism(&mut self, c: (f64, f64), r: f64, sides: usize, turn: f64, z: (f64, f64), col: Color32) {
+        if !self.draw {
+            return;
+        }
         let p = self.place;
         let corner = |k: usize, z: f64| {
             let a = turn + std::f64::consts::TAU * k as f64 / sides as f64;
@@ -595,6 +711,9 @@ impl Builder {
     /// two rings its own colour, shaded smooth around a round one and flat
     /// on a square one or a step; the top capped.
     fn lathe(&mut self, base: V3, axis: V3, side: V3, rings: &[(f32, f32, bool)], colours: &[Color32]) {
+        if !self.draw {
+            return;
+        }
         const SIDES: usize = 12;
         let u = norm(sub(side, scale(axis, dot(side, axis))));
         let v = cross(axis, u);
@@ -648,6 +767,9 @@ impl Builder {
     /// around; along, smooth where the surface bends by less than
     /// [`SMOOTH_DEG`] (a ring repeated at the same centre makes a step).
     fn sweep(&mut self, rings: &[(V3, f32, f32, f32)], side: V3, c: Color32) {
+        if !self.draw {
+            return;
+        }
         const ARC: usize = 4;
         let n = rings.len();
         if n < 2 {
@@ -734,6 +856,9 @@ impl Builder {
     /// the polygon `profile` in (y, z), capped by it; its edges shaded
     /// smooth where the profile bends by less than [`SMOOTH_DEG`].
     fn slab(&mut self, profile: &[(f32, f32)], x0: f32, x1: f32, c: Color32) {
+        if !self.draw {
+            return;
+        }
         let mut p: Vec<(f64, f64)> = profile.iter().map(|&(y, z)| (y as f64, z as f64)).collect();
         if signed_area(&p) < 0.0 {
             p.reverse();
@@ -770,6 +895,9 @@ impl Builder {
 
     /// A line that is a wire `d` metres thick.
     fn wire(&mut self, a: V3, b: V3, c: [f32; 4], d: f32) {
+        if !self.draw {
+            return;
+        }
         for pos in [a, b] {
             let v = Vertex { width: d, ..self.vertex(pos, [0.0, 0.0, 1.0], c) };
             self.s.lines.push(v);
@@ -777,6 +905,9 @@ impl Builder {
     }
 
     fn label(&mut self, at: V3, text: impl Into<String>, page: &'static str) {
+        if !self.layer.has(Layer::Still) {
+            return;
+        }
         self.s.labels.push(Label { at, text: text.into(), page });
     }
 
@@ -1363,7 +1494,9 @@ fn lyre(b: &mut Builder, cx: f32, y: f32, top: f32, floor: f32, brace: (f32, f32
     for (i, &(press, c)) in pedals.iter().enumerate() {
         let x = cx + (i as f32 - 1.0) * PEDAL_PITCH;
         b.cuboid([x - 0.017, face - 0.002, floor + 0.06], [0.034, 0.0, 0.0], [0.0, 0.002, 0.0], [0.0, 0.0, 0.026], BRASS);
+        b.layer_of(Layer::Played);
         pedal(b, x, face, floor + 0.073, press, c);
+        b.layer_of(Layer::Still);
     }
 }
 
@@ -1405,6 +1538,25 @@ fn fallboard(b: &mut Builder, shut: bool, x: (f64, f64), cx: f64, y: (f64, f64),
 /// panels and the top as solid as `o.front`. Across (plate y), the board
 /// and rim's `across` or the keys' `keys` with their cheeks, the wider.
 #[allow(clippy::too_many_arguments)]
+/// A grand's inner rim `inner` wide outside the board's `edge`, from `z0`
+/// up to the board's underside, and the board's edge glued over it, out
+/// to the outer rim.
+fn inner_rim(b: &mut Builder, edge: &[(f64, f64)], closed: bool, inner: f64, z0: f64, case: Color32, wood: Color32) {
+    b.wall(edge, closed, 0.0, inner, z0, &|_| -0.012, case);
+    let from = b.s.tris.len();
+    b.mat = Material::Spruce;
+    b.wall(edge, closed, 0.0, inner, -0.012, &|_| 0.0, wood);
+    b.mat = Material::Paint;
+    // The board's reflection out to the outer rim's wall.
+    let (lo, hi) = &mut b.s.board;
+    for v in &b.s.tris[from..] {
+        for i in 0..3 {
+            lo[i] = lo[i].min(v.pos[i]);
+            hi[i] = hi[i].max(v.pos[i]);
+        }
+    }
+}
+
 fn upright_case(b: &mut Builder, o: &Options, across: (f64, f64), keys: (f64, f64), kz: f64, key_front: f64, y_back: f64, case: Color32) {
     let (_, hi) = b.bounds();
     let (top, back) = (hi[2] as f64 + 0.01, hi[1] as f64 + 0.005);
@@ -1452,11 +1604,18 @@ fn upright_case(b: &mut Builder, o: &Options, across: (f64, f64), keys: (f64, f6
     b.see_through(from, o.front);
 }
 
+#[cfg(test)]
 pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
+    build_layer(model, live, o, Layer::All)
+}
+
+/// The scene, or one of its layers ([`Layer`]): the still one does not
+/// depend on `live`.
+pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: Layer) -> Scene {
     let sb = model.soundboard.map(|s| s.resolved()).unwrap_or_default();
     let vertical = sb.vertical;
     let place = Place { vertical, top: UPRIGHT_BASE + sb.a };
-    let mut b = Builder::new(place);
+    let mut b = Builder::new(place, layer);
     let lit = |p: Part| o.lit.contains(&p);
     let pick = |p: Part, c: Color32| if lit(p) { sketches::HIGHLIGHT } else { c };
     let (f, rim) = (&model.frame, &model.rim);
@@ -1479,6 +1638,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         rgba(heat(level), 1.0)
     };
     b.mat = Material::Spruce;
+    b.layer_of(Layer::Sounding);
     for j in 0..gy - 1 {
         for i in 0..gx - 1 {
             let (x0, x1) = (sb.a * i as f64 / (gx - 1) as f64, sb.a * (i + 1) as f64 / (gx - 1) as f64);
@@ -1500,8 +1660,11 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     for [i, j, k] in triangulate(&outline) {
         b.tri(false, [outline[i], outline[k], outline[j]].map(|(x, y)| place.at(x, y, -0.012)), [under; 3]);
     }
+    b.layer_of(Layer::Still);
     b.mat = Material::Paint;
-    b.s.board = b.bounds();
+    b.s.board = outline.iter().flat_map(|&(x, y)| [place.at(x, y, 0.0), place.at(x, y, -0.012)]).fold(([f32::MAX; 3], [f32::MIN; 3]), |(lo, hi), p| {
+        (std::array::from_fn(|i| lo[i].min(p[i])), std::array::from_fn(|i| hi[i].max(p[i])))
+    });
     b.label(place.at(sb.a * 0.45, sb.b * 0.7, 0.0), "Soundboard", "Soundboard");
 
     // The strings' ends: their agraffes on a diagonal in front of the
@@ -1524,6 +1687,10 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     // the shut lid closes ([`SoundboardParams::lid_closure`]), the lid resting
     // on it. Only the rim below is in the structure's model.
     let lid_top = if vertical { z1 } else { sb.lid_hinge_height.max(z1) };
+    // A grand's outer rim alone rises to the lid; the inner one inside it
+    // stops under the board, whose glued edge covers it, and under the pin
+    // block's ends in front of the board.
+    let inner = if vertical { 0.0 } else { t - t.min(OUTER_RIM) };
     let n = outline.len();
     let front = (0..n).find(|&k| outline[k].0.abs() < 1e-6 && outline[(k + 1) % n].0.abs() < 1e-6);
     let (mut across_lo, mut across_hi) = (0.0, sb.b);
@@ -1533,9 +1700,16 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let sides: Vec<_> = (1..=n).map(|i| forward(outline[(k + i) % n])).collect();
         (across_lo, across_hi) = (p.1.min(q.1), p.1.max(q.1));
         if o.case {
-            b.wall(&sides, false, 0.0, t, z0, &|_| z1, case);
+            b.wall(&sides, false, inner, t, z0, &|_| z1, case);
             if lid_top > z1 {
-                b.wall(&sides, false, 0.0, t, z1, &|_| lid_top, CASE);
+                b.wall(&sides, false, inner, t, z1, &|_| lid_top, CASE);
+            }
+            if inner > 0.0 {
+                let edge: Vec<_> = (1..=n).map(|i| outline[(k + i) % n]).collect();
+                inner_rim(&mut b, &edge, false, inner, z0, case, wood);
+                for arm in [[sides[0], edge[0]], [edge[n - 1], sides[n - 1]]] {
+                    b.wall(&arm, false, 0.0, inner, z0, &|_| PIN_BLOCK_TOP, case);
+                }
             }
             // A grand's under the board, behind the hammers resting under
             // its edge and the keys' tails.
@@ -1543,9 +1717,12 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             b.wall(&[p, q], false, at, at + BELLY_RAIL, z0, &|_| -0.012, case);
         }
     } else if o.case {
-        b.wall(&outline, true, 0.0, t, z0, &|_| z1, case);
+        b.wall(&outline, true, inner, t, z0, &|_| z1, case);
         if lid_top > z1 {
-            b.wall(&outline, true, 0.0, t, z1, &|_| lid_top, CASE);
+            b.wall(&outline, true, inner, t, z1, &|_| lid_top, CASE);
+        }
+        if inner > 0.0 {
+            inner_rim(&mut b, &outline, true, inner, z0, case, wood);
         }
     }
 
@@ -1632,6 +1809,8 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         let (wire, plain) = string_d(model, m);
         let base = if lit(Part::Length) || lit(Part::Unison) { sketches::HIGHLIGHT } else { base };
         let c = if m == o.key { o.ink } else { mix(base, sketches::HIGHLIGHT, level * 0.8) };
+        // What is not its speaking length does not move.
+        let still = if m == o.key { o.ink } else { base };
         // Across the unison, 2.5 mm apart.
         let (dx, dy) = (bx - ax, by - ay);
         let len = dx.hypot(dy).max(1e-9);
@@ -1657,20 +1836,23 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
                 let (cx, cy) = (-ux * pa + nx * pd, -uy * pa + ny * pd);
                 place.at(ax + (dx + cx) * t + nx * off, ay + (dy + cy) * t + ny * off, z)
             };
+            // On over the bridge to its back pin.
+            let (gx, gy) = (bx + ux * pa + nx * (off - pd), by + uy * pa + ny * (off - pd));
+            b.layer_of(Layer::Sounding);
             for k in 0..segments {
                 let (t0, t1) = (k as f64 / segments as f64, (k + 1) as f64 / segments as f64);
                 b.wire(point(t0), point(t1), rgba(c, 1.0), wire);
             }
+            b.wire(point(1.0), place.at(gx, gy, z), rgba(c, 1.0), wire);
+            b.layer_of(Layer::Still);
             // Its tuning pin, and the string's dead length from the pin's
             // coil to the agraffe.
-            tuning_pin(&mut b, &pins[count], count, z, c, plain);
+            tuning_pin(&mut b, &pins[count], count, z, still, plain);
             // The bridge pins, and the string between them.
-            let (gx, gy) = (bx + ux * pa + nx * (off - pd), by + uy * pa + ny * (off - pd));
             let foot = z - (STRING_Z - BRIDGE_H);
             let front = (bx - ux * pa + nx * (off + pd + BRIDGE_PIN_R), by - uy * pa + ny * (off + pd + BRIDGE_PIN_R));
             b.plate_prism(front, BRIDGE_PIN_R, 6, 0.0, (foot, z + 0.004), BRIDGE_PIN);
             b.plate_prism((gx - nx * BRIDGE_PIN_R, gy - ny * BRIDGE_PIN_R), BRIDGE_PIN_R, 6, 0.0, (foot, z + 0.004), BRIDGE_PIN);
-            b.wire(point(1.0), place.at(gx, gy, z), rgba(c, 1.0), wire);
             // Its rear length, plain wire, round its hitch pin.
             let (hx, hy) = (bx + ux * rear + nx * off, by + uy * rear + ny * off);
             b.wire(place.at(gx, gy, z), place.at(hx - ux * HITCH_R, hy - uy * HITCH_R, z - HITCH_DROP), rgba(tail, 1.0), plain);
@@ -1730,7 +1912,10 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     if f.enabled && o.frame {
         let lit_frame = lit(Part::Frame) || lit(Part::FrameHeight);
         b.mat = Material::Iron;
-        plate::plate(&mut b, model, &sb, &ends, if lit_frame { sketches::HIGHLIGHT } else { IRON });
+        // (Long to work out: not when it is not drawn.)
+        if b.draw {
+            plate::plate(&mut b, model, &sb, &ends, if lit_frame { sketches::HIGHLIGHT } else { IRON });
+        }
         b.mat = Material::Paint;
         // Labelled at its tail, the farthest point from the keyboard.
         let outline = frame_outline(model, &sb);
@@ -1813,7 +1998,11 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         vertical,
         inside: !o.case,
     };
-    action::keys(&mut b, &ctx);
+    b.layer_of(Layer::Played);
+    if b.draw {
+        action::keys(&mut b, &ctx);
+    }
+    b.layer_of(Layer::Still);
     let cx = -((klo + khi) / 2.0) as f32;
     // Under a grand's front legs, their centres (world x, y).
     let mut front_legs = [[0.0f32; 2]; 2];
@@ -1874,10 +2063,14 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
             let shut = lid_top as f32 - 0.002;
             b.sweep(&along(-hi as f32, -lo as f32, (y_back + FRONT_T / 2.0) as f32, (PIN_BLOCK_TOP as f32, shut), FRONT_T as f32, 0.009), [0.0, 1.0, 0.0], case);
             let (c0, c1) = (case_front as f32, hx as f32);
-            b.cuboid([-across_hi as f32, c0, shut - COVER_T], [(across_hi - across_lo) as f32, 0.0, 0.0], [0.0, c1 - c0, 0.0], [0.0, 0.0, COVER_T], case);
+            let (a0, a1) = (across_lo - inner, across_hi + inner);
+            b.cuboid([-a1 as f32, c0, shut - COVER_T], [(a1 - a0) as f32, 0.0, 0.0], [0.0, c1 - c0, 0.0], [0.0, 0.0, COVER_T], case);
             b.see_through(from, o.front);
             fallboard(&mut b, o.fallboard, (-hi, -lo), cx as f64, (key_front, y_back), kz, case);
         }
+    }
+    if o.case && o.fallboard {
+        b.s.keys.clear();
     }
     b.label([-((klo + khi) / 2.0) as f32, key_front as f32, (kz + 0.03) as f32], "Keyboard", "Player");
 
@@ -1895,14 +2088,17 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
         for (i, &(v, c)) in pedals.iter().enumerate() {
             let x = cx + (i as f32 - 1.0) * PEDAL_PITCH;
             b.cuboid([x - 0.017, face - 0.002, floor as f32 + 0.012], [0.034, 0.0, 0.0], [0.0, 0.002, 0.0], [0.0, 0.0, 0.026], BRASS);
+            b.layer_of(Layer::Played);
             pedal(&mut b, x, face, floor as f32 + 0.025, v, c);
+            b.layer_of(Layer::Still);
         }
     } else {
         // The lyre under the keybed, in front of the fallboard, braced to
         // the belly rail; the third leg under the case's tail.
         lyre(&mut b, cx, y_back as f32 - 0.05, z0 as f32, floor as f32, ((BELLY_AT + BELLY_RAIL / 2.0) as f32, z0 as f32), pedals);
         let tail = place.at(sb.a - 0.12, sb.b * 0.5, z0);
-        for [x, y] in front_legs.into_iter().chain([[tail[0], tail[1]]]) {
+        let legs = if b.draw { 3 } else { 0 };
+        for [x, y] in front_legs.into_iter().chain([[tail[0], tail[1]]]).take(legs) {
             leg(&mut b, [x, y, z0 as f32], floor as f32);
         }
     }
@@ -1910,7 +2106,7 @@ pub fn build(model: &PianoModel, live: Option<&Live>, o: &Options) -> Scene {
     b.label([cx, key_front as f32 - 0.1, floor as f32 + 0.08], "Pedals", "Player");
     b.s.body = b.bounds();
     b.s.floor = floor as f32;
-    b.s.live = live.is_some();
+    b.s.live = live.is_some() && layer.has(Layer::Sounding);
 
     // The microphones and their stands.
     if o.mics {
@@ -1947,6 +2143,69 @@ mod tests {
 
     fn options() -> Options<'static> {
         Options { key: 60, lit: &[], lid: true, frame: true, mics: true, case: true, fallboard: false, front: 1.0, ink: Color32::WHITE }
+    }
+
+    #[test]
+    fn the_layers_make_the_whole() {
+        let mut obs = Observation { sustain: 1.0, soft: 0.5, ..Default::default() };
+        obs.keys[60].down = true;
+        obs.keys[60].hammer = true;
+        let levels: [f32; 128] = std::array::from_fn(|m| if m % 3 == 0 { 0.6 } else { 0.0 });
+        let board = vec![0.4f32; BOARD_GRID.0 * BOARD_GRID.1];
+        let live = Live { obs: &obs, keys: &levels, board: Some(&board), time: 0.3 };
+        let key = |v: &Vertex| [v.pos, v.normal].concat().into_iter().chain(v.color).chain([v.mat, v.width]).map(f32::to_bits).collect::<Vec<_>>();
+        let sorted = |a: &[&[Vertex]]| {
+            let mut v: Vec<_> = a.iter().flat_map(|s| s.iter().map(key)).collect();
+            v.sort();
+            v
+        };
+        for vertical in [false, true] {
+            let m = PianoModel::default();
+            let m = PianoModel { soundboard: m.soundboard.map(|sb| SoundboardParams { vertical, ..sb }), ..m };
+            for o in [options(), Options { case: false, fallboard: true, ..options() }] {
+                let all = build(&m, Some(&live), &o);
+                let [still, played, sounding] = Layer::PARTS.map(|l| build_layer(&m, if l == Layer::Still { None } else { Some(&live) }, &o, l));
+                let parts = [&still, &played, &sounding];
+                assert_eq!(sorted(&[&all.tris]), sorted(&parts.map(|s| &s.tris[..])));
+                assert_eq!(sorted(&[&all.lines]), sorted(&parts.map(|s| &s.lines[..])));
+                assert_eq!(sorted(&[&all.glass, &all.lid]), sorted(&[&still.glass, &still.lid, &played.glass, &played.lid, &sounding.glass, &sounding.lid]));
+                let merged = Scene::merged(&parts);
+                assert_eq!(merged.tris.len(), all.tris.len());
+                assert_eq!((merged.body, merged.labels.len()), (all.body, all.labels.len()));
+                assert_eq!(all.labels, still.labels);
+                assert!(played.labels.is_empty() && sounding.labels.is_empty() && still.keys.is_empty() && all.keys == played.keys);
+                assert_eq!(all.board, still.board);
+                assert!(all.live && sounding.live && !played.live && !still.live);
+                // Most of it stands still; what sounds is little.
+                assert!(played.tris.len() < still.tris.len() && sounding.tris.len() * 10 < played.tris.len(), "{} {} {}", still.tris.len(), played.tris.len(), sounding.tris.len());
+            }
+        }
+    }
+
+    #[test]
+    fn keys_are_found_where_they_are_drawn() {
+        let m = PianoModel::default();
+        let s = build(&m, None, &options());
+        // Straight down on the middle of each key's part in front: that key.
+        for &(note, lo, hi) in &s.keys {
+            let c = scale(add(lo, hi), 0.5);
+            assert_eq!(s.key_at([c[0], c[1], 3.0], [0.0, 0.0, -1.0]).map(|k| k.0), Some(note), "{note}");
+        }
+        assert!((21..=108).all(|n| s.keys.iter().any(|k| k.0 == n)));
+        // From the pianist's seat, through the front of the keyboard, a
+        // white key; over its back, a black one.
+        let (_, lo, hi) = *s.keys.iter().find(|k| k.0 == 61).unwrap();
+        let x = (lo[0] + hi[0]) / 2.0;
+        assert_eq!(s.key_at([x, lo[1] - 1.0, hi[2] + 0.1], norm([0.0, 1.0, -0.1])).map(|k| k.0), Some(61));
+        // Where along: its front, its back.
+        let along = |y: f32| s.key_at([x, y, 3.0], [0.0, 0.0, -1.0]).unwrap().1;
+        assert!(along(lo[1] + 0.001) < 0.02 && along(hi[1] - 0.001) > 0.98, "{} {}", along(lo[1] + 0.001), along(hi[1] - 0.001));
+        assert_eq!(s.key_at([x, lo[1] - 1.0, hi[2] - 0.035], [0.0, 1.0, 0.0]), None);
+        // The fallboard shut, none.
+        let shut = build(&m, None, &Options { fallboard: true, ..options() });
+        assert!(shut.keys.is_empty());
+        let up = PianoModel { soundboard: m.soundboard.map(|sb| SoundboardParams { vertical: true, ..sb }), ..m };
+        assert_eq!(build(&up, None, &options()).keys.len(), s.keys.len());
     }
 
     #[test]
@@ -2054,7 +2313,9 @@ mod tests {
             let sb = m.soundboard.unwrap().resolved();
             let outline = board_outline(&sb);
             assert!(outline.iter().all(|&(x, y)| (0.0..=sb.a).contains(&x) && (0.0..=sb.b).contains(&y)));
-            let s = build(&m, None, &options());
+            // Without the case, whose inner rim the board's glued edge
+            // covers beyond the outline.
+            let s = build(&m, None, &Options { case: false, ..options() });
             let top: f64 = s
                 .tris
                 .as_chunks::<3>()
@@ -2106,7 +2367,7 @@ mod tests {
         m.soundboard.as_mut().unwrap().outline = SoundboardParams::GRAND_OUTLINE;
         let sb = m.soundboard.unwrap();
         let outline = board_outline(&sb);
-        let mut b = Builder::new(Place { vertical: false, top: 0.0 });
+        let mut b = Builder::new(Place { vertical: false, top: 0.0 }, Layer::All);
         let (t, z0, z1) = (0.075, -0.25, 0.05);
         b.wall(&outline, true, 0.0, t, z0, &|_| z1, CASE);
         // Its top is the ring between the outline and its offset: its area
@@ -2235,7 +2496,7 @@ mod tests {
 
     #[test]
     fn faces_point_outwards() {
-        let mut b = Builder::new(Place { vertical: false, top: 0.0 });
+        let mut b = Builder::new(Place { vertical: false, top: 0.0 }, Layer::All);
         b.cuboid([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], Color32::WHITE);
         for t in b.s.tris.chunks(3) {
             let c = scale(add(add(t[0].pos, t[1].pos), t[2].pos), 1.0 / 3.0);
