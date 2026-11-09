@@ -32,6 +32,9 @@ const HOST_PAGE: usize = usize::MAX - 1;
 /// Page index of the instrument's model ([`model::ModelView`]).
 const MODEL_PAGE: usize = usize::MAX - 2;
 
+/// Width of the help panel as it opens.
+const HELP_WIDTH: f32 = 280.0;
+
 /// A page the host adds to the interface, listed last: the standalone
 /// player's audio and MIDI settings (a plugin's host handles those).
 pub trait HostPage: Send {
@@ -55,6 +58,13 @@ pub struct PianoUi {
     search: String,
     /// Parameter whose help is shown (registry index).
     about: Option<usize>,
+    /// The help panel shown: it stays, whatever is shown in it, so that the
+    /// pages keep their width. Only its button in the top bar closes and
+    /// opens it.
+    help_open: bool,
+    /// The help panel as last drawn, and its button.
+    help_shown: Option<egui::Rect>,
+    help_button: Option<egui::Rect>,
     mics: mics::MicView,
     model: model::ModelView,
     /// Parameter under the pointer (registry index), lighting its part in
@@ -139,9 +149,13 @@ impl PianoUi {
         Self {
             registry,
             section,
-            page: 0,
+            // The instrument as it plays, the musician's controls beside it.
+            page: MODEL_PAGE,
             search: String::new(),
             about: None,
+            help_open: true,
+            help_shown: None,
+            help_button: None,
             mics: mics::MicView::default(),
             model: model::ModelView::default(),
             hovered: None,
@@ -310,10 +324,22 @@ impl PianoUi {
 
         egui::Panel::top("piano-top").show(ui, |ui| {
             ui.add_space(4.0);
+            // The Help button first, at the right: the only way to close the
+            // panel, it must stay in sight. The rest wraps in the room left.
+            // (Rows a line high: a separator takes all the height it is given;
+            // left to right, as the bar reads, inside the right-to-left row.)
             ui.horizontal(|ui| {
-                ui.heading("Unsampled Piano");
-                ui.separator();
-                self.preset_bar(ui, control, &model);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    let help = ui.toggle_value(&mut self.help_open, "Help");
+                    self.help_button = Some(help.rect);
+                    help.on_hover_text("The panel on the right telling what the control last moved or clicked does");
+                    let row = egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
+                    ui.allocate_ui_with_layout(row, egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true), |ui| {
+                        ui.heading("Unsampled Piano");
+                        ui.separator();
+                        self.preset_bar(ui, control, &model);
+                    });
+                });
             });
             if let Some(path) = &learning {
                 let label = self.registry.get(path).map_or(path.as_str(), |p| p.meta.label.as_str());
@@ -427,21 +453,21 @@ impl PianoUi {
             });
         });
 
-        if let Some(i) = self.about {
-            let mut open = true;
-            egui::Panel::right("piano-about").resizable(true).default_size(320.0).min_size(220.0).show(ui, |ui| {
+        self.help_shown = None;
+        if self.help_open {
+            let panel = egui::Panel::right("piano-about").resizable(true).default_size(HELP_WIDTH).min_size(220.0).show(ui, |ui| {
                 ui.add_space(6.0);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                    open = !ui.small_button("Close").clicked();
-                });
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    let p = &self.registry.params()[i];
-                    widgets::about(ui, p, piano_params::get(&model, &p.path), &model, &mut self.key);
+                egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| match self.about {
+                    Some(i) => {
+                        let p = &self.registry.params()[i];
+                        widgets::about(ui, p, piano_params::get(&model, &p.path), &model, &mut self.key);
+                    }
+                    None => {
+                        ui.label(RichText::new("Move a control or click its name to read here what it does.").weak());
+                    }
                 });
             });
-            if !open {
-                self.about = None;
-            }
+            self.help_shown = Some(panel.response.rect);
         }
 
         egui::CentralPanel::default().show(ui, |ui| {
@@ -482,9 +508,9 @@ impl PianoUi {
             let s = &SECTIONS[self.page.min(SECTIONS.len() - 1)];
             ui.heading(s.title);
             if s.view == View::Simple {
-                let shown = simple::show(ui, &self.registry, &values, control);
+                let shown = simple::show(ui, &self.registry, &values, control, false);
                 if let Some(i) = shown.clicked {
-                    self.about = if self.about == Some(i) { None } else { Some(i) };
+                    self.about = Some(i);
                 }
                 if shown.touched.is_some() {
                     self.about = shown.touched;
@@ -530,7 +556,7 @@ impl PianoUi {
                 }
                 let row = widgets::param_row(ui, &params[i], values[i], control);
                 if row.label.clicked() {
-                    self.about = if self.about == Some(i) { None } else { Some(i) };
+                    self.about = Some(i);
                 }
                 // Moving a value shows its help; pointing at the name or
                 // the value lights its part in the page's sketch.
@@ -552,7 +578,7 @@ impl PianoUi {
         let lit = self.hovered.and_then(|i| sketches::locate(&self.registry.params()[i].path)).map_or(&[][..], |(_, parts)| parts);
         let (shown, open) = self.model.show(ui, control, model, &self.registry, &values, &mut self.key, lit);
         if let Some(i) = shown.clicked {
-            self.about = if self.about == Some(i) { None } else { Some(i) };
+            self.about = Some(i);
         }
         if shown.touched.is_some() {
             self.about = shown.touched;
@@ -926,9 +952,13 @@ mod slider_tests {
     use egui::{Event, PointerButton, Pos2, RawInput, Rect, Vec2};
 
     fn frame(ui: &mut PianoUi, control: &mut MockControl, ctx: &egui::Context, events: Vec<Event>) {
+        frame_at(Vec2::new(1100.0, 800.0), ui, control, ctx, events);
+    }
+
+    fn frame_at(size: Vec2, ui: &mut PianoUi, control: &mut MockControl, ctx: &egui::Context, events: Vec<Event>) {
         // A frame every 1/60 s (double clicks are told apart by time).
         let time = Some(ctx.input(|i| i.time) + 1.0 / 60.0);
-        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1100.0, 800.0))), events, time, ..Default::default() };
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, size)), events, time, ..Default::default() };
         ctx.run_ui(input, |root| ui.show(root, control)).drop_without_applying_deltas();
     }
 
@@ -986,6 +1016,151 @@ mod slider_tests {
         assert!(after > before + 0.05, "board length {before} -> {after}");
         // Nothing else moved with it.
         assert_eq!(control.model().soundboard.unwrap().b, PianoModel::default().soundboard.unwrap().b);
+    }
+
+    /// A slider dragged from its right end, a step at a time: the values
+    /// it went through and the help shown while it moved.
+    fn drag_left(ui: &mut PianoUi, control: &mut MockControl, ctx: &egui::Context, at: Pos2, path: &str) -> (Vec<f64>, Option<usize>) {
+        let value = |c: &MockControl| piano_params::get(&c.model(), path).unwrap().as_f64();
+        let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Default::default() };
+        frame(ui, control, ctx, vec![button(at, true)]);
+        let mut seen = vec![value(control)];
+        let mut about = None;
+        for k in 1..=5 {
+            frame(ui, control, ctx, vec![Event::PointerMoved(at - Vec2::new(8.0 * k as f32, 0.0))]);
+            seen.push(value(control));
+            about = ui.about;
+        }
+        frame(ui, control, ctx, vec![button(at - Vec2::new(40.0, 0.0), false)]);
+        (seen, about)
+    }
+
+    /// The interface opens on the instrument playing, in 3D's realistic
+    /// look, the musician's controls beside it and the help panel beside
+    /// them: a slider follows the pointer step by step, its help shown as
+    /// it moves.
+    #[test]
+    fn it_opens_on_the_live_view_with_the_controls_beside() {
+        let ctx = egui::Context::default();
+        let mut ui = PianoUi::new(None);
+        assert_eq!((ui.page, ui.model.mode, ui.model.realistic), (MODEL_PAGE, model::Mode::Live, true));
+        let mut control = MockControl::new(PianoModel::default());
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        let (column, help) = (ui.model.side_shown.expect("the controls beside the view"), ui.help_shown.expect("the help panel"));
+        assert!(column.right() <= help.left(), "{column:?} under {help:?}");
+        assert!(ui.about.is_none());
+        // A control's slider, from its right end: the first thing met
+        // there that lights the control.
+        let at = (100..800)
+            .step_by(4)
+            .find_map(|y| {
+                (column.left() as i32..column.right() as i32).rev().step_by(4).map(|x| Pos2::new(x as f32, y as f32)).find(|&p| {
+                    frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(p)]);
+                    ui.hovered.is_some_and(|i| ui.registry.params()[i].path.starts_with("macros."))
+                })
+            })
+            .expect("a control in the column");
+        let i = ui.hovered.unwrap();
+        let path = ui.registry.params()[i].path.clone();
+        let (seen, about) = drag_left(&mut ui, &mut control, &ctx, at, &path);
+        for pair in seen.windows(2) {
+            assert!(pair[1] <= pair[0] && pair[0] - pair[1] < 0.2, "{path}: {seen:?}");
+        }
+        assert!(seen[5] < seen[0] - 0.3, "{path}: {seen:?}");
+        assert_eq!(about, Some(i));
+        assert_eq!(ui.help_shown, Some(help), "the panel did not move");
+    }
+
+    /// Down to the smallest window, with the shipped presets in the bar and
+    /// a message after them, the Help button stays in sight; and the Live
+    /// controls, beside the view or under it, stay clear of the panel.
+    #[test]
+    fn narrow_windows_keep_help_and_the_controls_in_reach() {
+        let presets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets");
+        for width in [760.0, 1000.0, 1100.0] {
+            let size = Vec2::new(width, 760.0);
+            let ctx = egui::Context::default();
+            let mut ui = PianoUi::new(Some(presets.clone()));
+            ui.set_preset_name("baroque_415");
+            ui.message = Some(Ok("Loaded baroque_415: a long message, as long as a preset's with its listening set-up and touch".into()));
+            let mut control = MockControl::new(PianoModel::default());
+            for _ in 0..3 {
+                frame_at(size, &mut ui, &mut control, &ctx, vec![]);
+            }
+            let help = ui.help_button.unwrap();
+            assert!(help.right() <= width && help.left() >= 0.0, "{width}: Help at {help:?}");
+            let (controls, panel) = (ui.model.side_shown.unwrap(), ui.help_shown.unwrap());
+            // The bar wraps over a few lines at most.
+            assert!(panel.top() < 120.0, "{width}: the bar comes down to {}", panel.top());
+            assert!(controls.right() <= panel.left(), "{width}: {controls:?} under the panel {panel:?}");
+        }
+    }
+
+    /// The Editor's columns follow the page's width: its slider moves step
+    /// by step as well, its help shown as it moves.
+    #[test]
+    fn a_slider_in_the_editor_shows_its_help_as_it_moves() {
+        let ctx = egui::Context::default();
+        let mut ui = PianoUi::new(None);
+        ui.open_page("Model editor");
+        let mut control = MockControl::new(PianoModel::default());
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        // From the right: a row's slider before its name.
+        let right = ui.help_shown.unwrap().left() as i32;
+        let at = (100..800)
+            .step_by(4)
+            .find_map(|y| {
+                (300..right).rev().step_by(4).map(|x| Pos2::new(x as f32, y as f32)).find(|&p| {
+                    frame(&mut ui, &mut control, &ctx, vec![Event::PointerMoved(p)]);
+                    ui.hovered.is_some()
+                })
+            })
+            .expect("a slider in the editor");
+        let i = ui.hovered.unwrap();
+        let path = ui.registry.params()[i].path.clone();
+        let (seen, about) = drag_left(&mut ui, &mut control, &ctx, at, &path);
+        assert_eq!(about, Some(i));
+        assert!(seen.windows(2).all(|p| p[1] <= p[0]) && seen[5] < seen[0], "{path}: {seen:?}");
+    }
+
+    /// Whatever it tells, the help panel keeps its width; and closed, only
+    /// its button brings it back.
+    #[test]
+    fn the_help_panel_stays_until_its_button_closes_it() {
+        let ctx = egui::Context::default();
+        let mut ui = PianoUi::new(None);
+        ui.open_page("Simple");
+        let mut control = MockControl::new(PianoModel::default());
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        let help = ui.help_shown.expect("open, with nothing to tell yet");
+        assert_eq!(help.width().round(), HELP_WIDTH.round());
+        for i in 0..ui.registry.params().len() {
+            ui.about = Some(i);
+            frame(&mut ui, &mut control, &ctx, vec![]);
+            // Twice: a width grown would show as the panel's left edge.
+            frame(&mut ui, &mut control, &ctx, vec![]);
+            assert_eq!(ui.help_shown, Some(help), "{}", ui.registry.params()[i].path);
+        }
+        // Its button, at the right of the top bar.
+        let click = |ui: &mut PianoUi, control: &mut MockControl| {
+            let at = Pos2::new(1075.0, 16.0);
+            let button = |pressed| Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: Default::default() };
+            frame(ui, control, &ctx, vec![Event::PointerMoved(at)]);
+            frame(ui, control, &ctx, vec![button(true)]);
+            frame(ui, control, &ctx, vec![button(false)]);
+            frame(ui, control, &ctx, vec![]);
+        };
+        click(&mut ui, &mut control);
+        assert_eq!(ui.help_shown, None);
+        // Told about something else meanwhile, it stays closed.
+        ui.show_help("macros.tone");
+        frame(&mut ui, &mut control, &ctx, vec![]);
+        assert_eq!(ui.help_shown, None);
+        click(&mut ui, &mut control);
+        assert!(ui.help_shown.is_some());
     }
 
     #[test]

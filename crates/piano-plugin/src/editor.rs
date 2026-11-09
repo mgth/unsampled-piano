@@ -18,7 +18,7 @@ use piano_ui::PianoUi;
 
 use crate::{PianoParams, Shared};
 
-const SIZE: LogicalSize<f32> = LogicalSize::new(1100.0, 760.0);
+const SIZE: LogicalSize<f32> = LogicalSize::new(1360.0, 760.0);
 const MIN_SIZE: LogicalSize<f32> = LogicalSize::new(760.0, 480.0);
 
 pub fn state() -> Arc<EguiEditorState> {
