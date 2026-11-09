@@ -47,6 +47,8 @@ pub struct EngineSlot {
     /// Replaced engines waiting for room in `reclaim`.
     unsent: [Option<Box<Engine>>; SLOTS + 1],
     params: rtrb::Consumer<Event>,
+    /// The notes the interface plays ([`EngineSlot::pop_note`]).
+    notes: rtrb::Consumer<Event>,
     /// MIDI learn: controllers mapped to live parameters (replaced whole
     /// from `route_updates`), and every controller received, reported to
     /// the non-real-time side.
@@ -92,6 +94,7 @@ impl EngineSlot {
         incoming: rtrb::Consumer<Box<Engine>>,
         reclaim: rtrb::Producer<Box<Engine>>,
         params: rtrb::Consumer<Event>,
+        notes: rtrb::Consumer<Event>,
         route_updates: rtrb::Consumer<RouteTable>,
         cc_report: rtrb::Producer<(u8, u8)>,
         shared: Arc<Shared>,
@@ -105,6 +108,7 @@ impl EngineSlot {
             reclaim,
             unsent: std::array::from_fn(|_| None),
             params,
+            notes,
             routes: RouteTable::default(),
             route_updates,
             cc_report,
@@ -146,6 +150,14 @@ impl EngineSlot {
     /// [`EngineSlot::inject`]ed, they play the same output.
     pub fn journal(&self) -> (Option<&piano_core::params::PianoModel>, &[TimedEvent]) {
         (self.swapped.then(|| &self.current.config().model), &self.ev_new[self.journal_from..])
+    }
+
+    /// A note played from the interface, for a host that reports what the
+    /// piano plays (a MIDI mirror): taken here, it is the caller's to pass
+    /// on in the events of [`EngineSlot::process_stereo`]. The notes left
+    /// play at the start of the next block.
+    pub fn pop_note(&mut self) -> Option<Event> {
+        self.notes.pop().ok()
     }
 
     /// Takes `engine` at the next block as if the controller had rebuilt it
@@ -198,9 +210,13 @@ impl EngineSlot {
         self.swapped = swapped;
         self.journal_from = self.ev_new.len();
         while self.ev_new.len() < MAX_EVENTS / 2 {
-            let Ok(event) = self.params.pop() else { break };
+            // Parameters, then the notes the interface plays that the
+            // caller left.
+            let Some(event) = self.params.pop().or_else(|_| self.notes.pop()).ok() else { break };
             self.ev_new.push(TimedEvent { frame: 0, event });
-            self.ev_old.push(TimedEvent { frame: 0, event });
+            if !matches!(event, Event::NoteOn { .. }) {
+                self.ev_old.push(TimedEvent { frame: 0, event });
+            }
         }
         for &e in events {
             if self.ev_new.len() == MAX_EVENTS {

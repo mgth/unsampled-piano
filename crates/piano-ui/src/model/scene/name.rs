@@ -110,7 +110,7 @@ mod tests {
         let (dy, dz) = (dy / l, dz / l);
         let at = |u: f64, v: f64, h: f64| [u as f32, (dy * v - dz * h) as f32, (dz * v + dy * h) as f32];
         let out = [0.0, -dz as f32, dy as f32];
-        let mut b = Builder::new(Place { vertical: false, top: 0.0 });
+        let mut b = Builder::new(Place { vertical: false, top: 0.0 }, Layer::All);
         name(&mut b, &at);
         let (mut faces, mut walls) = (0, 0);
         for t in b.s.tris.chunks(3) {
