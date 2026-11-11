@@ -73,8 +73,10 @@ pub const SECTIONS: &[Section] = &[
             "hysteresis",
             "contact_width_scale",
             "hammer_mass_scale",
+            "hammer_mass_slope",
             "shank_",
             "strike_ratio",
+            "strike_ratio_top",
         ],
         curves: &[
             Curve { title: "Felt stiffness Q0", unit: "N/mm^p", x: KEYS, log: true, f: |m, n| m.note(n).hammer.q0 },
