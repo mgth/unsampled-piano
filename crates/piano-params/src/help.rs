@@ -761,6 +761,19 @@ const HELP: &[(&str, &str, &str)] = &[
     ("soundboard.structure.bass_bridge_thickness", "Height of the bass bridge along the keys, the board included.", "Pairs of MIDI note and metres, ascending."),
     ("soundboard.structure.bridge_width", "Width of the bridges.", "Metres."),
     (
+        "soundboard.structure.strings",
+        "The strings hold the bridge: under tension on both sides of it, they pull it back when it \
+         moves, and the board's lowest resonances rise. Off: a board without its strings.",
+        "A spring T·(1/L + 1/l) per string under its bridge point, L its speaking length and l its \
+         rear length (`back_length`), in the stiffness the modes are computed with \
+         (docs/real_board.md).",
+    ),
+    (
+        "soundboard.structure.back_length",
+        "Length of the strings behind the bridge, up to their hitch pins.",
+        "Pairs of MIDI note and metres, ascending. The shorter, the more the strings hold the bridge.",
+    ),
+    (
         "soundboard.scatter",
         "How much of the soundboard's sound is scattered in every direction by what lies over it: \
          the strings, the iron frame, the dampers and the bridges. The board alone sends its highs \

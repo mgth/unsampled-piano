@@ -153,12 +153,76 @@ The fundamentals of C6–F6 now start 1.2 dB under the D's (9.8 dB before). On t
 
 `scatter` 2 scores about the same with a free constant. Its layer radiates more power than the board can (an efficiency near 5 above its corner) and takes it from nowhere; at 1, with a bench of 1.96, it is already at 1.2. The two are not to be added: the field stands for what the layer did.
 
+## The bass against a real concert grand
+
+Status as of 2026-11-11. The commercial D's bass holds twice as long as the preset's (A0–B0 lose 6.7 dB between 0.2 and 2 s, the preset 13.0). Before closing that gap, what a real one does: Plath's concert grand (a new Steinway, anechoic, every key; docs/steinway_d.md), its dummy head and the accelerometer on its bridge. Drop of the sound between 0.2 and 2 s, then between 0.2 and 1 s, velocity 100 for the two models (dB):
+
+| | A0–B0 | C1–B1 | C2–B2 | C3–B3 |
+|---|---|---|---|---|
+| the commercial D | 6.7 / 3.2 | 9.1 / 4.4 | 14.8 / 7.1 | 23.6 / 12.0 |
+| the real grand, at the ears | 11.5 / 6.1 | 9.5 / 5.6 | 14.2 / 8.2 | 18.7 / 10.7 |
+| the preset | 13.0 / 7.1 | 12.6 / 7.3 | 16.7 / 9.2 | 17.7 / 9.0 |
+| strings on the bridge, no piston mode | 12.8 / 7.2 | 12.6 / 7.5 | 16.1 / 9.1 | 19.3 / 9.7 |
+| the same, measured polarisation | 13.9 / 7.3 | 13.0 / 7.5 | 17.1 / 9.2 | 20.2 / 10.6 |
+
+The real grand's three lowest keys fall as the preset's, not as the commercial D's: no real measure here says that A0–B0 should hold as long as that D. From C1 to B2 the real grand follows the commercial D and the preset falls 2–3 dB too fast; at C3–B3 the preset holds 1 dB longer than the real grand and 6 dB longer than the D.
+
+**Partial by partial.** Decay rate of each partial over 0.15–1 s and over 1–2.5 s (dB/s, median over the keys and the partials; the real grand at its bridge):
+
+| A0–E1, one string | partial 1 | 2–4 | 5–8 | 9–16 |
+|---|---|---|---|---|
+| the commercial D | 7.3 / 6.3 | 4.2 / 4.1 | 3.0 / 2.7 | 2.7 / 2.5 |
+| the real grand | 0.7 / 0.5 | 4.9 / 4.4 | 4.1 / 3.5 | 4.6 / 4.6 |
+| the preset | 6.5 / 10.8 | 11.5 / 4.0 | 7.3 / 4.6 | 4.4 / 4.8 |
+| strings on the bridge, no piston mode | 0.9 / 2.2 | 10.9 / 3.1 | 7.2 / 4.4 | 4.4 / 4.4 |
+| the same, measured polarisation | 0.4 / 0.6 | 10.1 / 7.9 | 7.1 / 5.7 | 4.4 / 4.7 |
+
+A real single string decays at one rate, 4–5 dB/s from its second partial up, and its fundamental hardly at all. The preset's partials 2–8 fall two to three times faster at first, then slow down; its fundamental falls ten times too fast.
+
+**A real bridge's conductance, from its strings.** A string alone on its key loses 8.69·(T/L)·Re Y dB/s to the bridge, so the decay of the real grand's eight single strings, partial by partial, bounds its bass bridge's conductance from above at 128 frequencies (`examples/bass_loss.rs` gives the model's side: the string's own loss, the board's conductance at the partial, the modes that carry it, the engine's coupled modes). Medians per band, dB/s:
+
+| Hz | 25–45 | 45–70 | 70–100 | 100–140 | 140–200 | 200–280 | 280–400 | 400–700 |
+|---|---|---|---|---|---|---|---|---|
+| the real grand's single strings | 0.7 | 3.1 | 5.4 | 5.7 | 3.1 | 4.8 | 4.6 | 4.4 |
+| the preset: the board alone | 4.6 | 19.6 | 18.6 | 7.7 | 3.0 | 5.0 | 3.1 | 3.3 |
+| the preset: the engine's fast mode | 6.9 | 28.7 | 27.4 | 11.7 | 4.5 | 7.0 | 4.5 | 5.0 |
+| strings on the bridge, no piston mode: the board alone | 0.3 | 4.1 | 20.6 | 9.7 | 2.7 | 5.4 | 3.4 | 2.8 |
+| the same, measured polarisation: the fast mode | 0.6 | 4.5 | 21.7 | 10.5 | 3.4 | 6.3 | 4.5 | 4.6 |
+
+Above 140 Hz the built board's conductance is the real bridge's, with nothing fitted. Three things stood between it and the real decay:
+
+- **The board had no strings.** Its lowest modes were set on Conklin's board, measured without strings or bridge: 49, 62, 83, 94, 112, 127, 146 Hz. Under each key's fundamental the real bridge's acceleration holds no partial, and what rings there after the blow is the board (`plath_modes.py` in the session's tools): 66–72 Hz, weakly, then 109, 114, 118, 137–140, 149, 170, 177, 190, 207 Hz, and nothing clear under 60 Hz. The real single strings lose most at 92–103 Hz (12, 25 and 10 dB/s) and at 137–138 Hz (39 and 22 dB/s). With the strings' hold ([The strings on the bridge](#the-strings-on-the-bridge)): 68, 77, 95, 111, 128, 135, 156, 170, 183, 201, 209 Hz.
+- **The piston mode** (`piston_freq` 40 Hz, 6 kg, loss 0.7, a fit standing for the case on its legs, which can add 1.6 s⁻¹ at most): it carried 50–80 % of the conductance at the fundamentals of A0–E1, 3–7 dB/s where the real ones lose 0.7.
+- **The sideways polarisation.** `polarization` gives the bass a sideways coupling of 0.6 times the vertical one and a cross term (0.3 at C4, growing as 1/f down to C3, set for the middle's fundamentals by ear): a single string's fast mode then loses 1.47 times what the board takes, and a slow one stands 5 dB under it. The real single strings show neither: one rate, early and late. The law measured on a real grand's partials before that fit (0.03, cross at its passive limit, no slope) gives one rate again, the board's.
+
+What is left: at 70–140 Hz the model's bass bridge still conducts two to four times too much (modes at 77 and 95 Hz, broad under the resting strings' load, η 0.13–0.17, where the real bridge shows one narrower resonance near 97 Hz), which is where partials 2–4 of A0–E1 lie.
+
+### The strings on the bridge
+
+`structure.strings`, off by default, on in the preset. A string under tension T crosses the bridge between its speaking length L and its rear length l, which ends at the hitch pin. Moving the bridge by w across them turns both parts, and the string pulls back with T·w·(1/L + 1/l): a spring under each key's bridge point, added to the stiffness the modes are computed with (it enters the cache's hash). `PianoModel::board_params` fills each key's hold from the scale: 8 kN/m at A0, 25 kN/m at C4, 60 kN/m at C7, 0.25 MN/m along the bass bridge and 2.6 MN/m along the main one, against some 0.3 MN/m of modal stiffness for the bare board's first mode. The rear lengths do most of it, being five to ten times shorter than the speaking lengths.
+
+`structure.back_length` is an estimate, not a measurement: 4 cm plus a tenth of the speaking length, 24 cm at A0, 10.5 cm at C4, 4.5 cm at C8. No table of the D's rear lengths was found; one owner's photograph puts the lowest string's two ends 24 cm beyond its speaking length, tuning-pin side included. The static spring is right for a mode below the string's own fundamental, and for the rear length up to its own resonance, some kHz. A mode above the string's fundamental sees its waves instead, which `string_load` stands for; the speaking length's share of the spring, a tenth, is then wrong, and left.
+
+Halving these lengths puts the first modes at 73, 87, 102 and 117 Hz, doubling them at 62, 72, 90 and 107 Hz, against 68, 77, 95 and 111 Hz as set and 49, 62, 83 and 94 Hz without strings: the real grand's first resonance, 66–72 Hz, lies within what the estimate allows and far from the bare board's.
+
+It takes the place of nothing fitted, and `crown_freq` stays where Conklin's unstrung board put it.
+
+| | distance to the D | bass | middle | treble | top | bench | bench, bass | bass T60, partials 1–4, early (real grands 8.3 s) |
+|---|---|---|---|---|---|---|---|---|
+| the preset until then | 9.08 | 8.60 | 8.39 | 12.05 | 6.33 | 1.92 | 1.41 | 6.0 s |
+| + `structure.strings`, `piston_freq` 0 | 7.22 | 6.91 | 6.46 | 8.78 | 6.47 | 1.95 | 1.34 | 7.0 s |
+| **+ the measured polarisation (0.03, cross 0.173, no slope): the preset** | 7.32 | 7.72 | 6.59 | 8.35 | 6.47 | 1.97 | 1.43 | 8.1 s |
+
+With the strings and without the piston mode the built board comes back to the fitted plate's distance to the D (7.20) with nothing fitted in it, most of it in the treble and the middle, whose keys the strings hold hardest: their bridge moves less and their partials at the attack and in the sustain come 2.5–3 dB closer. The bench hardly moves: its sustain (1.58 → 1.37) and decay families (1.40 → 1.30) and its bass get closer, its attack (1.80 → 1.97) and its top register (2.79 → 2.95) further. The bass's broadband decay does not change, since its fundamentals carry little of the sound: what changes there is each partial's own decay.
+
+The preset takes all three (2026-11-11), chosen after hearing both variants against it and the D (`out/ab_grave_cordes`): the strings, no piston mode, the measured polarisation.
+
 ## Still not in it
 
 - **Crown and bearing**: a foundation term set on four modes, not the shell under the strings' 200 kN.
 - **Coupling**: the rim and the frame receive the board's forces and do not give back. The clamped edge is rigid. Made two-way, the ring would change two modes in 227 ([What the rim and the case could take](#what-the-rim-and-the-case-could-take)).
 - **Air between modes**: each mode loads only itself. The case's own volume, the lid and the room do not act back on the board. The case's field is statistical: no individual reflection, no strut, the frame's real shape being unknown to the sources used here.
-- **Duplex lengths**, the 17th rib, the plate's real braces, the bridges' pins and notches.
+- **The strings' rear lengths** as measured (an estimate holds the bridge), their duplex resonances, the 17th rib, the plate's real braces, the bridges' pins and notches.
 - **The modes above 3 kHz**: still a statistical plate, at the structure's level. Finer elements or second-order ones would extend the corner.
 - **The rib-plate glue line** and in-plane relaxation under a narrow rib: the section takes the stack as free to find its neutral plane, which softens a little what a 3D model keeps stiff.
 

@@ -18,6 +18,20 @@ core_hardness = 8.0
 # (uniform shank, straight bass bridge, upright main strings): the default's.
 shank_freq_mid = 700.0
 
+[polarization]
+# The sideways coupling as measured on a real grand's partials (0.03, the cross
+# term at its passive limit, no slope): a real concert grand's single strings
+# decay at one rate, early and late (docs/real_board.md). Every field written.
+enabled = true
+h_coupling = 0.03
+cross = 0.1732
+detune_cents = 0.3
+radiation = 0.1
+hammer_tilt = 0.05
+smooth = 0.0
+slope = 0.0
+slope_from = 0.0
+
 [inharmonicity]
 # RT-425's strings, fitted to the law (log B rms 0.064).
 a_bass = -0.1163
@@ -87,6 +101,9 @@ case_field = true
 # (docs/real_board.md); the rim, made two-way, takes almost nothing, so no edge loss.
 loss_low_corner = 80.0
 edge_loss = 0.0
+# No piston mode: a fit, which took 3-7 dB/s from the fundamentals of A0-E1 where
+# a real concert grand's lose 0.7 (docs/real_board.md).
+piston_freq = 0.0
 bass_bridge_bow = 0.034
 main_string_slant = 0.0
 
@@ -94,6 +111,9 @@ main_string_slant = 0.0
 # (fem::BoardStructure::STEINWAY_D, docs/real_board.md).
 [soundboard.structure]
 enabled = true
+# The strings hold the bridge, T·(1/L + 1/l) each: the first modes at 68, 77, 95
+# and 111 Hz, a real strung concert grand's first resonance being at 66-72 Hz.
+strings = true
 
 [frame]
 # The plate over the board and the pin block (offset_x −0.2), as the default's.

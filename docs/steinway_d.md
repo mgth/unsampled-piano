@@ -50,7 +50,7 @@ What could be found in print about the Steinway D-274 (the concert grand), gathe
 
 RT-425's values are those its authors use in their own simulations, "based on measurements": the lengths are measured; six strings were measured (D#1, C2, F3, C#5, G6, C7) and the diameters, densities and tensions fitted on them so that the inharmonicity evolves smoothly, the wound strings as a homogenised material; the hammers are laws its authors propose, not measurements. RT-425 tunes A4 at 441 Hz and gives no A0–B0 or C8. Its C1 string, 2.007 m, is Steinway's "longest string, 201 cm": A0–B0, on the same bass bridge, are presumably no longer.
 
-Not found: height of the case and of the rim, the lid's size and its prop's angles, rib spacing and widths, the real bass strings' core and winding, plate dimensions. The last damper is not published either: the commercial D's is G6 (`Last Damper` 91/128; with short notes, G6 drops 19 dB after the key-up and G#6 not at all, and the setting moves that limit), a modeller's choice rather than a measurement.
+Not found: the strings' rear lengths (bridge to hitch pin), height of the case and of the rim, the lid's size and its prop's angles, rib spacing and widths, the real bass strings' core and winding, plate dimensions. The last damper is not published either: the commercial D's is G6 (`Last Damper` 91/128; with short notes, G6 drops 19 dB after the key-up and G#6 not at all, and the setting moves that limit), a modeller's choice rather than a measurement.
 
 ## What the tables give the model
 
@@ -107,6 +107,9 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `hammer_mass_slope` | 0 | 0.00078, with `hammer_mass_scale` 1.053 | RT-425 against Stulov, 1.02 at C1 to 1.07 at C7 |
 | `damper.highest_note` | 86 (D6) | 91 (G6) | the commercial D's setting, checked on its key-ups |
 | `soundboard.structure.enabled` | false | true | plate, ribs and bridges by finite elements, docs/real_board.md |
+| `soundboard.structure.strings` | false | true | the strings hold the bridge, T·(1/L + 1/l) each; the rear lengths are an estimate (docs/real_board.md) |
+| `soundboard.piston_freq` | 40 | 0 (none) | a fit; a real concert grand's low fundamentals lose 0.7 dB/s (docs/real_board.md) |
+| `polarization` | 0.3 at C4, cross 0.438, slope −1 from C3 | 0.03, cross 0.173, no slope | the law measured on a real grand's partials: single strings decay at one rate |
 | `soundboard.crown_freq` | 90 | 40 | brings the first four modes under the air to Conklin's on a real 2.74 m board (docs/real_board.md) |
 | `soundboard.case_field` | false | true | what the board radiates comes back off the rim, the frame and the lid: the box as a small room, from each mode's radiation loss (docs/real_board.md) |
 | `soundboard.loss_factor`, `loss_corner` | 0.02, 2500 | 0.0223, 3500 | the thesis's damping law, read as a decay constant |
@@ -285,3 +288,5 @@ Still false: the board as a smeared plate aligned with its rectangle (the D's ri
 ### The real board
 
 The board as it is built, with its plate, 16 ribs and bridges, by finite elements: docs/real_board.md. Its modes agree with the thesis's 3D computation within 3.2 % over the first 20. With the air on it and the case's field, distance to the D 7.20 → 9.08, bench 1.83 → 1.92, with the low modes' loss at the measured boards' level: it is further from the recording and nearer the real grands on the bass's decay and the treble's upper partials. The treble's fundamentals, short with the air alone (C6–B6 −11.9 dB against A2–A5), are at −5.6, the D's being at −2.8.
+
+A real concert grand's bass, measured key by key (Plath's), then set the target apart from the commercial D's: its three lowest keys fall as the preset's, and its single strings decay at one rate. With the strings holding the bridge, no piston mode and the measured polarisation, the distance goes from 9.08 to 7.32 (docs/real_board.md, "The bass against a real concert grand").

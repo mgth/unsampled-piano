@@ -1189,9 +1189,33 @@ impl PianoModel {
             .collect()
     }
 
-    /// The soundboard, loaded by the damped strings.
+    /// What each key's strings hold the bridge with (N/m): T·(1/L + 1/l)
+    /// per string, L its speaking length and l its rear length
+    /// ([`crate::fem::BoardStructure::strings`]).
+    pub fn string_hold(&self, structure: &crate::fem::BoardStructure) -> crate::fem::StringHold {
+        let mut hold = crate::fem::StringHold::default();
+        for (i, h) in hold.0.iter_mut().enumerate() {
+            let note = 21 + i as u8;
+            let p = self.note(note);
+            *h = (p.strings as f64 * p.tension * (1.0 / p.length + 1.0 / structure.back_length_at(note).max(1e-3))) as f32;
+        }
+        hold
+    }
+
+    /// The soundboard's parameters as it is built: with the strings in its
+    /// structure, their hold from this scale.
+    pub fn board_params(&self) -> Option<crate::soundboard::SoundboardParams> {
+        self.soundboard.map(|mut p| {
+            if p.structure.enabled && p.structure.strings {
+                p.structure.hold = self.string_hold(&p.structure);
+            }
+            p
+        })
+    }
+
+    /// The soundboard, held and loaded by the strings.
     pub fn board(&self) -> Option<crate::soundboard::Soundboard> {
-        self.soundboard.map(|p| {
+        self.board_params().map(|p| {
             let mut sb = crate::soundboard::Soundboard::new(p);
             sb.load_strings(&self.damped_strings());
             sb

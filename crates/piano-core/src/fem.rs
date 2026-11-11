@@ -29,6 +29,19 @@ pub const RIB_POINTS: usize = 20;
 pub const MAIN_BRIDGE_POINTS: usize = 8;
 /// Points of the bass bridge's thickness curve.
 pub const BASS_BRIDGE_POINTS: usize = 3;
+/// Points of the curve of the strings' rear lengths.
+pub const BACK_POINTS: usize = 6;
+
+/// What each key's strings hold the bridge with (N/m), A0 first: filled from
+/// the scale by [`crate::params::PianoModel::board`], not a setting.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StringHold(pub [f32; 88]);
+
+impl Default for StringHold {
+    fn default() -> Self {
+        Self([0.0; 88])
+    }
+}
 
 /// What the board is made of and where, for [`BoardFem`]. The default is the
 /// Steinway D of Chabassier's thesis and RT-425, switched off.
@@ -85,6 +98,19 @@ pub struct BoardStructure {
     pub main_bridge_thickness: [(f64, f64); MAIN_BRIDGE_POINTS],
     pub bass_bridge_thickness: [(f64, f64); BASS_BRIDGE_POINTS],
     pub bridge_width: f64,
+    /// The strings hold the bridge. A string under tension T that crosses the
+    /// bridge between its speaking length L and its rear length l, up to the
+    /// hitch pin, pulls the bridge back by T·(1/L + 1/l) per metre it is
+    /// moved: a spring under each key's bridge point, in the stiffness the
+    /// modes are computed with. A board measured without its strings has
+    /// none (docs/real_board.md).
+    pub strings: bool,
+    /// The strings' rear length, from the bridge to the hitch pin or to the
+    /// duplex bar: pairs of MIDI note and metres, ascending.
+    pub back_length: [(f64, f64); BACK_POINTS],
+    /// The hold of each key's strings, from the scale's tensions and lengths.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub hold: StringHold,
 }
 
 impl Default for BoardStructure {
@@ -94,6 +120,11 @@ impl Default for BoardStructure {
 }
 
 impl BoardStructure {
+    /// Rear length (m) of a key's strings.
+    pub fn back_length_at(&self, note: u8) -> f64 {
+        curve(&self.back_length, note as f64)
+    }
+
     /// RT-425's woods and its figure 2's thicknesses, read in metres off the
     /// figure (docs/real_board.md): its 16 ribs, 2–2.6 cm wide (the thesis
     /// measured them on the piano and counted 17).
@@ -148,6 +179,9 @@ impl BoardStructure {
         main_bridge_thickness: [(41.0, 0.055), (49.0, 0.067), (53.0, 0.07), (61.0, 0.064), (69.0, 0.055), (81.0, 0.042), (97.0, 0.032), (108.0, 0.029)],
         bass_bridge_thickness: [(21.0, 0.052), (32.0, 0.058), (40.0, 0.06)],
         bridge_width: 0.03,
+        strings: false,
+        back_length: [(21.0, 0.24), (40.0, 0.18), (41.0, 0.22), (60.0, 0.105), (84.0, 0.058), (108.0, 0.045)],
+        hold: StringHold([0.0; 88]),
     };
 }
 
@@ -757,6 +791,33 @@ impl BoardFem {
                 }
             }
         }
+        // The strings' hold: a spring under each key's bridge point, shared
+        // between the corners of its element as the shape is read there.
+        if s.strings {
+            for (i, &hold) in s.hold.0.iter().enumerate() {
+                let (x, y) = p.bridge_point(21 + i as u8);
+                let (u, v) = (x / hx, y / hy);
+                if hold <= 0.0 || u < 0.0 || v < 0.0 || u >= nx as f64 || v >= ny as f64 {
+                    continue;
+                }
+                let (ci, cj) = (u as usize, v as usize);
+                if !active[ci * ny + cj] {
+                    continue;
+                }
+                let (fx, fy) = (u - ci as f64, v - cj as f64);
+                let share = [(1.0 - fx) * (1.0 - fy), fx * (1.0 - fy), (1.0 - fx) * fy, fx * fy];
+                let c = ci * ny + cj;
+                for a in 0..4 {
+                    let Some(ga) = global(c, 3 * a) else { continue };
+                    for b in 0..4 {
+                        let Some(gb) = global(c, 3 * b) else { continue };
+                        if ga <= gb {
+                            k.add(ga, gb, hold as f64 * share[a] * share[b]);
+                        }
+                    }
+                }
+            }
+        }
         // Slices of 400 Hz up to the corner.
         let top = TAU * s.below;
         let slices = ((s.below / 400.0).ceil() as usize).max(1);
@@ -1128,6 +1189,27 @@ mod tests {
         // One layer: the plate's own inertia about its middle.
         let one = reduce(&[layer(q, 0.0, 0.01)]);
         assert!((one.inertia - 390.0 * 0.01f64.powi(3) / 12.0).abs() < 1e-12);
+    }
+
+    /// A spring k under the middle of a plate raises its first mode as k·Φ²
+    /// says, to first order, and leaves a board without strings as it was.
+    #[test]
+    fn the_strings_hold_raises_the_first_mode() {
+        let mut p = plain(0.6, 0.02, 600.0);
+        p.treble_bridge = [(0.5, 0.5); 5];
+        p.bass_bridge = [(0.5, 0.5); 2];
+        let bare = BoardFem::build(&p);
+        let k = 2000.0;
+        let mut hold = StringHold::default();
+        hold.0[39] = k as f32;
+        p.structure.hold = hold;
+        assert_eq!(BoardFem::build(&p).omega[0], bare.omega[0], "the hold acts only with the strings on");
+        p.structure.strings = true;
+        let held = BoardFem::build(&p);
+        let (x, y) = p.bridge_point(60);
+        let expected = (bare.omega[0].powi(2) + k * bare.shape(0, x, y).powi(2)).sqrt();
+        assert!(held.omega[0] > bare.omega[0] * 1.001, "{} against {}", held.omega[0], bare.omega[0]);
+        assert!((held.omega[0] / expected - 1.0).abs() < 2e-3, "{} against {expected}", held.omega[0]);
     }
 
     #[test]
