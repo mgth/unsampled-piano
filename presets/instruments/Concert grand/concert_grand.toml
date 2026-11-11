@@ -83,6 +83,10 @@ rho_h = 14.7
 crown_freq = 40.0
 # What the board radiates comes back off the rim, the frame and the lid.
 case_field = true
+# The low modes' extra loss at the measured boards' level, 4.7 % at 83 Hz
+# (docs/real_board.md); the rim, made two-way, takes almost nothing, so no edge loss.
+loss_low_corner = 80.0
+edge_loss = 0.0
 bass_bridge_bow = 0.034
 main_string_slant = 0.0
 

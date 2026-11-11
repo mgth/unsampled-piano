@@ -1,6 +1,6 @@
 # The soundboard as it is built
 
-Status as of 2026-11-02. `soundboard.structure.enabled`, off by default: with it off, the renders are bit for bit those of the commit before (three keys and presets compared, the per-key profiles' path included).
+Status as of 2026-11-11. `soundboard.structure.enabled`, off by default: with it off, the renders are bit for bit those of the commit before (three keys and presets compared, the per-key profiles' path included).
 
 ## Why
 
@@ -106,7 +106,28 @@ What no longer acts in this preset: `impedance_slope_bass`, `rib_spacing`, `rib_
 
 **The air** moves the D's distance from 8.31 to 8.85 and the bench from 1.99 to 2.02: nearly neutral on the real grands, with gains and losses that balance. Better: the noise between the bass's partials (`between` z −2.2 → −1.1), the treble's balance (z −3.2 → −2.7), the middle's 4 kHz. Worse: the middle's envelope at 1 s (z 0.0 → +0.8), the attack's upper partials at the top (`attack_mf` p2 z +5.7 → +6.4). The bass's decay hardly moves: 13.5 dB between 0.2 and 2 s against 13.8, the D's 6.7.
 
-`loss_low_corner` and `edge_loss` stand for what the rim and the case take from the low modes, which the rigid edge cannot. Without them, the bass's envelope falls on the real grands' (at 1 s −9.9 dB against their −10.0, late T60 14.2 s against 13.5 s). But the score goes to 2.12, and the 8–11 kHz unevenness of the middle jumps (z +2.9 → +7.3), for a reason not traced. They stay until the rim gives back.
+`loss_low_corner` and `edge_loss` stand for what the rim and the case take from the low modes, which the rigid edge cannot. Without them, the bass's envelope falls on the real grands' (at 1 s −9.9 dB against their −10.0, late T60 14.2 s against 13.5 s). But the score goes to 2.12, and the 8–11 kHz unevenness of the middle jumps (z +2.9 → +7.3). That jump is one key: F#3's 8–11 kHz share of its first 60 ms goes from −96 to −75 dB, a level nobody hears, and the measure's largest gap takes it.
+
+### What the rim and the case could take
+
+Neither the rim nor the case moving on its legs accounts for these two losses (2026-11-11).
+
+- **The rim, two ways.** The board's edge forces on each mode of the ring (`RimModel`) give each board mode the pole it has with the rim attached, Craig–Bampton's coupling through L = F/ω²: s² + 2σs + ω² − Σ L²s⁴/(s² + 2σ_r·s + ω_r²) = 0. Of the 227 modes below 2 kHz, two change: 127 Hz, which falls on the ring's 129 Hz mode (11.8 s⁻¹ added to its 10.5), and 890 Hz (12.7 s⁻¹ added to its 102). The rest gain 0.06 s⁻¹ (median), and frequencies move by under 0.3 Hz. The first mode's loss is 5.1 s⁻¹ from the wood and the air, and `loss_low_corner` 200 Hz makes it 63. With 40 orders instead of 8 the answer is the same. The ring's modes are few and lightly damped (η 2 %), and the board drives them off their resonances. The edge's moments, which the elements' reactions leave out, and the 160–180 kg of iron bolted on the rim are not counted; the second would make the rim move less still. The coupling was not put into the engine.
+- **The case on its legs.** The board's net force, Σ F = ω²·∫ρhΦ, on 480 kg on a support tuned anywhere from 10 to 50 Hz with η 0.3–0.5, adds at most 1.6 s⁻¹ to the first mode, under 0.1 to the others. The `piston_*` mode (6 kg, 40 Hz, η 0.7) is a fit, not that case. No published stiffness or frequency of a grand's support was found.
+- **Measured low modes.** Corradi et al. (Applied Acoustics 2017, a Fazioli F278's board glued in its case, unstrung): modal damping 0.8–4 % of critical up to 348 Hz, so η 1.6–8 %, not given mode by mode. Ege, Boutillon and Rébillat (JSV 2013, an upright, strings muted): η 1–3 % except the first four resonances, about 4.7 % at 81 Hz and 4–5 % at 115–160 Hz, where they put part of it in the rim. Suzuki's first mode (1986, as plotted there): about 6 %. Here, with the wood and the air: 3.3 % at 49 Hz, 2.6 % at 83 Hz. With `loss_low_corner` 200 Hz: 41 % at 49 Hz, 15 % at 83 Hz, 7 % at 146 Hz. A corner near 80 Hz gives values of the measured order: 9.3 % at 49 Hz, 4.7 % at 83 Hz and 3.7 % at 146 Hz.
+
+| | distance | bass | middle | treble | top | bench | bass drop 0.2–2 s, A0–B0 / C1 / C2 |
+|---|---|---|---|---|---|---|---|
+| the case's field (`loss_low_corner` 200 Hz, `edge_loss` 1e-3) | 9.00 | 8.48 | 7.62 | 12.40 | 6.36 | 1.89 | 13.6 / 13.0 / 18.0 dB |
+| `edge_loss` 0 | 8.98 | 8.46 | 7.86 | 12.21 | 6.34 | 1.88 | 13.0 / 12.6 / 17.2 dB |
+| **`edge_loss` 0, `loss_low_corner` 80 Hz: the preset** | 9.08 | 8.60 | 8.39 | 12.05 | 6.33 | 1.92 | 13.0 / 12.6 / 16.7 dB |
+| neither | 9.11 | 8.65 | 8.51 | 12.01 | 6.33 | 1.93 | 12.9 / 12.6 / 16.5 dB |
+| neither, no piston mode | 9.29 | 9.05 | 9.02 | 11.91 | 6.31 | 1.94 | 12.7 / 12.3 / 16.3 dB |
+| the commercial D | | | | | | | 6.7 / 9.1 / 14.8 dB |
+
+`edge_loss` does nothing a measure sees. Without `loss_low_corner`, the bass's partials 2–3 at the attack fall further under the real grands' (z −1.8 → −2.5) and the middle moves away from the D. And the bass's fast decay is not theirs: without either, A0–B0 still lose 12.9 dB between 0.2 and 2 s, the D 6.7.
+
+The preset takes the measured boards' corner, 80 Hz, and no edge loss: 0.08 further from the D and 0.03 on the bench, where the fitted 200 Hz had no measurement behind it. Heard key by key against the preset before, the difference was not audible.
 
 **The case's field** answers what the air left open: C6–B6 at −11.9 dB against A2–A5, the D at −2.8. Only the fundamentals were short, by 12 dB, partials 2 and up being right. Two causes add up. From the keys' bridge points, the direct field from force to microphones has a hole at 1–1.7 kHz (46–58 dB, against 61–72 at 2–3 kHz), below the plate's coincidence, whereas the board's total radiation there is healthy: η_rad 0.9–1.4 %, a radiation efficiency of 0.5–1. And these fundamentals lose 65 dB/s in their first 300 ms, 3·(T/L)·Re Y with Re Y ≈ 6e-4 to 1e-3 s/kg. The real grands' treble does as much (early T60 0.8 s, ours 0.9), so that part stays.
 
@@ -125,7 +146,7 @@ It adds no damping: that energy is already the mode's radiation loss. It takes n
 | no field | 8.85 | 7.86 | 7.29 | 12.15 | 7.14 | 2.02 | −26.7 | −11.9 | −18.5 |
 | `scatter` 2 (for comparison) | 8.67 | 8.23 | 6.81 | 12.38 | 5.78 | 1.88 | −25.9 | −6.4 | −12.8 |
 | field at all frequencies | 9.08 | 8.53 | 7.68 | 12.52 | 6.45 | 1.93 | −24.2 | −6.6 | −17.5 |
-| **field above Schroeder: the preset** | 9.00 | 8.48 | 7.62 | 12.40 | 6.36 | 1.89 | −25.4 | −5.6 | −16.7 |
+| **field above Schroeder** (the preset until 2026-11-11) | 9.00 | 8.48 | 7.62 | 12.40 | 6.36 | 1.89 | −25.4 | −5.6 | −16.7 |
 | the commercial D | | | | | | | −20.9 | −2.8 | −10.6 |
 
 The fundamentals of C6–F6 now start 1.2 dB under the D's (9.8 dB before). On the bench: the treble's balance (z −2.7 → −0.7), the top's attack partials 2–4 and its 2 kHz band get closer. Worse: the noise between the bass's partials (`between` late z −1.1 → −2.3) and the middle's 8–11 kHz unevenness (z +2.9 → +3.9). The distance to the D rises by 0.15, most of it in the bass and the middle's attack, though their mean bands hardly move, not traced further.
@@ -135,7 +156,7 @@ The fundamentals of C6–F6 now start 1.2 dB under the D's (9.8 dB before). On t
 ## Still not in it
 
 - **Crown and bearing**: a foundation term set on four modes, not the shell under the strings' 200 kN.
-- **Coupling**: the rim and the frame receive the board's forces and do not give back. The clamped edge is rigid.
+- **Coupling**: the rim and the frame receive the board's forces and do not give back. The clamped edge is rigid. Made two-way, the ring would change two modes in 227 ([What the rim and the case could take](#what-the-rim-and-the-case-could-take)).
 - **Air between modes**: each mode loads only itself. The case's own volume, the lid and the room do not act back on the board. The case's field is statistical: no individual reflection, no strut, the frame's real shape being unknown to the sources used here.
 - **Duplex lengths**, the 17th rib, the plate's real braces, the bridges' pins and notches.
 - **The modes above 3 kHz**: still a statistical plate, at the structure's level. Finer elements or second-order ones would extend the corner.
