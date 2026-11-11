@@ -1598,6 +1598,13 @@ impl Soundboard {
             Vec::new()
         };
         let case_room = (p.case_field && !p.vertical).then(|| p.case_room_constant());
+        // The built board's modes radiate from their own nodes when these are
+        // closer than the grid asked for: its waves across the grain are 7 cm
+        // long at 3 kHz and 3.4 cm at 8 kHz.
+        let nodes: Option<(Vec<Path>, f64)> = self.fem.as_ref().filter(|f| f.hx.max(f.hy) < 0.99 * dx.min(dy)).map(|f| {
+            let (at, lid) = (f.nodes(), lid.as_ref());
+            (at.iter().flat_map(|&(x, y)| points.iter().map(move |&m| p.path(lid, [x, y, 0.0], m))).collect(), f.hx * f.hy)
+        });
         crate::par::map(n_modes, |i| {
             let md = &self.modes[i];
             let w = omega.unwrap_or(md.omega);
@@ -1619,7 +1626,8 @@ impl Soundboard {
             } else {
                 self.above_radiation * 2.0 / (p.rho_h * p.a * p.b).sqrt()
             };
-            let own_fem = md.fem.zip(self.fem.as_ref()).map(|(i, fem)| built(i as usize, fem));
+            let from_nodes = md.fem.zip(self.fem.as_ref()).zip(nodes.as_ref());
+            let own_fem = md.fem.zip(self.fem.as_ref()).filter(|_| from_nodes.is_none()).map(|(i, fem)| built(i as usize, fem));
             // Σ_k c_k·sin(m_k·x)·sin(n_k·y) on the grid: rows m first.
             let own: Option<Vec<f64>> = own_fem.or_else(|| md.ritz.filter(|_| !piston).map(|r| {
                 let mut rows = vec![vec![0.0; ny]; mm + 1];
@@ -1647,7 +1655,24 @@ impl Soundboard {
                 1.0
             };
             let mut acc = vec![C64::ZERO; np];
-            for (c, g) in geo.chunks(np).enumerate() {
+            if let Some(((i, fem), (geo, ds))) = from_nodes {
+                let scale = self.fem_scale[i as usize] * ds;
+                for (v, g) in fem.at_nodes(i as usize).zip(geo.chunks(np)) {
+                    let phi = scale * v;
+                    for ((a, pt), m) in acc.iter_mut().zip(g).zip(points) {
+                        let front = if m[2] >= 0.0 { shade } else { 1.0 };
+                        *a += C64::polar(front * case * pt.front.1 * phi / pt.front.0, -k * pt.front.0)
+                            - C64::polar(pt.back.1 * phi / pt.back.0, -k * pt.back.0);
+                        if pt.wall.1 != 0.0 {
+                            *a += C64::polar(-pt.wall.1 * phi / pt.wall.0, -k * pt.wall.0);
+                        }
+                        if pt.image.1 != 0.0 {
+                            *a += C64::polar(front * case * pt.image.1 * phi / pt.image.0, -k * pt.image.0);
+                        }
+                    }
+                }
+            }
+            for (c, g) in geo.chunks(np).enumerate().filter(|_| from_nodes.is_none()) {
                 // (Same operation order as without an outline: bit-identical.)
                 let mut phi = own.as_ref().map_or_else(|| norm * sx[c / ny] * sy[c % ny], |o| norm * o[c]) * ds;
                 if let Some(w) = &cover {
@@ -2031,6 +2056,23 @@ mod tests {
             };
             let (below, above) = (band(0.5 * corner, corner), band(corner, 2.0 * corner));
             assert!((below / above).log10().abs() * 10.0 < 3.5, "{note}: {below} against {above}");
+        }
+    }
+
+    /// The built board's modes radiate from their nodes when the grid asked
+    /// for is coarser than the elements, from the grid's cells otherwise: a
+    /// low mode gives the microphones the same either way.
+    #[test]
+    fn the_built_board_radiates_from_its_nodes() {
+        let structure = crate::fem::BoardStructure { enabled: true, step: 0.04, below: 400.0, ..crate::fem::BoardStructure::STEINWAY_D };
+        let p = SoundboardParams { a: 2.124, b: 1.46, rho_h: 14.7, crown_freq: 0.0, f_max: 400.0, structure, ..SoundboardParams::GRAND_2M }.resolved();
+        let (cells, nodes) = (Soundboard::new(SoundboardParams { grid_step: 0.02, ..p }), Soundboard::new(SoundboardParams { grid_step: 0.08, ..p }));
+        let (a, b) = (cells.radiation(), nodes.radiation());
+        assert!(cells.modes.iter().filter(|m| m.fem.is_some()).count() > 12);
+        for (m, (a, b)) in cells.modes.iter().zip(a.iter().zip(&b)).filter(|(m, _)| m.fem.is_some()).take(12) {
+            for (x, y) in a.iter().zip(b) {
+                assert!((*x - *y).norm() < 0.03 * x.norm().max(a[0].norm().max(a[1].norm()) * 0.2), "{} Hz: {x:?} against {y:?}", m.omega / TAU);
+            }
         }
     }
 

@@ -1,7 +1,7 @@
 //! From a key's string force to the two microphones, at each of its partials,
 //! built board against fitted plate (docs/real_board.md). A preset's own
 //! board, from a JSON dump: `unsampled-piano-render` is not needed.
-//!   board_tf <note> [crown]
+//!   board_tf <note> [corner of the built board, Hz]
 use piano_core::board;
 use piano_core::fem::BoardStructure;
 use piano_core::soundboard::{Soundboard, SoundboardParams};
@@ -9,6 +9,7 @@ use piano_core::soundboard::{Soundboard, SoundboardParams};
 fn main() {
     let note: u8 = std::env::args().nth(1).and_then(|v| v.parse().ok()).unwrap_or(28);
     let f0 = 440.0 * 2f64.powf((note as f64 - 69.0) / 12.0);
+    let below: f64 = std::env::args().nth(2).and_then(|v| v.parse().ok()).unwrap_or(BoardStructure::STEINWAY_D.below);
     let base = SoundboardParams {
         a: 2.124,
         b: 1.46,
@@ -34,7 +35,7 @@ fn main() {
     }
     .resolved();
     let sr = 48_000.0;
-    for (name, p) in [("fitted", base), ("built", SoundboardParams { structure: BoardStructure { enabled: true, ..base.structure }, ..base })] {
+    for (name, p) in [("fitted", base), ("built", SoundboardParams { structure: BoardStructure { enabled: true, below, ..base.structure }, ..base })] {
         let sb = Soundboard::new(p);
         let modes = board::board_modes(&sb, sr);
         let sh = sb.bridge_shapes(note);

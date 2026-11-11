@@ -115,7 +115,8 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `soundboard.loss_factor`, `loss_corner` | 0.02, 2500 | 0.0223, 3500 | the thesis's damping law, read as a decay constant |
 | `soundboard.loss_low_corner` | 200 | 80 | the low modes' extra loss at the level measured on real boards, 5–6 % near 50–160 Hz (docs/real_board.md) |
 | `soundboard.edge_loss` | 1e-3 | 0 | the rim, made two-way, takes almost nothing from the board (docs/real_board.md) |
-| `soundboard.exact_below` | 0 | 3000 | each key drives the board's modes at its own bridge point |
+| `soundboard.exact_below` | 0 | 8000 | each key drives the board's modes at its own bridge point |
+| `soundboard.structure.below` | 3000 | 8000 | the built board's own modes up to 8 kHz (docs/real_board.md, "Above 3 kHz") |
 | `rim.follows_outline` | false | true | the wall along the board's shape, 6.42 m against 6.9 m |
 | `soundboard.bass_bridge` | the D's proportions | unchanged | docs/bridges.md |
 
@@ -290,3 +291,5 @@ Still false: the board as a smeared plate aligned with its rectangle (the D's ri
 The board as it is built, with its plate, 16 ribs and bridges, by finite elements: docs/real_board.md. Its modes agree with the thesis's 3D computation within 3.2 % over the first 20. With the air on it and the case's field, distance to the D 7.20 → 9.08, bench 1.83 → 1.92, with the low modes' loss at the measured boards' level: it is further from the recording and nearer the real grands on the bass's decay and the treble's upper partials. The treble's fundamentals, short with the air alone (C6–B6 −11.9 dB against A2–A5), are at −5.6, the D's being at −2.8.
 
 A real concert grand's bass, measured key by key (Plath's), then set the target apart from the commercial D's: its three lowest keys fall as the preset's, and its single strings decay at one rate. With the strings holding the bridge, no piston mode and the measured polarisation, the distance goes from 9.08 to 7.32 (docs/real_board.md, "The bass against a real concert grand").
+
+Since 2026-11-11 the built board has its own modes up to 8 kHz, 3 kHz before (docs/real_board.md, "Above 3 kHz"). The distance above was found to flatter the preset: its 15 keys, every sixth from A0, are those it was matched on. On all 88 keys of the same recording the preset before stood at 9.29, not 7.32 (8.3 to 10.6 on the five other sets of every sixth key), and stands at 9.49 now. A change to the board also redraws each partial's level by 6–8 dB rms in the middle and the treble, so that a step of less than 0.5 in a register says nothing: compare boards on all 88 keys, and on mean levels before single partials.

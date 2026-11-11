@@ -72,8 +72,8 @@ bichord_from = 29
 trichord_from = 34
 
 [soundboard]
-# Each key drives the built board's modes at its own bridge point.
-exact_below = 3000.0
+# Each key drives the built board's modes at its own bridge point, up to their last.
+exact_below = 8000.0
 # Chabassier's thesis, fve = 2e-5·f² + 0.07·f, read as its decay constant: 2 % at low
 # frequencies, as it says and as measured (docs/real_board.md).
 loss_factor = 0.0223
@@ -89,7 +89,7 @@ outline = [[0.0, 0.0096], [0.1149, 0.0068], [0.2373, 0.1781], [0.3362, 0.3014], 
 main_bridge_from = 41
 treble_bridge = [[0.0443, 0.048], [0.0809, 0.202], [0.1596, 0.38], [0.3441, 0.579], [0.8023, 0.842]]
 bass_bridge = [[0.5765, 0.562], [0.8707, 0.753]]
-# Only the modes above the built board's, 3 kHz: their level comes from the structure.
+# Only the modes above the built board's, 8 kHz: their level comes from the structure.
 rho_h = 14.7
 # The flat board's first modes are 33, 52, 78, 89 Hz, 31, 49, 74, 85 Hz under the air;
 # a real 2.74 m board's, unstrung, 49, 67, 89, 112 Hz (Conklin 1996). 40 Hz of crown
@@ -111,6 +111,9 @@ main_string_slant = 0.0
 # (fem::BoardStructure::STEINWAY_D, docs/real_board.md).
 [soundboard.structure]
 enabled = true
+# Its own modes up to 8 kHz, 1700 of them: there its shortest waves, across the grain,
+# are 3.4 cm long on elements of 1 cm (docs/real_board.md, "Above 3 kHz").
+below = 8000.0
 # The strings hold the bridge, T·(1/L + 1/l) each: the first modes at 68, 77, 95
 # and 111 Hz, a real strung concert grand's first resonance being at 66-72 Hz.
 strings = true
