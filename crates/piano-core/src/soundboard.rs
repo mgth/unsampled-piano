@@ -36,6 +36,9 @@ use crate::complex::C64;
 use std::f64::consts::{PI, TAU};
 
 const RHO0: f64 = 1.2;
+/// Mean absorption of the case's wood, iron and felts; its openings count for
+/// far more ([`SoundboardParams::case_room_constant`]).
+const CASE_ABSORPTION: f64 = 0.1;
 const C0: f64 = 343.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -282,6 +285,19 @@ pub struct SoundboardParams {
     /// sound: the share of the direct field's power the layer intercepts
     /// at full scattering (the same frequency law), 0–1.
     pub scatter_shadow: f64,
+    /// What the board radiates into the box of the case and the lid does not
+    /// all leave at once: it comes back off the rim, the frame and the lid.
+    /// Each mode adds that reverberant field to the microphones, in power,
+    /// from the power it radiates ([`PlateMode::air`], so only with
+    /// `structure.air`) and the box's openings
+    /// ([`Self::case_room_constant`]). The energy is already the mode's own
+    /// radiation loss: nothing is added to its damping.
+    pub case_field: bool,
+    /// The board as it is built: its modes below `structure.below` come from
+    /// a plate, ribs and bridges by finite elements ([`crate::fem`]). Above
+    /// that, the rectangle's modes remain, set on `rho_h`, `dx` and `dy` and
+    /// brought to the structure's level at the corner.
+    pub structure: crate::fem::BoardStructure,
 }
 
 /// Vertices of [`SoundboardParams::outline`].
@@ -486,11 +502,13 @@ impl SoundboardParams {
         scatter_step: 0.1,
         scatter_height: 0.05,
         scatter_shadow: 0.0,
+        case_field: false,
+        structure: crate::fem::BoardStructure::STEINWAY_D,
     };
 
     /// The default instrument's board: [`Self::GRAND_2M`] heard by the
     /// close pair under a lid open at 35°, as
-    /// presets/listening/Microphones/close.toml sets them.
+    /// archive/presets/listening/Microphones/close.toml sets them.
     pub const DEFAULT: Self = Self {
         mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
         mics_upright: [(0.705882, 0.653846, 0.4), (0.294118, 0.346154, 0.4)],
@@ -554,6 +572,55 @@ impl SoundboardParams {
         let r = omega * 2.0 * self.lid_hinge_height.max(0.01) / (TAU * C0);
         let lid = self.lid_leak + (1.0 - self.lid_leak) / (1.0 + r * r).sqrt();
         case * (1.0 - s + s * lid)
+    }
+
+    /// The box of the case and the lid as a small room: its room constant
+    /// R = A/(1 − A/S) (m²), A being its openings plus what its walls absorb,
+    /// S all its surfaces, the share of A that leaves through the openings,
+    /// the gap along the rim under the lid, or the whole top with no lid, and
+    /// its Schroeder frequency 2000·√(T60/V) = 2000·√(0.161/A) (Hz): below
+    /// it the box's modes stand apart and no diffuse field builds up.
+    pub fn case_room_constant(&self) -> (f64, f64, f64) {
+        let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let relative: &[(f64, f64)] = if self.outline.iter().all(|&q| q == (0.0, 0.0)) { &corners } else { &self.outline };
+        let pts: Vec<(f64, f64)> = relative.iter().map(|&(u, v)| (u * self.a, v * self.b)).collect();
+        let (mut twice_area, mut perimeter, mut gap) = (0.0, 0.0, 0.0);
+        let sin = self.lid_angle.to_radians().sin();
+        for (i, &(x0, y0)) in pts.iter().enumerate() {
+            let (x1, y1) = pts[(i + 1) % pts.len()];
+            twice_area += x0 * y1 - x1 * y0;
+            let len = (x1 - x0).hypot(y1 - y0);
+            perimeter += len;
+            gap += len * 0.5 * ((self.b - y0).max(0.0) + (self.b - y1).max(0.0)) * sin;
+        }
+        let area = 0.5 * twice_area.abs();
+        let wall = perimeter * self.lid_hinge_height;
+        let (open, closed) = if self.lid_removed { (area, area + wall) } else { (gap, 2.0 * area + wall) };
+        let absorbing = open + CASE_ABSORPTION * closed;
+        (absorbing / (1.0 - absorbing / (open + closed)), open / absorbing, 2000.0 * (0.161 / absorbing).sqrt())
+    }
+
+    /// The case's reverberant pressure at the point `m` per unit modal
+    /// velocity, for a mode losing `rate` (1/s) to the air: half of its power
+    /// goes up. Inside the box p² = 4ρc·P/R; outside, what leaves through the
+    /// openings spreads over a half-sphere from the board's centre. A
+    /// microphone's pattern hears a diffuse field less.
+    fn case_field_gain(&self, room: (f64, f64, f64), omega: f64, rate: f64, m: [f64; 3]) -> f64 {
+        let (r, leaving, schroeder) = room;
+        let f2 = (omega / TAU).powi(2);
+        let diffuse = f2 / (f2 + schroeder * schroeder);
+        let top = self.lid_hinge_height + if self.lid_removed { 0.0 } else { (self.b - m[1]).max(0.0) * self.lid_angle.to_radians().tan() };
+        let inside = (0.0..=self.a).contains(&m[0]) && (0.0..=self.b).contains(&m[1]) && m[2] <= top;
+        let per_power = if inside {
+            4.0 / r
+        } else {
+            let d2 = (m[0] - 0.5 * self.a).powi(2) + (m[1] - 0.5 * self.b).powi(2) + (m[2] - self.lid_hinge_height).powi(2);
+            leaving / (TAU * d2.max(0.25))
+        };
+        let q = self.mic_pattern.clamp(0.0, 1.0);
+        let pattern = q * q + (1.0 - q).powi(2) / 3.0;
+        // Peak velocity: P = rate·v²/4 upwards, p peak² = 2·ρc·P·per_power.
+        (0.5 * RHO0 * C0 * rate * per_power * pattern * diffuse).sqrt()
     }
 
     /// Radiation paths from the board cell `c` to the point `m`.
@@ -806,6 +873,10 @@ pub struct PlateMode {
     pub load: f64,
     /// An outlined board's own mode: its index in [`Soundboard::ritz`].
     pub ritz: Option<u32>,
+    /// A mode of the built board: its index in [`Soundboard::fem`].
+    pub fem: Option<u32>,
+    /// Loss factor of its radiation into the air ([`crate::fem::air_on`]).
+    pub air: f64,
 }
 
 pub struct Soundboard {
@@ -824,6 +895,15 @@ pub struct Soundboard {
     pub ground: f64,
     pub cells: Vec<(f64, f64, f64)>,
     held: Vec<f64>,
+    /// The built board's modes, when [`SoundboardParams::structure`] is on.
+    pub fem: Option<std::sync::Arc<crate::fem::BoardFem>>,
+    /// On each of its shapes, for the air's share of its modal mass.
+    fem_scale: Vec<f64>,
+    /// The rectangle's modes above the built board's: on each key's drive
+    /// (from A0) so that the bridge's conductance carries on at the corner,
+    /// and on their radiation, as their mass is not the board's. 1 without one.
+    above_drive: Vec<f64>,
+    above_radiation: f64,
 }
 
 /// The board's outline in metres (a closed polygon).
@@ -982,20 +1062,80 @@ impl Soundboard {
         let p = params;
         let w_max = TAU * p.f_max;
         let mut modes: Vec<PlateMode> =
-            rectangle_modes(&p, w_max).into_iter().map(|(m, n, omega)| PlateMode { m, n, omega, load: 0.0, ritz: None }).collect();
-        let mut sb = Self { params, modes: Vec::new(), outline: Outline::new(&p), basis: Vec::new(), ritz: Vec::new(), ground: 0.0, cells: Vec::new(), held: Vec::new() };
-        if sb.outline.is_some() && p.outline_below > 0.0 {
+            rectangle_modes(&p, w_max).into_iter().map(|(m, n, omega)| PlateMode { m, n, omega, load: 0.0, ritz: None, fem: None, air: 0.0 }).collect();
+        let mut sb = Self {
+            params,
+            modes: Vec::new(),
+            outline: Outline::new(&p),
+            basis: Vec::new(),
+            ritz: Vec::new(),
+            ground: 0.0,
+            cells: Vec::new(),
+            held: Vec::new(),
+            fem: None,
+            fem_scale: Vec::new(),
+            above_drive: Vec::new(),
+            above_radiation: 1.0,
+        };
+        if p.structure.enabled {
+            let fem = crate::fem::board(&p);
+            let (wc, crown) = (TAU * p.structure.below, (TAU * p.crown_freq).powi(2));
+            modes.retain(|m| m.omega >= wc);
+            let air = if p.structure.air { crate::fem::air_on(&fem, &p, RHO0, C0) } else { std::sync::Arc::new(vec![(0.0, 0.0); fem.omega.len()]) };
+            modes.extend(fem.omega.iter().zip(air.iter()).enumerate().map(|(i, (w, &(mass, r)))| {
+                let omega = ((w * w + crown) / (1.0 + mass)).sqrt();
+                PlateMode { m: 1, n: 1, omega, load: 0.0, ritz: None, fem: Some(i as u32), air: r / ((1.0 + mass) * omega) }
+            }));
+            // The modal mass grows with the air's: each shape falls by its root.
+            sb.fem_scale = air.iter().map(|&(mass, _)| 1.0 / (1.0 + mass).sqrt()).collect();
+            sb.above_radiation = (p.rho_h * fem.area / fem.mass).sqrt();
+            if p.structure.air {
+                // Above the corner, where the plate radiates as a whole: η = 2ρ₀c/(ω·ρh).
+                let rho_h = fem.mass / fem.area;
+                for m in modes.iter_mut().filter(|m| m.fem.is_none()) {
+                    m.air = 2.0 * RHO0 * C0 / (m.omega * rho_h);
+                }
+            }
+            sb.fem = Some(fem);
+        } else if sb.outline.is_some() && p.outline_below > 0.0 {
             let wc = TAU * p.outline_below;
             let own = sb.outlined_modes(wc);
             modes.retain(|m| m.omega >= wc);
             modes.extend(own.into_iter().filter(|m| m.omega <= w_max));
         }
         if p.piston_freq > 0.0 && p.piston_mass > 0.0 {
-            modes.push(PlateMode { m: 0, n: 0, omega: TAU * p.piston_freq, load: 0.0, ritz: None });
+            modes.push(PlateMode { m: 0, n: 0, omega: TAU * p.piston_freq, load: 0.0, ritz: None, fem: None, air: 0.0 });
         }
         modes.sort_by(|x, y| x.omega.total_cmp(&y.omega));
         sb.modes = modes;
+        if sb.fem.is_some() {
+            sb.above_drive = sb.conductance_at_the_corner();
+        }
         sb
+    }
+
+    /// The rectangle's modes against the built board's around the corner:
+    /// band by band, a mode gives the conductance a mean (π/2)·Φ²/Δω whatever
+    /// its damping. For each key, the square root of the ratio of the octave
+    /// below the corner to the octave above, smoothed over ±3 keys.
+    fn conductance_at_the_corner(&self) -> Vec<f64> {
+        let wc = TAU * self.params.structure.below;
+        let shapes = crate::par::map(88, |k| self.bridge_shapes(21 + k as u8));
+        let band = |pick: &dyn Fn(&PlateMode) -> bool, sh: &[f64]| -> f64 { self.modes.iter().zip(sh).filter(|(m, _)| pick(m)).map(|(_, s)| s * s).sum() };
+        let ratio: Vec<f64> = shapes
+            .iter()
+            .map(|sh| {
+                let own = band(&|m| m.fem.is_some() && m.omega >= 0.5 * wc && m.omega < wc, sh) / (0.5 * wc);
+                let above = band(&|m| m.fem.is_none() && m.m > 0 && m.omega >= wc && m.omega < 2.0 * wc, sh) / wc;
+                if above > 0.0 { own / above } else { 1.0 }
+            })
+            .collect();
+        (0..88)
+            .map(|k: usize| {
+                let (lo, hi) = (k.saturating_sub(3), (k + 3).min(87));
+                (ratio[lo..=hi].iter().sum::<f64>() / (hi - lo + 1) as f64).sqrt()
+            })
+            .collect()
     }
 
     /// The outlined board's modes below `wc` (rad/s); fills the basis, the
@@ -1104,7 +1244,7 @@ impl Soundboard {
             }
             let k = (0..nb).max_by(|&i, &j| v[i].abs().total_cmp(&v[j].abs())).unwrap_or(0);
             let (m, n, _) = self.basis[k];
-            modes.push(PlateMode { m, n, omega, load: 0.0, ritz: Some(self.ritz.len() as u32) });
+            modes.push(PlateMode { m, n, omega, load: 0.0, ritz: Some(self.ritz.len() as u32), fem: None, air: 0.0 });
             self.ritz.push(v);
         }
         modes
@@ -1174,6 +1314,9 @@ impl Soundboard {
         if let Some(r) = mode.ritz {
             return self.ritz_shape(&self.ritz[r as usize], x, y);
         }
+        if let (Some(i), Some(fem)) = (mode.fem, &self.fem) {
+            return self.fem_scale[i as usize] * fem.shape(i as usize, x, y);
+        }
         2.0 / (p.rho_h * p.a * p.b).sqrt() * (mode.m as f64 * PI * x / p.a).sin() * (mode.n as f64 * PI * y / p.b).sin()
     }
 
@@ -1193,6 +1336,10 @@ impl Soundboard {
     /// the rectangle (where they share an edge, its basis modes' own edge
     /// reactions, [`Self::ritz`]). None for the others.
     pub fn held_forces(&self, mode: &PlateMode) -> Option<Vec<(f64, f64, f64)>> {
+        if let (Some(i), Some(fem)) = (mode.fem, &self.fem) {
+            let scale = self.fem_scale[i as usize];
+            return Some(fem.forces(i as usize).into_iter().map(|(x, y, f)| (x, y, scale * f)).collect());
+        }
         let coefs = &self.ritz[mode.ritz? as usize];
         let nb = self.basis.len();
         Some(
@@ -1209,7 +1356,7 @@ impl Soundboard {
 
     /// Loss factor of a mode.
     pub fn mode_eta(&self, mode: &PlateMode) -> f64 {
-        let own = if mode.m == 0 { self.params.piston_loss } else { self.eta(mode.omega) };
+        let own = if mode.m == 0 { self.params.piston_loss } else { self.eta(mode.omega) + mode.air };
         own + 2.0 * mode.load / mode.omega
     }
 
@@ -1268,11 +1415,16 @@ impl Soundboard {
         let per_key = ((a.0 - b.0).hypot(a.1 - b.1)).max(1e-3);
         const K: usize = 9;
         let slope = if n < 60.0 { p.impedance_slope_bass } else { p.impedance_slope };
-        let taper = (-0.5 * slope * (n - 60.0)).exp();
+        // The built board has its own impedance, its bridge and its spread.
+        let (taper, above) = if self.fem.is_some() { (1.0, self.above_drive.get((note as usize).saturating_sub(21)).copied().unwrap_or(1.0)) } else { ((-0.5 * slope * (n - 60.0)).exp(), 1.0) };
         self.modes
             .iter()
             .map(|md| {
-                let taper = taper * self.beam_drive(md);
+                if md.fem.is_some() {
+                    let (x, y) = p.bridge_point(note);
+                    return self.shape(md, x, y);
+                }
+                let taper = taper * above * self.beam_drive(md);
                 let half = 0.5 * self.drive_length(md.omega) / per_key;
                 if half < 1e-3 {
                     let (x, y) = p.bridge_point(note);
@@ -1300,7 +1452,7 @@ impl Soundboard {
     /// modes with the beam give the same within 0.5 dB at 1 kHz.
     fn beam_drive(&self, md: &PlateMode) -> f64 {
         let p = &self.params;
-        if p.bridge_beam <= 0.0 || md.ritz.is_some() || md.m == 0 {
+        if p.bridge_beam <= 0.0 || md.ritz.is_some() || md.fem.is_some() || md.m == 0 {
             return 1.0;
         }
         let zp = 1.0 / p.mean_mobility();
@@ -1414,6 +1566,9 @@ impl Soundboard {
             (0..=count).map(|m| (0..cells).map(|i| (m as f64 * PI * (i as f64 + 0.5) * d / len).sin()).collect()).collect()
         };
         let (bx, by) = if self.ritz.is_empty() { (Vec::new(), Vec::new()) } else { (tab(mm, nx, dx, p.a), tab(nm, ny, dy, p.b)) };
+        let built = |i: usize, fem: &crate::fem::BoardFem| -> Vec<f64> {
+            (0..nx * ny).map(|c| self.fem_scale[i] * fem.shape(i, (c / ny) as f64 * dx + 0.5 * dx, (c % ny) as f64 * dy + 0.5 * dy)).collect()
+        };
         // The scattering layer: (x, y, z, area) of its sources, on a grid
         // inside the outline, their heights spread by a fixed pseudo-random
         // sequence (the same layer for every build).
@@ -1442,6 +1597,7 @@ impl Soundboard {
         } else {
             Vec::new()
         };
+        let case_room = (p.case_field && !p.vertical).then(|| p.case_room_constant());
         crate::par::map(n_modes, |i| {
             let md = &self.modes[i];
             let w = omega.unwrap_or(md.omega);
@@ -1456,9 +1612,16 @@ impl Soundboard {
             let sy: Vec<f64> = (0..ny)
                 .map(|j| if piston { 1.0 } else { (md.n as f64 * PI * (j as f64 + 0.5) * dy / p.b).sin() })
                 .collect();
-            let norm = if piston { p.piston_radiation / p.piston_mass.sqrt() } else { 2.0 / (p.rho_h * p.a * p.b).sqrt() };
+            let norm = if piston {
+                p.piston_radiation / p.piston_mass.sqrt()
+            } else if md.fem.is_some() {
+                1.0
+            } else {
+                self.above_radiation * 2.0 / (p.rho_h * p.a * p.b).sqrt()
+            };
+            let own_fem = md.fem.zip(self.fem.as_ref()).map(|(i, fem)| built(i as usize, fem));
             // Σ_k c_k·sin(m_k·x)·sin(n_k·y) on the grid: rows m first.
-            let own: Option<Vec<f64>> = md.ritz.filter(|_| !piston).map(|r| {
+            let own: Option<Vec<f64>> = own_fem.or_else(|| md.ritz.filter(|_| !piston).map(|r| {
                 let mut rows = vec![vec![0.0; ny]; mm + 1];
                 for (&(m, n, _), c) in self.basis.iter().zip(&self.ritz[r as usize]) {
                     for (v, s) in rows[m as usize].iter_mut().zip(&by[n as usize]) {
@@ -1474,7 +1637,7 @@ impl Soundboard {
                     }
                 }
                 grid
-            });
+            }));
             // The scattering layer shadows the direct sound of a point above
             // the board by the share of power it intercepts.
             let shade = if p.scatter > 0.0 && p.scatter_shadow > 0.0 {
@@ -1524,7 +1687,17 @@ impl Soundboard {
                     }
                 }
             }
-            acc.into_iter().map(|a| pre * a).collect()
+            let mut out: Vec<C64> = acc.into_iter().map(|a| pre * a).collect();
+            if let Some(room) = case_room.filter(|_| md.air > 0.0) {
+                // In power: a phase of its own for each mode at each point.
+                let velocity = if md.fem.is_some() { 1.0 } else { self.above_radiation };
+                for (q, (a, m)) in out.iter_mut().zip(points).enumerate().filter(|(_, (_, m))| m[2] >= 0.0) {
+                    let seed = (i as u32).wrapping_mul(2_654_435_761).wrapping_add(q as u32).wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    let phase = TAU * (seed >> 8) as f64 / (1u32 << 24) as f64;
+                    *a += C64::polar(velocity * p.case_field_gain(room, md.omega, md.air * md.omega, *m), phase);
+                }
+            }
+            out
         })
     }
 
@@ -1551,6 +1724,44 @@ mod tests {
             impedance_slope_bass: 0.0,
             ..SoundboardParams::GRAND_2M
         }
+    }
+
+    #[test]
+    fn the_case_is_a_small_room() {
+        // 2.124 × 1.46 m, lid at 35°: 3.58 m of rim with a gap of 0.84 m at
+        // the far side, nothing at the hinge.
+        let p = SoundboardParams { a: 2.124, b: 1.46, outline: [(0.0, 0.0); OUTLINE_POINTS], lid_angle: 35.0, lid_removed: false, lid_hinge_height: 0.16, ..SoundboardParams::GRAND_2M };
+        let open = (2.124 + 1.46) * 1.46 * 35f64.to_radians().sin();
+        let closed = 2.0 * 2.124 * 1.46 + 2.0 * (2.124 + 1.46) * 0.16;
+        let a = open + 0.1 * closed;
+        let (r, leaving, schroeder) = p.case_room_constant();
+        assert!((r - a / (1.0 - a / (open + closed))).abs() < 1e-9, "{r}");
+        assert!((leaving - open / a).abs() < 1e-9, "{leaving}");
+        assert!((schroeder - 2000.0 * (0.161 / a).sqrt()).abs() < 1e-9, "{schroeder}");
+        // Shutting the lid closes the openings and nothing leaves.
+        let shut = SoundboardParams { lid_angle: 0.0, ..p };
+        assert_eq!(shut.case_room_constant().1, 0.0);
+    }
+
+    #[test]
+    fn the_case_field_follows_the_power_radiated() {
+        let p = SoundboardParams { a: 2.0, b: 1.4, lid_angle: 35.0, lid_removed: false, mic_pattern: 1.0, ..SoundboardParams::GRAND_2M };
+        let room = p.case_room_constant();
+        let w = TAU * 8000.0;
+        let inside = [1.0, 0.7, 0.4];
+        let g = p.case_field_gain(room, w, 100.0, inside);
+        let diffuse = 1.0 / (1.0 + (room.2 / 8000f64).powi(2));
+        // p² peak = 2ρc·(rate·v²/4)·4/R, per unit peak velocity.
+        let want = (2.0 * RHO0 * C0 * 100.0 * diffuse / room.0).sqrt();
+        assert!((g / want - 1.0).abs() < 1e-9, "{g} {want}");
+        assert!((p.case_field_gain(room, w, 400.0, inside) / g - 2.0).abs() < 1e-9);
+        // A cardioid hears a third of the energy of a diffuse field.
+        let cardioid = SoundboardParams { mic_pattern: 0.5, ..p };
+        assert!((cardioid.case_field_gain(room, w, 100.0, inside) / g - (1f64 / 3.0).sqrt()).abs() < 1e-9);
+        // Below the box's Schroeder frequency it fades; away from the case, too.
+        assert!(p.case_field_gain(room, TAU * 100.0, 100.0, inside) < 0.3 * g);
+        let (near, far) = (p.case_field_gain(room, w, 100.0, [1.0, -2.0, 1.0]), p.case_field_gain(room, w, 100.0, [1.0, -4.0, 1.0]));
+        assert!(far < near && near < g, "{near} {far} {g}");
     }
 
     #[test]
@@ -1801,6 +2012,26 @@ mod tests {
         let n = 4000;
         let mean = (0..n).map(|i| sb.admittance(x, y, TAU * (300.0 + 2700.0 * i as f64 / n as f64)).re).sum::<f64>() / n as f64;
         assert!(mean > 0.3 * p.mean_mobility() && mean < 3.0 * p.mean_mobility(), "mean Re Y {mean:e}");
+    }
+
+    /// The built board's modes replace the plate's below its corner, and the
+    /// rectangle's above it carry on at its level.
+    #[test]
+    fn the_built_board_carries_on_at_its_corner() {
+        let structure = crate::fem::BoardStructure { enabled: true, step: 0.03, below: 1200.0, ..crate::fem::BoardStructure::STEINWAY_D };
+        let p = SoundboardParams { a: 2.124, b: 1.46, rho_h: 14.7, crown_freq: 0.0, structure, ..SoundboardParams::GRAND_2M };
+        let sb = Soundboard::new(p);
+        let corner = TAU * structure.below;
+        assert!(sb.modes.iter().all(|m| (m.fem.is_some() || m.m == 0) == (m.omega < corner) || m.m == 0));
+        assert!(sb.fem.as_ref().is_some_and(|f| f.mass > 8.0 && f.mass < 16.0));
+        for note in [40u8, 60, 84] {
+            let sh = sb.bridge_shapes(note);
+            let band = |lo: f64, hi: f64| -> f64 {
+                sb.modes.iter().zip(&sh).filter(|(m, _)| m.m > 0 && m.omega >= lo && m.omega < hi).map(|(_, s)| s * s).sum::<f64>() / (hi - lo)
+            };
+            let (below, above) = (band(0.5 * corner, corner), band(corner, 2.0 * corner));
+            assert!((below / above).log10().abs() * 10.0 < 3.5, "{note}: {below} against {above}");
+        }
     }
 
     #[test]

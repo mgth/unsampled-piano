@@ -20,7 +20,7 @@ struct Cli {
     #[arg(long, global = true)]
     preset: Option<PathBuf>,
     /// Listening presets (microphones, room) applied over the instrument,
-    /// in order (presets/listening/…).
+    /// in order (archive/presets/listening/…).
     #[arg(long, global = true)]
     listening: Vec<PathBuf>,
     /// CPU quality: overkill (no shortcut, the reference), full (default),

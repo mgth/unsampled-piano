@@ -9,7 +9,7 @@ use std::path::Path;
 fn main() {
     let mut cfg = EngineConfig::default();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    cfg.model = piano_host::load_listening(&root.join("presets/touch/disklavier_playback.toml"), &cfg.model).unwrap();
+    cfg.model = piano_host::load_listening(&root.join("archive/presets/touch/disklavier_playback.toml"), &cfg.model).unwrap();
     for p in std::env::args().skip(1) {
         cfg.model = piano_host::load_listening(Path::new(&p), &cfg.model).unwrap();
     }

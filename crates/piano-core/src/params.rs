@@ -814,10 +814,81 @@ pub struct StringScale {
     pub break_note: u8,
     pub len_a0: f64,
     pub tension: f64,
+    /// Takes each string's tension from `tension_curve` instead of `tension`
+    /// and the unison's ramp.
+    pub tension_by_key: bool,
+    /// Tension of each string (N) by key (MIDI note, ascending), interpolated
+    /// linearly and held beyond its ends. The default is the Steinway D of
+    /// Chabassier & Duruflé's RT-425 (docs/steinway_d.md), fitted there on six
+    /// measured strings: from C1, where the report starts, A0 to B0 holding C1's.
+    pub tension_curve: [(f64, f64); TENSION_POINTS],
+    /// Below `break_note`, takes each string's length from `wound_length_curve`
+    /// instead of the straight line to `len_a0`.
+    pub wound_lengths_by_key: bool,
+    /// Speaking length (m) of the wound strings by key (MIDI note, ascending),
+    /// interpolated linearly and held beyond its ends. The default is the same
+    /// Steinway D's: its longest string is C1's, 2.007 m, and they shorten to
+    /// 1.378 m at E2, where the plain wire starts again at 1.837 m.
+    pub wound_length_curve: [(f64, f64); WOUND_LENGTH_POINTS],
+}
+
+/// Points of [`StringScale::tension_curve`].
+pub const TENSION_POINTS: usize = 12;
+/// Points of [`StringScale::wound_length_curve`].
+pub const WOUND_LENGTH_POINTS: usize = 6;
+
+/// A curve of (MIDI note, value), ascending, at `note`: linear between its
+/// points, held beyond its ends.
+fn interpolate(curve: &[(f64, f64)], note: u8) -> f64 {
+    let m = note as f64;
+    if m <= curve[0].0 {
+        return curve[0].1;
+    }
+    for w in curve.windows(2) {
+        if m <= w[1].0 {
+            let t = (m - w[0].0) / (w[1].0 - w[0].0).max(1e-9);
+            return w[0].1 + t * (w[1].1 - w[0].1);
+        }
+    }
+    curve[curve.len() - 1].1
 }
 
 impl StringScale {
-    pub const GRAND_2M: Self = Self { len_c8: 0.052, ratio_per_octave: 1.85, break_note: 48, len_a0: 1.45, tension: 750.0 };
+    pub const GRAND_2M: Self = Self {
+        len_c8: 0.052,
+        ratio_per_octave: 1.85,
+        break_note: 48,
+        len_a0: 1.45,
+        tension: 750.0,
+        tension_by_key: false,
+        tension_curve: [
+            (24.0, 1722.0),
+            (26.0, 1798.0),
+            (29.0, 1618.0),
+            (33.0, 1190.0),
+            (36.0, 915.0),
+            (40.0, 741.0),
+            (41.0, 799.0),
+            (48.0, 759.0),
+            (60.0, 741.0),
+            (72.0, 696.0),
+            (96.0, 670.0),
+            (107.0, 588.0),
+        ],
+        wound_lengths_by_key: false,
+        wound_length_curve: [(24.0, 2.007), (26.0, 1.975), (29.0, 1.91), (33.0, 1.76), (36.0, 1.6), (40.0, 1.378)],
+    };
+
+    /// The wound strings' speaking length (m) of `note`, from the curve.
+    fn wound_length_at(&self, note: u8) -> f64 {
+        interpolate(&self.wound_length_curve, note)
+    }
+
+    /// The tension each string of `note` carries, from the curve.
+    pub fn tension_at(&self, note: u8) -> f64 {
+        interpolate(&self.tension_curve, note)
+    }
+
 
     pub fn length(&self, note: u8) -> f64 {
         let free = |m: f64| self.len_c8 * self.ratio_per_octave.powf((108.0 - m) / 12.0);
@@ -825,6 +896,8 @@ impl StringScale {
         let brk = self.break_note as f64;
         if m >= brk {
             free(m)
+        } else if self.wound_lengths_by_key {
+            self.wound_length_at(note)
         } else {
             let t = (brk - m) / (brk - 21.0);
             free(brk) + t * (self.len_a0 - free(brk))
@@ -1002,6 +1075,8 @@ pub struct PianoModel {
     /// Multiplies Stulov's hammer masses (light leather-covered fortepiano
     /// hammers, small upright hammers).
     pub hammer_mass_scale: f64,
+    /// Added to `hammer_mass_scale` per key above C4, taken off below.
+    pub hammer_mass_slope: f64,
     /// The shank bends: of the hammer's effective mass, `shank_share` is
     /// the shank's, linked to the head by a spring whose mode (head against
     /// shank) is at `shank_freq` (Hz), with loss factor `shank_loss`. A
@@ -1024,6 +1099,9 @@ pub struct PianoModel {
     /// Strike point (fraction of the speaking length from the agraffe) up
     /// to C6, 0.05 closer to the agraffe at C8.
     pub strike_ratio: f64,
+    /// How much nearer the agraffe the strike point is at C8 than at C6, falling
+    /// linearly between them (share of the length).
+    pub strike_ratio_top: f64,
 }
 
 impl Default for PianoModel {
@@ -1088,11 +1166,13 @@ impl Default for PianoModel {
             hysteresis: 0.6,
             contact_width_scale: 1.0,
             hammer_mass_scale: 1.0,
+            hammer_mass_slope: 0.0,
             shank_share: 0.3,
             shank_freq: 300.0,
             shank_loss: 0.1,
             shank_freq_mid: 700.0,
             strike_ratio: 0.12,
+            strike_ratio_top: 0.05,
         }
     }
 }
@@ -1109,9 +1189,33 @@ impl PianoModel {
             .collect()
     }
 
-    /// The soundboard, loaded by the damped strings.
+    /// What each key's strings hold the bridge with (N/m): T·(1/L + 1/l)
+    /// per string, L its speaking length and l its rear length
+    /// ([`crate::fem::BoardStructure::strings`]).
+    pub fn string_hold(&self, structure: &crate::fem::BoardStructure) -> crate::fem::StringHold {
+        let mut hold = crate::fem::StringHold::default();
+        for (i, h) in hold.0.iter_mut().enumerate() {
+            let note = 21 + i as u8;
+            let p = self.note(note);
+            *h = (p.strings as f64 * p.tension * (1.0 / p.length + 1.0 / structure.back_length_at(note).max(1e-3))) as f32;
+        }
+        hold
+    }
+
+    /// The soundboard's parameters as it is built: with the strings in its
+    /// structure, their hold from this scale.
+    pub fn board_params(&self) -> Option<crate::soundboard::SoundboardParams> {
+        self.soundboard.map(|mut p| {
+            if p.structure.enabled && p.structure.strings {
+                p.structure.hold = self.string_hold(&p.structure);
+            }
+            p
+        })
+    }
+
+    /// The soundboard, held and loaded by the strings.
     pub fn board(&self) -> Option<crate::soundboard::Soundboard> {
-        self.soundboard.map(|p| {
+        self.board_params().map(|p| {
             let mut sb = crate::soundboard::Soundboard::new(p);
             sb.load_strings(&self.damped_strings());
             sb
@@ -1130,14 +1234,18 @@ impl PianoModel {
     pub fn note(&self, note: u8) -> NoteParams {
         let f0 = note_freq(note, self.a4) * 2f64.powf((self.stretch.cents(note) + self.temperament.cents(note)) / 1200.0);
         let length = self.scale.length(note);
-        let tension = self.scale.tension * self.unison.tension_share(note);
+        let tension = if self.scale.tension_by_key {
+            self.scale.tension_at(note)
+        } else {
+            self.scale.tension * self.unison.tension_share(note)
+        };
         let mu = tension / (2.0 * length * f0).powi(2);
         // ≈1/8 of the length up to C6, closer to the agraffe in the high treble.
         let m = note as f64;
-        let strike_pos = if m <= 84.0 { self.strike_ratio } else { self.strike_ratio - 0.05 * (m - 84.0) / 24.0 };
+        let strike_pos = if m <= 84.0 { self.strike_ratio } else { self.strike_ratio - self.strike_ratio_top * (m - 84.0) / 24.0 };
         let contact_width = (0.008 - 0.004 * (m - 21.0) / 87.0) * self.contact_width_scale;
         let mut hammer = hammer_stulov(note);
-        hammer.mass_kg *= self.hammer_mass_scale;
+        hammer.mass_kg *= self.hammer_mass_scale + self.hammer_mass_slope * (m - 60.0);
         if self.shank_share > 0.0 && self.shank_freq > 0.0 {
             let total = hammer.mass_kg;
             let share = self.shank_share.clamp(0.0, 0.9);

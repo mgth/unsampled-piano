@@ -38,3 +38,23 @@ The first spectrum tried (up to 6 kHz, +7 dB at 1–2.5 kHz) raised the 2–8 kH
 ## Default level
 
 Played live, the mechanical noises stood out too much (2026-10-27): the knock's level matched the real grands' recordings, close microphones in a studio, more than what the player hears. The defaults of every noise the musician's control `mechanism` moves (`noise.action`, `keybed`, `damper_mass`, `pedal`) are now 7.5 dB below these levels (× 0.42). The control spans × 8 each way (±18 dB): +0.42 brings back the real grands' level, +1 is 10.5 dB above it, −1 25.5 dB below. A first try at −12 dB left the control's lower half nearly inaudible.
+
+## Against the commercial piano (2026-11-01)
+
+The commercial piano has a `Hammer Noise` setting, 0.286 in its D. On the top keys, below 0.75·f0, where no string partial sounds, the knock can be read on its own. In dB against each set's own C4–A4 ff attack, mean of the top keys at ff, by time from the onset:
+
+| | 0 s | 20 ms | 50 ms | 100 ms | 200 ms | 300 ms | 500 ms |
+|---|---|---|---|---|---|---|---|
+| Six real grands (iowa, salamander, headroom, splendid, helgesson, bivib_grand), range | −13…−8 | −18…−14 | −25…−18 | −33…−26 | −42…−35 | −48…−42 | −55…−48 |
+| Commercial, its D | −8 | −12 | −17 | −26 | −38 | −45 | −54 |
+| Commercial, `Hammer Noise` 0 | −20 | −24 | −29 | −36 | −47 | −57 | −67 |
+| Commercial, `Hammer Noise` 1 | +1 | −3 | −8 | −17 | −28 | −35 | −45 |
+| Model, default | −18 | −26 | −36 | −48 | −63 | −68 | −74 |
+
+The real grands' readings at 500 ms and beyond may hold some recording noise.
+
+- **What it is.** One event at the strike, about 20 dB per setting's full range, flat from 40 Hz to 2 kHz, the same at every top key, 5 dB softer at velocity 60 than at 100. There is no second event: no later hammer fall appears on these keys. It stands out in the high treble because the strings there are weak and leave the low band to it.
+- **Fixed, then through the strings.** Below 0.75·f0 at C7, G7 and C8, the first 100 ms are one fixed waveform per key: correlation 0.999 from take to take, 0.996–0.998 between velocities 60 and 100 (only the level moves), 0.33–0.78 between keys, 0.98–0.996 with the tuning changed or the sympathetic and duplex resonances off. From 200 ms on the tail is strings: with those resonances off it falls 7 dB at 200 ms, 20 dB at 500 ms, and its lines move with the tuning (1272 → 1323 Hz). Its lowest line, near 1270 Hz, suggests the undamped top strings; sustain pedal 1 set through Carla changed nothing, so whether the pedal took effect is not known.
+- **Noises off on both sides.** Setting 0 leaves a knock of the same waveform family (0.88 at C8), which no other setting tried removes. The model at its default knock is its nearest match, not the model with `noise.action` 0, which is 12–20 dB lower from 20 to 100 ms (`noise.keybed` 0 changes nothing here). Below 0.75·f0, in dB as above, at 0 / 20 / 50 / 100 / 200 / 300 ms: setting 0, −20 −24 −29 −36 −47 −57; model default, −18 −26 −35 −48 −63 −68; `noise.action` 0, −19 −38 −49 −57 −65 −68.
+- **Against the real grands.** The commercial D's noise sits within them. With its setting at 0 it falls 10 dB below them. The model's knock starts 5–10 dB below them, which includes the default's deliberate 7.5 dB (above), and then falls too fast: 15–25 dB short from 100 ms on. The level is a choice; the decay is not, and `noise.action_time` (0.2 s) is the first thing to try.
+- **The key's release.** `Key Release Noise` makes two events, at the key-up and 0.25 s later, the same at both velocities; set to 0, they vanish. At the top keys they lie 59–70 dB under the note's attack (−84 dBFS), the model's window 85–113 dB under: audible only with the note gone and the level high. Real release samples (VCSL) are still to be compared.
