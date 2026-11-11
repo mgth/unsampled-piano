@@ -45,6 +45,31 @@ fn main() {
         structure: s,
         ..SoundboardParams::GRAND_2M
     };
+    // The elements against a finer grid: the frequency of the n-th mode per
+    // grid step and mass matrix, re the reference's.
+    //   board_fem <thesis|d> <ref step> <below> converge [memory, GB]
+    if args.get(4).is_some_and(|a| a == "converge") {
+        let memory = args.get(5).and_then(|v| v.parse::<usize>().ok()).unwrap_or(6) << 30;
+        let run = |step: f64, over: f64| {
+            let t = std::time::Instant::now();
+            let f = piano_core::fem::frequencies_with(&SoundboardParams { structure: BoardStructure { step, ..s }, ..p }, over, memory);
+            eprintln!("step {step}, mass {over}: {} modes, {:.0} s", f.len(), t.elapsed().as_secs_f64());
+            f
+        };
+        let reference = run(s.step, 0.5);
+        let ns: Vec<usize> = [50, 100, 200, 300, 400, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000].into_iter().filter(|&n| n <= reference.len()).collect();
+        println!("mode {}", ns.iter().map(|n| format!("{n:6}")).collect::<String>());
+        println!("Hz   {}", ns.iter().map(|&n| format!("{:6.0}", reference[n - 1])).collect::<String>());
+        for (step, over) in [(0.02, -1.0), (0.02, 0.0), (0.02, 0.5), (0.01, -1.0), (0.01, 0.0), (0.01, 0.5)] {
+            if step <= s.step {
+                continue;
+            }
+            let f = run(step, over);
+            let row: String = ns.iter().map(|&n| f.get(n - 1).map_or("     –".into(), |v| format!("{:+6.1}", 100.0 * (v / reference[n - 1] - 1.0)))).collect();
+            println!("{step} {over:4} {row}  ({} modes)", f.len());
+        }
+        return;
+    }
     let t = std::time::Instant::now();
     let sb = Soundboard::new(p);
     let fem = sb.fem.as_ref().unwrap();

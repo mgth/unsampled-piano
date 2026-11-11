@@ -14,9 +14,15 @@ use std::time::{Duration, Instant};
 /// build on every hardware thread also takes the audio thread's SMT
 /// sibling, slowing it down for the build's duration.
 pub fn map<T: Send, F: Fn(usize) -> T + Sync>(n: usize, f: F) -> Vec<T> {
+    map_limited(n, usize::MAX, f)
+}
+
+/// [`map`] on at most `limit` threads: for items that each hold much memory.
+pub fn map_limited<T: Send, F: Fn(usize) -> T + Sync>(n: usize, limit: usize, f: F) -> Vec<T> {
     let threads = std::thread::available_parallelism()
         .map_or(1, |p| (p.get() / 2).max(1))
-        .min(n);
+        .min(n)
+        .min(limit.max(1));
     if threads <= 1 {
         return (0..n).map(f).collect();
     }

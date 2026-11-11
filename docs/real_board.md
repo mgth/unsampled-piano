@@ -1,6 +1,6 @@
 # The soundboard as it is built
 
-Status as of 2026-11-11. `soundboard.structure.enabled`, off by default: with it off, the renders are bit for bit those of the commit before (three keys and presets compared, the per-key profiles' path included).
+Status as of 2026-11-11 (its own modes up to 6 kHz since that day: [Above 3 kHz](#above-3-khz)). `soundboard.structure.enabled`, off by default: with it off, the renders are bit for bit those of the commit before (three keys and presets compared, the per-key profiles' path included).
 
 ## Why
 
@@ -31,15 +31,17 @@ The thesis's angles (grain −40°, ribs 54.4°) are from the frame's y axis: th
 
 - **Section.** Every point is a stack: plate; rib under it, fibres along the rib; bridge over it, fibres along its curve. It reduces to a bending stiffness about its own neutral plane (D* = D − B·A⁻¹·B), a transverse shear stiffness, a surface mass and a rotary inertia. The thesis instead gives a whole thickness one material, and notes that this overstiffens the bridge.
 - **Plate.** Reissner–Mindlin, as the thesis's. Shear is not optional here: across the grain spruce's transverse shear modulus is 0.039 GPa, 300 times below its modulus along the grain, and at 3 kHz a cross-grain bending wave on 9 mm moves as fast as its shear wave. A thin plate (Hermite elements, tried first) had half the modes at 6 kHz.
-- **Elements.** MITC4 rectangles on a 1 cm grid, with assumed shear so that they do not lock, 4 × 4 integration points each. A node along the outline is clamped, or only its displacement held (`clamped` off).
-- **Solver.** Spectrum slicing, 400 Hz a slice: the count of each from the inertia of K − λ·M (LDLᵀ of the band matrix), then shift-invert Lanczos with full reorthogonalisation at its middle, until it has them. No slice can lose a mode unnoticed.
-- **Cost.** 385 modes below 3 kHz in 15 s on 32 threads, the first time. 32 MB on disk (`~/.cache/unsampled-piano/boards/`, by a hash of the structure, outline and bridges), 1 s to read back. The crown does not enter the hash: it moves the frequencies afterwards.
+- **Elements.** MITC4 rectangles on a 1 cm grid, with assumed shear so that they do not lock, 4 × 4 integration points each. Their mass matrix is 1.5 × the lumped one − 0.5 × the consistent one, which keeps their waves at the plate's own frequencies up to 8 kHz and more ([Above 3 kHz](#above-3-khz)). A node along the outline is clamped, or only its displacement held (`clamped` off).
+- **Solver.** Spectrum slicing, 400 Hz a slice, halved until none holds more than 64 modes: the count of each from the inertia of K − λ·M (LDLᵀ of the band matrix), then shift-invert Lanczos with full reorthogonalisation at its middle, until it has them. No slice can lose a mode unnoticed. As many slices side by side as fit in 6 GB.
+- **Shapes.** Each is normalised on the lumped mass, Σ m·φ² = 1 over the nodes, and given a sign of its own (upwards at the first node that moves by half its largest movement): the solver leaves the sign to chance, and the case's field, which gives each mode a phase, changed with it.
+- **Cost.** In the preset, 1104 modes below 6 kHz in 41 s on 16 threads, the first time, within 4.9 GB. 49 MB on disk (`~/.cache/unsampled-piano/boards/`, by a hash of the structure, outline and bridges; shapes in 16 bits), the air's 18 kB beside it, 0.9 s to start again. Up to 3 kHz: 409 modes, 17 s, 18 MB. The crown does not enter the hash: it moves the frequencies afterwards.
 
 ### Into the engine
 
 - **The drive.** A mode is driven at the key's bridge point, with no `bridge_spread` (the bridge is in the structure) and no `impedance_slope`.
-- **Per key.** With `exact_below`, the modes get a force per key in a bank of 88 inputs (`BoardBank<KEYS>`). The 16 profiles of the fitted plate do not fit: they made levels jump by ±12 dB from key to key (B3 +12, D3 −12), which is the truncation and goes away. It costs nothing more when few keys sound, and a 30-note pedalled chord on one thread runs at 2.7× real time, as on the fitted plate.
-- **Above the corner.** The rectangle's modes above 3 kHz stay, set on `rho_h`, `dx`, `dy`. Each key's drive is scaled so that the conductance carries on across the corner (the octave below against the octave above, smoothed over ±3 keys), and their radiation by √(ρh·A/mass), since their mass is not the board's. Level from string force to microphones then runs across 3 kHz without a jump (2.5, 3.15, 4 kHz at C4: 67.6, 63.6, 66.8 dB).
+- **Per key.** With `exact_below`, the modes get a force per key in a bank of 88 inputs (`BoardBank<KEYS>`). The 16 profiles of the fitted plate do not fit: they made levels jump by ±12 dB from key to key (B3 +12, D3 −12), which is the truncation and goes away. It costs nothing more when few keys sound. Thirty keys with the pedal pumping, on one thread: 3.6× real time with the built modes up to 3 kHz, as on the fitted plate, 3.3× up to 6 kHz.
+- **Radiation.** A built mode radiates from its own nodes when the radiation grid (`grid_step`, 1.5 cm) is coarser than the elements: its waves across the grain are 4.3 cm long at 6 kHz. Below 3 kHz the two differ by 0.1 dB.
+- **Above the corner.** The rectangle's modes above the structure's last (`structure.below`, 6 kHz in the preset, 3 kHz until 2026-11-11) stay, set on `rho_h`, `dx`, `dy`. Each key's drive is scaled so that the conductance carries on across the corner (the octave below against the octave above, smoothed over ±3 keys), and their radiation by √(ρh·A/mass), since their mass is not the board's.
 - **The rim** gets the reactions at the held nodes, F = −K_cf·φ, which balance the plate's inertia (test).
 
 ### Damping
@@ -52,7 +54,7 @@ The thesis's law, fve = 2·10⁻⁵·f² + 0.07·f, with f in Hz (III.1.1; RT-42
 
 Z = 2·(iωρ₀/2π)·∫∫Φ·(e^{−ikR}/R − β·e^{−ikR'}/R')·Φ' dS dS' = r + iω·m,
 
-by FFT on a 2 cm grid (`fem::air_on`, 0.4 s on 32 threads). So (1 + m)·q̈ + r·q̇ + ω²·q = F: the frequencies fall by √(1 + m), every shape too, and r/((1 + m)·ω) joins the mode's loss factor. Above the corner the plate radiates as a whole: η = 2ρ₀c/(ω·ρh). The coupling between modes through the air is left out.
+by FFT on a 2 cm grid below 3 kHz and on the elements' nodes above (`fem::air_on`; 4 s on 16 threads for 1104 modes, kept on disk beside the modes). So (1 + m)·q̈ + r·q̇ + ω²·q = F: the frequencies fall by √(1 + m), every shape too, and r/((1 + m)·ω) joins the mode's loss factor. Above the corner the plate radiates as a whole: η = 2ρ₀c/(ω·ρh). The coupling between modes through the air is left out.
 
 Checked against a baffled piston (mass 8ρa³/3, resistance ρc·A·(ka)²/2) within 3 %, and Wallace's efficiency of a plate's (1, 1) mode within 5 %. On the D's flat board:
 
@@ -68,17 +70,18 @@ Radiation is then a fair share of a mode's losses beside the wood's 2.2–4 %, a
 
 **Against the thesis, same board.** 9 mm plate, ribs of 25 mm under it, bridge of 20 mm over it, simply supported, as it computes them (curves read off its Figure II.12; `examples/board_fem.rs thesis 0.01 6200`):
 
-| Mode | 1 | 2 | 3 | 4 | 5 | 10 | 15 | 20 | 200 | 400 | 600 | 800 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Here | 29.8 | 44.4 | 67.6 | 69.0 | 98.4 | 160 | 230 | 295 | 1933 | 3265 | 4410 | 5486 |
-| Thesis, 3D | 29 | 43 | 64 | 67 | 94 | 163 | 229 | 280 | 1750 | 2700 | 3350 | 4050 |
-| Thesis, plate | 29 | 42 | 62 | 67 | 91 | 164 | 226 | 284 | 1900 | 3100 | 4000 | 4750 |
+| Mode | 1 | 2 | 3 | 4 | 5 | 10 | 15 | 20 | 200 | 400 | 600 | 800 | 1000 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Here | 29.8 | 44.4 | 67.5 | 69.0 | 98.3 | 160 | 229 | 294 | 1889 | 3124 | 4125 | 5022 | 5845 |
+| Here, until 2026-11-11 | 29.8 | 44.4 | 67.6 | 69.0 | 98.4 | 160 | 230 | 295 | 1933 | 3265 | 4410 | 5486 | |
+| Thesis, 3D | 29 | 43 | 64 | 67 | 94 | 163 | 229 | 280 | 1750 | 2700 | 3350 | 4050 | 4750 |
+| Thesis, plate | 29 | 42 | 62 | 67 | 91 | 164 | 226 | 284 | 1900 | 3100 | 4000 | 4750 | 5500 |
 
-3.2 % rms over the first 20 against 3D. Within 2 % of its plate at mode 200 and 5 % at 400; the first-order elements fall behind above that (10 % at 600), which is why the corner stays at 3 kHz. The thesis's bridges and outline are not exactly these: its mesh could not be fetched.
+3.1 % rms over the first 20 against 3D. Within 1 % of its plate at modes 200 and 400, 3 % at 600, 6 % at 800 and 1000; with the consistent mass used until 2026-11-11 it was 5 % at 400, 10 % at 600 and 15 % at 800, which had kept the corner at 3 kHz. What is left is not the elements': against a 5 mm grid of the same board they are within 1.5 % up to 8.8 kHz ([Above 3 kHz](#above-3-khz)). The thesis's bridges and outline are not exactly these (its mesh could not be fetched), and its curve is read off a figure.
 
 **Against a real board.** The D's structure, clamped, flat: 33, 52, 78, 89 Hz. Conklin's real 2.74 m board, without strings or bridge: 49, 67, 89, 112 Hz. Simply supported is far lower (the thesis's 29, 43, 64, 67), so a real board is nearer clamped. The difference looks like what the crown does. With the air, the flat board is at 31, 49, 74, 85 Hz, and 40 Hz of crown gives 49, 62, 83, 94 Hz. That is the value set: it is fitted on these four modes, not measured, on a board whose bridge is missing and which has no strings on it.
 
-**Unit tests.** A clamped square against Leissa within 0.5 %; slices that miss nothing; shapes mass-normalised; reactions balancing the inertia; the cache reading back what it wrote.
+**Unit tests.** A clamped square against Leissa within 0.5 %; a grid of five elements to the wavelength against a fine one; slices that miss nothing; shapes mass-normalised, their sign the same however far the spectrum is solved; reactions balancing the inertia; the cache reading back what it wrote; a low mode radiating the same from its nodes and from the grid's cells.
 
 Mass: 11.2 kg on 2.09 m² (5.4 kg/m²). Mean conductance at the bridge: −33 to −36 dB re 1 s/kg between 800 Hz and 8 kHz in the middle.
 
@@ -217,15 +220,134 @@ With the strings and without the piston mode the built board comes back to the f
 
 The preset takes all three (2026-11-11), chosen after hearing both variants against it and the D (`out/ab_grave_cordes`): the strings, no piston mode, the measured polarisation.
 
+## Above 3 kHz
+
+Status as of 2026-11-11. The built board's own modes run up to 6 kHz in the preset, 1104 of them (409 below 3 kHz); the statistical rectangle keeps what is above. The elements were the obstacle and no longer are. On the measures, the result is neutral: neither the distance to the commercial D nor the bench moves by more than what a redraw of the same board moves them.
+
+### Where the elements stopped being right
+
+Two measures, neither needing the thesis's mesh.
+
+**A wave on an endless grid.** A plane wave on a uniform 9 mm spruce plate, meshed with these elements, has a frequency that one node's 3 × 3 problem gives exactly (Bloch; `tools/mitc4_dispersion.py`). Against the plate's own, error in frequency at the true frequency, mean over the directions and, in brackets, the worst one, across the grain:
+
+| 1 cm grid | 1 kHz | 2 kHz | 3 kHz | 4 kHz | 6 kHz | 8 kHz | 10 kHz |
+|---|---|---|---|---|---|---|---|
+| consistent mass, as until now | +1.1 (+2.2) % | +2.5 (+5.6) | +4.3 (+10.5) | +6.4 (+17) | +11.5 (+35) | +17.7 (+60) | +24.8 (+92) |
+| lumped mass | +0.2 (+0.8) | +0.7 (+2.3) | +1.3 (+4.3) | +2.0 (+7.2) | +3.5 (+14) | +4.8 (+21) | +5.6 (+26) |
+| 1.5 × lumped − 0.5 × consistent | −0.1 (−0.5) | −0.1 (+0.9) | 0.0 (+1.9) | +0.1 (+3.2) | +0.3 (+6.9) | +0.3 (+10) | −0.3 (+12) |
+| wavelength along / across the grain, cm | 29.5 / 14.6 | 20.5 / 9.6 | 16.5 / 7.3 | 14.1 / 5.9 | 11.2 / 4.3 | 9.4 / 3.4 | 8.2 / 2.7 |
+
+The elements are too stiff, and the consistent mass adds to it. With that mass a grid of 5 mm still errs by +2.9 % at 6 kHz and +4.4 % at 8 kHz: halving the step only gives 8 kHz what 1 cm had at 3 kHz.
+
+**The D's board against a 5 mm grid.** The structure itself, clamped, flat, without strings: frequency of the n-th mode on each grid, re the 5 mm grid's (`board_fem d 0.005 10000 converge 22`):
+
+| Mode | 50 | 100 | 200 | 300 | 400 | 600 | 800 | 1000 | 1200 | 1500 | 2000 | modes below 10 kHz |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Hz, 5 mm grid | 612 | 1031 | 1763 | 2374 | 2914 | 3871 | 4723 | 5526 | 6250 | 7265 | 8761 | 2458 |
+| 1 cm, consistent mass (until now) | +1.9 % | +2.5 | +3.5 | +4.7 | +5.5 | +7.9 | +10.5 | +12.5 | +15.1 | +18.0 | | 1820 |
+| 1 cm, lumped | +1.4 | +1.7 | +2.0 | +2.4 | +2.6 | +3.5 | +4.2 | +4.9 | +5.5 | +6.2 | +7.5 | 2187 |
+| **1 cm, 1.5 × lumped − 0.5 × consistent** | +1.2 | +1.3 | +1.1 | +1.3 | +1.2 | +1.4 | +1.5 | +1.4 | +1.5 | +1.4 | +1.4 | 2415 |
+| 2 cm, the same mass | +3.4 | +3.1 | +2.5 | +2.7 | +2.7 | +2.8 | +2.8 | +2.2 | +1.6 | +0.4 | −2.2 | 2914 |
+| 2 cm, consistent | +6.4 | +8.4 | +11.7 | +15.9 | +19.7 | +27.9 | +35.7 | +42.2 | +48.9 | | | 1297 |
+
+So the elements as they were had the board's modes 5.5 % too high at 2.9 kHz already, and a quarter of them missing below 10 kHz. With the new mass the error no longer grows with frequency: 1.2–1.5 % from 600 Hz to 8.8 kHz, presumably what a staircase of 1 cm makes of the outline, the ribs and the bridge (2.5–3.4 % at 2 cm).
+
+### What the options cost
+
+| | accuracy at 8 kHz | a factorisation | memory | cache per mode |
+|---|---|---|---|---|
+| 5 mm grid, consistent mass | +4.4 % (Bloch) | × 16 | × 8: 1.8 GB a slice | × 4 |
+| second-order elements on the same nodes (not written) | about a third of the first-order error at equal nodes, by the textbook's estimate | × 4 (twice the band) | × 2 | × 1 |
+| **the mass matrix** | within 0.3 % (Bloch), +1.4 % on the board | × 1 | × 1 | × 1 |
+
+The 5 mm reference above, up to 10 kHz, took 16 minutes on 7 threads within 22 GB. The mass matrix is the one kept. It is a remedy for these elements on this wood, not a better element: across its grain spruce is so soft in shear that the plate's short waves are shear waves, and the blend is set on them. On an isotropic plate it overshoots: at five elements to the wavelength the modes come out up to 3 % low where the consistent mass has them up to 12 % high and the lumped one up to 5 % high.
+
+Two things follow from that mass. The solver's shapes are orthonormal for it, not for the plate's mass: left so, the nodes would move 0.3 dB too little at 3 kHz and 1 dB at 8 kHz across the grain, hence the lumped normalisation. And a mode's sign: a board solved up to 6 kHz gave some of its low modes the other sign than the same board solved up to 3 kHz, and the case's field, which adds to each mode a pressure with a phase of its own, then redrew every partial above 300 Hz, by 3–7 dB rms, between two builds of the same board. A mode's sign is now its own.
+
+### How far
+
+| corner | built modes | modes in the bank | first build, 16 threads | peak memory | on disk | starting again | 30 keys, pedal pumping, one thread | whole keyboard ff |
+|---|---|---|---|---|---|---|---|---|
+| before, 3 kHz | 385 | 1958 | 15 s | | 32 MB | 1.1 s | 27.8 % of a core, 3.6× real time | 39.7 % |
+| 3 kHz | 409 | 1982 | 17 s | 3.0 GB | 18 MB | 0.8 s | 28.0 %, 3.6× | 39.9 % |
+| 5 kHz | | | 32 s | 4.9 GB | 37 MB | 0.85 s | | |
+| **6 kHz** | 1104 | 2403 | 41 s | 4.9 GB | 49 MB | 0.9 s | 30.6 %, 3.3× | 43.9 % |
+| 8 kHz | 1700 | 2815 | 64 s | 5.7 GB | 75 MB | 1.1 s | 33.7 %, 3.0× | 47.4 % |
+| 10 kHz | 2415 | 3346 | 90 s | 6.3 GB | 106 MB | 1.2 s | 36.4 %, 2.7× | 51.6 % |
+
+48 kHz, buffers of 128 frames, `perf_audit`, runs alternated on a machine at rest. The first build is paid once per structure, then read from the disk. Without the air kept on disk, starting again would take 5 s at 6 kHz and 8 s at 8 kHz.
+
+How far the model can go, 8 kHz, and where the preset stops, 6 kHz:
+
+- **The grid.** At 8 kHz the board's shortest waves, across the grain between the ribs, are 3.4 cm long: 3.4 nodes. At 10 kHz, 2.7 cm. The count of modes still holds there (2415 against the 5 mm grid's 2458), their shapes no longer. 8 kHz is as far as this grid goes.
+- **The plate.** The thesis's 3D computation and its plate are already 15–19 % apart in frequency from 3 to 6 kHz (same figure, above), and a wave of 3.4 cm is hardly longer than a rib is wide. More accuracy in solving the plate buys nothing beyond.
+- **The cost.** 6 kHz is a tenth more of a core than 3 kHz, 8 kHz a fifth, 10 kHz a third, with a 106 MB file and a minute and a half to build.
+- **The sound.** Nothing measured separates 6, 8 and 10 kHz (below), and by ear neither: 8 kHz was the preset first, and heard key by key against the board before, the new elements at 3 kHz and the commercial D (`out/ab_table_8khz`, 2026-11-11), no difference was heard. The preset takes 6 kHz, which measures the same for half the added cost.
+
+### Against the commercial D and the real grands
+
+Same close microphones, no room, each set under its own level, all 88 keys at velocities 60 and 100; the bench as in docs/bench.md. One change at a time: the elements at the old corner, then the corner.
+
+| | D, 88 keys | bass | middle | treble | top | D, the 15 keys | bench | bass | middle | treble | top |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| before | 9.29 | 8.63 | 10.09 | 8.51 | 9.83 | 7.32 | 1.97 | 1.43 | 1.68 | 1.68 | 2.94 |
+| the new elements, corner at 3 kHz | 9.48 | 8.68 | 9.78 | 9.48 | 9.92 | 8.94 | 2.00 | 1.49 | 1.66 | 1.82 | 2.91 |
+| **corner at 6 kHz: the preset** | 9.46 | 8.70 | 9.86 | 9.69 | 9.54 | 9.04 | 1.98 | 1.50 | 1.70 | 1.83 | 2.81 |
+| corner at 8 kHz | 9.49 | 8.70 | 9.86 | 9.98 | 9.35 | 9.05 | 1.99 | 1.51 | 1.76 | 1.88 | 2.77 |
+| corner at 10 kHz | 9.61 | 8.70 | 9.88 | 9.99 | 9.80 | 9.25 | | | | | |
+
+**What these figures can tell.** Two things were found on the way, and both limit what can be read here.
+
+- *The 15 keys.* The distance of docs/steinway_d.md takes every sixth key from A0, the keys the preset was matched on. On the five other sets of every sixth key the board before scores 9.11, 10.32, 10.63, 9.24 and 8.32, not 7.32; at 8 kHz the new board scores 9.05 on that set and 8.31, 10.93, 10.28, 8.86 and 9.13 on the others. The 7.32 was those 15 keys' own; on all 88 the step is 9.29 → 9.46.
+- *A redraw.* Moving the board's modes by a few percent, which is what the new elements do below 3 kHz, moves each partial of each note by 6–8 dB rms in the middle and the treble, at the attack as in the sustain: force to microphones is a sum of many modes, and its fine structure does not survive such a shift. Two builds of the new elements at 3 kHz that differed only by the signs above scored 9.52 and 9.48, the treble 9.04 and 9.48, the top 8.62 and 9.92. A step under about 0.5 in a register, 1.3 at the top, says nothing about the board.
+
+Read with that:
+
+- **Overall: neutral.** 9.29 → 9.46 against the D, 1.97 → 1.98 on the bench.
+- **The treble is further from the D**, 8.51 → 9.69 (9.98 at 8 kHz), more than a redraw: 1.0 with the new elements, 0.2 more with the corner at 6 kHz and 0.5 at 8 kHz (the same 0.5 in both draws). Its partials 2–8 stand 4.5 dB over the D's at the attack, 3.0 before, and its level 3.7 dB under the keyboard's median, 2.3 before. On the bench its register goes from 1.68 to 1.83: partial 4 of the attack (z +1.0 → +2.3 at ff) and the balance of its fundamentals (z −1.2 → −3.2, there from the new elements on).
+- **The top is nearer**, 9.83 → 9.54 against the D (within a redraw) and 2.94 → 2.81 on the bench: partials 2 and 4 of its attack (z +5.9 → +5.3, +2.5 → +1.6), its 4 kHz band (z +2.9 → +1.5), partial 2 of its sustain (z −2.4 → −0.4).
+- **The top octave's level** comes 2–3 dB nearer the D's, in both draws: C7–C8 at −14.7 dB re A2–A5 (−15.7 in the other draw) against −17.9 before, the D −10.6. It comes with the new elements, not with the corner.
+
+Level of the fundamental, re each set's A2–A5 (dB, velocity 100, first 0.3 s):
+
+| | C5–B5 | C6–B6 | C7–D7 | D#7–F#7 | G7–C8 |
+|---|---|---|---|---|---|
+| the commercial D | 3.4 | −2.7 | −9.4 | −13.0 | −16.7 |
+| before | −0.4 | −8.0 | −23.5 | −21.5 | −25.5 |
+| the new elements, corner at 3 kHz | −2.1 | −8.6 | −16.5 | −18.9 | −22.2 |
+| corner at 6 kHz | −2.1 | −8.8 | −14.9 | −20.2 | −21.0 |
+| corner at 8 kHz | −2.2 | −8.7 | −14.5 | −20.4 | −20.9 |
+
+Raw level: −25.9 dB against −24.9 before, the D −20.9.
+
+### What it did not change
+
+- **The step near 2–2.5 kHz.** Force to microphones, direct field, mean over the keys, the structure without the strings' hold (dB; `board_tf`):
+
+| | 1.6 kHz | 2 kHz | 2.5 kHz | 3.15 kHz | 4 kHz | 5 kHz | 6.3 kHz | 8 kHz |
+|---|---|---|---|---|---|---|---|---|
+| C6–B6, the fitted plate | 61.3 | 63.4 | 65.9 | 64.4 | 64.8 | 65.2 | 65.9 | 64.4 |
+| C6–B6, before | 61.9 | 64.3 | 68.2 | 71.1 | 69.5 | 70.4 | 71.6 | 69.6 |
+| C6–B6, corner at 6 kHz | 61.3 | 64.5 | 67.9 | 65.7 | 67.1 | 68.8 | 70.8 | 71.0 |
+| C6–B6, corner at 8 kHz | 61.5 | 64.6 | 68.0 | 66.0 | 68.1 | 69.9 | 72.5 | 72.5 |
+| C7–C8, before | 64.8 | 63.5 | 67.4 | 68.4 | 70.9 | 70.7 | 73.4 | 73.7 |
+| C7–C8, corner at 6 kHz | 65.2 | 64.0 | 67.8 | 67.5 | 69.3 | 69.8 | 72.0 | 72.8 |
+| C7–C8, corner at 8 kHz | 65.0 | 63.8 | 67.6 | 67.4 | 69.2 | 70.6 | 71.9 | 73.8 |
+
+  The 4 dB between 2 and 2.5 kHz are as they were: they lie below the old corner, in modes that were the structure's already, and correcting these by 4–5 % does not fill them. What the built modes change is above: 5 dB less at 3.15 kHz for C6–B6 than the rectangle matched at the corner gave, 1–2 dB less elsewhere at 3–4 kHz.
+- **The fundamentals of C6–B6**, 6 dB under the D's as before (−8.8 against −2.7): 1–2 kHz, below the old corner too.
+- **The real strike point at the top.** With `strike_ratio_top` 0, RT-425's, against the default's 0.05, level of D#7–F#7 against the D's under one gain: −7.6 against −1.4 before, −4.7 against +1.2 with the new elements at 3 kHz, −5.6 against +0.1 with the corner at 8 kHz (not rendered at 6 kHz). The real point costs 6 dB with the built board as with the statistical plate: the plate was not the cause. Their second partial then stands 12 dB over the D's with the real point, 5.5 with the default's.
+
 ## Still not in it
 
 - **Crown and bearing**: a foundation term set on four modes, not the shell under the strings' 200 kN.
 - **Coupling**: the rim and the frame receive the board's forces and do not give back. The clamped edge is rigid. Made two-way, the ring would change two modes in 227 ([What the rim and the case could take](#what-the-rim-and-the-case-could-take)).
 - **Air between modes**: each mode loads only itself. The case's own volume, the lid and the room do not act back on the board. The case's field is statistical: no individual reflection, no strut, the frame's real shape being unknown to the sources used here.
 - **The strings' rear lengths** as measured (an estimate holds the bridge), their duplex resonances, the 17th rib, the plate's real braces, the bridges' pins and notches.
-- **The modes above 3 kHz**: still a statistical plate, at the structure's level. Finer elements or second-order ones would extend the corner.
+- **The modes above 6 kHz**: still a statistical plate, at the structure's level; the elements would carry them to 8 kHz, at a cost nothing heard or measured repays ([Above 3 kHz](#above-3-khz)).
+- **A plate, not a solid**: the thesis's 3D computation of the same board has its 400th mode at 2.7 kHz where its plate, and this one, have it at 3.1 kHz, and its 1000th at 4.75 kHz against 5.5. The ribs, 2–2.6 cm wide and up to 3.4 cm deep, and the bridge, 3 cm wide and up to 7 cm deep, are layers of a plate here.
 - **The rib-plate glue line** and in-plane relaxation under a narrow rib: the section takes the stack as free to find its neutral plane, which softens a little what a 3D model keeps stiff.
 
 ## Tools
 
-`examples/board_fem.rs` (modes against the thesis, conductance per key), `examples/board_tf.rs` (string force to microphones per partial and per third of an octave, built against fitted).
+`examples/board_fem.rs` (modes against the thesis, conductance per key; `board_fem d 0.005 10000 converge 22` for the elements against a 5 mm grid within 22 GB), `examples/board_tf.rs` (string force to microphones per partial and per third of an octave, built against fitted, with the corner as its second argument), `piano-render`'s `examples/build_parts.rs` (a preset's build time, part by part), `tools/mitc4_dispersion.py` (the elements' waves against the plate's, per grid step and mass matrix).

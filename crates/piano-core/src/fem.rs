@@ -9,7 +9,10 @@
 //! matters, spruce being 300 times softer there than along it; without it
 //! the board has half its modes at 6 kHz. Elements: MITC4 rectangles (w, θx,
 //! θy at each corner, assumed shear, no locking) on a regular grid, each
-//! integrated on 4 × 4 points, so that a rib lies where it does.
+//! integrated on 4 × 4 points, so that a rib lies where it does. Their mass
+//! matrix is a blend of the lumped and the consistent ones ([`MASS_OVER`]),
+//! which keeps the plate's short waves, across the grain, at their own
+//! frequencies as far as the grid holds them.
 //!
 //! Solver: the modes below a frequency, by spectrum slicing. Each slice's
 //! number of modes comes from the inertia of K − λ·M (Sylvester), and a
@@ -597,6 +600,21 @@ fn slice(k: &Band, m: &Band, lo: f64, hi: f64, count: usize, seed: u64) -> Vec<(
     }
 }
 
+/// The elements' mass matrix is (1 + MASS_OVER)·lumped − MASS_OVER·consistent.
+/// On a 1 cm grid of these elements, a 9 mm spruce plate's waves come out
+/// 4 % too high in frequency at 3 kHz and 12 % at 6 kHz with the consistent
+/// mass (mean over the directions), 1.3 % and 3.5 % with the lumped one, and
+/// within 0.3 % up to 10 kHz with this one (tools/mitc4_dispersion.py). On
+/// the D's board against a 5 mm grid: 5.5 % at 2.9 kHz and 18 % at 7.3 kHz
+/// with the consistent mass, 1.2–1.5 % up to 8.8 kHz with this one
+/// (docs/real_board.md, "Above 3 kHz"). Set for spruce, whose short waves
+/// are shear waves: on an isotropic plate it overshoots by up to 3 %.
+const MASS_OVER: f64 = 0.5;
+/// Most modes in a slice of the spectrum.
+const SLICE: usize = 64;
+/// What the slices running side by side may hold in memory (bytes).
+const MEMORY: usize = 6 << 30;
+
 /// 4-point Gauss–Legendre on [0, 1]: (ξ, weight).
 const GAUSS: [(f64, f64); 4] = [
     (0.069_431_844_202_973_71, 0.173_927_422_568_726_93),
@@ -617,8 +635,10 @@ pub struct BoardFem {
     node: Vec<i32>,
     pub omega: Vec<f64>,
     n_free: usize,
-    /// omega.len() × n_free.
-    shapes: Vec<f32>,
+    /// omega.len() × n_free, each mode in 16 bits re its own scale: half the
+    /// memory and the file, 90 dB under the mode's largest movement.
+    shapes: Vec<i16>,
+    scales: Vec<f32>,
     /// Clamped nodes that carry a force, in metres, and for each mode the
     /// force on them per unit modal displacement, omega.len() × supports.
     pub supports: Vec<(f64, f64)>,
@@ -642,7 +662,22 @@ impl BoardFem {
             let n = self.node[a * (self.ny + 1) + b];
             if n < 0 { 0.0 } else { table[n as usize] as f64 }
         };
-        (1.0 - fx) * ((1.0 - fy) * at(i, j) + fy * at(i, j + 1)) + fx * ((1.0 - fy) * at(i + 1, j) + fy * at(i + 1, j + 1))
+        self.scales[mode] as f64 * ((1.0 - fx) * ((1.0 - fy) * at(i, j) + fy * at(i, j + 1)) + fx * ((1.0 - fy) * at(i + 1, j) + fy * at(i + 1, j + 1)))
+    }
+
+    /// The nodes that move, in metres, and a mode's mass-normalised
+    /// displacement at each of them, in the same order.
+    pub fn nodes(&self) -> Vec<(f64, f64)> {
+        let mut out = vec![(0.0, 0.0); self.n_free];
+        for (id, &n) in self.node.iter().enumerate().filter(|(_, n)| **n >= 0) {
+            out[n as usize] = ((id / (self.ny + 1)) as f64 * self.hx, (id % (self.ny + 1)) as f64 * self.hy);
+        }
+        out
+    }
+
+    pub fn at_nodes(&self, mode: usize) -> impl Iterator<Item = f64> + '_ {
+        let scale = self.scales[mode] as f64;
+        self.shapes[mode * self.n_free..(mode + 1) * self.n_free].iter().map(move |&v| scale * v as f64)
     }
 
     /// The forces with which a mode pushes on the rim, per unit modal
@@ -653,6 +688,13 @@ impl BoardFem {
     }
 
     fn build(p: &SoundboardParams) -> Self {
+        Self::build_with(p, MASS_OVER, MEMORY)
+    }
+
+    /// The modes with another mass matrix (`over`, see [`MASS_OVER`]; −1 is
+    /// the consistent one, 0 the lumped one), the slices running side by side
+    /// within `memory` bytes.
+    fn build_with(p: &SoundboardParams, over: f64, memory: usize) -> Self {
         let st = Structure::new(p);
         let s = p.structure;
         let (nx, ny) = ((p.a / s.step).ceil() as usize, (p.b / s.step).ceil() as usize);
@@ -736,7 +778,7 @@ impl BoardFem {
             }
         }
         // Element matrices, 12 × 12 each.
-        let element = |c: usize| -> (Vec<f64>, Vec<f64>, f64) {
+        let element = |c: usize| -> (Vec<f64>, Vec<f64>, f64, [f64; 12]) {
             let (x0, y0) = ((c / ny) as f64 * hx, (c % ny) as f64 * hy);
             let reach = hx.hypot(hy) + s.bridge_width;
             let (cx, cy) = (x0 + 0.5 * hx, y0 + 0.5 * hy);
@@ -774,14 +816,28 @@ impl BoardFem {
                     }
                 }
             }
-            (ke, me, mass)
+            // The mass the solver uses: the consistent one (as integrated above)
+            // makes these elements too stiff, the lumped one less so, and
+            // (1 + β)·lumped − β·consistent cancels the error's leading term.
+            let mut lumped = [0.0; 12];
+            for i in 0..12 {
+                let row: f64 = (0..12).map(|j| me[i * 12 + j]).sum();
+                for j in 0..12 {
+                    me[i * 12 + j] *= -over;
+                }
+                me[i * 12 + i] += (1.0 + over) * row;
+                lumped[i] = row;
+            }
+            (ke, me, mass, lumped)
         };
         let matrices = crate::par::map(elements.len(), |e| element(elements[e]));
         let (mut k, mut m) = (Band::new(n, band), Band::new(n, band));
         let total_mass: f64 = matrices.iter().map(|x| x.2).sum();
-        for (&c, (ke, me, _)) in elements.iter().zip(&matrices) {
+        let mut lumped = vec![0.0; n];
+        for (&c, (ke, me, _, rows)) in elements.iter().zip(&matrices) {
             for a in 0..12 {
                 let Some(ga) = global(c, a) else { continue };
+                lumped[ga] += rows[a];
                 for b in 0..12 {
                     let Some(gb) = global(c, b) else { continue };
                     if ga <= gb {
@@ -818,14 +874,48 @@ impl BoardFem {
                 }
             }
         }
-        // Slices of 400 Hz up to the corner.
+        // Slices of 400 Hz up to the corner, halved until none holds more than
+        // SLICE modes: a slice's work and memory grow with its count.
         let top = TAU * s.below;
         let slices = ((s.below / 400.0).ceil() as usize).max(1);
-        let edges: Vec<f64> = (0..=slices).map(|i| (top * i as f64 / slices as f64).powi(2)).collect();
-        let below: Vec<usize> = crate::par::map(edges.len(), |i| if i == 0 { 0 } else { Ldl::new(&k, &m, edges[i]).below() });
-        let pairs = crate::par::map(slices, |i| slice(&k, &m, edges[i], edges[i + 1], below[i + 1] - below[i], i as u64 + 1));
+        let ldl_bytes = n * (band + 1) * 8;
+        let side = (memory.saturating_sub(2 * ldl_bytes) / ldl_bytes.max(1)).max(1);
+        let count_below = |w: f64| if w <= 0.0 { 0 } else { Ldl::new(&k, &m, w * w).below() };
+        let mut edges: Vec<(f64, usize)> = {
+            let w: Vec<f64> = (0..=slices).map(|i| top * i as f64 / slices as f64).collect();
+            let c = crate::par::map_limited(w.len(), side, |i| count_below(w[i]));
+            w.into_iter().zip(c).collect()
+        };
+        loop {
+            let wide: Vec<f64> = edges.windows(2).filter(|e| e[1].1 - e[0].1 > SLICE && e[1].0 - e[0].0 > TAU).map(|e| 0.5 * (e[0].0 + e[1].0)).collect();
+            if wide.is_empty() {
+                break;
+            }
+            let c = crate::par::map_limited(wide.len(), side, |i| count_below(wide[i]));
+            edges.extend(wide.into_iter().zip(c));
+            edges.sort_by(|a, b| a.0.total_cmp(&b.0));
+        }
+        // Lanczos keeps two vectors a step, some 2·count + 40 steps.
+        let slice_bytes = ldl_bytes + 2 * (2 * SLICE + 40) * n * 8;
+        let side = (memory.saturating_sub(2 * ldl_bytes) / slice_bytes.max(1)).max(1);
+        let pairs = crate::par::map_limited(edges.len() - 1, side, |i| slice(&k, &m, edges[i].0.powi(2), edges[i + 1].0.powi(2), edges[i + 1].1 - edges[i].1, i as u64 + 1));
         let mut found: Vec<(f64, Vec<f64>)> = pairs.into_iter().flatten().collect();
         found.sort_by(|x, y| x.0.total_cmp(&y.0));
+        // Each shape normalised on the lumped mass, Σ m·φ² = 1 over the nodes:
+        // the nodes then move as the plate's own mode does, where the mass
+        // the solver uses would have them 0.3 dB low at 3 kHz and 1 dB at 8.
+        // And a sign of its own, which the solver leaves to chance: upwards at
+        // the first node that moves by half its largest movement or more. What
+        // gives each mode a phase of its own (the case's field) then does not
+        // change with the slices.
+        let moving: Vec<usize> = (0..node.len()).filter(|&id| node[id] >= 0).map(|id| dof[3 * id] as usize).collect();
+        for (_, v) in &mut found {
+            let norm = v.iter().zip(&lumped).map(|(x, m)| m * x * x).sum::<f64>().sqrt();
+            let most = moving.iter().fold(0.0f64, |m, &i| m.max(v[i].abs()));
+            let down = moving.iter().find(|&&i| v[i].abs() >= 0.5 * most).is_some_and(|&i| v[i] < 0.0);
+            let scale = if down { -1.0 / norm } else { 1.0 / norm };
+            v.iter_mut().for_each(|x| *x *= scale);
+        }
         let count = found.len();
         // Reactions: F = −K_cf·φ at the held w dofs (the plate's equation
         // there, inertia of the held dofs left out).
@@ -843,7 +933,7 @@ impl BoardFem {
         let per_mode: Vec<Vec<f32>> = crate::par::map(count, |mode| {
             let phi = &found[mode].1;
             let mut out = vec![0.0f64; supports.len()];
-            for (&c, (ke, _, _)) in elements.iter().zip(&matrices) {
+            for (&c, (ke, _, _, _)) in elements.iter().zip(&matrices) {
                 for (corner, id) in corners(c).iter().enumerate() {
                     let Some(&sup) = support_of.get(id) else { continue };
                     let row = corner * 3;
@@ -860,21 +950,23 @@ impl BoardFem {
             reactions[mode * supports.len()..(mode + 1) * supports.len()].copy_from_slice(r);
         }
         let omega = found.iter().map(|x| x.0.max(0.0).sqrt()).collect();
-        let mut shapes = vec![0.0f32; count * n_free as usize];
+        let mut shapes = vec![0i16; count * n_free as usize];
+        let mut scales = vec![0.0f32; count];
         for (mode, (_, v)) in found.iter().enumerate() {
             let table = &mut shapes[mode * n_free as usize..(mode + 1) * n_free as usize];
-            for id in 0..node.len() {
-                if node[id] >= 0 {
-                    table[node[id] as usize] = v[dof[3 * id] as usize] as f32;
-                }
+            let moving = || (0..node.len()).filter(|&id| node[id] >= 0).map(|id| (node[id] as usize, v[dof[3 * id] as usize]));
+            let scale = (moving().fold(0.0f64, |m, (_, x)| m.max(x.abs())) / i16::MAX as f64) as f32;
+            scales[mode] = scale;
+            for (at, x) in moving() {
+                table[at] = (x / scale.max(f32::MIN_POSITIVE) as f64).round() as i16;
             }
         }
         let area = elements.len() as f64 * hx * hy;
-        Self { nx, ny, hx, hy, node, omega, n_free: n_free as usize, shapes, supports, reactions, mass: total_mass, area }
+        Self { nx, ny, hx, hy, node, omega, n_free: n_free as usize, shapes, scales, supports, reactions, mass: total_mass, area }
     }
 
     fn write(&self, path: &std::path::Path) -> std::io::Result<()> {
-        let mut out: Vec<u8> = Vec::with_capacity(self.shapes.len() * 4 + self.reactions.len() * 4 + self.node.len() * 4 + 1024);
+        let mut out: Vec<u8> = Vec::with_capacity(self.shapes.len() * 2 + self.scales.len() * 4 + self.reactions.len() * 4 + self.node.len() * 4 + 1024);
         for v in [self.nx, self.ny, self.n_free, self.omega.len(), self.supports.len()] {
             out.extend((v as u64).to_le_bytes());
         }
@@ -887,6 +979,7 @@ impl BoardFem {
             out.extend(v.1.to_le_bytes());
         });
         self.node.iter().for_each(|v| out.extend(v.to_le_bytes()));
+        self.scales.iter().for_each(|v| out.extend(v.to_le_bytes()));
         self.shapes.iter().for_each(|v| out.extend(v.to_le_bytes()));
         self.reactions.iter().for_each(|v| out.extend(v.to_le_bytes()));
         if let Some(dir) = path.parent() {
@@ -917,7 +1010,8 @@ impl BoardFem {
         let omega = float(take(count * 8)?);
         let sup = float(take(nsup * 16)?);
         let node: Vec<i32> = take((nx + 1) * (ny + 1) * 4)?.as_chunks::<4>().0.iter().map(|c| i32::from_le_bytes(*c)).collect();
-        let shapes = single(take(count * n_free * 4)?);
+        let scales = single(take(count * 4)?);
+        let shapes: Vec<i16> = take(count * n_free * 2)?.as_chunks::<2>().0.iter().map(|c| i16::from_le_bytes(*c)).collect();
         let reactions = single(take(count * nsup * 4)?);
         Some(Self {
             nx,
@@ -928,6 +1022,7 @@ impl BoardFem {
             omega,
             n_free,
             shapes,
+            scales,
             supports: sup.as_chunks::<2>().0.iter().map(|c| (c[0], c[1])).collect(),
             reactions,
             mass: scalars[2],
@@ -1042,19 +1137,48 @@ pub fn air_on(fem: &BoardFem, p: &SoundboardParams, rho0: f64, c0: f64) -> Arc<V
     let id = (key(p), p.back_depth.to_bits(), p.back_gain.to_bits());
     let memory = MEMORY.get_or_init(Default::default);
     let mut held = memory.lock().unwrap_or_else(|e| e.into_inner());
-    held.entry(id).or_insert_with(|| Arc::new(air_of_modes(fem, p, rho0, c0))).clone()
+    held.entry(id)
+        .or_insert_with(|| {
+            // Beside the modes on disk: some seconds of work for a board built up to 8 kHz.
+            const VERSION: u32 = 1;
+            let text = format!("{VERSION} {:016x} {:016x} {:016x} {:016x} {:016x}", id.0, id.1, id.2, rho0.to_bits(), c0.to_bits());
+            let hash = text.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ b as u64).wrapping_mul(0x0000_0100_0000_01b3));
+            let path = cache_dir().map(|d| d.join(format!("{:016x}-air-{hash:016x}.bin", id.0)));
+            let read = |path: &std::path::Path| -> Option<Vec<(f64, f64)>> {
+                let data = std::fs::read(path).ok()?;
+                let values: Vec<f64> = data.as_chunks::<8>().0.iter().map(|c| f64::from_le_bytes(*c)).collect();
+                (data.len() == 16 * fem.omega.len()).then(|| values.as_chunks::<2>().0.iter().map(|c| (c[0], c[1])).collect())
+            };
+            Arc::new(path.as_deref().and_then(read).unwrap_or_else(|| {
+                let air = air_of_modes(fem, p, rho0, c0);
+                if let Some(path) = &path {
+                    let bytes: Vec<u8> = air.iter().flat_map(|&(m, r)| [m, r]).flat_map(f64::to_le_bytes).collect();
+                    let tmp = path.with_extension(format!("tmp{}", std::process::id()));
+                    let _ = std::fs::write(&tmp, bytes).and_then(|_| std::fs::rename(&tmp, path));
+                }
+                air
+            }))
+        })
+        .clone()
 }
+
+/// From this frequency (Hz) a mode's air is computed on the elements' nodes.
+const AIR_FINE: f64 = 3000.0;
 
 fn air_of_modes(fem: &BoardFem, p: &SoundboardParams, rho0: f64, c0: f64) -> Vec<(f64, f64)> {
     const STEP: f64 = 0.02;
-    let (nx, ny) = ((p.a / STEP).ceil() as usize, (p.b / STEP).ceil() as usize);
-    let (dx, dy) = (p.a / nx as f64, p.b / ny as f64);
     crate::par::map(fem.omega.len(), |mode| {
         let w = fem.omega[mode];
+        // A grid that holds the plate's shortest waves, those across the
+        // grain, 7 cm long at 3 kHz and 3.4 cm at 8 kHz: cells of 2 cm below
+        // AIR_FINE, the elements' own nodes above when they are closer.
+        let nodes = w >= TAU * AIR_FINE && fem.hx.max(fem.hy) < STEP;
+        let (nx, ny) = if nodes { (fem.nx, fem.ny) } else { ((p.a / STEP).ceil() as usize, (p.b / STEP).ceil() as usize) };
+        let (dx, dy, at) = if nodes { (fem.hx, fem.hy, 0.0) } else { (p.a / nx as f64, p.b / ny as f64, 0.5) };
         let mut phi = vec![0.0; nx * ny];
         for i in 0..nx {
             for j in 0..ny {
-                phi[i * ny + j] = fem.shape(mode, (i as f64 + 0.5) * dx, (j as f64 + 0.5) * dy);
+                phi[i * ny + j] = fem.shape(mode, (i as f64 + at) * dx, (j as f64 + at) * dy);
             }
         }
         let s = self_radiation(&phi, nx, ny, dx, dy, w / c0, p.back_depth, p.back_gain);
@@ -1065,7 +1189,7 @@ fn air_of_modes(fem: &BoardFem, p: &SoundboardParams, rho0: f64, c0: f64) -> Vec
 /// What the modes depend on, as a hash (the crown only moves their
 /// frequencies afterwards, in [`crate::soundboard::Soundboard::new`]).
 fn key(p: &SoundboardParams) -> u64 {
-    const VERSION: u32 = 2;
+    const VERSION: u32 = 5;
     let text = format!(
         "{VERSION} {:?} {} {} {:?} {:?} {:?} {} {} {}",
         BoardStructure { enabled: true, ..p.structure },
@@ -1084,6 +1208,13 @@ fn key(p: &SoundboardParams) -> u64 {
 fn cache_dir() -> Option<std::path::PathBuf> {
     let var = |name: &str| std::env::var_os(name).filter(|v| !v.is_empty()).map(std::path::PathBuf::from);
     var("XDG_CACHE_HOME").or_else(|| var("HOME").map(|h| h.join(".cache"))).or_else(|| var("LOCALAPPDATA")).map(|d| d.join("unsampled-piano").join("boards"))
+}
+
+/// The structure's frequencies (Hz) with another mass matrix (−1: consistent,
+/// 0: lumped, 0.5: the one in use), computed afresh within `memory` bytes: for
+/// checking the elements against a finer grid (`examples/board_fem.rs`).
+pub fn frequencies_with(p: &SoundboardParams, over: f64, memory: usize) -> Vec<f64> {
+    BoardFem::build_with(p, over, memory).omega.iter().map(|w| w / TAU).collect()
 }
 
 /// The modes of this structure: from memory, from the disk, or computed.
@@ -1138,6 +1269,20 @@ mod tests {
         for (w, known) in fem.omega.iter().zip([35.985, 73.394, 73.394, 108.22, 131.58, 132.20]) {
             assert!((w / unit / known - 1.0).abs() < 0.005, "{} against {known}", w / unit);
         }
+    }
+
+    /// Five elements to the wavelength: the mass in use keeps the modes a
+    /// finer grid gives, where the consistent one puts them 10 % too high.
+    #[test]
+    fn a_coarse_grid_keeps_its_high_modes() {
+        let fine = BoardFem::build(&plain(1.0, 0.0125, 1500.0));
+        let p = plain(1.0, 0.05, 1500.0);
+        let rms = |b: &BoardFem| {
+            let n = fine.omega.len().min(b.omega.len());
+            (fine.omega[..n].iter().zip(&b.omega).map(|(f, c)| (c / f - 1.0).powi(2)).sum::<f64>() / n as f64).sqrt()
+        };
+        let (coarse, consistent) = (rms(&BoardFem::build(&p)), rms(&BoardFem::build_with(&p, -1.0, MEMORY)));
+        assert!(fine.omega.len() > 30 && coarse < 0.03 && consistent > 2.0 * coarse, "{coarse} against {consistent}");
     }
 
     #[test]
@@ -1216,15 +1361,16 @@ mod tests {
     fn the_shape_is_mass_normalised() {
         let p = plain(1.0, 0.025, 400.0);
         let fem = BoardFem::build(&p);
-        let n = 200;
+        // On the nodes: the mass each of them carries.
+        let n = fem.nx;
         for mode in 0..fem.omega.len().min(4) {
             let mut sum = 0.0;
             for i in 0..n {
                 for j in 0..n {
-                    sum += fem.shape(mode, (i as f64 + 0.5) / n as f64, (j as f64 + 0.5) / n as f64).powi(2) / (n * n) as f64;
+                    sum += fem.shape(mode, i as f64 / n as f64, j as f64 / n as f64).powi(2) / (n * n) as f64;
                 }
             }
-            assert!((sum * 4.0 - 1.0).abs() < 0.01, "{sum}");
+            assert!((sum * 4.0 - 1.0).abs() < 0.001, "{sum}");
         }
     }
 
@@ -1273,6 +1419,21 @@ mod tests {
         let sigma = -k * s.im / TAU / norm;
         let known = 32.0 * k * k * a * b / std::f64::consts::PI.powi(5);
         assert!((sigma / known - 1.0).abs() < 0.05, "{sigma} against {known}");
+    }
+
+    /// A mode's sign does not depend on how far the spectrum is solved.
+    #[test]
+    fn a_mode_keeps_its_sign_whatever_the_slices() {
+        let mut p = plain(1.0, 0.05, 500.0);
+        p.b = 0.8;
+        let (short, long) = (BoardFem::build(&p), BoardFem::build(&SoundboardParams { structure: BoardStructure { below: 1300.0, ..p.structure }, ..p }));
+        assert!(short.omega.len() > 6 && long.omega.len() > 2 * short.omega.len());
+        for mode in 0..short.omega.len() {
+            for (x, y) in [(0.31, 0.47), (0.62, 0.21), (0.83, 0.66)] {
+                let (a, b) = (short.shape(mode, x, y), long.shape(mode, x, y));
+                assert!((a - b).abs() < 1e-3 * (1.0 + a.abs()), "mode {mode}: {a} against {b}");
+            }
+        }
     }
 
     #[test]

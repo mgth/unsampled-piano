@@ -1,6 +1,6 @@
 # What still separates the model from the D
 
-Status as of 2026-11-11. A follow-up list for the Concert grand preset: what in the model is not the Steinway D's physics yet, ranked by how much each is likely to move the sound. The figures are those of docs/steinway_d.md and docs/real_board.md. The ranking is a judgment from those figures, not a measured sensitivity.
+Status as of 2026-11-11. A follow-up list for the Concert grand preset: what in the model is not the Steinway D's physics yet, ranked by how much each is likely to move the sound. The figures are those of docs/steinway_d.md and docs/real_board.md. The ranking is a judgment from those figures, not a measured sensitivity: item 1, ranked first, turned out neutral once done.
 
 - **Wrong**: the right physics is known and the model does not follow it.
 - **Estimated**: the value is missing from the sources used.
@@ -9,7 +9,7 @@ Status as of 2026-11-11. A follow-up list for the Concert grand preset: what in 
 
 | # | Difference | Likely effect on the sound | To implement | Kind | State |
 |---|---|---|---|---|---|
-| 1 | The board above 3 kHz: a statistical plate set on `rho_h`, `dx`, `dy`, not the built structure | Strong in the treble, the register furthest from the D (8–12 dB); radiation hole near 2–2.5 kHz | Finer or second-order elements, at a cost in build time | Wrong (approximation); no data missing | started 2026-11-11 |
+| 1 | The board above 3 kHz: a statistical plate set on `rho_h`, `dx`, `dy`, not the built structure | Expected strong in the treble; measured neutral. Built up to 6 kHz (8 kHz tried: the same by measure and by ear): distance to the D 9.29 → 9.46 on all 88 keys, bench 1.97 → 1.98, the treble further (8.51 → 9.69), the top octave's level 2–3 dB nearer; the step near 2–2.5 kHz and the fundamentals of C6–B6 are below 3 kHz and did not move | Done with the elements' mass matrix, at no cost per mode; above 8 kHz the 1 cm grid and the plate model give out | Wrong (approximation); no data missing | done to 6 kHz, 2026-11-11 (docs/real_board.md, "Above 3 kHz") |
 | 2 | The felt's law: exponent 3.7–5.0 against 2.3–3.5, brightness growing with velocity by 22.7–31 dB at A0–B1 against the commercial D's 35.7 | Strong, whole keyboard | The exponent alone is a quick trial; another form of law is real work | Wrong, though RT-425's values do not carry over as they are | open |
 | 3 | The bass bridge's conductance at 70–140 Hz: two to four times too high | Strong at A0–E1: partials 2–4 die too fast | Cause located (modes at 77 and 95 Hz too broad under the resting strings' load), remedy not | Wrong, measured against a real grand | open |
 | 4 | The last damper at G6 | Strong at the top: its 1 kHz band in the sustain falls from −42 to −110 dB, real grands −43 | A parameter | Estimated (the commercial D's setting) | open |
@@ -26,7 +26,7 @@ Status as of 2026-11-11. A follow-up list for the Concert grand preset: what in 
 ## Heard, cause unknown
 
 - **The bell of the low bass** (A0–D#1): strong by ear, and it lies in the level of each partial of each note. No law to implement was found.
-- **The real strike point at the top**: the value is RT-425's and it costs (D#7–F#7 9.5 dB short). Something else is wrong up there, probably item 1.
+- **The real strike point at the top**: the value is RT-425's and it costs 6 dB on D#7–F#7, with the built board (5.6 dB short of the D at an 8 kHz corner) as with the statistical plate (7.6 dB short). Item 1 was not the cause: it is in the hammer and the string.
 
 ## About the felt (item 2)
 
