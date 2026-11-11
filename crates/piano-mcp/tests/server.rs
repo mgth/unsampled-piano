@@ -33,7 +33,7 @@ impl PianoControl for Stub {
 }
 
 fn presets() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../presets")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets")
 }
 
 fn server() -> (piano_mcp::Server<Stub>, Arc<Mutex<Stub>>) {

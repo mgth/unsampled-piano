@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn repo_presets() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets");
         let ids: Vec<(String, PresetKind)> = discover(&dir).into_iter().map(|p| (p.id, p.kind)).collect();
         assert!(ids.contains(&("instruments/Character/honky_tonk".into(), PresetKind::Instrument)), "{ids:?}");
         assert!(ids.contains(&("listening/Room/dry".into(), PresetKind::Listening)), "{ids:?}");

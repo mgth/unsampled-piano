@@ -233,6 +233,16 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("shank_loss", "Damping of the shank's swing.", "Loss factor of the head-against-shank mode (c = loss·m_r·2πf)."),
     (
+        "strike_ratio_top",
+        "How much nearer the end of the string the hammers strike at the very top of the keyboard.",
+        "Share of the length taken off `strike_ratio` at C8, linearly from C6.",
+    ),
+    (
+        "hammer_mass_slope",
+        "Makes the hammers grow lighter or heavier against their usual masses along the keyboard.",
+        "Added to `hammer_mass_scale` per key above C4, taken off below.",
+    ),
+    (
         "strike_ratio",
         "Where the hammer hits the string, as a share of its length from the tuning-pin end. Near \
          1/8 it barely excites the 8th partial, which would sound harsh; closer to the end the \
@@ -358,6 +368,32 @@ const HELP: &[(&str, &str, &str)] = &[
          the bridge.",
         "The same T on every string. With L it sets μ, the bridge coupling (T/L)·Y, the damper \
          impedance √(T·μ) and the hammer's modal masses.",
+    ),
+    (
+        "scale.wound_lengths_by_key",
+        "Gives the wound bass strings their own lengths, from the curve below, instead of a \
+         straight line down to the lowest string.",
+        "Below `break_note`, replaces the line to `len_a0` (docs/steinway_d.md).",
+    ),
+    (
+        "scale.wound_length_curve",
+        "Length of each key's wound strings, when they follow a curve: on a concert grand they \
+         shorten towards the plain wire, whose first string is much longer than the last wound one.",
+        "Pairs of MIDI note and speaking length (m), ascending, interpolated linearly; default: the \
+         lengths measured on the Steinway D of RT-425.",
+    ),
+    (
+        "scale.tension_by_key",
+        "Gives each key its own string tension, from the curve below, instead of one tension for \
+         the whole keyboard.",
+        "Replaces `tension` and the unison's `load_ramp` (docs/steinway_d.md).",
+    ),
+    (
+        "scale.tension_curve",
+        "Tension of each key's strings, when they follow a curve: the bass wound strings of a \
+         concert grand carry more than twice the tension of its plain wire.",
+        "Pairs of MIDI note and tension (N), ascending, interpolated linearly; default: the Steinway \
+         D of RT-425, fitted on six measured strings.",
     ),
     (
         "unison.bichord_from",
@@ -674,6 +710,70 @@ const HELP: &[(&str, &str, &str)] = &[
          to ± this share (a fixed pseudo-random sequence, mean kept).",
     ),
     (
+        "soundboard.structure.enabled",
+        "The soundboard as it is built, with its ribs, its bridges and its varying thickness, instead \
+         of a uniform plate with averaged stiffness. Computed the first time, then kept on disk.",
+        "Below `below`, the board's modes come from a finite-element plate (docs/real_board.md); \
+         above, the rectangle's stay, brought to its level at the corner. `rho_h`, `dx` and `dy` \
+         then set only those; the impedance slopes and the bridge's spread do not act below.",
+    ),
+    (
+        "soundboard.structure.air",
+        "The air on the built board: it weighs on the low modes and takes energy as sound.",
+        "Each mode's Rayleigh integral on itself: an added mass and a radiation loss, on top of the \
+         wood's. No coupling between modes (docs/real_board.md).",
+    ),
+    (
+        "soundboard.structure.clamped",
+        "How the rim holds the board: glued and held at its edge, or free to rotate there.",
+        "On: clamped. Off: simply supported, only its transverse movement held, as in the thesis's \
+         simulations. The first modes of a real 2.74 m board lie nearer the clamped one.",
+    ),
+    ("soundboard.structure.step", "Size of the elements of the built board.", "Grid step (m). The cost grows as its inverse cubed."),
+    ("soundboard.structure.below", "Up to which pitch the board has its own vibrations.", "Own modes below this frequency (Hz); the rectangle's above."),
+    ("soundboard.structure.grain_angle", "Direction of the wood's grain in the board.", "Degrees from the board's length towards the bass side; the D's runs along its main bridge."),
+    ("soundboard.structure.spruce_density", "Density of the board's and the ribs' spruce.", "kg/m³."),
+    ("soundboard.structure.spruce_el", "Stiffness of the spruce along its grain.", "Young's modulus (Pa)."),
+    ("soundboard.structure.spruce_er", "Stiffness of the spruce across its grain: more than ten times less.", "Young's modulus (Pa)."),
+    ("soundboard.structure.spruce_g", "Shear stiffness of the spruce in the board's plane.", "Pa."),
+    ("soundboard.structure.spruce_nu", "Poisson's ratio of the spruce.", "Major ratio, along the grain."),
+    ("soundboard.structure.spruce_gl", "Shear stiffness of the spruce through the board's thickness, along the grain.", "Pa."),
+    ("soundboard.structure.spruce_gr", "Shear stiffness of the spruce through the thickness, across the grain: very low.", "Rolling shear (Pa). It softens the board's short waves."),
+    ("soundboard.structure.bridge_density", "Density of the bridges' wood.", "kg/m³."),
+    ("soundboard.structure.bridge_el", "Stiffness of the bridges along their fibres, which follow their curve.", "Young's modulus (Pa)."),
+    ("soundboard.structure.bridge_er", "Stiffness of the bridges across their fibres.", "Young's modulus (Pa)."),
+    ("soundboard.structure.bridge_g", "Shear stiffness of the bridges in the board's plane.", "Pa."),
+    ("soundboard.structure.bridge_nu", "Poisson's ratio of the bridges' wood.", "Major ratio."),
+    ("soundboard.structure.bridge_gl", "Shear stiffness of the bridges through their height, along their fibres.", "Pa."),
+    ("soundboard.structure.bridge_gr", "Shear stiffness of the bridges through their height, across their fibres.", "Pa."),
+    ("soundboard.structure.plate_center", "Thickness of the board away from the rim.", "Metres."),
+    ("soundboard.structure.plate_edge", "Thickness of the board at the rim.", "Metres."),
+    ("soundboard.structure.plate_taper", "Over what distance the board thins towards the rim.", "Metres, an exponential."),
+    (
+        "soundboard.structure.ribs",
+        "The ribs glued under the board, across its grain, higher in their middle.",
+        "Each: its two ends in normalised plate coordinates, its thickness with the plate at its \
+         middle and at its ends (m), from the treble to the bass. Unused: no length.",
+    ),
+    ("soundboard.structure.rib_width_treble", "Width of the rib nearest the treble.", "Metres."),
+    ("soundboard.structure.rib_width_bass", "Width of the rib nearest the bass.", "Metres."),
+    ("soundboard.structure.main_bridge_thickness", "Height of the main bridge along the keys, the board included.", "Pairs of MIDI note and metres, ascending."),
+    ("soundboard.structure.bass_bridge_thickness", "Height of the bass bridge along the keys, the board included.", "Pairs of MIDI note and metres, ascending."),
+    ("soundboard.structure.bridge_width", "Width of the bridges.", "Metres."),
+    (
+        "soundboard.structure.strings",
+        "The strings hold the bridge: under tension on both sides of it, they pull it back when it \
+         moves, and the board's lowest resonances rise. Off: a board without its strings.",
+        "A spring T·(1/L + 1/l) per string under its bridge point, L its speaking length and l its \
+         rear length (`back_length`), in the stiffness the modes are computed with \
+         (docs/real_board.md).",
+    ),
+    (
+        "soundboard.structure.back_length",
+        "Length of the strings behind the bridge, up to their hitch pins.",
+        "Pairs of MIDI note and metres, ascending. The shorter, the more the strings hold the bridge.",
+    ),
+    (
         "soundboard.scatter",
         "How much of the soundboard's sound is scattered in every direction by what lies over it: \
          the strings, the iron frame, the dampers and the bridges. The board alone sends its highs \
@@ -682,6 +782,11 @@ const HELP: &[(&str, &str, &str)] = &[
          velocity under it as a small obstacle does, (f/scatter_corner)² / (1 + (f/scatter_corner)²), \
          at heights spread about `scatter_height` so that they add in power above ≈ 2 kHz \
          (docs/board_radiation.md).",
+    ),
+    (
+        "soundboard.case_field",
+        "The sound that comes back off the rim, the frame and the lid before it leaves the case.",
+        "Each mode adds a reverberant field to the microphones, in power, from the power it radiates (`structure.air`) and the openings of the case: p² = 4ρc·P/R, R the box's room constant, above the box's Schroeder frequency, ≈ 500 Hz with the lid at 35°. It adds no damping: that energy is already the mode's radiation loss (docs/real_board.md).",
     ),
     ("soundboard.scatter_corner", "Frequency above which the scattering is full.", "Hz: the obstacles' size against the wavelength, (f/fc)²/(1 + (f/fc)²)."),
     ("soundboard.scatter_step", "Spacing of the scattering sources over the board.", "m; 0.1 gives about 180 sources on a 2 m grand."),
@@ -1020,6 +1125,12 @@ const HELP: &[(&str, &str, &str)] = &[
     ("rim.couple_f_max", "Highest soundboard resonance allowed to shake the rim.", "Board modes above it are not projected on the rim (Hz)."),
     ("rim.inner_gain", "How much the inner face of the rim, half hidden under the board, is heard.", "Radiation gain of the inner face."),
     ("rim.gain", "Loudness of the rim's sound (1: physical).", "Scales its radiated pressure."),
+    (
+        "rim.follows_outline",
+        "Makes the case's wall follow the soundboard's curved shape instead of the rectangle around it.",
+        "Its length, where the board's forces land on it and where it radiates from. Without an \
+         outline, the rectangle.",
+    ),
 ];
 
 #[cfg(test)]

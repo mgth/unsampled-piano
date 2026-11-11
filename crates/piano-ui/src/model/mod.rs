@@ -295,7 +295,7 @@ impl BoardShapes {
 /// The soundboard the engine builds from `model` (the musician's controls
 /// applied, the microphones in metres).
 fn built_board(model: &PianoModel) -> Option<SoundboardParams> {
-    model.with_macros().soundboard.map(|s| s.resolved())
+    model.with_macros().board_params().map(|s| s.resolved())
 }
 
 /// Level 0–1 of `x` against `reference` over `range_db` (`db_per`: 10 for

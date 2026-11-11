@@ -88,7 +88,7 @@ def board_estimate(a, p, s):
     return np.concatenate([np.zeros(d), h]), (int(keep.sum()), fk.min(), fk.max())
 
 def model_signals(prefix, preset, listening, m, velocity, hold, tail, transfer):
-    cmd = [EXE, preset or os.path.join(ROOT, "presets", "default.toml"), prefix, "--note", str(m), "--velocity", str(velocity),
+    cmd = [EXE, preset or os.path.join(ROOT, "archive", "presets", "default.toml"), prefix, "--note", str(m), "--velocity", str(velocity),
            "--hold", str(hold), "--tail", str(tail)] + [x for l in listening for x in ("--listening", l)]
     if transfer: cmd += ["--transfer", str(transfer)]
     subprocess.run(cmd, check=True, capture_output=True)
@@ -138,7 +138,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("plath"); ap.add_argument("out"); ap.add_argument("--keys", default="21,33,38,45")
     ap.add_argument("--velocity", default="auto"); ap.add_argument("--preset")
-    ap.add_argument("--listening", action="append", default=[os.path.join(ROOT, "presets", "listening", "Microphones", "player.toml")])
+    ap.add_argument("--listening", action="append", default=[os.path.join(ROOT, "archive", "presets", "listening", "Microphones", "player.toml")])
     ap.add_argument("--state", default="PROD08"); ap.add_argument("--take", type=int, default=2)
     ap.add_argument("--analytic", action="store_true", help="the model's board from its modes, not from its own signals")
     ap.add_argument("--keep-lid", action="store_true", help="keep the listening preset's lid (Plath's grand had none)")

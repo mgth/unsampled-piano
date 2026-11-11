@@ -303,7 +303,7 @@ pub struct Engine {
     /// profile inputs for the current block. The sympathetic forces keep
     /// the regions: a diffuse halo, where the exact drive changes nothing
     /// audible and would double the cost.
-    board_low: Option<BoardBank>,
+    board_low: Option<BoardBank<{ crate::board::KEYS }>>,
     basis: Vec<Vec<f32>>,
     board_sym_awake: bool,
     board_awake: bool,
@@ -367,6 +367,7 @@ impl Engine {
         // The low modes apart when they are driven at each key; the rim's
         // projections follow their modes.
         let n_low = inst.low.as_ref().map_or(0, |l| l.n);
+        let n_basis = if inst.low.is_some() { crate::board::KEYS } else { 0 };
         let (low_couple, high_couple) = rim_couple.split_at(n_low.min(rim_couple.len()));
         let low_modes = inst.low.as_ref().zip(inst.board.as_ref()).map(|(l, m)| l.modes(m));
         let board = inst.board.as_ref().map(|m| BoardBank::with_extra(cfg.sample_rate, &m[n_low..], high_couple, SUB_BLOCK));
@@ -418,7 +419,7 @@ impl Engine {
             board,
             board_sym,
             board_low,
-            basis: vec![vec![0.0; SUB_BLOCK]; REGIONS],
+            basis: vec![vec![0.0; SUB_BLOCK]; n_basis],
             board_sym_awake: false,
             board_awake: false,
             disp: vec![vec![0.0; SUB_BLOCK]; REGIONS],
@@ -524,7 +525,7 @@ impl Engine {
 
     pub fn active_modes(&self) -> usize {
         let len = |b: &Option<BoardBank>| b.as_ref().map_or(0, |b| b.len());
-        let board = if self.board_awake { len(&self.board) + len(&self.board_low) } else { 0 };
+        let board = if self.board_awake { len(&self.board) + self.board_low.as_ref().map_or(0, |b| b.len()) } else { 0 };
         let board_sym = if self.board_sym_awake { len(&self.board_sym) } else { 0 };
         self.voices.iter().filter(|v| v.active).map(|v| v.bank.len() + v.sym.len()).sum::<usize>() + board + board_sym
     }
@@ -916,7 +917,10 @@ impl Engine {
         let l = self.board_load;
         if (l - self.board_load_set).abs() >= 0.01 || (l == target && l != self.board_load_set) {
             self.board_load_set = l;
-            for b in self.board.iter_mut().chain(&mut self.board_sym).chain(&mut self.board_low) {
+            for b in self.board.iter_mut().chain(&mut self.board_sym) {
+                b.set_load(l);
+            }
+            if let Some(b) = self.board_low.as_mut() {
                 b.set_load(l);
             }
         }

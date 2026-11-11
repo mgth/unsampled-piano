@@ -141,6 +141,7 @@ impl FrameParams {
             lid_hinge_height: board.lid_hinge_height - self.height,
             piston_freq: 0.0,
             crown_freq: 0.0,
+            structure: crate::fem::BoardStructure { enabled: false, ..board.structure },
             ..*board
         }
     }
@@ -221,6 +222,10 @@ pub struct RimParams {
     pub couple_f_max: f64,
     /// Radiation of the inner face (partly under the board).
     pub inner_gain: f64,
+    /// The wall runs along the board's outline instead of around its bounding
+    /// rectangle: its length, where the board's forces land on it, and where
+    /// it radiates from. Without an outline, the rectangle.
+    pub follows_outline: bool,
     /// Scales the radiated pressure (1 = physical).
     pub gain: f64,
 }
@@ -249,6 +254,7 @@ impl RimParams {
         f_max: 3000.0,
         couple_f_max: 2000.0,
         inner_gain: 0.5,
+        follows_outline: false,
         gain: 1.0,
     };
 
@@ -297,6 +303,57 @@ pub struct RimModel {
     /// Board output weights for each projection, per board mode (the first
     /// modes of the bank, up to `couple_f_max`).
     pub couple: Vec<Vec<(f64, f64)>>,
+}
+
+/// The wall's line when it follows the board's outline: the polygon, in metres.
+struct RimPath {
+    points: Vec<(f64, f64)>,
+    /// Arc length at each point, and the closed line's length.
+    arc: Vec<f64>,
+    length: f64,
+    /// 1 when the outside lies on the right of the direction of travel.
+    side: f64,
+}
+
+impl RimPath {
+    fn new(points: Vec<(f64, f64)>) -> Self {
+        let n = points.len();
+        let (mut arc, mut length, mut signed) = (Vec::with_capacity(n), 0.0, 0.0);
+        for i in 0..n {
+            let (p, q) = (points[i], points[(i + 1) % n]);
+            arc.push(length);
+            length += (q.0 - p.0).hypot(q.1 - p.1);
+            signed += p.0 * q.1 - q.0 * p.1;
+        }
+        Self { points, arc, length, side: if signed < 0.0 { -1.0 } else { 1.0 } }
+    }
+
+    /// Point at arc length s, with its outward normal.
+    fn point(&self, s: f64) -> ((f64, f64), (f64, f64)) {
+        let s = s.rem_euclid(self.length);
+        let i = self.arc.partition_point(|&a| a <= s) - 1;
+        let (p, q) = (self.points[i], self.points[(i + 1) % self.points.len()]);
+        let l = (q.0 - p.0).hypot(q.1 - p.1).max(1e-12);
+        let (dx, dy) = ((q.0 - p.0) / l, (q.1 - p.1) / l);
+        let d = s - self.arc[i];
+        ((p.0 + dx * d, p.1 + dy * d), (dy * self.side, -dx * self.side))
+    }
+
+    /// Arc length of the point of the line nearest to (x, y).
+    fn nearest(&self, x: f64, y: f64) -> f64 {
+        let mut best = (f64::INFINITY, 0.0);
+        for i in 0..self.points.len() {
+            let (p, q) = (self.points[i], self.points[(i + 1) % self.points.len()]);
+            let (dx, dy) = (q.0 - p.0, q.1 - p.1);
+            let l2 = (dx * dx + dy * dy).max(1e-24);
+            let u = (((x - p.0) * dx + (y - p.1) * dy) / l2).clamp(0.0, 1.0);
+            let d = (x - p.0 - u * dx).hypot(y - p.1 - u * dy);
+            if d < best.0 {
+                best = (d, self.arc[i] + u * l2.sqrt());
+            }
+        }
+        best.1
+    }
 }
 
 /// Point of the board's perimeter at arc length s (from the corner (0, 0),
@@ -356,12 +413,14 @@ fn board_edge_forces(sb: &Soundboard, basis_edges: &[(Vec<f64>, [f64; 4])], md: 
     };
     let (ns, ds) = (s.len(), 2.0 * (bp.a + bp.b) / s.len() as f64);
     let (mut dens, mut cf) = (vec![0.0; ns], [0.0; 4]);
-    for ((bd, bc), c) in basis_edges.iter().zip(&sb.ritz[md.ritz.unwrap_or(0) as usize]) {
-        for (d, b) in dens.iter_mut().zip(bd) {
-            *d += c * b;
-        }
-        for (d, b) in cf.iter_mut().zip(bc) {
-            *d += c * b;
+    if let Some(r) = md.ritz {
+        for ((bd, bc), c) in basis_edges.iter().zip(&sb.ritz[r as usize]) {
+            for (d, b) in dens.iter_mut().zip(bd) {
+                *d += c * b;
+            }
+            for (d, b) in cf.iter_mut().zip(bc) {
+                *d += c * b;
+            }
         }
     }
     for (x, y, f) in forces {
@@ -413,7 +472,20 @@ impl RimModel {
     pub fn new(p: &RimParams, sb: &Soundboard, n_board: usize, sample_rate: f64) -> Self {
         let bp = &sb.params;
         let (a, b, t) = (bp.a, bp.b, p.thickness);
-        let lb = 2.0 * (a + b);
+        let path = if p.follows_outline {
+            crate::soundboard::Outline::new(bp).map(|o| RimPath::new(o.points.clone()))
+        } else {
+            None
+        };
+        let rect = 2.0 * (a + b);
+        let lb = path.as_ref().map_or(rect, |w| w.length);
+        // Where a point of the rectangle's perimeter lands on the wall.
+        let on_wall = |s: f64| {
+            path.as_ref().map_or(s, |w| {
+                let ((x, y), _) = perimeter(a, b, s);
+                w.nearest(x, y)
+            })
+        };
         // Ring of the wall's mean perimeter.
         let radius = (lb + 4.0 * t) / TAU;
         let (mu, irot, ei, gj) = (p.mass(), p.rot_inertia(), p.ei(), p.gj());
@@ -477,11 +549,11 @@ impl RimModel {
 
         // Edge forces of the coupled board modes, projected on the rim.
         const PER_M: f64 = 400.0;
-        let ns = (lb * PER_M) as usize;
-        let ds = lb / ns as f64;
+        let ns = (rect * PER_M) as usize;
+        let ds = rect / ns as f64;
         let s: Vec<f64> = (0..ns).map(|i| (i as f64 + 0.5) * ds).collect();
-        let corners = [0.0, a, a + b, 2.0 * a + b];
-        let tab: Vec<Vec<f64>> = projections.iter().map(|&(k, o)| s.iter().map(|&s| basis(k, o, s)).collect()).collect();
+        let corners = [0.0, a, a + b, 2.0 * a + b].map(on_wall);
+        let tab: Vec<Vec<f64>> = projections.iter().map(|&(k, o)| s.iter().map(|&s| basis(k, o, on_wall(s))).collect()).collect();
         let basis_edges = basis_edge_reactions(sb, &s);
         let couple = sb.modes[..n_board]
             .iter()
@@ -528,7 +600,7 @@ impl RimModel {
         let mut elems = Vec::new();
         for i in 0..nr {
             let sr = (i as f64 + 0.5) * dsr;
-            let ((x, y), (nx, ny)) = perimeter(a, b, sr);
+            let ((x, y), (nx, ny)) = path.as_ref().map_or_else(|| perimeter(a, b, sr), |w| w.point(sr));
             let at = |off: f64, z: f64| [x + nx * off, y + ny * off, z];
             for j in 0..nz {
                 let z = p.top - (j as f64 + 0.5) * dz;
@@ -730,5 +802,33 @@ mod tests {
             assert!(m.mics.iter().all(|w| w.0.is_finite() && w.1.is_finite()));
         }
         assert!(!model.couple.is_empty() && model.couple[0].len() == model.projections.len());
+    }
+
+    /// The wall's line goes round the outline: its points lie on it, its
+    /// normals point out, and the nearest point of a point on it is itself.
+    #[test]
+    fn the_rim_path_follows_the_outline() {
+        let square = RimPath::new(vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]);
+        assert!((square.length - 8.0).abs() < 1e-12);
+        for s in [0.5, 2.5, 4.5, 6.5] {
+            let ((x, y), (nx, ny)) = square.point(s);
+            assert!((x - 1.0) * nx + (y - 1.0) * ny > 0.0, "normal at {s} points in");
+            assert!((square.nearest(x, y) - s).abs() < 1e-9);
+        }
+    }
+
+    /// Following the outline gives a shorter wall, so higher ring modes; a board
+    /// without an outline keeps the rectangle's, bit for bit.
+    #[test]
+    fn a_rim_on_the_outline_is_shorter() {
+        let sb = Soundboard::new(SoundboardParams::GRAND_2M);
+        let on = RimParams { follows_outline: true, ..RimParams::GRAND_2M };
+        let (rect, line) = (RimModel::new(&RimParams::GRAND_2M, &sb, sb.modes.len(), 48_000.0), RimModel::new(&on, &sb, sb.modes.len(), 48_000.0));
+        let high = |m: &RimModel| m.modes.iter().find(|x| x.k == 2).unwrap().freq_hz;
+        assert!(high(&line) > high(&rect));
+        let plain = Soundboard::new(SoundboardParams { outline: [(0.0, 0.0); OUTLINE_POINTS], ..SoundboardParams::GRAND_2M });
+        let (a, b) = (RimModel::new(&RimParams::GRAND_2M, &plain, 8, 48_000.0), RimModel::new(&on, &plain, 8, 48_000.0));
+        assert_eq!(a.modes[0].freq_hz, b.modes[0].freq_hz);
+        assert_eq!(a.modes[0].mics, b.modes[0].mics);
     }
 }

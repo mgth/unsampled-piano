@@ -7,6 +7,7 @@ pub mod complex;
 pub mod denormal;
 pub mod eigen;
 pub mod engine;
+pub mod fem;
 pub mod hammer;
 pub mod instrument;
 pub mod limiter;
