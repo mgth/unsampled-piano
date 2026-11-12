@@ -212,6 +212,20 @@ pub const BOARD_GRID: (usize, usize) = (36, 28);
 const BRIDGE_H: f64 = 0.03;
 const STRING_Z: f64 = 0.035;
 const BASS_RISE: f64 = 0.02;
+/// A built board's ([`SoundboardParams::structure`]): its bass strings' least
+/// height on their bridge over the main bridge's highest strings (they
+/// cross over them), on a cap that narrow over the bridge's body, which is
+/// as thick as the engine has it.
+const BASS_OVER: f64 = 0.02;
+const BASS_CAP: f64 = 0.016;
+/// The board's thickness where the model has none (no built board).
+const BOARD_T: f64 = 0.012;
+/// A built board's ribs: sections along each.
+const RIB_SECTIONS: usize = 12;
+/// The plate's riser under the hitch pins where their strings' bridge
+/// stands high: its half-width, its top under the strings.
+const HITCH_RISER: f64 = 0.009;
+const HITCH_RISER_UNDER: f64 = 0.007;
 /// A unison's strings across, centre to centre.
 const UNISON_GAP: f64 = 0.0025;
 /// A grand's hammer line in front of its board: room for its hammers,
@@ -368,6 +382,8 @@ const BRASS: Color32 = Color32::from_rgb(222, 184, 98);
 const PIN: Color32 = Color32::from_rgb(168, 170, 176);
 const BUSHING: Color32 = Color32::from_rgb(150, 104, 72);
 const HITCH: Color32 = Color32::from_rgb(150, 152, 160);
+/// A built board's ribs, a little paler than the board.
+const RIB_WOOD: Color32 = Color32::from_rgb(204, 150, 70);
 const BRIDGE_PIN: Color32 = Color32::from_rgb(196, 198, 206);
 const CASE: Color32 = Color32::from_rgb(40, 34, 32);
 const IVORY: Color32 = Color32::from_rgb(236, 232, 222);
@@ -1213,13 +1229,21 @@ fn keyboard_span(sb: &SoundboardParams) -> (f64, f64) {
     (lo + shift, hi + shift)
 }
 
+/// The rear length (m) key `m`'s strings would have, room allowing: a
+/// built board's own ([`piano_core::fem::BoardStructure::back_length`],
+/// what holds its bridge), or [`HITCH_BASE`] and [`HITCH_SHARE`] of the
+/// speaking length as drawn.
+pub fn rear_wanted(sb: &SoundboardParams, m: u8, speaking: f64) -> f64 {
+    if sb.structure.enabled { sb.structure.back_length_at(m) } else { HITCH_BASE + HITCH_SHARE * speaking }
+}
+
 /// A string's rear length (m), from its bridge point `p` (plate) on along
-/// its direction `u` to its hitch pin: [`HITCH_BASE`] and [`HITCH_SHARE`]
-/// of its speaking length, but [`HITCH_INSET`] short of the board's
-/// outline (the case's wall), and at least [`HITCH_MIN`].
-pub fn hitch_length(outline: &[(f64, f64)], p: (f64, f64), u: (f64, f64), speaking: f64) -> f64 {
+/// its direction `u` to its hitch pin: `wanted` ([`rear_wanted`]), but
+/// [`HITCH_INSET`] short of the board's outline (the case's wall), and at
+/// least [`HITCH_MIN`].
+pub fn hitch_length(outline: &[(f64, f64)], p: (f64, f64), u: (f64, f64), wanted: f64) -> f64 {
     let n = outline.len();
-    let mut best = HITCH_BASE + HITCH_SHARE * speaking;
+    let mut best = wanted;
     for i in 0..n {
         let (a, b) = (outline[i], outline[(i + 1) % n]);
         let e = (b.0 - a.0, b.1 - a.1);
@@ -1260,8 +1284,38 @@ pub fn hammer_x(model: &PianoModel, sb: &SoundboardParams) -> f64 {
 }
 
 /// A key's string's ends in plate coordinates (its agraffe, its bridge
-/// point) and its height.
+/// point) and its height at its agraffe ([`bridge_z`] on its bridge).
 pub type StringEnds = ((f64, f64), (f64, f64), f64);
+
+/// The top of the bridge under key `m` above the board, where the board is
+/// a built one: the engine's thickness there, less the plate's.
+fn bridge_top(sb: &SoundboardParams, m: u8) -> Option<f64> {
+    let s = &sb.structure;
+    s.enabled.then(|| s.bridge_thickness_at(m as f64, m >= sb.main_bridge_from) - s.plate_center)
+}
+
+/// Key `m`'s strings' height on their bridge: [`STRING_Z`] − [`BRIDGE_H`]
+/// over its top. The agraffe's height where the model has no bridge of its
+/// own; over a built board's, as high as the engine has the bridge there,
+/// the strings sloping from their agraffe to it, and the bass strings at
+/// least [`BASS_OVER`] over the main bridge's highest.
+pub fn bridge_z(sb: &SoundboardParams, m: u8) -> f64 {
+    let main = m >= sb.main_bridge_from;
+    let flat = STRING_Z + if main { 0.0 } else { BASS_RISE };
+    let Some(top) = bridge_top(sb, m) else { return flat };
+    let over = STRING_Z - BRIDGE_H;
+    if main {
+        return top + over;
+    }
+    let highest = (sb.main_bridge_from..=108).filter_map(|k| bridge_top(sb, k)).fold(0.0, f64::max);
+    (top + over).max(highest + over + BASS_OVER).max(flat)
+}
+
+/// Key `m`'s strings' height at `t` of their speaking length from their
+/// agraffe.
+pub fn string_z(sb: &SoundboardParams, ends: StringEnds, m: u8, t: f64) -> f64 {
+    ends.2 + (bridge_z(sb, m) - ends.2) * t
+}
 
 /// A key's string in plate coordinates: from its agraffe to its bridge
 /// point, at its height. Its hammer strikes it on the hammers' line `hx`
@@ -1611,11 +1665,12 @@ fn lid_leaf(b: &mut Builder, plan: &[(f64, f64)], w: (f64, f64), at: &dyn Fn((f6
 /// A grand's inner rim `inner` wide outside the board's `edge`, from `z0`
 /// up to the board's underside, and the board's edge glued over it, out
 /// to the outer rim.
-fn inner_rim(b: &mut Builder, edge: &[(f64, f64)], closed: bool, inner: f64, z0: f64, case: Color32, wood: Color32) {
-    b.wall(edge, closed, 0.0, inner, z0, &|_| -0.012, case);
+#[allow(clippy::too_many_arguments)]
+fn inner_rim(b: &mut Builder, edge: &[(f64, f64)], closed: bool, inner: f64, z0: f64, board_t: f64, case: Color32, wood: Color32) {
+    b.wall(edge, closed, 0.0, inner, z0, &|_| -board_t, case);
     let from = b.s.tris.len();
     b.mat = Material::Spruce;
-    b.wall(edge, closed, 0.0, inner, -0.012, &|_| 0.0, wood);
+    b.wall(edge, closed, 0.0, inner, -board_t, &|_| 0.0, wood);
     b.mat = Material::Paint;
     // The board's reflection out to the outer rim's wall.
     let (lo, hi) = &mut b.s.board;
@@ -1624,6 +1679,48 @@ fn inner_rim(b: &mut Builder, edge: &[(f64, f64)], closed: bool, inner: f64, z0:
             lo[i] = lo[i].min(v.pos[i]);
             hi[i] = hi[i].max(v.pos[i]);
         }
+    }
+}
+
+/// A built board's ribs under it, as the engine has them
+/// ([`piano_core::fem::BoardStructure::ribs`]): each from end to end, as
+/// wide as it is, its depth under the board's top a parabola from its
+/// middle to its ends; `thick` is the board's thickness at a point.
+fn ribs(b: &mut Builder, s: &piano_core::fem::BoardStructure, sb: &SoundboardParams, thick: &dyn Fn(f64, f64) -> f64, c: Color32) {
+    if !b.draw {
+        return;
+    }
+    let place = b.place;
+    let c = rgba(c, 1.0);
+    b.mat = Material::Spruce;
+    let mut label = None;
+    for (r, width) in s.ribs_in_use() {
+        let (p, q) = ((r.0 * sb.a, r.1 * sb.b), (r.2 * sb.a, r.3 * sb.b));
+        let len = (q.0 - p.0).hypot(q.1 - p.1).max(1e-9);
+        let (u, n) = (((q.0 - p.0) / len, (q.1 - p.1) / len), (-(q.1 - p.1) / len * width / 2.0, (q.0 - p.0) / len * width / 2.0));
+        // Each section: its two top corners against the board, its two
+        // bottom ones.
+        let section = |k: usize| {
+            let t = k as f64 / RIB_SECTIONS as f64;
+            let (x, y) = (p.0 + u.0 * len * t, p.1 + u.1 * len * t);
+            let w = 2.0 * t - 1.0;
+            let top = -thick(x, y);
+            let bottom = top.min(-(r.4 - (r.4 - r.5) * w * w));
+            [place.at(x - n.0, y - n.1, top), place.at(x + n.0, y + n.1, top), place.at(x + n.0, y + n.1, bottom), place.at(x - n.0, y - n.1, bottom)]
+        };
+        for k in 0..RIB_SECTIONS {
+            let (a, d) = (section(k), section(k + 1));
+            b.quad(false, [a[0], a[3], d[3], d[0]], c);
+            b.quad(false, [a[1], d[1], d[2], a[2]], c);
+            b.quad(false, [a[3], a[2], d[2], d[3]], c);
+        }
+        let (a, d) = (section(0), section(RIB_SECTIONS));
+        b.quad(false, [a[0], a[1], a[2], a[3]], c);
+        b.quad(false, [d[0], d[3], d[2], d[1]], c);
+        label.get_or_insert(section(RIB_SECTIONS / 2)[2]);
+    }
+    if let Some(at) = label {
+        b.label(at, "Ribs", "Soundboard");
     }
 }
 
@@ -1725,14 +1822,42 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
             }
         }
     }
-    // Its underside (its edge is against the rim's wall).
-    let under = rgba(wood.gamma_multiply(0.7), 1.0);
-    for [i, j, k] in triangulate(&outline) {
-        b.tri(false, [outline[i], outline[k], outline[j]].map(|(x, y)| place.at(x, y, -0.012)), [under; 3]);
-    }
+    // Its underside (its edge is against the rim's wall): flat where the
+    // model has no thickness; a built board's as thick as the engine has
+    // it, thinner towards the rim, with its ribs under it.
     b.layer_of(Layer::Still);
+    let under = rgba(wood.gamma_multiply(0.7), 1.0);
+    let built = sb.structure.enabled.then_some(&sb.structure);
+    let edge_t = built.map_or(BOARD_T, |s| s.plate_edge);
+    let rim_line = Outline { points: outline.clone() };
+    let thick = |x: f64, y: f64| built.map_or(BOARD_T, |s| s.plate_thickness_at(rim_line.edge_distance(x, y)));
+    if !b.draw {
+        // (Long to work out: not for another layer.)
+    } else if built.is_some() {
+        for j in 0..gy - 1 {
+            for i in 0..gx - 1 {
+                let (x0, x1) = (sb.a * i as f64 / (gx - 1) as f64, sb.a * (i + 1) as f64 / (gx - 1) as f64);
+                let (y0, y1) = (sb.b * j as f64 / (gy - 1) as f64, sb.b * (j + 1) as f64 / (gy - 1) as f64);
+                let piece = clip(&outline, &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)]);
+                for k in 1..piece.len().saturating_sub(1) {
+                    let t = [piece[0], piece[k + 1], piece[k]];
+                    if cross2(t[0], t[1], t[2]).abs() < 1e-7 {
+                        continue;
+                    }
+                    b.tri(false, t.map(|(x, y)| place.at(x, y, -thick(x, y))), [under; 3]);
+                }
+            }
+        }
+    } else {
+        for [i, j, k] in triangulate(&outline) {
+            b.tri(false, [outline[i], outline[k], outline[j]].map(|(x, y)| place.at(x, y, -BOARD_T)), [under; 3]);
+        }
+    }
+    if let Some(s) = built {
+        ribs(&mut b, s, &sb, &thick, pick(Part::Board, RIB_WOOD));
+    }
     b.mat = Material::Paint;
-    b.s.board = outline.iter().flat_map(|&(x, y)| [place.at(x, y, 0.0), place.at(x, y, -0.012)]).fold(([f32::MAX; 3], [f32::MIN; 3]), |(lo, hi), p| {
+    b.s.board = outline.iter().flat_map(|&(x, y)| [place.at(x, y, 0.0), place.at(x, y, -edge_t)]).fold(([f32::MAX; 3], [f32::MIN; 3]), |(lo, hi), p| {
         (std::array::from_fn(|i| lo[i].min(p[i])), std::array::from_fn(|i| hi[i].max(p[i])))
     });
     b.label(place.at(sb.a * 0.45, sb.b * 0.7, 0.0), "Soundboard", "Soundboard");
@@ -1779,7 +1904,7 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
                 b.wall(&sides, false, inner, t, z1, &|_| lid_top, CASE);
             }
             if inner > 0.0 {
-                inner_rim(&mut b, &edge, false, inner, z0, case, wood);
+                inner_rim(&mut b, &edge, false, inner, z0, edge_t, case, wood);
                 for arm in [[sides[0], edge[0]], [edge[n - 1], sides[sides.len() - 1]]] {
                     b.wall(&arm, false, 0.0, inner, z0, &|_| PIN_BLOCK_TOP, case);
                 }
@@ -1787,7 +1912,7 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
             // A grand's under the board, behind the hammers resting under
             // its edge and the keys' tails.
             let at = if vertical { -BELLY_RAIL } else { BELLY_AT };
-            b.wall(&[p, q], false, at, at + BELLY_RAIL, z0, &|_| -0.012, case);
+            b.wall(&[p, q], false, at, at + BELLY_RAIL, z0, &|_| -edge_t, case);
         }
     } else if o.case {
         b.wall(&outline, true, inner, t, z0, &|_| z1, case);
@@ -1795,7 +1920,7 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
             b.wall(&outline, true, inner, t, z1, &|_| lid_top, CASE);
         }
         if inner > 0.0 {
-            inner_rim(&mut b, &outline, true, inner, z0, case, wood);
+            inner_rim(&mut b, &outline, true, inner, z0, edge_t, case, wood);
         }
     }
 
@@ -1850,13 +1975,29 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
     // Bridges on the board.
     let main = pick(Part::Bridges, sketches::BRIDGE);
     let bass = if lit(Part::BassBridge) { sketches::HIGHLIGHT } else { main };
+    // As high and as wide as a built board's are along them (the keys
+    // under [`SoundboardParams::bridge_line`]'s points); the bass bridge's
+    // body then as thick as the engine's, a narrower cap on it carrying
+    // its strings over the others.
     let tb = sb.bridge_line(true);
-    b.wall(&tb, false, -0.0125, 0.0125, 0.0, &|_| BRIDGE_H, main);
     let bb = sb.bridge_line(false);
-    b.wall(&bb, false, -0.015, 0.015, 0.0, &|_| BRIDGE_H + BASS_RISE, bass);
-    let (lx, ly) = tb[tb.len() / 2];
-    b.label(place.at(lx, ly, BRIDGE_H), "Bridge", "Soundboard");
-    b.label(place.at(bb[0].0, bb[0].1, BRIDGE_H + BASS_RISE), "Bass bridge", "Soundboard");
+    let from = sb.main_bridge_from as f64;
+    let main_key = |i: usize| 108.0 - (108.0 - from) * i as f64 / (tb.len() - 1).max(1) as f64;
+    let bass_key = |i: usize| from - 1.0 - (from - 22.0) * i as f64 / (bb.len() - 1).max(1) as f64;
+    let over = STRING_Z - BRIDGE_H;
+    let bass_z = bridge_z(&sb, sb.main_bridge_from.saturating_sub(1).max(21)) - over;
+    let (main_top, bass_top) = (|i: usize| built.map_or(BRIDGE_H, |s| s.bridge_thickness_at(main_key(i), true) - s.plate_center), |i: usize| {
+        built.map_or(BRIDGE_H + BASS_RISE, |s| (s.bridge_thickness_at(bass_key(i), false) - s.plate_center).min(bass_z))
+    });
+    let (main_w, bass_w) = built.map_or((0.0125, 0.015), |s| (s.bridge_width / 2.0, s.bridge_width / 2.0));
+    b.wall(&tb, false, -main_w, main_w, 0.0, &main_top, main);
+    b.wall(&bb, false, -bass_w, bass_w, 0.0, &bass_top, bass);
+    if built.is_some() {
+        b.wall(&bb, false, -BASS_CAP / 2.0, BASS_CAP / 2.0, 0.0, &|_| bass_z, bass);
+    }
+    let mid = tb.len() / 2;
+    b.label(place.at(tb[mid].0, tb[mid].1, main_top(mid)), "Bridge", "Soundboard");
+    b.label(place.at(bb[0].0, bb[0].1, bass_z), "Bass bridge", "Soundboard");
 
     // Strings, from their tuning pins across their agraffes, hammers and
     // dampers.
@@ -1872,9 +2013,13 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
         dir: (f64, f64),
     }
     let mut braid: Vec<Crossing> = Vec::new();
+    // Under each key's hitch pins: which bridge, where, how high.
+    let mut risers: Vec<(bool, (f64, f64), f64)> = Vec::new();
     for m in 21..=108u8 {
         let n = model.note(m);
         let ((ax, ay), (bx, by), z) = ends[(m - 21) as usize];
+        // On its bridge, as high as that stands.
+        let zb = bridge_z(&sb, m);
         let level = key_level(m);
         let wound = m < sb.main_bridge_from || n.strings == 1;
         let base = if wound { COPPER } else { STEEL };
@@ -1892,7 +2037,7 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
         // Beyond the bridge, the strings' rear lengths to their hitch pins,
         // a little lower on the plate.
         let (ux, uy) = (dx / len, dy / len);
-        let rear = hitch_length(&outline, (bx, by), (ux, uy), len);
+        let rear = hitch_length(&outline, (bx, by), (ux, uy), rear_wanted(&sb, m, len));
         let tail = if m == o.key { o.ink } else { pick(Part::Frame, HITCH) };
         // Over the bridge, between its two pins: the speaking length ends
         // against the front pin, to one side, and the string crosses to
@@ -1905,7 +2050,7 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
                     let phase = l.time * std::f32::consts::TAU * (5.0 + 0.07 * m as f32) + s as f32;
                     0.012 * level * phase.sin() * (std::f32::consts::PI * t as f32).sin()
                 });
-                let z = z + amp as f64;
+                let z = z + (zb - z) * t + amp as f64;
                 let (cx, cy) = (-ux * pa + nx * pd, -uy * pa + ny * pd);
                 place.at(ax + (dx + cx) * t + nx * off, ay + (dy + cy) * t + ny * off, z)
             };
@@ -1916,34 +2061,53 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
                 let (t0, t1) = (k as f64 / segments as f64, (k + 1) as f64 / segments as f64);
                 b.wire(point(t0), point(t1), rgba(c, 1.0), wire);
             }
-            b.wire(point(1.0), place.at(gx, gy, z), rgba(c, 1.0), wire);
+            b.wire(point(1.0), place.at(gx, gy, zb), rgba(c, 1.0), wire);
             b.layer_of(Layer::Still);
             // Its tuning pin, and the string's dead length from the pin's
             // coil to the agraffe.
             tuning_pin(&mut b, &pins[count], count, z, still, plain);
             // The bridge pins, and the string between them.
-            let foot = z - (STRING_Z - BRIDGE_H);
+            let foot = zb - (STRING_Z - BRIDGE_H);
             let front = (bx - ux * pa + nx * (off + pd + BRIDGE_PIN_R), by - uy * pa + ny * (off + pd + BRIDGE_PIN_R));
-            b.plate_prism(front, BRIDGE_PIN_R, 6, 0.0, (foot, z + 0.004), BRIDGE_PIN);
-            b.plate_prism((gx - nx * BRIDGE_PIN_R, gy - ny * BRIDGE_PIN_R), BRIDGE_PIN_R, 6, 0.0, (foot, z + 0.004), BRIDGE_PIN);
+            b.plate_prism(front, BRIDGE_PIN_R, 6, 0.0, (foot, zb + 0.004), BRIDGE_PIN);
+            b.plate_prism((gx - nx * BRIDGE_PIN_R, gy - ny * BRIDGE_PIN_R), BRIDGE_PIN_R, 6, 0.0, (foot, zb + 0.004), BRIDGE_PIN);
             // Its rear length, plain wire, round its hitch pin.
             let (hx, hy) = (bx + ux * rear + nx * off, by + uy * rear + ny * off);
-            b.wire(place.at(gx, gy, z), place.at(hx - ux * HITCH_R, hy - uy * HITCH_R, z - HITCH_DROP), rgba(tail, 1.0), plain);
-            // Standing on the plate's rail.
-            b.plate_prism((hx, hy), HITCH_R, 6, 0.0, (plate::RAIL_TOP - 0.001, z - HITCH_DROP + 0.004), HITCH);
+            b.wire(place.at(gx, gy, zb), place.at(hx - ux * HITCH_R, hy - uy * HITCH_R, zb - HITCH_DROP), rgba(tail, 1.0), plain);
+            // Standing on the plate's rail, or on its riser where the
+            // bridge holds the string high above it.
+            let stand = if built.is_some() { (zb - HITCH_DROP - HITCH_RISER_UNDER).max(plate::RAIL_TOP) } else { plate::RAIL_TOP };
+            b.plate_prism((hx, hy), HITCH_R, 6, 0.0, (stand - 0.001, zb - HITCH_DROP + 0.004), HITCH);
+            if s == 0 {
+                let mid = (n.strings as f64 - 1.0) / 2.0 * UNISON_GAP;
+                risers.push((m < sb.main_bridge_from, (hx + nx * mid, hy + ny * mid), stand));
+            }
             count += 1;
         }
         b.mat = Material::Paint;
         // The felt woven through the rear lengths of the strings that have
         // dampers (the treble's ring free, a duplex).
         if m <= d.highest_note {
-            braid.push(Crossing { bass: m < sb.main_bridge_from, at: (bx + ux * rear * 0.45, by + uy * rear * 0.45), z: z - HITCH_DROP * 0.45, dir: (ux, uy) });
+            braid.push(Crossing { bass: m < sb.main_bridge_from, at: (bx + ux * rear * 0.45, by + uy * rear * 0.45), z: zb - HITCH_DROP * 0.45, dir: (ux, uy) });
         }
         // The agraffe the unison goes through, standing on the pin block
         // (the highest treble's overhang it).
         let r = AGRAFFE_HEAD + AGRAFFE_HEAD_PER * (n.strings as f64 - 1.0) + AGRAFFE_FLANGE;
         let foot = if ax + r <= block_back(ax) { PIN_BLOCK_TOP } else { z - 0.008 };
         agraffe(&mut b, (ax, ay), (ux, uy), z, foot, n.strings, pick(Part::Agraffes, BRASS), pick(Part::Frame, IRON));
+    }
+    // The plate's risers under the hitch pins of a bridge that holds its
+    // strings high (a built board's): along the pins, up to under them.
+    if f.enabled && o.frame {
+        b.mat = Material::Iron;
+        for bass in [true, false] {
+            let set: Vec<_> = risers.iter().filter(|r| r.0 == bass).collect();
+            if set.iter().any(|r| r.2 > plate::RAIL_TOP + 0.002) {
+                let line: Vec<_> = set.iter().map(|r| r.1).collect();
+                b.wall(&line, false, -HITCH_RISER, HITCH_RISER, plate::RAIL_TOP - 0.001, &|i| set[i].2, pick(Part::Frame, IRON));
+            }
+        }
+        b.mat = Material::Paint;
     }
     // The braid: a band of felt across each bridge's rear lengths, over
     // one unison and under the next.
@@ -2617,6 +2781,99 @@ mod tests {
         assert!(top > 0.05 && (top as f64) < plate::CLEAR - 0.002, "heads up to {top}");
         // World y is plate x on a grand.
         assert!((front as f64) > plate::BAR_BACK, "heads from {front}");
+    }
+
+    /// The default grand on a built board (the D's structure).
+    fn built() -> PianoModel {
+        let mut m = PianoModel::default();
+        m.soundboard.as_mut().unwrap().structure.enabled = true;
+        m
+    }
+
+    #[test]
+    fn a_built_board_shows_its_ribs_and_its_thickness() {
+        let (flat, scene) = (build(&PianoModel::default(), None, &options()), build(&built(), None, &options()));
+        let ribs = |s: &Scene| s.tris.chunks(3).filter(|t| t[0].color == rgba(RIB_WOOD, 1.0)).count();
+        assert_eq!(ribs(&flat), 0);
+        // 16 ribs: three faces a section and two ends, two triangles each.
+        assert_eq!(ribs(&scene), 16 * (3 * RIB_SECTIONS + 2) * 2);
+        assert!(scene.labels.iter().any(|l| l.text == "Ribs") && !flat.labels.iter().any(|l| l.text == "Ribs"));
+        // Under the board, as deep as the deepest rib (3.42 cm); their
+        // faces turned away from their middles.
+        let s = built().soundboard.unwrap().structure;
+        let rib: Vec<_> = scene.tris.chunks(3).filter(|t| t[0].color == rgba(RIB_WOOD, 1.0)).collect();
+        let (lo, hi) = rib.iter().flat_map(|t| t.iter()).fold((f32::MAX, f32::MIN), |(lo, hi), v| (lo.min(v.pos[2]), hi.max(v.pos[2])));
+        assert!((lo as f64 + 0.0342).abs() < 1e-4 && (hi as f64) < -s.plate_edge + 1e-6 && (hi as f64) > -s.plate_center - 1e-6, "{lo} {hi}");
+        let per = (3 * RIB_SECTIONS + 2) * 2;
+        for one in rib.chunks(per) {
+            let c = scale(one.iter().flat_map(|t| t.iter()).fold([0.0; 3], |a, v| add(a, v.pos)), 1.0 / (3 * per) as f32);
+            // (The ends' and the middle's sections face it squarely enough.)
+            let out = one.iter().filter(|t| dot(t[0].normal, sub(scale(add(add(t[0].pos, t[1].pos), t[2].pos), 1.0 / 3.0), c)) > 0.0).count();
+            assert!(out >= per - 4, "{out} of {per}");
+        }
+    }
+
+    #[test]
+    fn a_built_board_holds_its_strings_as_high_as_its_bridges() {
+        let m = built();
+        let sb = m.soundboard.unwrap().resolved();
+        let s = &sb.structure;
+        // Flat where the board is not built.
+        let plain = PianoModel::default().soundboard.unwrap().resolved();
+        for k in 21..=108u8 {
+            assert_eq!(bridge_z(&plain, k), STRING_Z + if k < plain.main_bridge_from { BASS_RISE } else { 0.0 });
+        }
+        // The main bridge's strings on the engine's bridge, 7 cm thick at
+        // F3 and 2.9 cm at C8, less the plate's 9 mm.
+        let over = STRING_Z - BRIDGE_H;
+        for (k, th) in [(53u8, 0.07), (108, 0.029)] {
+            assert!((bridge_z(&sb, k) - (th - s.plate_center + over)).abs() < 1e-9, "{k}");
+        }
+        // The bass strings over every other string they cross, their
+        // hammers and dampers at their height there.
+        let hx = hammer_x(&m, &sb);
+        let ends: Vec<_> = (21..=108u8).map(|k| string_ends(&m, &sb, hx, k)).collect();
+        let mut crossings = 0;
+        for i in 21..sb.main_bridge_from {
+            let (a, b, _) = ends[(i - 21) as usize];
+            for j in sb.main_bridge_from..=108 {
+                let (c, d, _) = ends[(j - 21) as usize];
+                let (den, e) = ((b.0 - a.0) * (d.1 - c.1) - (b.1 - a.1) * (d.0 - c.0), (c.0 - a.0, c.1 - a.1));
+                let (t, u) = ((e.0 * (d.1 - c.1) - e.1 * (d.0 - c.0)) / den, (e.0 * (b.1 - a.1) - e.1 * (b.0 - a.0)) / den);
+                if (0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u) {
+                    crossings += 1;
+                    let clear = string_z(&sb, ends[(i - 21) as usize], i, t) - string_z(&sb, ends[(j - 21) as usize], j, u);
+                    // (Centre to centre: the thickest wound string is 6 mm.)
+                    assert!(clear > 0.007, "keys {i} over {j}: {clear}");
+                }
+            }
+        }
+        assert!(crossings > 100, "{crossings}");
+        // The plate over them all, and the scene whole.
+        let scene = build(&m, None, &options());
+        let highest = (21..=108u8).map(|k| bridge_z(&sb, k)).fold(0.0, f64::max);
+        assert!(highest > 0.07 && highest < 0.1, "{highest}");
+        let bar = scene.tris.iter().filter(|v| v.color == rgba(IRON, 1.0) && (v.pos[2] as f64) > highest + 0.012).count();
+        assert!(bar > 0);
+    }
+
+    #[test]
+    fn a_built_board_has_its_own_rear_lengths() {
+        let m = built();
+        let sb = m.soundboard.unwrap().resolved();
+        let outline = board_outline(&sb);
+        let hx = hammer_x(&m, &sb);
+        let mut own = 0;
+        for k in 21..=108u8 {
+            let ((ax, ay), (bx, by), _) = string_ends(&m, &sb, hx, k);
+            let l = (bx - ax).hypot(by - ay);
+            let u = ((bx - ax) / l, (by - ay) / l);
+            let (engine, drawn) = (sb.structure.back_length_at(k), hitch_length(&outline, (bx, by), u, rear_wanted(&sb, k, l)));
+            // The engine's, or what room the case leaves.
+            assert!(drawn <= engine + 1e-9 && drawn >= HITCH_MIN, "{k}: {drawn} for {engine}");
+            own += (drawn == engine) as usize;
+        }
+        assert!(own > 70, "{own}");
     }
 
     #[test]

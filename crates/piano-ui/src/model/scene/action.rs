@@ -692,7 +692,8 @@ fn f32s(p: [f64; 3]) -> V3 {
 }
 
 fn hammer(c: &Ctx, g: &Geo, m: u8) -> Hammer {
-    let z = c.ends[(m - 21) as usize].2;
+    // Where it strikes its strings, which may slope up to their bridge.
+    let z = string_z(c.sb, c.ends[(m - 21) as usize], m, c.model.note(m).strike_pos);
     let mass = c.model.note(m).hammer.mass_kg;
     let size = ((mass - 0.0054) / (0.011 - 0.0054)).clamp(0.0, 1.0);
     Geo::hammer_at(g.pivot, g.yh, z, size, c.pitch(m))
@@ -823,7 +824,7 @@ impl Upright {
     /// upright) at rest, on them and checked. The soft pedal moves the
     /// rest rail half way to the strings if the model has a half blow.
     fn hammer(&self, c: &Ctx, m: u8) -> Hammer {
-        let sy = -c.ends[(m - 21) as usize].2;
+        let sy = -string_z(c.sb, c.ends[(m - 21) as usize], m, c.model.note(m).strike_pos);
         let mass = c.model.note(m).hammer.mass_kg;
         let size = ((mass - 0.0054) / (0.011 - 0.0054)).clamp(0.0, 1.0);
         let (r, phi) = (U_SHANK_L.hypot(U_CROWN), U_CROWN.atan2(U_SHANK_L));
@@ -1023,12 +1024,17 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
     b.turn(mark, g.hinge, -(lift / (hy - wire)).atan(), 0.0);
     b.block((hy - 0.004, hy + 0.006), (hz - 0.006, hz + 0.006), cx, 0.008, ACTION_WOOD);
     // The head on the strings, along them.
-    let ((ax, ay), (bx, by), z) = c.ends[(m - 21) as usize];
+    let ((ax, ay), (bx, by), _) = c.ends[(m - 21) as usize];
     let (ux, uy) = {
         let l = (bx - ax).hypot(by - ay).max(1e-9);
         ((bx - ax) / l, (by - ay) / l)
     };
     let (px, py) = damper_at(c.model, c.ends[(m - 21) as usize], m);
+    // The strings' height there (they may slope up to their bridge).
+    let z = {
+        let n = c.model.note(m);
+        string_z(c.sb, c.ends[(m - 21) as usize], m, c.model.damper.place(n.strike_pos, n.length))
+    };
     let place = b.place;
     let corner = |a: f64, s: f64, h: f64| place.at(px + ux * a - uy * s, py + uy * a + ux * s, z + lift + h);
     let (half, hole) = damper_head(b, &corner, c.model, m, c.pick(Part::DamperPoint, DAMPER_FELT), c.pick(Part::Damper, DAMPER_WOOD));
