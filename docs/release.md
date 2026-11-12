@@ -1,6 +1,6 @@
 # Releases and soft blows against a Disklavier grand
 
-Status as of 2026-10-31.
+Status as of 2026-11-12.
 
 ## Listening report
 
@@ -65,6 +65,28 @@ With 3.5 cm and strength 0.2 the pedal bench's "after" (0.3–0.6 s after the da
 
 So `behind_strike` 0.06 and `strength` 0.1 → 0.2. The treble's first 120 ms now drop 3–4 dB faster than the recording: the rate grows as f0 (c ∝ Z0), the next thing to look at.
 
+## The felt's strength up the keyboard (2026-11-12)
+
+With one `strength` for every key, c/(2·Z0) is the same everywhere and the rate, c/(μL), grows as the key's frequency: the bass lingered and the middle stopped dead. On the Concert grand preset, keys held 3.5 s at velocity 100 took from 0.04 s to more than 0.42 s to lose 20 dB after the key-up, where the commercial D takes 0.14–0.21 s on every damped key. The commercial D's median drops (2.9, 8.3, 18.9 and 29.0 dB at 30–60, 60–120, 120–250 and 250–400 ms) are close to the Disklavier's middle above.
+
+New `damper.strength_slope`: `strength` is A1's (55 Hz) and falls as (55 Hz / f0)^slope. 0, the default, changes nothing: the default instrument renders bit for bit as before. The Concert grand takes 1, `strength` staying at 0.2.
+
+Drops after the key-up re the last 0.2 s held, broadband, close microphones, no room, each key read down to 3 dB above the reference's own floor, RMS of model − reference over the keys and the windows (dB):
+
+| | bass | middle | treble | all | key-to-key spread of the 120–250 ms drop |
+|---|---|---|---|---|---|
+| commercial D (A0–F#6, velocity 100, held 3.5 s), slope 0 | 6.6 | 8.6 | 13.0 | 9.4 | 7.0 (the D: 3.5) |
+| slope 1 | 5.9 | 5.6 | 8.2 | 6.5 | 4.8 |
+| slope 1.3 | 5.9 | 6.3 | 8.2 | 6.7 | 3.9 |
+| Liang's Disklavier (A0–D6, velocity 96, held 2 s), slope 0 | 6.1 | 5.6 | 5.2 | 5.7 | 6.1 (the recording: 4.5) |
+| slope 1 | 5.7 | 2.7 | 3.5 | 4.3 | 4.9 |
+
+A uniform change does not do it: `strength` 0.05 with `horizontal` 0.2 brings the middle to 5.3 against the commercial D and the bass to 11.1 (every third key). Slope 1.3 with `strength` 0.25 or 1.5 with 0.3 measure as slope 1 (6.5 overall). In the treble the commercial D's take reaches its own floor 11–25 dB below the held level, so little of its release is read there.
+
+Pedal bench on the Concert grand (tools/pedal_bench.py, velocity 80, RMS of model − recording over its rows): halo 3.6 → 3.6, hold 4.9 → 4.5, after 11.5 → 10.0. The half pedal (CC64 = 64) now damps less than recorded in the middle and the treble (hold +3.2 and +3.0 dB, −6.1 and −2.9 before), and the middle's full-pedal "after" goes from −4.7 to −9.7 dB. The distance to the commercial D on its 88 held keys does not move (9.49).
+
+**What the slope does not correct.** The tail of the sideways motion (`horizontal`): after 3.5 s held it sits 13 dB below the held level on G#4 and 40 dB on G4, and makes F2, C#3, C4 and G#4 ring on for more than 0.3 s where their neighbours stop. With `horizontal` at 1 these four stop as their neighbours do, but every key then drops far deeper than the commercial D.
+
 ## Soft blows: the unison struck unevenly
 
 The most audible cut left came 0.3 s after a soft chord, the pedal changing just after it. Rendered with the pedal held throughout, the model still lost its 1.5–6 kHz band within 0.3 s; the recording kept it for 0.7 s. Over the first 0.3 s, eight real grands (tools/bench.py's references) decay the middle's upper partials at about −20 dB/s at pp and −30 at ff. The model had the same decay at every velocity: it is linear once the hammer leaves.
@@ -113,6 +135,8 @@ Two other levers were tried:
 
 ## Still open
 
+- **The sideways tail's level from key to key**: 13 to 40 dB below the held level after 3.5 s (above).
+- **The default instrument's felt** still has one strength for every key; the slope is set on the Concert grand only.
 - **The middle's upper partials at pp**: partials 5–12 still decay at −29 to −45 dB/s over 0.1–0.3 s against about −20 on the real grands.
 - **The cut after the soft chord** (Liang, Chopin op. 10 no. 3, 22.3 s): the model's 1.5–6 kHz band still drops 16 dB within 0.35 s, the recording 5. The chord's E4 dominates it, and isolated it sits within the real grands at pp, on their fast side.
 - **The bass's quick pedal changes**: 80–300 Hz still dips 2 dB deeper than recorded.
