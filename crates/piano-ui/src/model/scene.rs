@@ -198,8 +198,7 @@ pub struct Options<'a> {
     /// A grand's fallboard shut over the keys.
     pub fallboard: bool,
     /// How solid a grand's front is above its fallboard, up to the case's
-    /// top, and the cover from there over the pin block (0 left out … 1
-    /// solid).
+    /// top (0 left out … 1 solid).
     pub front: f32,
     /// Text colour of the theme (the key shown).
     pub ink: Color32,
@@ -335,8 +334,20 @@ const FALL_FRONT: f64 = 0.018;
 const FALL_T: f64 = 0.014;
 const FALL_ROUND: f64 = 0.006;
 const FALL_LIP: f64 = 0.006;
-/// The cover over a grand's pin block: its thickness.
-const COVER_T: f32 = 0.018;
+/// The lid's thickness, and the angle from which its front flap lies
+/// folded right back on it.
+const LID_T: f64 = 0.02;
+/// The moulding under the flap's front edge, which closes the top of the
+/// case's front (the music desk's cavity) and goes with the flap: its
+/// height, about 2 in on a grand (an owner's measure; makers publish none).
+const LID_DROP: f64 = 0.05;
+const LID_FLAP_DEG: f64 = 8.0;
+/// The lid's prop: how far behind the board's front it stands on the
+/// treble side's rim, its section, and the lid's angle from which it is up.
+const PROP_AT: f64 = 0.35;
+const PROP_W: f64 = 0.03;
+const PROP_T: f64 = 0.016;
+const PROP_FROM_DEG: f64 = 3.0;
 /// The pedals' spacing across (m).
 const PEDAL_PITCH: f32 = 0.07;
 
@@ -1578,6 +1589,25 @@ fn fallboard(b: &mut Builder, shut: bool, x: (f64, f64), cx: f64, y: (f64, f64),
 /// panels and the top as solid as `o.front`. Across (plate y), the board
 /// and rim's `across` or the keys' `keys` with their cheeks, the wider.
 #[allow(clippy::too_many_arguments)]
+/// One piece of the lid: the plate polygon `plan` (counter-clockwise),
+/// between the heights `w` above the lid's underside, each point placed
+/// by `at` (its place when shut, its height).
+fn lid_leaf(b: &mut Builder, plan: &[(f64, f64)], w: (f64, f64), at: &dyn Fn((f64, f64), f64) -> V3, c: [f32; 4]) {
+    if plan.len() < 3 {
+        return;
+    }
+    for [i, j, k] in triangulate(plan) {
+        let t = [plan[i], plan[j], plan[k]];
+        b.tri(true, t.map(|p| at(p, w.1)), [c; 3]);
+        b.tri(true, [t[2], t[1], t[0]].map(|p| at(p, w.0)), [c; 3]);
+    }
+    for i in 0..plan.len() {
+        let (p, q) = (plan[i], plan[(i + 1) % plan.len()]);
+        b.quad(true, [at(p, w.0), at(q, w.0), at(q, w.1), at(p, w.1)], c);
+        b.line(at(p, w.1), at(q, w.1), rgba(CASE, 0.9));
+    }
+}
+
 /// A grand's inner rim `inner` wide outside the board's `edge`, from `z0`
 /// up to the board's underside, and the board's edge glued over it, out
 /// to the outer rim.
@@ -1968,61 +1998,84 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
 
     // The lid, hinged along the bass side, of the case's shape as the
     // radiation has it ([`SoundboardParams::lid_outline`]): over the rim,
-    // its bentside the board's, rounded as the board is.
+    // its bentside the board's, rounded as the board is, and carried
+    // forward over the case's front. Two leaves [`LID_T`] thick: the main
+    // one from the hammers' line back, and the front flap, which folds
+    // back on it as the lid opens (flat when shut, right over from
+    // [`LID_FLAP_DEG`]). Drawn hinged on the outer rim, the wall it stands
+    // on: the board's glued edge on the inner rim lies between that and
+    // y = b, the radiation's hinge, and a lid hinged there would leave it
+    // open to the sky.
     let lid = Outline { points: outline.clone() }.grown(LID_OVERHANG).points;
     let lid_from = b.s.glass.len();
-    if !vertical && !sb.lid_removed && sb.lid_angle <= 0.0 && o.lid {
-        // Shut, with its front flap carried forward to the case's front.
-        let h = sb.lid_hinge_height;
-        let mut top = lid.clone();
-        if let Some(k) = front {
-            for i in [k, (k + 1) % n] {
-                top[i].0 = case_front;
-            }
-        }
-        if signed_area(&top) < 0.0 {
-            top.reverse();
-        }
-        let c = rgba(CASE, 0.25);
-        for [i, j, k] in triangulate(&top) {
-            let p = [top[i], top[j], top[k]].map(|(x, y)| place.at(x, y, h));
-            b.tri(true, p, [c; 3]);
-            b.tri(true, [p[2], p[1], p[0]], [c; 3]);
-        }
-        for i in 0..top.len() {
-            let (p, q) = (top[i], top[(i + 1) % top.len()]);
-            b.line(place.at(p.0, p.1, h), place.at(q.0, q.1, h), rgba(CASE, 0.9));
-        }
-        b.label(place.at(sb.a * 0.6, sb.b * 0.5, h), "Lid, shut", "Microphones");
-    } else if !vertical && !sb.lid_removed && sb.lid_angle > 0.0 && o.lid {
-        // Open, its front flap folded back on it, turned about its hinge:
-        // what lies past it is the rim's top.
-        let (th, h) = (sb.lid_angle.to_radians(), sb.lid_hinge_height);
-        let far = 10.0 * (sb.a + sb.b);
-        // Drawn hinged on the outer rim, the wall it stands on: the board's
-        // glued edge on the inner rim lies between that and y = b, and a
-        // lid hinged there would leave it open to the sky.
+    if !vertical && !sb.lid_removed && o.lid {
+        let open = sb.lid_angle > 0.0;
+        let (th, h) = (sb.lid_angle.max(0.0).to_radians(), sb.lid_hinge_height);
         let hinge = sb.b + inner.min(LID_OVERHANG);
-        let mut top = clip(&lid, &[(-far, -far), (far, -far), (far, hinge), (-far, hinge)]);
-        if signed_area(&top) < 0.0 {
-            top.reverse();
-        }
-        let up = |(x, y): (f64, f64)| place.at(x, hinge - (hinge - y) * th.cos(), h + (hinge - y) * th.sin());
-        let c = rgba(CASE, 0.35);
-        for [i, j, k] in triangulate(&top) {
-            let p = [top[i], top[j], top[k]].map(up);
-            b.tri(true, p, [c; 3]);
-            b.tri(true, [p[2], p[1], p[0]], [c; 3]);
-        }
-        for i in 0..top.len() {
-            let (p, q) = (top[i], top[(i + 1) % top.len()]);
-            if p.1.min(q.1) < hinge - 1e-9 {
-                b.line(up(p), up(q), rgba(CASE, 0.9));
+        let mut plan = lid.clone();
+        if let Some(k) = front {
+            // Over the case's front, which its moulding closes.
+            for i in [k, (k + 1) % n] {
+                plan[i].0 = case_front - FRONT_T;
             }
+        }
+        if signed_area(&plan) < 0.0 {
+            plan.reverse();
+        }
+        let far = 10.0 * (sb.a + sb.b);
+        // The flap's hinge: over the hammers' line, the flap alone over
+        // the pin block in front of it. No flap on a case with no front.
+        let fold_x = if front.is_some() { hx } else { -far };
+        let leaf = clip(&plan, &[(fold_x, -far), (far, -far), (far, hinge), (fold_x, hinge)]);
+        let flap = clip(&plan, &[(-far, -far), (fold_x, -far), (fold_x, hinge), (-far, hinge)]);
+        // A point of the lid from its place when shut and its height
+        // in the lid's thickness: turned about the hinge.
+        let turned = move |(x, y): (f64, f64), w: f64| {
+            let d = hinge - y;
+            place.at(x, hinge - d * th.cos() + w * th.sin(), h + d * th.sin() + w * th.cos())
+        };
+        // The flap's, turned first about its own hinge on the lid's top.
+        let s = (sb.lid_angle / LID_FLAP_DEG).clamp(0.0, 1.0);
+        let fold = std::f64::consts::PI * s * s * (3.0 - 2.0 * s);
+        let folded = move |(x, y): (f64, f64), w: f64| {
+            let (vx, vw) = (x - fold_x, w - LID_T);
+            turned((fold_x + vx * fold.cos() + vw * fold.sin(), y), LID_T - vx * fold.sin() + vw * fold.cos())
+        };
+        let c = rgba(CASE, if open { 0.35 } else { 0.25 });
+        lid_leaf(&mut b, &leaf, (0.0, LID_T), &turned, c);
+        lid_leaf(&mut b, &flap, (0.0, LID_T), &folded, c);
+        // The moulding under the flap's front edge, between the arms: the
+        // top of the case's front, which goes with the flap.
+        if front.is_some() {
+            let (klo, khi) = keyboard_span(&sb);
+            let (y0, y1) = (across_lo.min(klo - KEY_CHEEK), across_hi.max(khi + KEY_CHEEK).min(hinge));
+            let (x0, x1) = (case_front - FRONT_T, case_front);
+            lid_leaf(&mut b, &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)], (-LID_DROP, 0.0), &folded, c);
         }
         // Labelled at its edge farthest from the hinge.
-        let edge = top.iter().copied().min_by(|p, q| p.1.total_cmp(&q.1)).unwrap_or((sb.a * 0.6, 0.0));
-        b.label(up(edge), format!("Lid, {:.0}°", sb.lid_angle), "Microphones");
+        let edge = leaf.iter().copied().min_by(|p, q| p.1.total_cmp(&q.1)).unwrap_or((sb.a * 0.6, 0.0));
+        if open {
+            b.label(turned(edge, LID_T), format!("Lid, {:.0}°", sb.lid_angle), "Microphones");
+        } else {
+            b.label(place.at(sb.a * 0.6, sb.b * 0.5, h + LID_T), "Lid, shut", "Microphones");
+        }
+        // The prop that holds it open: a stick from the treble side's rim
+        // up to the lid's underside, square to the lid (as long as the
+        // angle asks: a real one has two or three lengths).
+        let prop_x = PROP_AT.min(0.5 * sb.a);
+        let side = (0..n)
+            .filter_map(|i| {
+                let (p, q) = (outline[i], outline[(i + 1) % n]);
+                ((p.0 - prop_x) * (q.0 - prop_x) <= 0.0 && (p.0 - q.0).abs() > 1e-9).then(|| p.1 + (q.1 - p.1) * (prop_x - p.0) / (q.0 - p.0))
+            })
+            .fold(f64::MAX, f64::min);
+        if sb.lid_angle >= PROP_FROM_DEG && sb.lid_angle < 90.0 && side < hinge {
+            let foot = side - (inner + t) / 2.0;
+            let d = (hinge - foot) * th.cos();
+            let tip = turned((prop_x, hinge - d), 0.0);
+            let ring = |p: V3| (p, PROP_W as f32 / 2.0, PROP_T as f32 / 2.0, PROP_T as f32 / 3.0);
+            b.sweep(&[ring(place.at(prop_x, foot, lid_top)), ring(tip)], place.dir(1.0, 0.0, 0.0), CASE);
+        }
     }
     b.s.lid = b.s.glass.split_off(lid_from);
 
@@ -2108,15 +2161,13 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
             b.sweep(&along(-hi as f32, -lo as f32, yf + KEY_SLIP as f32 / 2.0, (z0f, kz as f32 - 0.002), KEY_SLIP as f32, 0.005), [0.0, 1.0, 0.0], case);
             b.sweep(&along(-hi as f32, -lo as f32, (y_back + FRONT_T / 2.0) as f32, (top + 0.014, PIN_BLOCK_TOP as f32), FRONT_T as f32, 0.009), [0.0, 1.0, 0.0], case);
             b.cuboid([-(khi + 0.002) as f32, y_back as f32 - 0.006, top - 0.004], [(khi - klo + 0.004) as f32, 0.0, 0.0], [0.0, 0.006, 0.0], [0.0, 0.0, 0.012], FELT);
-            // Above it, the front closed up to the case's top, under the
-            // lid, and a cover from there back over the pin block to the
-            // hammers' line: as solid as asked.
+            // Above it, the front closed up to the moulding under the
+            // lid's flap, which closes the rest ([`LID_DROP`]), as solid as
+            // asked. Behind it the pin block lies open under the flap,
+            // which covers it when shut.
             let from = b.s.tris.len();
-            let shut = lid_top as f32 - 0.002;
+            let shut = (lid_top - LID_DROP) as f32;
             b.sweep(&along(-hi as f32, -lo as f32, (y_back + FRONT_T / 2.0) as f32, (PIN_BLOCK_TOP as f32, shut), FRONT_T as f32, 0.009), [0.0, 1.0, 0.0], case);
-            let (c0, c1) = (case_front as f32, hx as f32);
-            let (a0, a1) = (across_lo - inner, across_hi + inner);
-            b.cuboid([-a1 as f32, c0, shut - COVER_T], [(a1 - a0) as f32, 0.0, 0.0], [0.0, c1 - c0, 0.0], [0.0, 0.0, COVER_T], case);
             b.see_through(from, o.front);
             fallboard(&mut b, o.fallboard, (-hi, -lo), cx as f64, (key_front, y_back), kz, case);
         }
