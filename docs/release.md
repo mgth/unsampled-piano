@@ -85,7 +85,33 @@ A uniform change does not do it: `strength` 0.05 with `horizontal` 0.2 brings th
 
 Pedal bench on the Concert grand (tools/pedal_bench.py, velocity 80, RMS of model − recording over its rows): halo 3.6 → 3.6, hold 4.9 → 4.5, after 11.5 → 10.0. The half pedal (CC64 = 64) now damps less than recorded in the middle and the treble (hold +3.2 and +3.0 dB, −6.1 and −2.9 before), and the middle's full-pedal "after" goes from −4.7 to −9.7 dB. The distance to the commercial D on its 88 held keys does not move (9.49).
 
-**What the slope does not correct.** The tail of the sideways motion (`horizontal`): after 3.5 s held it sits 13 dB below the held level on G#4 and 40 dB on G4, and makes F2, C#3, C4 and G#4 ring on for more than 0.3 s where their neighbours stop. With `horizontal` at 1 these four stop as their neighbours do, but every key then drops far deeper than the commercial D.
+## The sideways tail (2026-11-12)
+
+With the slope, some keys still rang on after the key-up: C#3, C4, G2, D#3, F2, F3, C3. Over C2–C5 the level 0.25–0.4 s after the key-up, re the attack's peak (velocity 100, held 3.5 s), had a median of −50 dB and reached −34 dB on C#3, eight keys above −45 dB; the commercial D's median is −60 dB, its loudest key −49.
+
+It is the slow mode the bridge's cross term leaves. The Concert grand's `polarization.cross` is at its passive limit (docs/real_board.md): the bridge then takes one tilted polarisation and leaves the other, mostly sideways, alone. The felt braked that one with `horizontal`, 3 % of its rate. One change at a time on thirteen keys:
+
+| | tail re the attack's peak, C#3 / C4 / G2 / D#3 (dB) |
+|---|---|
+| the preset | −34 / −42 / −40 / −43 |
+| `polarization.cross` 0 | −55 / −63 / −52 / −54 |
+| `polarization.hammer_tilt` 0 | −34 / −42 / −40 / −42 |
+| `polarization.radiation` 0 | −34 / −42 / −39 / −41 |
+| `damper.horizontal` 0.1 | −40 / −46 / −45 / −48 |
+| `damper.horizontal` 0.3 | −52 / −55 / −52 / −56 |
+| commercial D | −60 / −62 / −57 / −61 |
+
+The cross term is the one measured on a real grand's partials and sets the held note, so it stays; the felt's grip is the lever. `horizontal` 0.03 had been set on a slow tail 25–40 dB down in Liang's recordings, which turned out to be their noise floor (above). The Concert grand takes 0.3; the default instrument keeps 0.03.
+
+| `damper.horizontal` | 0.03 | 0.1 | 0.3 | 1 |
+|---|---|---|---|---|
+| tail, C2–C5: median / loudest key (dB) | −50 / −34 | −54 / −40 | −57 / −43 | −60 / −43 |
+| keys above −45 dB | 8 | 4 | 1 | 1 |
+| drops against the commercial D, all keys (dB rms) | 6.5 | 6.2 | 6.1 | 6.5 |
+| middle | 5.6 | 4.7 | 4.2 | 5.0 |
+| drops against Liang's Disklavier (dB rms) | 4.3 | 4.3 | 4.3 | 4.3 |
+
+The drops' benches hardly see it: both read down to the reference's floor, which hides a tail 35 dB down. The held notes do not change (distance to the commercial D 9.49 → 9.49). Pedal bench, 0.03 → 0.3: halo 3.6 → 3.6, hold 4.5 → 4.8, after 10.0 → 11.5. The middle's "after" comes closer (−9.7 → −2.0 dB at CC64 = 96), the treble's goes back to where it stood before the slope (+5.7 → +15.7): once a key released without the pedal falls deeper, what the other strings add under the pedal, already 5–6 dB over in the treble's halo, shows whole.
 
 ## Soft blows: the unison struck unevenly
 
@@ -135,7 +161,7 @@ Two other levers were tried:
 
 ## Still open
 
-- **The sideways tail's level from key to key**: 13 to 40 dB below the held level after 3.5 s (above).
+- **The treble's level after a pedal release**: 16–19 dB above a plain key-up's where the recording has −2 to −6 (pedal bench, "after").
 - **The default instrument's felt** still has one strength for every key; the slope is set on the Concert grand only.
 - **The middle's upper partials at pp**: partials 5–12 still decay at −29 to −45 dB/s over 0.1–0.3 s against about −20 on the real grands.
 - **The cut after the soft chord** (Liang, Chopin op. 10 no. 3, 22.3 s): the model's 1.5–6 kHz band still drops 16 dB within 0.35 s, the recording 5. The chord's E4 dominates it, and isolated it sits within the real grands at pp, on their fast side.
