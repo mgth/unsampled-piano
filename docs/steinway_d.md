@@ -107,6 +107,7 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `hammer_mass_slope` | 0 | 0.00078, with `hammer_mass_scale` 1.053 | RT-425 against Stulov, 1.02 at C1 to 1.07 at C7 |
 | `damper.highest_note` | 86 (D6) | 91 (G6) | the commercial D's setting, checked on its key-ups |
 | `damper.strength_slope` | 0 | 1 | the commercial D's key-ups: every key stops at about the same rate (docs/release.md) |
+| `damper.horizontal` | 0.03 | 0.3 | the tail after the key-up, 34–50 dB under the attack from key to key, the commercial D's near −60 (docs/release.md) |
 | `soundboard.structure.enabled` | false | true | plate, ribs and bridges by finite elements, docs/real_board.md |
 | `soundboard.structure.strings` | false | true | the strings hold the bridge, T·(1/L + 1/l) each; the rear lengths are an estimate (docs/real_board.md) |
 | `soundboard.piston_freq` | 40 | 0 (none) | a fit; a real concert grand's low fundamentals lose 0.7 dB/s (docs/real_board.md) |

@@ -140,7 +140,9 @@ strength = 0.2
 # commercial D's do (docs/release.md).
 strength_slope = 1.0
 contact_exponent = 1.5
-horizontal = 0.03
+# The felt's grip on the sideways motion: at 0.03 the slow mode the bridge's cross term
+# leaves rang on after the key-up, 34-50 dB under the attack from key to key (docs/release.md).
+horizontal = 0.3
 highest_note = 91
 pedal_free = 0.3
 pedal_contact = 0.6
