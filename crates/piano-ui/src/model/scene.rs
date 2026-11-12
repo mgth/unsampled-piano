@@ -299,6 +299,13 @@ const KEY_SLIP: f64 = 0.018;
 /// A grand's cheek blocks' least width, between the keys and the case's
 /// arms; the bass's agraffes' least distance from the board's bass side.
 const KEY_CHEEK: f64 = 0.03;
+/// A real keyboard's white key (m): its 52 make 1.227 m, whatever the
+/// instrument's size.
+const WHITE_KEY: f64 = 0.0236;
+/// How far back from the board's front (of its length a) the front edge's
+/// ends may lie, and how much of its width b that edge spans at least.
+const FRONT_WITHIN: f64 = 0.25;
+const FRONT_SPAN: f64 = 0.5;
 const AGRAFFE_EDGE: f64 = 0.025;
 /// An upright's board's bottom above the floor (the room's); the back of
 /// its keys' visible part in front of the board, under the fallboard.
@@ -1053,6 +1060,19 @@ pub fn frame_outline(model: &PianoModel, sb: &SoundboardParams) -> Vec<(f64, f64
     rounded(&p)
 }
 
+/// The board's front edge, along the keyboard: the index of its first
+/// point in the counter-clockwise `outline` (the bass corner; the treble
+/// one follows). The widest edge across within the board's front, square
+/// to the spine or not (a concert grand's runs further forward at the
+/// treble); none on an outline with no such edge.
+pub fn front_edge(outline: &[(f64, f64)], sb: &SoundboardParams) -> Option<usize> {
+    let n = outline.len();
+    let across = |k: usize| outline[k].1 - outline[(k + 1) % n].1;
+    (0..n)
+        .filter(|&k| outline[k].0.max(outline[(k + 1) % n].0) <= FRONT_WITHIN * sb.a && across(k) >= FRONT_SPAN * sb.b)
+        .max_by(|&i, &j| across(i).total_cmp(&across(j)))
+}
+
 pub fn signed_area(p: &[(f64, f64)]) -> f64 {
     0.5 * p.iter().zip(p.iter().cycle().skip(1)).map(|(a, b)| a.0 * b.1 - b.0 * a.1).sum::<f64>()
 }
@@ -1122,19 +1142,39 @@ pub fn triangulate(p: &[(f64, f64)]) -> Vec<[usize; 3]> {
 /// but closer together if that would bring A0's agraffe within
 /// [`AGRAFFE_EDGE`] of the board's bass side (the case's wall): its
 /// string runs on from its strike, away from its bridge, to its agraffe.
+/// Never wider than a real keyboard's ([`hammer_line`]).
 /// The engine has no place across for the bass's hammers (it drives the
 /// frame in line with their bridge points).
 pub fn key_across(model: &PianoModel, sb: &SoundboardParams, m: u8) -> f64 {
+    let lo_key = sb.main_bridge_from.min(107);
+    let (c8, pitch) = hammer_line(sb);
+    if m >= lo_key || pitch <= 0.0 {
+        return c8 + pitch * (108 - m) as f64;
+    }
+    let lowest = c8 + pitch * (108 - lo_key) as f64;
+    let s = model.note(21).strike_pos;
+    let a0 = (1.0 - s) * (sb.b - AGRAFFE_EDGE) + s * sb.bridge_point(21).1;
+    let bass = ((a0 - lowest) / (lo_key - 21) as f64).clamp(0.5 * pitch, pitch);
+    lowest + bass * (lo_key - m) as f64
+}
+
+/// The main bridge's hammers across (plate y): C8's place and the pitch
+/// from one semitone to the next. In line with where the strings cross the
+/// keys' line ([`SoundboardParams::key_across`]), unless that would make a
+/// keyboard wider than a real one ([`WHITE_KEY`]; a board whose bridge
+/// points are the strings' real, slanted ends, with no slant of the model's
+/// on top): then at a real keyboard's pitch, in the middle of the case, the
+/// strings fanning out from their hammers to their bridge as a grand's do.
+fn hammer_line(sb: &SoundboardParams) -> (f64, f64) {
     let y = |m: u8| sb.key_across(m);
     let lo_key = sb.main_bridge_from.min(107);
     let pitch = (y(lo_key) - y(108)) / (108 - lo_key) as f64;
-    if m >= lo_key || pitch <= 0.0 {
-        return y(108) + pitch * (108 - m) as f64;
+    let real = WHITE_KEY * 7.0 / 12.0;
+    // (Within 1 %: the default's keyboard is a real one's already.)
+    if pitch <= 1.01 * real {
+        return (y(108), pitch);
     }
-    let s = model.note(21).strike_pos;
-    let a0 = (1.0 - s) * (sb.b - AGRAFFE_EDGE) + s * sb.bridge_point(21).1;
-    let bass = ((a0 - y(lo_key)) / (lo_key - 21) as f64).clamp(0.5 * pitch, pitch);
-    y(lo_key) + bass * (lo_key - m) as f64
+    (y(108).max((sb.b - 87.0 * real) / 2.0), real)
 }
 
 /// The keyboard's extent across (plate y): C8 and the main bridge's lowest
@@ -1143,14 +1183,14 @@ pub fn key_across(model: &PianoModel, sb: &SoundboardParams, m: u8) -> f64 {
 /// blocks [`KEY_CHEEK`] wide inside the case's walls (centred if there is
 /// not that much room); the keys crank to their hammers behind it.
 fn keyboard_span(sb: &SoundboardParams) -> (f64, f64) {
-    let y = |m: u8| sb.key_across(m);
     let mid = |m: u8| {
         let (x, w) = sketches::key_span(m);
         (x + w / 2.0) as f64
     };
     let lo_key = sb.main_bridge_from.min(107);
-    let white = (y(lo_key) - y(108)) / (mid(108) - mid(lo_key));
-    let hi = y(108) + mid(108) * white;
+    let (c8, pitch) = hammer_line(sb);
+    let white = pitch * (108 - lo_key) as f64 / (mid(108) - mid(lo_key));
+    let hi = c8 + mid(108) * white;
     let lo = hi - 52.0 * white;
     let (lo, hi) = (lo.min(hi), lo.max(hi));
     let room = (KEY_CHEEK, sb.b - KEY_CHEEK);
@@ -1692,12 +1732,16 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
     // block's ends in front of the board.
     let inner = if vertical { 0.0 } else { t - t.min(OUTER_RIM) };
     let n = outline.len();
-    let front = (0..n).find(|&k| outline[k].0.abs() < 1e-6 && outline[(k + 1) % n].0.abs() < 1e-6);
+    let front = front_edge(&outline, &sb);
     let (mut across_lo, mut across_hi) = (0.0, sb.b);
     if let Some(k) = front {
         let (p, q) = (outline[k], outline[(k + 1) % n]);
-        let forward = |p: (f64, f64)| if p.0.abs() < 1e-6 { (case_front, p.1) } else { p };
-        let sides: Vec<_> = (1..=n).map(|i| forward(outline[(k + i) % n])).collect();
+        // The sides, each carried straight forward from its front corner
+        // (wherever the board's front edge puts it) to the case's front.
+        let edge: Vec<_> = (1..=n).map(|i| outline[(k + i) % n]).collect();
+        let mut sides = vec![(case_front, q.1)];
+        sides.extend(edge.iter().copied().filter(|e| e.0 > case_front + 1e-6));
+        sides.push((case_front, p.1));
         (across_lo, across_hi) = (p.1.min(q.1), p.1.max(q.1));
         if o.case {
             b.wall(&sides, false, inner, t, z0, &|_| z1, case);
@@ -1705,9 +1749,8 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
                 b.wall(&sides, false, inner, t, z1, &|_| lid_top, CASE);
             }
             if inner > 0.0 {
-                let edge: Vec<_> = (1..=n).map(|i| outline[(k + i) % n]).collect();
                 inner_rim(&mut b, &edge, false, inner, z0, case, wood);
-                for arm in [[sides[0], edge[0]], [edge[n - 1], sides[n - 1]]] {
+                for arm in [[sides[0], edge[0]], [edge[n - 1], sides[sides.len() - 1]]] {
                     b.wall(&arm, false, 0.0, inner, z0, &|_| PIN_BLOCK_TOP, case);
                 }
             }
@@ -1931,7 +1974,12 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
     if !vertical && !sb.lid_removed && sb.lid_angle <= 0.0 && o.lid {
         // Shut, with its front flap carried forward to the case's front.
         let h = sb.lid_hinge_height;
-        let mut top: Vec<(f64, f64)> = lid.iter().map(|&p| if p.0 <= -LID_OVERHANG + 1e-9 { (case_front, p.1) } else { p }).collect();
+        let mut top = lid.clone();
+        if let Some(k) = front {
+            for i in [k, (k + 1) % n] {
+                top[i].0 = case_front;
+            }
+        }
         if signed_area(&top) < 0.0 {
             top.reverse();
         }
@@ -1947,15 +1995,19 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
         }
         b.label(place.at(sb.a * 0.6, sb.b * 0.5, h), "Lid, shut", "Microphones");
     } else if !vertical && !sb.lid_removed && sb.lid_angle > 0.0 && o.lid {
-        // Open, its front flap folded back on it, turned about the hinge
-        // y = b: what lies past it is the rim's top.
+        // Open, its front flap folded back on it, turned about its hinge:
+        // what lies past it is the rim's top.
         let (th, h) = (sb.lid_angle.to_radians(), sb.lid_hinge_height);
         let far = 10.0 * (sb.a + sb.b);
-        let mut top = clip(&lid, &[(-far, -far), (far, -far), (far, sb.b), (-far, sb.b)]);
+        // Drawn hinged on the outer rim, the wall it stands on: the board's
+        // glued edge on the inner rim lies between that and y = b, and a
+        // lid hinged there would leave it open to the sky.
+        let hinge = sb.b + inner.min(LID_OVERHANG);
+        let mut top = clip(&lid, &[(-far, -far), (far, -far), (far, hinge), (-far, hinge)]);
         if signed_area(&top) < 0.0 {
             top.reverse();
         }
-        let up = |(x, y): (f64, f64)| place.at(x, sb.b - (sb.b - y) * th.cos(), h + (sb.b - y) * th.sin());
+        let up = |(x, y): (f64, f64)| place.at(x, hinge - (hinge - y) * th.cos(), h + (hinge - y) * th.sin());
         let c = rgba(CASE, 0.35);
         for [i, j, k] in triangulate(&top) {
             let p = [top[i], top[j], top[k]].map(up);
@@ -1964,7 +2016,7 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
         }
         for i in 0..top.len() {
             let (p, q) = (top[i], top[(i + 1) % top.len()]);
-            if p.1.min(q.1) < sb.b - 1e-9 {
+            if p.1.min(q.1) < hinge - 1e-9 {
                 b.line(up(p), up(q), rgba(CASE, 0.9));
             }
         }
@@ -2423,6 +2475,29 @@ mod tests {
             let gap = key_across(&m, &sb, k) - key_across(&m, &sb, k + 1);
             assert!(gap >= 0.5 * main - 1e-12 && gap <= main + 1e-12, "key {k}: {gap} vs {main}");
         }
+    }
+
+    /// The Concert grand's board: its front edge runs forward towards the
+    /// treble, and its bridge points are the strings' real ends, wider
+    /// apart than its keys.
+    #[test]
+    fn a_slanted_front_edge_is_the_front_and_the_keyboard_a_real_one() {
+        let preset = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/instruments/Concert grand/concert_grand.toml");
+        let m = piano_host::load_preset(&preset).unwrap();
+        let sb = m.soundboard.unwrap().resolved();
+        let outline = board_outline(&sb);
+        let k = front_edge(&outline, &sb).expect("a front edge");
+        let (p, q) = (outline[k], outline[(k + 1) % outline.len()]);
+        assert!(p.1 > 0.95 * sb.b && q.1 < 0.05 * sb.b && (p.0 - q.0).abs() > 0.05, "front edge from {p:?} to {q:?}");
+        let (lo, hi) = keyboard_span(&sb);
+        // (To a few millimetres: the semitones are even, the white keys not quite.)
+        assert!((hi - lo - 52.0 * WHITE_KEY).abs() < 0.005, "keys {} m wide", hi - lo);
+        assert!(lo >= KEY_CHEEK && hi <= sb.b - KEY_CHEEK, "keys from {lo} to {hi}, board {}", sb.b);
+        // The default's is the rectangle's, or its outline's, at x = 0.
+        let sb = PianoModel::default().soundboard.unwrap().resolved();
+        let outline = board_outline(&sb);
+        let k = front_edge(&outline, &sb).unwrap();
+        assert!(outline[k].0.abs() < 1e-9 && outline[(k + 1) % outline.len()].0.abs() < 1e-9);
     }
 
     #[test]
