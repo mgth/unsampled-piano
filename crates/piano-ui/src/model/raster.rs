@@ -115,7 +115,7 @@ fn shots() {
     }
     let lid = std::env::var("PIANO_SHOT_LID").is_ok();
     let front = std::env::var("PIANO_SHOT_FRONT").ok().and_then(|f| f.parse().ok()).unwrap_or(1.0);
-    let options = Options { key: 0, lit: &[], lid, frame: false, mics: false, case: false, fallboard: false, front, ink: Color32::WHITE };
+    let options = Options { key: 0, lit: &[], lid, frame: std::env::var("PIANO_SHOT_FRAME").is_ok(), mics: false, case: false, fallboard: false, front, ink: Color32::WHITE };
     for view in std::env::var("PIANO_SHOTS").unwrap_or_default().split(';').filter(|s| !s.is_empty()) {
         let (name, v) = view.split_once(':').unwrap();
         let v: Vec<f32> = v.split(',').map(|x| x.parse().unwrap()).collect();
@@ -151,7 +151,8 @@ fn shots() {
 #[test]
 #[ignore]
 fn build_time() {
-    let model = PianoModel::default();
+    // An instrument preset's, or the default.
+    let model = std::env::var("PIANO_SHOT_PRESET").map_or_else(|_| PianoModel::default(), |p| piano_host::load_preset(p.as_ref()).unwrap());
     let options = Options { key: 0, lit: &[], lid: true, frame: true, mics: true, case: std::env::var("CASE_OFF").is_err(), fallboard: false, front: 1.0, ink: Color32::WHITE };
     let obs = Observation::default();
     let levels = [0.0f32; 128];

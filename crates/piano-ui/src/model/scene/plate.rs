@@ -31,6 +31,9 @@ const DEPTH: f64 = 0.045;
 pub(super) const CLEAR: f64 = 0.093;
 const LOW: f64 = 0.068;
 const DAMPERS_END: f64 = 0.08;
+/// The struts' underside over the highest strings at their bridge, at
+/// least (the default's: [`LOW`] over the bass's 5.5 cm).
+const OVER_STRINGS: f64 = 0.013;
 /// An upright's: low over the strings all along (its dampers and hammers
 /// between them), in front of the bass strings crossing the others; their
 /// depth.
@@ -189,7 +192,9 @@ fn bridged(outer: &[(f64, f64)], holes: &[Vec<(f64, f64)>]) -> Mesh {
 pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, ends: &[StringEnds], c: Color32) {
     let place = b.place;
     let at = |x: f64, y: f64, z: f64| place.at(x, y, z);
-    let (over, low, depth) = if place.vertical { (U_CLEAR, U_CLEAR, U_DEPTH) } else { (CLEAR, LOW, DEPTH) };
+    // (Over a built board's bridges, as high as its strings are on them.)
+    let highest = (21..=108u8).map(|m| bridge_z(sb, m)).fold(0.0, f64::max);
+    let (over, low, depth) = if place.vertical { (U_CLEAR.max(highest + 0.01), U_CLEAR.max(highest + 0.01), U_DEPTH) } else { (CLEAR.max(highest + OVER_STRINGS), LOW.max(highest + OVER_STRINGS), DEPTH) };
     let board = board_outline(sb);
     // The case's inside, carried forward over the pin block.
     let case = frame_outline(model, sb);
@@ -253,7 +258,7 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
             // Over its bridge, then down onto the plate just behind it.
             let on = |p: (f64, f64)| (p.0 - start.0) * u.0 + (p.1 - start.1) * u.1;
             let bridge = on(bp);
-            let land = on(along(bp, u, (hitch_length(&board, bp, u, l) - RAIL_FRONT).max(BRIDGE_CLEAR) + LAND)).min(t);
+            let land = on(along(bp, u, (hitch_length(&board, bp, u, rear_wanted(sb, m, l)) - RAIL_FRONT).max(BRIDGE_CLEAR) + LAND)).min(t);
             (land >= 0.06 && land > bridge + PAST_BRIDGE + 0.01).then_some((start, u, land, bridge, skip == 0.0))
         })
         .collect();
@@ -267,7 +272,7 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
         let mut back = Vec::new();
         for m in (21..=108u8).filter(|&m| (m < sb.main_bridge_from) == bass).step_by(3) {
             let (_, bp, u, l) = line(m);
-            let rear = hitch_length(&board, bp, u, l);
+            let rear = hitch_length(&board, bp, u, rear_wanted(sb, m, l));
             let wall = reach(&board, bp, u);
             if wall == f64::MAX || wall < rear || model.note(m).strings == 0 {
                 continue;

@@ -128,6 +128,25 @@ impl BoardStructure {
         curve(&self.back_length, note as f64)
     }
 
+    /// Bridge thickness (m), plate included, under key `key` on the main
+    /// bridge or on the bass one.
+    pub fn bridge_thickness_at(&self, key: f64, main: bool) -> f64 {
+        if main { curve(&self.main_bridge_thickness, key) } else { curve(&self.bass_bridge_thickness, key) }
+    }
+
+    /// Plate thickness (m) at `edge` m from the rim.
+    pub fn plate_thickness_at(&self, edge: f64) -> f64 {
+        self.plate_center - (self.plate_center - self.plate_edge) * (-edge / self.plate_taper.max(1e-6)).exp()
+    }
+
+    /// The ribs in use, from the treble to the bass: each one's entry of
+    /// [`Self::ribs`] and its width (m).
+    pub fn ribs_in_use(&self) -> impl Iterator<Item = ((f64, f64, f64, f64, f64, f64), f64)> + '_ {
+        let used = self.ribs.iter().filter(|r| r.0 != r.2 || r.1 != r.3);
+        let n = used.clone().count();
+        used.enumerate().map(move |(i, &r)| (r, self.rib_width_treble + (self.rib_width_bass - self.rib_width_treble) * i as f64 / (n.max(2) - 1) as f64))
+    }
+
     /// RT-425's woods and its figure 2's thicknesses, read in metres off the
     /// figure (docs/real_board.md): its 16 ribs, 2–2.6 cm wide (the thesis
     /// measured them on the piano and counted 17).
@@ -323,15 +342,12 @@ impl Structure {
     fn new(p: &SoundboardParams) -> Self {
         let s = p.structure;
         let (ca, sa) = (s.grain_angle.to_radians().cos(), s.grain_angle.to_radians().sin());
-        let used: Vec<_> = s.ribs.iter().filter(|r| r.0 != r.2 || r.1 != r.3).collect();
-        let width = |i: usize| s.rib_width_treble + (s.rib_width_bass - s.rib_width_treble) * i as f64 / (used.len().max(2) - 1) as f64;
-        let ribs: Vec<Rib> = used
-            .iter()
-            .enumerate()
-            .map(|(i, r)| {
+        let ribs: Vec<Rib> = s
+            .ribs_in_use()
+            .map(|(r, width)| {
                 let (x0, y0, x1, y1) = (r.0 * p.a, r.1 * p.b, r.2 * p.a, r.3 * p.b);
                 let len = (x1 - x0).hypot(y1 - y0);
-                Rib { p: (x0, y0), dir: ((x1 - x0) / len, (y1 - y0) / len), len, mid: r.4, end: r.5, half_width: 0.5 * width(i) }
+                Rib { p: (x0, y0), dir: ((x1 - x0) / len, (y1 - y0) / len), len, mid: r.4, end: r.5, half_width: 0.5 * width }
             })
             .collect();
         let rib_q = ribs.iter().map(|r| (rotated(s.spruce_el, s.spruce_er, s.spruce_g, s.spruce_nu, r.dir.0, r.dir.1), rotated_shear(s.spruce_gl, s.spruce_gr, r.dir.0, r.dir.1))).collect();
@@ -346,7 +362,7 @@ impl Structure {
                 if len <= 0.0 {
                     continue;
                 }
-                let th = |k: f64| if on_main { curve(&s.main_bridge_thickness, k) } else { curve(&s.bass_bridge_thickness, k) };
+                let th = |k: f64| s.bridge_thickness_at(k, on_main);
                 bridges.push(BridgePiece { p: q0, dir: ((q1.0 - q0.0) / len, (q1.1 - q0.1) / len), len, thickness: (th(at(i)), th(at(i + 1))) });
             }
         }
@@ -355,7 +371,7 @@ impl Structure {
 
     fn plate_thickness(&self, x: f64, y: f64) -> f64 {
         let d = self.outline.as_ref().map_or_else(|| x.min(self.a - x).min(y).min(self.b - y).max(0.0), |o| o.edge_distance(x, y));
-        self.s.plate_center - (self.s.plate_center - self.s.plate_edge) * (-d / self.s.plate_taper.max(1e-6)).exp()
+        self.s.plate_thickness_at(d)
     }
 
     /// The stack at (x, y). `near`: the bridge pieces worth looking at for
