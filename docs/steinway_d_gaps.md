@@ -39,7 +39,42 @@ Status as of 2026-11-12. A follow-up list for the Concert grand preset: what in 
 
 ## About the felt (item 1)
 
-RT-425's law was tried key by key, as a whole: exponent, stiffness, hysteresis time and mass, without a core. Distance to the commercial D 9.37 against 6.54, loudness key to key 6.95 dB against 3.80, the top keys 16 dB short, brightness growth 15.8 dB. Not tried: the real exponent alone, kept with the model's core and hysteresis.
+RT-425's law was tried key by key, as a whole: exponent, stiffness, hysteresis time and mass, without a core. Distance to the commercial D 9.37 against 6.54, loudness key to key 6.95 dB against 3.80, the top keys 16 dB short, brightness growth 15.8 dB.
+
+**The real exponent alone** (2026-11-12): `p_offset` −1.45, which takes the felt's exponent from 3.7–5.0 to 2.25–3.55, the model's core and hysteresis kept, nothing else changed. All 88 keys at velocities 60 and 100, close microphones, no room, against the D without hammer noise. A lower exponent makes the felt harder at small compressions for the same `hardness`, so two softer felts are given beside it. Growth: the attack's 2–4 kHz band (first 60 ms) from velocity 60 to 100, mean over the keys.
+
+| | Overall | Bass | Middle | Treble | Top | Growth, A0–B1 (the D 35.5) | Growth, C4–B5 (the D 17.1) |
+|---|---|---|---|---|---|---|---|
+| the preset (`hardness` 0.3) | 9.46 | 8.70 | 9.86 | 9.69 | 9.54 | 31.8 | 17.9 |
+| real exponent | 9.75 | 8.71 | 10.00 | 10.52 | 9.69 | 25.5 | 15.0 |
+| real exponent, `hardness` 0.1 | 9.58 | 8.71 | 9.88 | 9.74 | 9.94 | 24.1 | 18.1 |
+| real exponent, `hardness` 0.03 | 9.17 | 8.69 | 10.44 | 9.22 | 8.18 | 17.6 | 21.9 |
+
+The real exponent does not help. Alone it is further from the D, and whatever the hardness the low bass brightens less with velocity (25.5 to 17.6 dB against 31.8, the D 35.5), which is what the preset's felt was built for. The softest felt comes nearer overall, through the top and the treble only: their attack's partials 2–8 stand 4.5 and 9.5 dB over the D's in the preset, and any softer hammer brings them down (to −1.2 and +8.0). That is the top felt's hardness, not its exponent: `hardness_slope_top` with the model's exponent is the trial that follows from it. The renders are in `out/felt_exponent/`.
+
+**The top felt's hardness** (2026-11-12): `hardness_slope_top`, the felt's hardening above C6 (0.15 by default, 36 times harder at C8), the model's exponent kept. Only the keys above C6 change. Bias: the attack's partials 2–8 re the D's, over C8's octave (the top register), at velocity 100 and 60.
+
+| `hardness_slope_top` | Overall | Treble | Top | Bias at ff | Bias at mf | ff − mf re the D's |
+|---|---|---|---|---|---|---|
+| 0.15: the preset | 9.46 | 9.69 | 9.54 | +9.5 | +8.4 | +4.3 |
+| 0.10 | 9.20 | 9.58 | 8.62 | +8.9 | +6.0 | +4.7 |
+| 0.05 | 9.15 | 9.49 | 8.48 | +8.1 | +4.6 | +5.0 |
+| 0 | 9.13 | 9.38 | 8.52 | +8.0 | +4.2 | +5.1 |
+
+A softer top felt comes nearer the D, by the soft blows only: the mf attack loses half of its excess, the ff attack hardly moves (+9.5 → +8.0) and the level's growth from mf to ff, already too large, grows. At ff the top's brightness is not set by the top felt. Not checked on the bench of real grands, where the default's 0.15 was set, and not heard: the preset is unchanged.
+
+**The core in the treble** (2026-11-12): it is not the core either. `core_depth_treble` 0.5 and 1.0 (0 in the preset: the core from the first contact at C8) and `core_hardness` 4 and 2 (8 in the preset) all leave the distance at 9.45–9.46 and every register where it was; the two depths give the same renders to 0.01 dB. A treble hammer does not compress its felt far enough for a u⁷ term to count. `core_hardness` only acts in the low bass, where 2 raises the growth of the 2–4 kHz band from 31.8 to 33.6 dB (the D 35.5) and that of 4–8 kHz from 46.5 to 54.1 (the D 41.4).
+
+**What the top's excess is made of.** Absolute levels of the attack's partials (first 60 ms), model − D, one gain per set taken on A2–A5's peaks:
+
+| | partial 1, ff | partials 2–4, ff | partial 1, mf | partials 2–4, mf |
+|---|---|---|---|---|
+| C4–B5 | −0.5 | +0.2 | −1.5 | +1.1 |
+| C6–B6 | −2.5 | +4.7 | −6.9 | +6.8 |
+| C7–C8 | −3.7 | +21.0 | −11.0 | +15.6 |
+| C7–C8, `hardness_slope_top` 0.05 | −4.8 | +17.7 | −14.3 | +1.8 |
+
+Up to B5 the model is level with the D. Above, two things add up: the upper partials are far too strong (the D's top octave has next to nothing above its fundamental), and the fundamental is short, more at mf than at ff. A softer top felt takes the mf partials down and the fundamental with them. What sets the partials at ff, and the fundamental's level, is not found: neither the felt's exponent, nor its hardness, nor the core. Left to try, by a stage swap rather than by one more parameter (docs/stage_swap.md): the hammer's force, the string, or the radiation.
 
 ## What the board above 3 kHz taught
 
