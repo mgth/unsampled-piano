@@ -2101,7 +2101,6 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
         key_back: y_back,
         kz,
         vertical,
-        inside: !o.case,
     };
     b.layer_of(Layer::Played);
     if b.draw {
