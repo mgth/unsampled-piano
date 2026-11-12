@@ -1338,6 +1338,50 @@ mod tests {
         }
     }
 
+    /// What takes long is worked out one board at a time: boards asked for
+    /// meanwhile start nothing, the last value stands in, and the latest
+    /// board asked for is worked out next, once.
+    #[test]
+    fn later_works_on_one_board_at_a_time_then_the_latest() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{Condvar, Mutex};
+        static OPEN: Mutex<bool> = Mutex::new(false);
+        static GATE: Condvar = Condvar::new();
+        static CALLS: AtomicUsize = AtomicUsize::new(0);
+        fn make(p: SoundboardParams) -> f64 {
+            let mut open = OPEN.lock().unwrap();
+            while !*open {
+                open = GATE.wait(open).unwrap();
+            }
+            CALLS.fetch_add(1, Ordering::SeqCst);
+            p.a
+        }
+        let ctx = egui::Context::default();
+        let board = |a: f64| SoundboardParams { a, ..SoundboardParams::GRAND_2M };
+        let mut later = Later::<f64>::default();
+        // Held up: nothing yet, and the boards asked for meanwhile wait.
+        for a in [1.0, 2.0, 3.0] {
+            assert!(later.get(board(a), &ctx, make).is_none());
+        }
+        assert!(later.job.as_ref().is_some_and(|j| j.0 == board(1.0)));
+        *OPEN.lock().unwrap() = true;
+        GATE.notify_all();
+        let wait = |later: &mut Later<f64>, a: f64| {
+            for _ in 0..2000 {
+                if let Some((&v, true)) = later.get(board(a), &ctx, make) {
+                    return v;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            panic!("board {a} never came");
+        };
+        // The first board's value stands in till the latest one's comes.
+        assert_eq!(wait(&mut later, 3.0), 3.0);
+        assert_eq!(later.get(board(3.0), &ctx, make), Some((&3.0, true)));
+        // Board 2 was never worked on, and board 3 only once.
+        assert_eq!(CALLS.load(Ordering::SeqCst), 2);
+    }
+
     #[test]
     fn board_field_follows_the_modes() {
         let p = built_board(&PianoModel::default()).unwrap();
