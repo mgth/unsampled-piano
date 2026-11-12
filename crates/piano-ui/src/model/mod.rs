@@ -82,10 +82,9 @@ pub struct ModelView {
     #[cfg(feature = "gpu")]
     gpu: Option<gpu::Gpu>,
     levels: Levels,
-    shapes: Option<BoardShapes>,
-    /// The board's modes as the numbers count them, for its parameters
-    /// (building them takes longer than a frame).
-    board_counts: Option<(SoundboardParams, BoardCounts)>,
+    shapes: Later<BoardShapes>,
+    /// The board's modes as the numbers count them.
+    board_counts: Later<BoardCounts>,
     /// The handle being dragged, and the plan's matrix and rect when the
     /// drag began (the plan refits to the edited instrument only after).
     drag: Option<(usize, Mat4, Rect)>,
@@ -190,8 +189,8 @@ impl Default for ModelView {
             #[cfg(feature = "gpu")]
             gpu: None,
             levels: Levels::default(),
-            shapes: None,
-            board_counts: None,
+            shapes: Later::default(),
+            board_counts: Later::default(),
             drag: None,
             handles_shown: Vec::new(),
             side_shown: None,
@@ -249,10 +248,57 @@ fn key_floor() -> f32 {
 const RELEASE_S: f32 = 0.3;
 const BLOW_S: f32 = 0.08;
 
+/// What is worked out from a board's modes. A built board's
+/// (`soundboard.structure`) take up to a minute to find, each time its
+/// size or its make changes: never on the interface's thread, which would
+/// stand still that long, but on one of its own, one board at a time, the
+/// latest asked for after it (the engine's build of the same board is
+/// waited for, not done twice: [`piano_core::fem::board`]).
+struct Later<T> {
+    /// The last one worked out, and its board.
+    ready: Option<(SoundboardParams, T)>,
+    /// The board being worked on.
+    job: Option<(SoundboardParams, std::sync::mpsc::Receiver<T>)>,
+    /// A board whose work failed: not tried again.
+    failed: Option<SoundboardParams>,
+}
+
+impl<T> Default for Later<T> {
+    fn default() -> Self {
+        Self { ready: None, job: None, failed: None }
+    }
+}
+
+impl<T: Send + 'static> Later<T> {
+    /// The last value worked out, and whether it is `params`' own; the
+    /// work for `params` started if it is not, `ctx` repainted once done.
+    fn get(&mut self, params: SoundboardParams, ctx: &egui::Context, make: fn(SoundboardParams) -> T) -> Option<(&T, bool)> {
+        if let Some((of, rx)) = &self.job {
+            match rx.try_recv() {
+                Ok(v) => (self.ready, self.job) = (Some((*of, v)), None),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => (self.failed, self.job) = (Some(*of), None),
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+        let current = self.ready.as_ref().is_some_and(|r| r.0 == params);
+        if !current && self.job.is_none() && self.failed != Some(params) {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let ctx = ctx.clone();
+            let work = move || {
+                let _ = tx.send(make(params));
+                ctx.request_repaint();
+            };
+            if std::thread::Builder::new().name("board-modes".into()).spawn(work).is_ok() {
+                self.job = Some((params, rx));
+            }
+        }
+        self.ready.as_ref().map(|r| (&r.1, current))
+    }
+}
+
 /// The board's lowest mode shapes on the view's grid, for the soundboard
 /// as the engine built it.
 struct BoardShapes {
-    params: SoundboardParams,
     /// `phi[mode * grid + point]`.
     phi: Vec<f32>,
     modes: usize,
@@ -272,7 +318,7 @@ impl BoardShapes {
                 }
             }
         }
-        Self { params, phi, modes }
+        Self { phi, modes }
     }
 
     /// RMS velocity at each grid point from the modes' amplitudes.
@@ -568,7 +614,7 @@ impl ModelView {
             }
         }
         let obs = obs.map(|o| self.smooth(&o));
-        let field = obs.as_ref().and_then(|o| self.board_field(model, o));
+        let field = obs.as_ref().and_then(|o| self.board_field(ui.ctx(), model, o));
         let key_levels = obs.as_ref().map(|o| self.key_levels(o));
         let live = obs.as_ref().map(|o| Live { obs: o, keys: key_levels.as_ref().unwrap(), board: field.as_deref(), time: self.start.elapsed().as_secs_f32() / 8.0 });
         let options = Options { key: *key, lit, lid: self.lid, frame: self.frame, mics: self.mics, case: self.case, fallboard: self.fallboard, front: 1.0 - self.front_clear, ink: ui.visuals().text_color() };
@@ -712,12 +758,11 @@ impl ModelView {
         shown
     }
 
-    fn board_field(&mut self, model: &PianoModel, obs: &Observation) -> Option<Vec<f32>> {
+    fn board_field(&mut self, ctx: &egui::Context, model: &PianoModel, obs: &Observation) -> Option<Vec<f32>> {
         let params = built_board(model)?;
-        if self.shapes.as_ref().is_none_or(|s| s.params != params) {
-            self.shapes = Some(BoardShapes::new(params));
-        }
-        let v = self.shapes.as_ref()?.field(obs);
+        // While a new board's modes are sought the engine still plays the
+        // last one's: its shapes go on showing them.
+        let v = self.shapes.get(params, ctx, BoardShapes::new)?.0.field(obs);
         let peak = v.iter().cloned().fold(0.0, f32::max);
         self.levels.board = self.levels.board.max(peak);
         let r = self.levels.board;
@@ -1041,7 +1086,8 @@ impl BoardCounts {
 }
 
 /// The model in numbers, beside the static view.
-fn numbers(ui: &mut Ui, model: &PianoModel, counts: &mut Option<(SoundboardParams, BoardCounts)>) {
+fn numbers(ui: &mut Ui, model: &PianoModel, counts: &mut Later<BoardCounts>) {
+    let ctx = ui.ctx().clone();
     ui.label(RichText::new("In numbers").strong());
     egui::Grid::new("model-numbers").num_columns(2).spacing([10.0, 3.0]).show(ui, |ui| {
         let mut row = |name: &str, value: String| {
@@ -1056,12 +1102,14 @@ fn numbers(ui: &mut Ui, model: &PianoModel, counts: &mut Option<(SoundboardParam
                     Some(o) => row("Outline", format!("{:.0} % of the rectangle, own modes under {:.0} Hz", 100.0 * o.area() / (sb.a * sb.b), sb.outline_below)),
                     None => row("Outline", "the full rectangle".into()),
                 }
-                if counts.as_ref().is_none_or(|c| c.0 != sb) {
-                    *counts = Some((sb, BoardCounts::new(sb)));
+                match counts.get(sb, &ctx, BoardCounts::new) {
+                    Some((c, true)) => {
+                        row("Board modes", format!("{} under 1 kHz ({} in all)", c.below_1k, c.all));
+                        row("First board mode", format!("{:.0} Hz", c.first));
+                    }
+                    // A new board's modes take a while to find.
+                    _ => row("Board modes", "being worked out…".into()),
                 }
-                let c = counts.as_ref().map(|c| c.1).unwrap();
-                row("Board modes", format!("{} under 1 kHz ({} in all)", c.below_1k, c.all));
-                row("First board mode", format!("{:.0} Hz", c.first));
                 row("Bass bridge", format!("A0 to {}", sketches::note_name(sb.main_bridge_from - 1)));
                 if !sb.vertical {
                     let lid = if sb.lid_removed {
