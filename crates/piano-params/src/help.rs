@@ -953,6 +953,13 @@ const HELP: &[(&str, &str, &str)] = &[
          release of a Disklavier grand's notes (docs/release.md).",
     ),
     (
+        "damper.strength_slope",
+        "How much weaker the felts get towards the treble. At 0 the high notes stop dead and \
+         the low ones linger; at 1 every note takes about the same time to stop.",
+        "The strength is A1's and falls as (55 Hz / f0)^slope. At 0, c/(2·Z0) is the same on \
+         every key and the rate grows as f0 (docs/release.md).",
+    ),
+    (
         "damper.horizontal",
         "The felt rests on top of the strings: it stops their up-and-down motion but only \
          rubs against the sideways one, which leaves a faint tail after the release.",

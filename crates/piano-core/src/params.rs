@@ -535,6 +535,13 @@ pub struct DamperLaw {
     /// notes 2–4 times too fast and left holes in pedalled passages
     /// (docs/release.md).
     pub strength: f64,
+    /// How fast the felt weakens up the keyboard: `strength` is that of A1
+    /// (55 Hz) and falls as (55 Hz / f0)^slope. With 0 every key has the
+    /// same c/(2·Z0), so that the rate grows as f0: the bass lingered and
+    /// the middle stopped dead. A real grand and a commercial modelled one
+    /// stop every key at nearly the same rate (docs/release.md): 1.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub strength_slope: f64,
     /// Felt nonlinearity: the dashpot grows as contact^exponent (felt
     /// compression, as Stulov's p for hammers). With 1, a damper barely
     /// touching already absorbed 89 % of the full rate at half contact:
@@ -579,6 +586,7 @@ impl DamperLaw {
         // as on a commercial modelled piano (−25 to −39 dB).
         node_floor: 0.15,
         strength: 0.2,
+        strength_slope: 0.0,
         contact_exponent: 1.5,
         horizontal: 0.03,
         highest_note: 86,
@@ -594,6 +602,10 @@ impl DamperLaw {
         fall_time: 0.015,
         lift_time: 0.005,
     };
+
+    /// Frequency (Hz) of the key whose felt has `strength` when
+    /// `strength_slope` is not 0: A1.
+    pub const STRENGTH_AT: f64 = 55.0;
 
     /// Contact (0 lifted … 1 resting) imposed by the sustain pedal alone.
     pub fn pedal_engagement(&self, travel: f64) -> f64 {
@@ -624,7 +636,12 @@ impl DamperLaw {
     /// Decay-rate factor g(c) such that σ_k = g·shape(k).
     pub fn rate(&self, engagement: f64, tension: f64, mu: f64, length: f64) -> f64 {
         let z0 = (tension * mu).sqrt();
-        let c = engagement.max(0.0).powf(self.contact_exponent) * self.strength * 2.0 * z0;
+        let mut strength = self.strength;
+        if self.strength_slope != 0.0 {
+            let f0 = (tension / mu).sqrt() / (2.0 * length);
+            strength *= (Self::STRENGTH_AT / f0).powf(self.strength_slope);
+        }
+        let c = engagement.max(0.0).powf(self.contact_exponent) * strength * 2.0 * z0;
         let m = 2.0 * z0 / (c + 2.0 * z0);
         c / (mu * length) * m * m
     }
@@ -1469,6 +1486,26 @@ mod tests {
         // 0: the share of the length everywhere.
         let old = DamperLaw { behind_strike: 0.0, ..m.damper };
         assert_eq!(old.place(0.12, 0.2), old.position);
+    }
+
+    /// With the slope at 1 the felt stops every key at nearly the same
+    /// rate; without it the rate grows as the key's frequency.
+    #[test]
+    fn a_sloped_felt_stops_every_key_at_the_same_rate() {
+        let m = PianoModel::default();
+        let rate = |law: &DamperLaw, n: u8| {
+            let p = m.note(n);
+            law.rate(1.0, p.tension, p.mu, p.length)
+        };
+        let flat = m.damper;
+        assert_eq!(flat.strength_slope, 0.0);
+        assert!(rate(&flat, 72) > 6.0 * rate(&flat, 36));
+        let sloped = DamperLaw { strength_slope: 1.0, ..flat };
+        let ratio = rate(&sloped, 72) / rate(&sloped, 36);
+        assert!((0.5..2.0).contains(&ratio), "{ratio}");
+        // A1 keeps its strength.
+        let a1 = rate(&sloped, 33) / rate(&flat, 33);
+        assert!((a1 - 1.0).abs() < 0.05, "{a1}");
     }
 
     fn temperament(kind: i32, key: i32) -> [f64; 12] {

@@ -61,6 +61,7 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("macros.space", "Space (close – roomy)", "", -1.0, 1.0, false),
     ("macros.stretch", "Tuning (strict – stretched)", "", -1.0, 1.0, false),
     ("damper.strength", "Damper strength", "", 0.01, 4.0, true),
+    ("damper.strength_slope", "Damper strength falling up the keyboard", "", 0.0, 2.0, false),
     ("damper.horizontal", "Damper grip on sideways motion", "", 0.0, 1.0, false),
     ("damper.contact_exponent", "Damper felt exponent", "", 1.0, 5.0, false),
     ("damper.pedal_free", "Pedal lost motion", "", 0.0, 0.8, false),

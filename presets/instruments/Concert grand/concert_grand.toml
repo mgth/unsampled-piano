@@ -136,6 +136,9 @@ behind_strike = 0.06
 width = 0.02
 node_floor = 0.15
 strength = 0.2
+# The felts weaken up the keyboard, so that every key stops at about the same rate, as the
+# commercial D's do (docs/release.md).
+strength_slope = 1.0
 contact_exponent = 1.5
 horizontal = 0.03
 highest_note = 91
