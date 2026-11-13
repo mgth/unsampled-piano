@@ -513,7 +513,56 @@ The string's loss and the felt's hardness each take a quarter of C2–B2's slope
 
 The measure to judge the bass on is the per-partial level at the ears and its smooth part, with the real grand a year apart as the yardstick; the distance of docs/steinway_d.md and the bench's registers average both away.
 
-The scripts of these tests are in `out/tools/` (`audist.py`, `listen_*.py`), not versioned.
+The scripts of these tests are in `out/tools/` (`audist.py`, `listen_*.py`, `law_*.py`), not versioned.
+
+## Looking for the law's cause (2026-11-13)
+
+With the per-partial gap as the judge. Five things tried; one lever found, for C2–B2 only.
+
+**The strike point is right.** The comb 20·log10(|sin(π·k·r)| + ε) fitted on the bridge's partials 1–48 of each key (first 0.4 s) gives the real grand 0.1205–0.1210 from A0 to F#1 and 0.1215–0.1225 from G1 to B2; the model reads 0.1200, as set. The comb takes half of the roughness of the bridge's spectrum on both (7.8 → 4.5 dB rms on the real A0, 6.6 → 3.2 on the model's). From F2 up the real notches are shallower than the model's (ε 0.25 against 0.06).
+
+**Number or frequency?** Within five semitones the two cannot be told apart. From further away they can: share of each key's smooth gap that other keys predict, by partial number / by frequency:
+
+| keys used | at the ears | at the bridge | from the bridge to the ears |
+|---|---|---|---|
+| 1–5 semitones away | 60 / 65 % | 88 / 89 % | 48 / 56 % |
+| 8–14 semitones away | 12 / 21 % | 80 / 55 % | 36 / 32 % |
+| 15–24 semitones away | 4 / −5 % | 57 / 7 % | 18 / 11 % |
+
+- **At the ears the law is local.** It holds between neighbouring keys and is gone an octave away: it is neither a rule of the partial's number nor a curve of frequency for the instrument, but something that changes along the bridge. No single correction for the whole bass exists.
+- **At the bridge it is a rule of the partial's number for the whole bass**, a staircase on the lobes of the strike comb. Model − real, each note about its mean (dB), partials 1–8 | 9–16 | 17–24 | 25–32 | 33–41 | 42–48:
+
+| | at the bridge | at the ears |
+|---|---|---|
+| A0–B0 | +4.5, +1.9, +2.9, −1.1, −3.3, −5.0 | +1.3, +3.1, +3.3, −5.6, −4.5, +3.4 |
+| C1–B1 | +10.8, +6.9, +0.6, −3.1, −5.3, −10.5 | +2.3, +5.4, +1.1, −3.0, −2.5, −3.3 |
+| C2–B2 | +15.2, +8.1, −0.5, −6.1, −7.8, −12.0 | +6.5, +4.4, +3.3, −2.2, −5.7, −8.3 |
+
+  A fall from lobe to lobe is what a longer or smoother hammer pulse gives. But it is not the string's force alone: taking the bridge's profile off the model's force and leaving the transfer as it is makes the ears' gap worse below C2 (8.4 → 10.6 at A0–B0, 8.3 → 9.0 at C1–B1) and better above (9.2 → 7.8 at C2–B2). Below C2 two thirds of the bridge's staircase is undone on the way to the ears. A bridge mobility would be a matter of frequency, not of number, so what undoes it is not understood; the comparison of the two bridge signals themselves (a real accelerometer at one spot, the model's board under the strings) is the first suspect.
+- **A ceiling.** The ears' own profile by lobe, per sub-register, taken off the model, the best a hammer law could do, leaves 7.5, 7.6 and 7.6 dB (from 8.4, 8.3, 9.2), and a smooth gap of 3.5, 2.9, 4.2 (from 4.7, 4.2, 6.8).
+
+**The board's low end: refuted.** The part of the ears' gap that an additive fit puts on frequency asks for 12–14 dB more at 100–126 Hz and 7–16 dB more under 50 Hz, and the model's force-to-ears curve (`force_to_ear`, piano-render's example) has its low maximum at 63–79 Hz, on its first two modes, where the real grand seems to have it at 100–126 Hz. A grid of 96 boards followed: rear lengths × 1, 0.5, 0.33, 0.25, `crown_freq` 40, 60, 80, 100, `string_load` 1 and 0.5, `back_gain` 0.6, 0.3 and 0. The best came from 6.4 to 3.5 dB of that curve (rear lengths halved, no back face), and on the per-partial gap at the ears every one of the six measured among the best is no better than the preset (A0–B0 8.2–9.8 against 8.4, C1–B1 8.3–8.7 against 8.3, C2–B2 8.9–9.2 against 9.2). A curve of frequency fitted across keys is not what the ear's law is made of (it is local), and a fit to it is not a judge.
+
+**The felt's hardness with the default's string loss: C2–B2's slope.** The one place where the bridge and the ears agree is C2–B2, too much of the first lobes and too little of the last on both. Per-partial gap at the ears, smooth / whole (dB rms), and C2–B2's smooth gap on partials 1–16 / 33–48:
+
+| | A0–B0 | C1–B1 | C2–B2 | C2–B2's slope |
+|---|---|---|---|---|
+| the preset | 4.7 / 8.4 | 4.2 / 8.3 | 6.8 / 9.2 | +5.6 / −7.1 |
+| `losses.b2` 6.0e-8 (the default's) | 4.7 / 8.4 | 3.6 / 8.0 | 5.2 / 8.2 | +3.3 / −5.2 |
+| `hardness` × 4 | 4.8 / 8.4 | 4.3 / 8.3 | 5.8 / 8.5 | +4.2 / −6.0 |
+| `hardness` × 8 | 4.8 / 8.4 | 4.1 / 8.2 | 5.4 / 8.4 | +3.7 / −5.6 |
+| `core_hardness` 16, 32 | 4.7 / 8.4 | 4.0 / 8.2 | 6.7 / 9.2 | +5.4 / −7.1 |
+| `hardness` × 4 and `b2` 6.0e-8 | 4.7 / 8.4 | 3.7 / 8.1 | **4.3 / 7.7** | +1.7 / −3.3 |
+| `hardness` × 8, `core_depth_bass` 0, `b2` 6.0e-8 | 4.7 / 8.4 | 3.5 / 8.0 | **4.1 / 7.6** | +1.1 / −2.7 |
+| `hardness_slope_bass` −0.04 and `b2` 6.0e-8 | 4.7 / 8.4 | 3.6 / 8.0 | **4.4 / 7.7** | +2.0 / −3.7 |
+
+A harder felt and the default's string loss together take C2–B2's slope from 12.7 dB to 5, and its gap from 9.2 to 7.7: the first setting the measure sees. `hardness_slope_bass` −0.04 does it without touching anything above C4 (the felt 4.2 times harder at C2 than with the default's +0.02, 2 times at C3); the string loss is the whole keyboard's, as in section 3. Nothing moves A0–B0, and the core's hardness does nothing anywhere. Whether a felt four times harder at C2 is a real hammer's is not checked against a measurement: RT-425's own law was further from the commercial D (docs/steinway_d.md), and the preset's soft felt was set for that D's growth from mf to ff. Listening files: `out/ab_bass_gaps/` section 11.
+
+**Where this leaves the search.**
+
+- C2–B2: a hammer too soft and a string loss too high, a lever that the measure sees; to hear.
+- A0–B1: the smooth gap (4.2–4.7 dB) is local to the place on the bridge and no parameter tried reaches it. What is left to try is the board as seen from each key of the bass bridge, by a measure that does not pass through a fitted curve: the per-partial gap itself, key by key, on boards that differ in the bass bridge's own construction (section 4).
+- Everywhere: 7.5 dB of fine structure against 4.9 between two states of the real piano.
 
 ## Not verified
 
