@@ -390,9 +390,90 @@ Each of them moves the modes by a few hertz and passes strength from one band to
 
 `out/ab_bass_gaps/index.html`: eleven keys from A0 to B2. First through the close microphones at velocities 100 and 60 with the commercial D, then at the player's seat with the real grand: the preset, `b2` 1.0e-7, the same with `width_mid` 0.2, the same with `string_load` 0.5, and `core_depth_bass` 0 alone. One gain for the preset and its variants.
 
+## After listening (2026-11-13): what the ear asks for
+
+The variants of section 3 were heard against the preset and the two references (`out/ab_bass_gaps/`): hardly any difference between them, all of them far from both references, nearer the real grand than the commercial D. The measures above did not say that. What follows is the chain of listening tests that found what they missed. Every file is at the player's seat, lid off, against Plath's grand.
+
+**A distance as heard.** Third-octave bands by 5 ms frames over the first 2 s, in dB, each note level-matched on its first second, cells within 60 dB of the note's strongest; mean absolute difference over A0–B2:
+
+| | A0–B0 | C1–B1 | C2–B2 | all |
+|---|---|---|---|---|
+| the real grand, another take of the same note | 0.2 | 0.5 | 0.6 | 0.5 |
+| the real grand a year earlier | 2.7 | 3.2 | 3.6 | 3.3 |
+| the preset | 5.6 | 7.0 | 8.2 | 7.4 |
+| `b2` 1.0e-7 | 5.6 | 6.1 | 7.4 | 6.6 |
+| `b2` 1.0e-7, `width_mid` 0.2, `string_load` 0.5 | 5.5 | 5.8 | 7.1 | 6.4 |
+| `core_depth_bass` 0 | 5.7 | 6.6 | 8.0 | 7.1 |
+
+The three lines of section 3 close a seventh of the gap, above 1.4 kHz after half a second, where the sound is already weak: what was heard. The gap is there from the attack in every band (4–8 dB in the first 50 ms).
+
+**The chain**, each step answered by ear on A0, C1, E1, A1, D2, A2:
+
+| Test | Heard |
+|---|---|
+| Stage swap with the preset (`tools/stage_swap.py`): the model's strings through the real board, the real strings through the model's | The real strings through the model's board are the furthest, on all six keys. The model's strings through the real board are nearer than the model on A0, C1, E1 and worse than the model on A1, D2, A2 |
+| The model with the real transfer's broad colour, by third octaves, one curve for the bass or one per note | not nearer |
+| The real grand with one ear in both, or the sum of its ears | still as good: it is not the dummy head |
+| The model's partials with what the real grand has between its partials | not nearer |
+| The model, each partial set to the level it has in the real grand, nothing else | **as the real grand** |
+| The model, each partial given the real one's whole envelope in time | not needed |
+
+Two notes on the method. The files that pass through an estimated board (the swap, and a first version of the level correction with a linear-phase filter) smear the attack over tens of milliseconds: an attack judged poor on them is the filter's. And the model's own attack was heard as right on A0, C1, E1 and a little soft on A1, D2, A2.
+
+**Between the partials: a large gap that is not heard.** Each sound split in two complementary halves, the bands around its partials (±0.2·f1) and what lies between them. Level of the second re the first (dB), real / model:
+
+| | 0–50 ms | 50–300 ms | 0.3–1 s | 1–2.5 s |
+|---|---|---|---|---|
+| A0–B0 | +1.6 / −19.2 | −5.5 / −22.0 | −6.3 / −24.9 | −8.5 / −28.6 |
+| C1–B1 | −4.9 / −22.4 | −10.8 / −26.4 | −12.9 / −30.8 | −13.6 / −34.3 |
+| C2–B2 | −10.4 / −29.8 | −23.4 / −36.7 | −30.1 / −46.9 | −25.3 / −47.0 |
+
+The real grand has 15–20 dB more between its partials than the model, and giving the model that part did not bring it nearer. A gap in decibels is not a gap heard: this one is recorded, and nothing is to be built on it without another listening test.
+
+**The measure that follows the ear: the level of each partial of each note.** Each sound cut in one band per partial (f_k ± f1/2, partials 1–48, first 1.5 s), the level of each band, model − real, each note about its own mean, over the partials within 50 dB of the note's strongest (dB rms):
+
+| | at the ears: A0–B0 | C1–B1 | C2–B2 | A0–B2 | at the bridge: A0–B0 | C1–B1 | C2–B2 | A0–B2 |
+|---|---|---|---|---|---|---|---|---|
+| the real grand, another take | 0.4 | 0.5 | 0.7 | 0.6 | 0.2 | 0.4 | 0.5 | 0.4 |
+| the real grand a year earlier | 4.3 | 4.6 | 5.4 | 4.9 | 2.5 | 2.8 | 3.4 | 3.0 |
+| the preset | 8.4 | 8.3 | 9.2 | 8.7 | 5.0 | 8.4 | 11.0 | 9.2 |
+| `strike_ratio` 0.110 | 10.8 | 10.9 | 10.6 | 10.8 | 10.2 | 12.1 | 12.3 | 12.0 |
+| `strike_ratio` 0.115 | 9.6 | 9.5 | 10.0 | 9.7 | 7.8 | 10.5 | 11.8 | 10.8 |
+| `strike_ratio` 0.1225 | 8.4 | 8.2 | 9.0 | 8.6 | 5.3 | 8.1 | 10.6 | 8.9 |
+| `strike_ratio` 0.125 | 10.0 | 9.5 | 9.6 | 9.6 | 8.8 | 10.1 | 11.7 | 10.7 |
+| `strike_ratio` 0.130 | 10.7 | 10.7 | 10.5 | 10.6 | 9.8 | 11.8 | 12.6 | 11.9 |
+
+The same piano a year apart differs by 4.9 dB; the preset by 8.7. That is the room there is: under 5 dB the model would be another state of the same piano. The strike point is where it should be (0.12–0.1225; an eighth of the string is worse), and the measure moves by 2 dB for half a percent of the string's length: it is a sensitive one. The variants of section 3 read 8.9–9.1 with their own partial tables, against 9.7 for the preset read the same way: nothing.
+
+**Where it comes from.** The gap at the ears is the sum of the bridge's and of the transfer's, which pull against each other (correlation −0.4 to −0.5 from partial to partial, the cancelling of section 2 seen one partial at a time):
+
+| | at the ears | of which finer than 5 partials | at the bridge | from the bridge to the ears |
+|---|---|---|---|---|
+| A0–B0 | 8.7 | 6.6 | 5.2 | 9.4 |
+| C1–B1 | 9.0 | 7.6 | 8.6 | 9.3 |
+| C2–B2 | 10.6 | 7.1 | 11.6 | 9.1 |
+
+Most of it is finer than five partials, which is why no correction by third octaves helps. Is it a law? Share of the gap's variance that the other keys predict, by a profile of the partial's number / by a curve of frequency a twelfth of an octave wide (each key left out in turn):
+
+| | at the ears | at the bridge | from the bridge to the ears |
+|---|---|---|---|
+| A0–B0 | 16 / 29 % | 41 / 26 % | 12 / 33 % |
+| C1–B1 | 18 / 10 % | 79 / 51 % | 19 / 19 % |
+| C2–B2 | 49 / 38 % | 79 / 57 % | 17 / 11 % |
+| A0–B2 | 28 / 23 % | 71 / 45 % | 16 / 19 % |
+
+- **At the bridge it is a law**: 71 % of it is one profile by partial number, the same on every key. That profile is the slope of section 2 (the model's bridge 8–13 dB over on partials 1–8, 5–8 dB on 9–16, level beyond 20) with the strike point's notches on it. The hammer and the string carry it, and a law can be modelled.
+- **From the bridge to the ears it is not**: neither the partial's number nor its frequency predicts more than a fifth of it from the neighbouring keys. It is the board's own fine response from each key's place on the bridge, as different from the real board's as two boards' would be; the same stage that the swap found furthest by ear.
+
+Not done: which of the two shares the ear needs. `out/ab_bass_gaps/` section 9 has the model corrected by the bridge's share alone, by the transfer's alone, and by the whole correction smoothed over nine partials; not heard yet.
+
+**What this changes in the ranking above.** The levers of section 3 stand as measures of decay and are right about the real grand, but they are not what is heard first. The per-partial level at the ears, with its yardstick of 4.9 dB, is the measure to judge the bass on; the distance of docs/steinway_d.md and the bench's registers average it away. The bridge's profile by partial number comes first, since it is a law; the transfer's fine structure may have no remedy short of the real board's own response.
+
+The scripts of these tests are in `out/tools/` (`audist.py`, `listen_*.py`), not versioned.
+
 ## Not verified
 
-- Nothing was heard. Every lever here is a measure.
+- The levers of section 3 were heard as nearly alike; see "After listening".
 - The real grand is one instrument, at one dynamic, in one state (PROD08, take 2): its unisons and its low resonances are its own. The bench's eight grands confirm the decays' direction, not the figures.
 - The real resonances are fitted on eight or nine partials each, from eight keys along 30 cm of bridge: the loss factors are good to a third, the strengths to a factor of 1.5.
 - Which of the bridge and the radiation is wrong above 1.5 kHz (section 2).
