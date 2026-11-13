@@ -348,6 +348,14 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("losses.winding_until", "Key where the winding losses have faded out.", "MIDI note."),
     (
+        "losses.b2_top",
+        "How fast the high overtones of the top strings die, when it differs from the rest of the \
+         keyboard: higher values make the top darken sooner as it decays.",
+        "Replaces b2 from `b2_top_from` up, coming in linearly over the octave below. 0: b2 on \
+         every key (docs/bass_gaps.md).",
+    ),
+    ("losses.b2_top_from", "Key from which the top strings have their own overtone losses.", "MIDI note where b2_top holds in full."),
+    (
         "scale.len_c8",
         "Speaking length of the highest string (C8), between its two bearing points.",
         "Lengths grow by `ratio_per_octave` per octave down to `break_note`. This generic 2 m \
