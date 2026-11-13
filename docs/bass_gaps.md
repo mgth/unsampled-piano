@@ -465,9 +465,53 @@ Most of it is finer than five partials, which is why no correction by third octa
 - **At the bridge it is a law**: 71 % of it is one profile by partial number, the same on every key. That profile is the slope of section 2 (the model's bridge 8–13 dB over on partials 1–8, 5–8 dB on 9–16, level beyond 20) with the strike point's notches on it. The hammer and the string carry it, and a law can be modelled.
 - **From the bridge to the ears it is not**: neither the partial's number nor its frequency predicts more than a fifth of it from the neighbouring keys. It is the board's own fine response from each key's place on the bridge, as different from the real board's as two boards' would be; the same stage that the swap found furthest by ear.
 
-Not done: which of the two shares the ear needs. `out/ab_bass_gaps/` section 9 has the model corrected by the bridge's share alone, by the transfer's alone, and by the whole correction smoothed over nine partials; not heard yet.
+**Which share the ear needs: both, together** (heard, 2026-11-13). The model corrected by the bridge's share alone, or by the transfer's alone, is "not good at all", worse than uncorrected: each stage hides the other's error, and correcting one uncovers the other's. This is also why the correction by third octaves failed above: it was the transfer's alone. The whole correction smoothed over nine partials, applied at the ears, "comes quite near" the partial-by-partial one.
 
-**What this changes in the ranking above.** The levers of section 3 stand as measures of decay and are right about the real grand, but they are not what is heard first. The per-partial level at the ears, with its yardstick of 4.9 dB, is the measure to judge the bass on; the distance of docs/steinway_d.md and the bench's registers average it away. The bridge's profile by partial number comes first, since it is a law; the transfer's fine structure may have no remedy short of the real board's own response.
+**The smooth part is a law.** The correction of each key computed from its neighbours only (five keys on each side, the key itself left out), as a profile of the partial's number or as a curve of frequency, was heard as about as good as the key's own smooth correction. Gap left at the ears (dB rms):
+
+| | as it is | the key's own correction, smoothed over 9 partials | the neighbours', by partial number | the neighbours', by frequency |
+|---|---|---|---|---|
+| A0–B0 | 8.7 | 6.8 | 7.9 | 8.0 |
+| C1–B1 | 9.0 | 8.0 | 8.3 | 8.2 |
+| C2–B2 | 10.6 | 7.4 | 8.0 | 7.9 |
+| A0–B2 | 9.7 | 7.6 | 8.1 | 8.0 |
+
+The smooth part is only 2 of the 9.7 dB, and it is what the ear takes first; the 7.6 dB left, finer than nine partials, was heard as a smaller step (from "quite near" to "as the real grand"). Within eleven keys the partial's number and its frequency are nearly the same thing, so the test does not say which of the two the law follows.
+
+What the model has too much of (+) or too little (−) at the ears, smoothed, mean over the keys (dB):
+
+| partials | 1–4 | 5–8 | 9–13 | 14–18 | 21–27 | 30–39 | 42–48 |
+|---|---|---|---|---|---|---|---|
+| A0–B0 | −1 | −1 | +1 | +7 | 0 | −4 | +2 |
+| C1–B1 | +1 | +4 | +6 | +5 | −1 | −2 | −3 |
+| C2–B2 | +8 | +7 | +7 | +7 | +2 | −7 | −12 |
+
+From C2 to B2 it is a slope of 15–20 dB, too much of the low partials and too little of the high ones: the attack heard as a little soft on A1, D2 and A2. From C1 to B1 a hump of 4–6 dB on partials 5–18.
+
+**No parameter reaches it.** The smooth gap (rms, dB) and C2–B2's slope (partials 1–16 / 33–48) for the variants already rendered at the player's seat:
+
+| | A0–B0 | C1–B1 | C2–B2 | C2–B2: partials 1–16 / 33–48 |
+|---|---|---|---|---|
+| the preset | 4.7 | 4.2 | 6.8 | +5.6 / −7.1 |
+| `losses.b2` 1.0e-7 | 4.7 | 3.8 | 5.8 | +4.2 / −6.0 |
+| `losses.b2` 6.0e-8 | 4.7 | 3.6 | 5.2 | +3.3 / −5.2 |
+| `b2` 1.0e-7, `width_mid` 0.2, `string_load` 0.5 | 4.8 | 3.8 | 5.5 | +3.4 / −5.6 |
+| `hardness` × 4 | 4.8 | 4.3 | 5.8 | +4.2 / −6.0 |
+| `hardness` × 2 | 4.7 | 4.4 | 6.2 | +4.9 / −6.6 |
+| `core_depth_bass` 0 | 4.7 | 3.8 | 6.3 | +4.8 / −6.6 |
+| `hardness_slope_bass` −0.03 | 4.8 | 4.3 | 6.0 | +4.6 / −6.3 |
+| no case field | 4.9 | 4.5 | 7.9 | +7.2 / −8.5 |
+| `core_hardness` 2, `core_depth_bass` 0.4, hammer a fifth lighter, `winding` 0, `string_load` 0, no back face | 4.7–5.0 | 4.0–4.9 | 6.5–6.8 | as the preset |
+
+The string's loss and the felt's hardness each take a quarter of C2–B2's slope and nothing below C2. The law is in the model's physics, not behind a setting.
+
+**What this changes in the ranking above.** The levers of section 3 stand as measures of decay and are right about the real grand, but they are not what is heard first. In the order the ear gave:
+
+1. **The smooth level of the partials at the ears**, note by note: a law common to neighbouring keys, 2 dB rms of the gap and most of what is heard. To be found in the physics, on the sum of the two stages and never on one: a change that brings the bridge nearer the real one and leaves the transfer as it is makes the sound worse. First to explain: C2–B2's slope of 15–20 dB and C1–B1's hump on partials 5–18.
+2. **The fine level of each partial**, 7.6 dB rms against 4.9 between two states of the same real piano: the last step by ear. Its share from the bridge to the ears follows no law of the neighbouring keys; it may have no remedy short of the real board's own response.
+3. The decays of section 3.
+
+The measure to judge the bass on is the per-partial level at the ears and its smooth part, with the real grand a year apart as the yardstick; the distance of docs/steinway_d.md and the bench's registers average both away.
 
 The scripts of these tests are in `out/tools/` (`audist.py`, `listen_*.py`), not versioned.
 
