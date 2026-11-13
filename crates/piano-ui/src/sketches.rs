@@ -157,6 +157,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("nonlinear.", &[Nonlinear]),
         ("losses.wound_until", &[Losses, Keys]),
         ("losses.top_from", &[Losses, Keys]),
+        ("losses.b2_top_from", &[Losses, Keys]),
         ("losses.", &[Losses]),
         ("inharmonicity.", &[Partials]),
         ("bridge.", &[Bridge]),
@@ -1175,6 +1176,7 @@ fn key_range(model: &PianoModel, path: &str) -> Option<(u8, u8)> {
         "nonlinear.max_note" => (21, model.nonlinear.max_note),
         "losses.wound_until" => (21, model.losses.wound_until),
         "losses.top_from" => (model.losses.top_from, 108),
+        "losses.b2_top_from" => (model.losses.b2_top_from, 108),
         _ => return None,
     })
 }

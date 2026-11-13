@@ -556,13 +556,48 @@ With the per-partial gap as the judge. Five things tried; one lever found, for C
 | `hardness` × 8, `core_depth_bass` 0, `b2` 6.0e-8 | 4.7 / 8.4 | 3.5 / 8.0 | **4.1 / 7.6** | +1.1 / −2.7 |
 | `hardness_slope_bass` −0.04 and `b2` 6.0e-8 | 4.7 / 8.4 | 3.6 / 8.0 | **4.4 / 7.7** | +2.0 / −3.7 |
 
-A harder felt and the default's string loss together take C2–B2's slope from 12.7 dB to 5, and its gap from 9.2 to 7.7: the first setting the measure sees. `hardness_slope_bass` −0.04 does it without touching anything above C4 (the felt 4.2 times harder at C2 than with the default's +0.02, 2 times at C3); the string loss is the whole keyboard's, as in section 3. Nothing moves A0–B0, and the core's hardness does nothing anywhere. Whether a felt four times harder at C2 is a real hammer's is not checked against a measurement: RT-425's own law was further from the commercial D (docs/steinway_d.md), and the preset's soft felt was set for that D's growth from mf to ff. Listening files: `out/ab_bass_gaps/` section 11. Heard (2026-11-13): with the harder felt the attack from A1 to B2 comes nearer the real grand's. Which of the three hardnesses, and the preset, are not decided.
+A harder felt and the default's string loss together take C2–B2's slope from 12.7 dB to 5, and its gap from 9.2 to 7.7: the first setting the measure sees. `hardness_slope_bass` −0.04 does it without touching anything above C4 (the felt 4.2 times harder at C2 than with the default's +0.02, 2 times at C3); the string loss is the whole keyboard's, as in section 3. Nothing moves A0–B0, and the core's hardness does nothing anywhere. Whether a felt four times harder at C2 is a real hammer's is not checked against a measurement: RT-425's own law was further from the commercial D (docs/steinway_d.md), and the preset's soft felt was set for that D's growth from mf to ff. Listening files: `out/ab_bass_gaps/` section 11. Heard (2026-11-13): with the harder felt the attack from A1 to B2 comes nearer the real grand's. The user kept the felt four times harder: see "The candidate".
 
 **Where this leaves the search.**
 
 - C2–B2: a hammer too soft and a string loss too high, a lever that the measure sees; to hear.
 - A0–B1: the smooth gap (4.2–4.7 dB) is local to the place on the bridge and no parameter tried reaches it. What is left to try is the board as seen from each key of the bass bridge, by a measure that does not pass through a fitted curve: the per-partial gap itself, key by key, on boards that differ in the bass bridge's own construction (section 4).
 - Everywhere: 7.5 dB of fine structure against 4.9 between two states of the real piano.
+
+## The candidate (2026-11-13)
+
+Of the three hardnesses of section 11 the user kept the felt four times harder with the default's string loss. Both are settings for 88 keys, heard on the bass only, so they were measured up the keyboard before anything else. Per-partial gap at the ears against the real grand, whole / smooth (dB rms):
+
+| | C2–B2 | C3–B3 | C4–B4 | C5–B5 | C6–B6 |
+|---|---|---|---|---|---|
+| the preset | 9.2 / 6.8 | 9.5 / 6.0 | 8.1 / 4.5 | 7.3 / 2.7 | 5.0 / 1.1 |
+| `hardness` × 4 | 8.5 / 5.8 | 9.2 / 5.3 | 7.7 / 4.0 | 7.0 / 2.4 | 5.0 / 1.0 |
+| `losses.b2` 6.0e-8 | 8.2 / 5.2 | 8.5 / 4.2 | 7.3 / 3.3 | 6.8 / 2.3 | 5.5 / 1.0 |
+| both | 7.7 / 4.3 | 8.5 / 3.7 | 7.1 / 2.9 | 6.9 / 2.2 | 6.1 / 1.1 |
+
+They help against the real grand up to B5, not in the bass alone, and only the string loss hurts, from C6 up. So the loss gets a value of its own at the top instead of one below the break: `losses.b2_top` from `losses.b2_top_from`, coming in over the octave below (0, the default: `b2` on every key, and every render as before, bit for bit on three keys at two velocities). And the top felt is softened so that four times the hardness does not reach it: on the bench the top register went from 2.81 to 3.03 with the harder felt alone.
+
+The candidate, `out/presets/cand4t035.toml`, is the preset with four lines: `hardness` 1.2, `hardness_slope_top` 0.035 (0.15), `losses.b2` 6.0e-8 (2.0e-7), `losses.b2_top` 2.0e-7 from C6.
+
+| | the preset | the candidate |
+|---|---|---|
+| ears against the real grand, whole / smooth: A0–G#1 | 8.3 / 4.2 | 8.2 / 4.0 |
+| A1–G#2 | 9.2 / 6.6 | 7.8 / 4.3 |
+| A2–G#3 | 9.1 / 6.1 | 8.0 / 3.7 |
+| A3–G#4 | 8.8 / 5.3 | 7.7 / 3.2 |
+| A4–G#5 | 8.0 / 2.9 | 7.4 / 2.6 |
+| A5–G#6 | 4.6 / 1.2 | 4.4 / 1.0 |
+| bench, eight real grands: overall | 1.98 | **1.75** |
+| bass, middle, treble, top | 1.50, 1.70, 1.83, 2.81 | **1.09, 1.17**, 1.87, 2.64 |
+| distance to the commercial D, 88 keys: overall | 9.46 | 9.83 |
+| bass, middle, treble, top | 8.70, 9.86, 9.69, 9.54 | 8.67, 10.61, 10.97, 8.88 |
+| growth mf → ff of 2–4 kHz, A0–B1 (the D 35.5) | 31.8 | 22.0 |
+
+(The ears' and the bench's figures are those of the candidate before the top felt was softened for the first, which only changes keys above C6, and after it for the second.)
+
+The two real references agree, and they are independent: one grand at the player's seat, eight grands through close microphones. The commercial D disagrees in the middle and the treble, and on the bass's growth from mf to ff, which is where the preset's soft felt came from. By the rule of this document the real pianos have it; it is the user's call, since the preset was built to follow that D. Heard so far on the bass only: `out/ab_bass_gaps/` section 12 has the candidate over the whole keyboard, against the real grand at the player's seat and against the D through the close microphones.
+
+Not reached by it: A0–G#1 (8.3 → 8.2), the law local to the bridge, and the fine structure everywhere.
 
 ## Not verified
 

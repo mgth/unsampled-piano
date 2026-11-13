@@ -193,6 +193,13 @@ pub struct LossLaw {
     /// (docs/bass_metal.md).
     pub winding: f64,
     pub winding_until: u8,
+    /// Another `b2` for the top strings: `b2_top` from `b2_top_from` up,
+    /// coming in linearly over the octave below it. 0: `b2` on every key,
+    /// as it was. A real concert grand's partials above 1.2 kHz die two to
+    /// three times slower from A0 to B5 than the treble of a recorded
+    /// commercial D asks for (docs/bass_gaps.md).
+    pub b2_top: f64,
+    pub b2_top_from: u8,
 }
 
 
@@ -200,7 +207,7 @@ impl LossLaw {
     /// Early ("prompt") decay of single partials, Salamander survey. A single
     /// string per note cannot reproduce the two-stage decay (Phase 2).
     pub const SALAMANDER_EARLY: Self =
-        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108, winding: 0.0, winding_until: 40 };
+        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108, winding: 0.0, winding_until: 40, b2_top: 0.0, b2_top_from: 84 };
     /// Intrinsic string losses: law of the ESPRIT aftersound (no bridge
     /// losses), scaled down by the decay calibration of the full instrument
     /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. b1
@@ -221,7 +228,17 @@ impl LossLaw {
     /// darker than the others, left the bass's 1–8 kHz sustain bands under
     /// eight real grands (docs/bench.md, 2026-10-30).
     pub const SALAMANDER_STRING: Self =
-        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 1e-4, winding_until: 40 };
+        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 1e-4, winding_until: 40, b2_top: 0.0, b2_top_from: 84 };
+
+    /// The frequency term's coefficient on a key: `b2`, or on its way to
+    /// `b2_top` over the octave below `b2_top_from`.
+    pub fn b2_at(&self, note: u8) -> f64 {
+        if self.b2_top <= 0.0 {
+            return self.b2;
+        }
+        let t = ((note as f64 - (self.b2_top_from as f64 - 12.0)) / 12.0).clamp(0.0, 1.0);
+        self.b2 + (self.b2_top - self.b2) * t
+    }
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
         let wound = ((self.wound_until as f64 + 12.0 - note as f64) / 12.0).clamp(0.0, 1.0);
@@ -229,7 +246,7 @@ impl LossLaw {
         let double = ((self.winding_until as f64 - note as f64) / (self.winding_until as f64 - 21.0).max(1.0)).clamp(0.0, 1.0);
         self.b1_floor * wound
             + (self.b1_slope * note as f64 + self.b1_offset + top).exp()
-            + self.b2 * freq * freq
+            + self.b2_at(note) * freq * freq
             + 0.5 * self.winding * double * std::f64::consts::TAU * freq
     }
 }
@@ -1583,5 +1600,30 @@ mod tests {
         // Contact shortens with speed and up the keyboard.
         assert!(hammer_stulov(60).contact_time_rigid(3.0) < t);
         assert!(hammer_stulov(60).contact_time_rigid(5.0) < hammer_stulov(60).contact_time_rigid(1.0));
+    }
+}
+#[cfg(test)]
+mod b2_top_tests {
+    use super::LossLaw;
+
+    #[test]
+    fn b2_top_off_leaves_every_key_as_it_was() {
+        let l = LossLaw::SALAMANDER_STRING;
+        for note in 21..=108u8 {
+            assert_eq!(l.b2_at(note), l.b2);
+        }
+    }
+
+    #[test]
+    fn b2_top_comes_in_over_the_octave_below() {
+        let l = LossLaw { b2: 6.0e-8, b2_top: 2.0e-7, b2_top_from: 84, ..LossLaw::SALAMANDER_STRING };
+        assert_eq!(l.b2_at(21), 6.0e-8);
+        assert_eq!(l.b2_at(72), 6.0e-8);
+        assert!((l.b2_at(78) - 1.3e-7).abs() < 1e-12);
+        assert_eq!(l.b2_at(84), 2.0e-7);
+        assert_eq!(l.b2_at(108), 2.0e-7);
+        // the frequency term follows it
+        let f = 2000.0;
+        assert!((l.sigma(96, f) - l.sigma(60, f) - ((2.0e-7 - 6.0e-8) * f * f + (l.sigma(96, 0.0) - l.sigma(60, 0.0)))).abs() < 1e-9);
     }
 }
