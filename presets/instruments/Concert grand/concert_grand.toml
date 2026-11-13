@@ -10,13 +10,21 @@ hammer_mass_slope = 0.00078
 strike_ratio_top = 0.0
 # Top felt over a hard core: the recorded D's middle attack is darker than the
 # default's, and its low bass brightens far more from mf to ff (2–4 kHz at A0–B1,
-# 36 dB from velocity 60 to 100; 31 here, 23 without this felt in the bass).
+# 36 dB from velocity 60 to 100; 22 here with the harder felt below, 31 before it).
 core_depth_bass = 0.3
 core_depth_mid = 0.5
 core_hardness = 8.0
 # Fields a partial preset would otherwise read as saved before them
 # (uniform shank, straight bass bridge, upright main strings): the default's.
 shank_freq_mid = 700.0
+# A felt four times harder than the default's, softened again at the top (0.15 by
+# default): against a real concert grand at the player's seat the bass and the middle
+# had too much of their low partials and too little of the high ones, the attack
+# heard as soft from A1 to B2; the eight real grands of the bench agree (bass 1.50
+# to 1.09, middle 1.70 to 1.17). The recorded commercial D asks for the softer felt
+# (docs/bass_gaps.md).
+hardness = 1.2
+hardness_slope_top = 0.035
 
 [polarization]
 # The sideways coupling as measured on a real grand's partials (0.03, the cross
@@ -48,9 +56,13 @@ k_b = 0.077178
 c = -1.402352
 
 [losses]
-# 3.3 × the default's frequency-dependent string loss: A0–B1's high partials
-# then decay within 1.4 dB/s of the D's (3.3 at 3.0e-7, better for the top).
-b2 = 2.0e-7
+# The default's frequency-dependent string loss up to C5: above 1.2 kHz a real concert
+# grand's strings lose two to three times less than with 2.0e-7. That value, set for
+# the recorded D's treble, stays from C6 up, where the real grand keeps it too, coming
+# in over the octave below (docs/bass_gaps.md).
+b2 = 6.0e-8
+b2_top = 2.0e-7
+b2_top_from = 84
 # Wound strings on the bass bridge only, A0–E2.
 wound_until = 41
 

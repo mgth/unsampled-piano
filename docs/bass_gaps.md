@@ -1,6 +1,6 @@
 # The bass against its two references
 
-Status as of 2026-11-12. A0–B2 of the Concert grand preset, measured against the commercial D and against a real concert grand, each gap put on a stage of the model, and the cheap levers tried one line at a time. The preset is not changed: the variants are in `out/presets/`, their renders in `out/v/`, a listening page in `out/ab_bass_gaps/` (none of it in the repository). Tool: `tools/bass_gaps.py`.
+Status as of 2026-11-13. A0–B2 of the Concert grand preset, measured against the commercial D and against a real concert grand, each gap put on a stage of the model, and the cheap levers tried one line at a time. Sections 1 to 4 are the first pass, on the preset as it was on 2026-11-12; what was heard afterwards, the measure that follows the ear and the change the preset took are in the sections from "After listening" on. The variants are in `out/presets/`, their renders in `out/v/`, a listening page in `out/ab_bass_gaps/` (none of it in the repository). Tool: `tools/bass_gaps.py`.
 
 ## What comes out
 
@@ -598,6 +598,8 @@ The candidate, `out/presets/cand4t035.toml`, is the preset with four lines: `har
 The two real references agree, and they are independent: one grand at the player's seat, eight grands through close microphones. The commercial D disagrees in the middle and the treble, and on the bass's growth from mf to ff, which is where the preset's soft felt came from. By the rule of this document the real pianos have it; it is the user's call, since the preset was built to follow that D. Heard so far on the bass only: `out/ab_bass_gaps/` section 12 has the candidate over the whole keyboard, against the real grand at the player's seat and against the D through the close microphones.
 
 Not reached by it: A0–G#1 (8.3 → 8.2), the law local to the bridge, and the fine structure everywhere.
+
+**In the preset (2026-11-13).** Heard over the whole keyboard against the real grand and the commercial D, the candidate was taken: `concert_grand.toml` has its four lines. Its renders are those of `out/presets/cand4t035.toml`, bit for bit. docs/steinway_d.md and docs/steinway_d_gaps.md still give the figures of the preset before it.
 
 ## Not verified
 
