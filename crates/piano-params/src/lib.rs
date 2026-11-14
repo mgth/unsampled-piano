@@ -258,6 +258,18 @@ mod tests {
         assert!(reg.params().iter().zip(&values).all(|(p, v)| *v == Some(p.default)));
     }
 
+    /// A parameter whose default is 0 gets [−1, 1] unless it is given a
+    /// range: the top strings' loss coefficient is of the order of 1e-7.
+    #[test]
+    fn the_top_strings_loss_has_a_usable_range() {
+        let reg = Registry::new();
+        let p = reg.get("losses.b2_top").expect("losses.b2_top");
+        assert_eq!((p.meta.min, p.meta.max, p.meta.log), (0.0, 6.0e-7, false));
+        // within b2's own automatic range, a tenth to ten times its default
+        let b2 = reg.get("losses.b2").expect("losses.b2");
+        assert!((p.meta.max / b2.meta.max - 1.0).abs() < 1e-9, "{} against {}", p.meta.max, b2.meta.max);
+    }
+
     #[test]
     fn ids_are_unique_and_live_params_registered() {
         let reg = Registry::new();

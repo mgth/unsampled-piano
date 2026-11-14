@@ -126,6 +126,7 @@ impl PianoModel {
         m.losses.b1_offset += s.ln();
         m.losses.b1_floor *= s;
         m.losses.b2 *= s;
+        m.losses.b2_top *= s;
         if let Some(sb) = m.soundboard.as_mut() {
             sb.edge_loss *= s;
         }
@@ -227,6 +228,32 @@ mod tests {
         let mut end = c;
         end.macros.tone = 1.0;
         assert!(same(&far.with_macros(), &end.with_macros()));
+    }
+
+    /// Sustain scales the frequency term on every key, the top strings' own
+    /// coefficient included, and leaves it off where it is off.
+    #[test]
+    fn sustain_reaches_the_top_strings_own_loss() {
+        let mut m = PianoModel::default();
+        m.losses.b2 = 6.0e-8;
+        m.losses.b2_top = 2.0e-7;
+        m.losses.b2_top_from = 84;
+        let at = |sustain: f64, note: u8| {
+            let mut c = m;
+            c.macros.sustain = sustain;
+            c.with_macros().losses.b2_at(note)
+        };
+        for note in [60u8, 78, 84, 96] {
+            let (short, mid, long) = (at(-1.0, note), at(0.0, note), at(1.0, note));
+            assert_eq!(mid, m.losses.b2_at(note));
+            assert!(short > mid && mid > long, "key {note}: {short} {mid} {long}");
+            // the same factor on every key
+            assert!((short / mid - at(-1.0, 60) / at(0.0, 60)).abs() < 1e-12);
+            assert!((long / mid - at(1.0, 60) / at(0.0, 60)).abs() < 1e-12);
+        }
+        let mut off = PianoModel::default();
+        off.macros.sustain = 1.0;
+        assert_eq!(off.with_macros().losses.b2_top, 0.0);
     }
 
     /// From a removed lid the lid control moves the sound
