@@ -1,6 +1,6 @@
 # The bass against its two references
 
-Status as of 2026-11-13. A0–B2 of the Concert grand preset, measured against the commercial D and against a real concert grand, each gap put on a stage of the model, and the cheap levers tried one line at a time. Sections 1 to 4 are the first pass, on the preset as it was on 2026-11-12; what was heard afterwards, the measure that follows the ear and the change the preset took are in the sections from "After listening" on. The variants are in `out/presets/`, their renders in `out/v/`, a listening page in `out/ab_bass_gaps/` (none of it in the repository). Tool: `tools/bass_gaps.py`.
+Status as of 2026-11-14. A0–B2 of the Concert grand preset, measured against the commercial D and against a real concert grand, each gap put on a stage of the model, and the cheap levers tried one line at a time. Sections 1 to 4 are the first pass, on the preset as it was on 2026-11-12; what was heard afterwards, the measure that follows the ear and the change the preset took are in the sections from "After listening" on; the last one, "At the keyboard", takes half of that change back. The variants are in `out/presets/`, their renders in `out/v/`, a listening page in `out/ab_bass_gaps/` (none of it in the repository). Tool: `tools/bass_gaps.py`.
 
 ## What comes out
 
@@ -600,6 +600,48 @@ The two real references agree, and they are independent: one grand at the player
 Not reached by it: A0–G#1 (8.3 → 8.2), the law local to the bridge, and the fine structure everywhere.
 
 **In the preset (2026-11-13).** Heard over the whole keyboard against the real grand and the commercial D, the candidate was taken: `concert_grand.toml` has its four lines. Its renders are those of `out/presets/cand4t035.toml`, bit for bit. docs/steinway_d.md and docs/steinway_d_gaps.md still give the figures of the preset before it.
+
+## At the keyboard (2026-11-14)
+
+Played from a keyboard, the preset of 2026-11-13 was heard as much better at the attack and as strings that buzz, "a little like an Asian instrument". The single held notes of the listening page did not show it to the user: it was heard while playing only. Nine presets in the instrument's own list, switched while playing, each one line or two from the preset:
+
+| felt | string loss | heard |
+|---|---|---|
+| × 4 | 6.0e-8 up to C5 (the preset of 2026-11-13) | buzzes |
+| × 4 | 6.0e-8, 2.0e-7 coming in from C5, from F#4, from C4 | buzz, all three |
+| the former felt | 6.0e-8 | buzzes |
+| × 4 | 1.0e-7 | buzzes |
+| × 4 | 2.0e-7 on every key | does not |
+| × 2 | 2.0e-7 on every key | does not |
+| the former felt | 2.0e-7 (the preset of 2026-11-12) | does not |
+
+The buzz is the string loss alone, on every felt, and half of the way back (1.0e-7) is not enough. The harder felt is not in it, and its attack stays.
+
+**In the preset.** `losses.b2` is back at 2.0e-7 on every key; `hardness` 1.2 and `hardness_slope_top` 0.035 stay. `losses.b2_top` is no longer used by the preset (the parameter stays, 0 by default). Its renders are those of `out/presets/fz_b220.toml`.
+
+| | 2026-11-12 | 2026-11-13 | now |
+|---|---|---|---|
+| ears against the real grand, whole / smooth: A0–G#1 | 8.3 / 4.2 | 8.2 / 4.0 | 8.3 / 4.3 |
+| A1–G#2 | 9.2 / 6.6 | 7.8 / 4.3 | 8.6 / 5.7 |
+| A2–G#3 | 9.1 / 6.1 | 8.0 / 3.7 | 8.8 / 5.3 |
+| A3–G#4 | 8.8 / 5.3 | 7.7 / 3.2 | 8.5 / 4.6 |
+| A4–G#5 | 8.0 / 2.9 | 7.4 / 2.6 | 7.8 / 2.8 |
+| A5–G#6 | 4.6 / 1.2 | 4.5 / 1.1 | 4.5 / 1.1 |
+| bench, eight real grands: overall | 1.98 | 1.75 | 1.84 |
+| bass, middle, treble, top | 1.50, 1.70, 1.83, 2.81 | 1.09, 1.17, 1.87, 2.64 | 1.39, 1.31, 1.93, 2.64 |
+| distance to the commercial D, 88 keys: overall | 9.46 | 9.83 | 9.53 |
+| bass, middle, treble, top | 8.70, 9.86, 9.69, 9.54 | 8.67, 10.61, 10.97, 8.88 | 8.71, 10.08, 10.34, 8.88 |
+| growth mf → ff of 2–4 kHz, A0–B1 (the D 35.5) | 31.8 | 22.0 | 22.0 |
+
+**What this says of the measures.** The per-partial gap at the ears and the bench both preferred the low string loss, and the ear at the keyboard refused it. Both read levels over the first second or so of single notes, where the attack weighs most. What the low loss changes is later: the share of the sound above 2.5 kHz between 1 and 2 s, model − real grand at the ears, mean over every third key:
+
+| | A0–F#2 | A2–F#3 | A3–F#5 | A5–C7 |
+|---|---|---|---|---|
+| 2026-11-12 | −7.6 | −13.8 | −1.6 | −7.0 |
+| 2026-11-13 | +2.0 | +1.3 | **+8.7** | −6.3 |
+| now | −7.6 | −11.6 | −0.1 | −6.6 |
+
+From A3 to F#5 the low loss holds 5 to 12 dB more highs than the real grand after a second (C4 +11, C5 +11, D#5 +12), and the preset's loss is right there. Below A3 this measure does not agree with the ear: it reads the low loss as right and 2.0e-7 as 8 to 14 dB short, while the three presets that kept the low loss below C4, F#4 or C5 only were all heard as buzzing. Not understood; single held notes at one velocity through a dummy head are not what was played (chords, repeated notes, the instrument's own listening set-up). A measure of the buzz that agrees with the keyboard is still to find, and until then a string-loss change is to be played before it is kept.
 
 ## Not verified
 

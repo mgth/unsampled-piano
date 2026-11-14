@@ -21,7 +21,7 @@ shank_freq_mid = 700.0
 # default): against a real concert grand at the player's seat the bass and the middle
 # had too much of their low partials and too little of the high ones, the attack
 # heard as soft from A1 to B2; the eight real grands of the bench agree (bass 1.50
-# to 1.09, middle 1.70 to 1.17). The recorded commercial D asks for the softer felt
+# to 1.39, middle 1.70 to 1.31). The recorded commercial D asks for the softer felt
 # (docs/bass_gaps.md).
 hardness = 1.2
 hardness_slope_top = 0.035
@@ -56,13 +56,12 @@ k_b = 0.077178
 c = -1.402352
 
 [losses]
-# The default's frequency-dependent string loss up to C5: above 1.2 kHz a real concert
-# grand's strings lose two to three times less than with 2.0e-7. That value, set for
-# the recorded D's treble, stays from C6 up, where the real grand keeps it too, coming
-# in over the octave below (docs/bass_gaps.md).
-b2 = 6.0e-8
-b2_top = 2.0e-7
-b2_top_from = 84
+# 3.3 × the default's frequency-dependent string loss, on every key. The default's
+# (6.0e-8) up to C5 measured nearer a real concert grand note by note, and was heard
+# at the keyboard as strings that buzz: the high partials held too long (2.5 kHz and
+# up, 5 to 12 dB over the real grand after a second from A3 to F#5), with this felt
+# or the softer one (docs/bass_gaps.md).
+b2 = 2.0e-7
 # Wound strings on the bass bridge only, A0–E2.
 wound_until = 41
 
