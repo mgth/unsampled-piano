@@ -6,6 +6,8 @@ The preset changed on 2026-11-14 (docs/bass_gaps.md): the felt four times harder
 
 It changed again the same day: the board as the D is drawn (17 ribs to the rim, the bridge in one piece, its real heights, the strings' hold on the bridge's top; docs/bass_gaps.md, "The bass bridge's coupling"). Bench 1.84 → 1.75 (bass 1.41, middle 1.38, treble 1.66, top 2.50); distance to the commercial D 9.53 → 8.60 (bass 8.38, middle 9.21, treble 9.04, top 7.67). Every figure below that depends on the board is the former board's. The list keeps its numbers: item 1 is done.
 
+And a third time: the top hammers nearer the capo bar (`strike_ratio_top` 0.05; "The strike point in the top octave" below). Bench 1.75 → 1.82 (treble 1.61, top 2.75); distance to the commercial D 8.60 → 8.23 (treble 8.82, top 6.19).
+
 - **Wrong**: the right physics is known and the model does not follow it.
 - **Estimated**: the value is missing from the sources used.
 
@@ -13,7 +15,7 @@ It changed again the same day: the board as the D is drawn (17 ribs to the rim, 
 
 | # | Difference | Likely effect on the sound | To implement | Kind |
 |---|---|---|---|---|
-| 2 | The top octave's fundamentals: 12 to 21 dB short at the bridge from E7 up against a real grand, from the first 20 ms, the second partial 21 to 26 dB too strong re the fundamental. Against the commercial D: fundamental −3.7 dB at ff and −11 at mf, partials 2–4 +21 dB | Strong from E7 up | Cause not found. Not the board, the felt's exponent, its hardness, the core or the contact's length (a real grand's). Left: the force's shape during the contact, the strike point, the bridge's mobility at 2.6–4.2 kHz | Unknown |
+| 2 | The top octave's fundamentals: 7 to 26 dB short at the bridge from E7 up against a real grand (17 on average), the second partial 19 dB too strong re the fundamental. Against the commercial D: fundamental −6.4 dB at ff and −13.9 at mf, partials 2–4 +15 dB | Strong from E7 up | **Cause found (2026-11-14): the strike point.** The preset keeps the hammers at 0.12 of the string up to C8 (RT-425's rule, not a measure of the top hammers); a real grand's C8 hammer is set between 1/12 and 1/17 (Conklin). `strike_ratio_top` 0.05 (1/14 at C8) halves the gap at the bridge and brings the top's attack to the eight real grands'. In the preset since it was played at the keyboard ("The strike point in the top octave" below). Left after it: 8 dB of fundamental at the bridge, not told apart from the bridge's mobility or the unknown blow | A parameter | Wrong |
 | 3 | The felt's law: exponent 3.7–5.0 against 2.3–3.5. The real exponent alone does not help. The two references pull apart: the harder felt of 2026-11-14 is nearer the real grands, and the bass's brightness growth from mf to ff fell from 31.8 to 22.0 dB (the commercial D 35.5). The felt over the core in the bass (`core_depth_bass` 0.3) follows the commercial D against the real grands too | Strong, whole keyboard | Another form of law is real work; which reference to follow is a choice first | Wrong, though RT-425's values do not carry over as they are |
 | 4 | The radiation between 630 Hz and 2.5 kHz: 6–7 dB short at 630–1000 Hz against a real grand (C6–D6's fundamentals), a hole at 1–1.7 kHz from the bridge points, a step near 2–2.5 kHz. From 1.2 kHz up the board carries the bridge to the ears within 5 dB of the real one. What is left is the air in the case (a statistical small room, modes not coupled through the air) and what fills the hole on a real piano (strings, frame, the plate's openings). In the bass, a hump at 100–250 Hz is missing at the player's seat, and the fundamentals below 60 Hz are 9 to 29 dB short there now that the bridge moves as a real one (docs/bass_gaps.md) | Medium in the treble, less than was thought: most of the treble's gap is at the bridge (the stage swap below) | Heavy: acoustics of the real case; a first step is to find by measure which of the three carries it | Wrong (simplification) |
 | 5 | The unisons of F1–B2 beat, a real grand's do not | Medium in the bass | `unison.width_mid` 0.2 does it in the bass and changes the middle and the treble too: a width per register, and to be heard | Estimated |
@@ -161,4 +163,59 @@ What is then left unexplained: with the same contact length, the real grand's br
 
 Not explained by the contact: the partials 2–4 of the top octave still 16 dB over the commercial D's in absolute level (they are level with the real grand's at the bridge: that part may be the commercial D's own), the band from 1.6 to 3.2 kHz on the lower keys' partials, the excess above 6 kHz.
 
-`out/ab_swap_top/`: the listening files of six keys (0, M, A, B), `swap_top.py`, `swap_bands.py`, `contact.py`.
+`out/ab_swap_top/` (worktree `branch-cleanup-f317cd`): the listening files of six keys (0, M, A, B), `swap_top.py`, `swap_bands.py`, `contact.py`.
+
+## The strike point in the top octave (2026-11-14, later)
+
+Item 2 taken up on the board as the D is drawn (main after the bass bridge's work). Scripts and renders in `out/` of the worktree `top-octave-fundamentals-7c83eb` (`tools/`, `cat88/`, `full_*.txt`, `literature.md`).
+
+**The gap did not move with the board.** Stage swap against Plath's grand, velocity 105, attack 0–80 ms: from 1.2 kHz up the board still carries the bridge to the ears within 5 dB; at the bridge the fundamentals fall 10 to 24 dB short in the 3.2 and 4 kHz bands. Key by key from E7 to C8 the bridge's fundamental is 7 to 26 dB under the real one (17 on average) and its second partial 19 dB too strong re the fundamental. Against the commercial D, C7–C8: fundamental −6.4 dB at ff and −13.9 at mf, partials 2–4 +15.0 dB. Distance 8.60 (top 7.67), bench 1.75 (top 2.50).
+
+**The measure, questioned.**
+
+- Plath's accelerometer (PCB 352C23, 0.2 g, flat to 10 kHz) sits on the bridge at the played string's termination, normal to the board (ISMA 2019 paper); the model's signal is the bridge's normal velocity averaged along a few keys. At 2.6–4.2 kHz that is a fair pair.
+- The blow is not known: the keys were struck by hand with an impact-hammer head, "forte"; velocity 105 was set on the bass's sustain. An absolute level in the top octave carries that doubt; the second partial re the fundamental does not.
+- The real piano against itself: five takes agree within 1 to 3 dB, but its two states (new, and a year later) differ by up to 9 dB on a single top key's fundamental (E7 35.5 and 44.1 dB, G#7 36.3 and 43.6). The figures here are against the mean of the two states.
+- A second real reference agrees on the shape and softens the level. The bench's eight grands through their close microphones, ff, E7–C8, attack: the second partial lies 21 to 34 dB under the fundamental (the commercial D 34, the preset 14), and the fundamental 6 to 21 dB under the set's own C4–B5 fundamentals (12 on average, the commercial D 10, the preset 17). So at microphones the preset's fundamental is some 5 dB short, not 17: part of the bridge's figure is the measure's. The excess of the second partial is in every reference.
+
+**What the literature says** (`out/literature.md`; the JASA papers themselves could not be opened, so Hall, Askenfelt and Jansson, Chaigne and Askenfelt are second-hand there). Conklin (*Five lectures*, "Where should the hammer hit the string?"): the C8 hammer is placed for each piano at the factory for the loudest tone, usually between 1/12 and 1/17 of the speaking length. Kartofelev and Stulov take 1/16.5 at F#6. Giordano's and Ege and Boutillon's bridge impedances fall from 1–2·10³ kg/s to 200–300 kg/s above 2.5 kHz, on uprights; nothing is published on a concert grand's treble bridge above 3.2 kHz.
+
+RT-425's strike point, which the preset follows (`strike_ratio_top` 0), is 0.12 of the length at every key up to B7, to the millimetre: a rule of that report, like its laws for the hammers, not a measure of the top hammers' line.
+
+**Why the strike point decides.** At C8 the head (4.1 g, the shank's 30 % apart) weighs twenty times its three strings: the contact is a mass on the strings' static stiffness, T/(β(1−β)L) each, and its length follows √β. At β = 0.12 that half period is 0.35 ms, the 0.39 ms measured, and the force is close to a half sine whose spectrum has fallen 22 to 31 dB at the fundamental, with the second partial only 6 to 16 dB further down. Nearer the capo bar the strings are stiffer under the hammer, the pulse shorter, and the fundamental comes out of the fall; the mode's own weight sin(πβ) loses 3 dB at most.
+
+**One variable at a time**, the bridge against the real grand, E7–C8 (six keys for the trials, eleven for the three strike points):
+
+| | fundamental re the real bridge (dB) | second partial re the fundamental, re the real (dB) |
+|---|---|---|
+| the preset | −17.1 | +18.8 |
+| `strike_ratio_top` 0.035 (1/12 at C8) | −11.5 | +13.0 |
+| `strike_ratio_top` 0.05 (1/14) | −8.5 | +6.1 |
+| `strike_ratio_top` 0.06 (1/17) | −7.0 | +3.2 |
+| `contact_width_scale` 0.25 / 0.5 / 2 | −17.0 / −16.9 / −14.8 | +17.0 / +17.0 / +16.8 |
+| `shank_share` 0 / 0.5 (0.3 in the preset) | −12.5 / −15.2 | +10.0 / +15.2 |
+
+- **The contact's width does nothing** (2 to 8 mm at C8).
+- **The shank moves the dip from key to key and closes nothing**: without it C7 and E7 lose 6 dB while F#7 gains 13.
+- **The string's stiffness and its front termination were not tried**: the modes are those of a stiff string on simple supports (B 0.023 at C8), and a clamped end would need other mode shapes.
+- **The bridge's mobility cannot be settled.** The model's own, at the top keys' bridge points (`bridge_mobility`, piano-render's example): 0.4 to 1.5·10⁻³ s/kg from 2.5 to 4 kHz, that is 700 to 2500 kg/s where the uprights of the literature give 200–300. If a concert grand's treble bridge yields as theirs, the 7 to 8 dB left after the strike point are there; no measure says so.
+
+**The strike point, on every measure.** Only the keys above C6 change (the law starts there): bass and middle are the same renders.
+
+| | the preset | 0.035 | 0.05 | 0.06 |
+|---|---|---|---|---|
+| strike point at C7 / C8 | 0.12 / 0.12 | 0.1025 / 0.085 | 0.095 / 0.07 | 0.09 / 0.06 |
+| distance to the commercial D, overall / treble / top | 8.60 / 9.04 / 7.67 | 8.32 / 8.90 / 6.56 | 8.23 / 8.82 / 6.19 | 8.19 / 8.79 / 6.00 |
+| C7–C8's fundamental re the commercial D's, ff / mf (dB) | −6.4 / −13.9 | −1.1 / −10.3 | +1.6 / −7.9 | +2.8 / −6.1 |
+| C7–C8's partials 2–4 re the commercial D's, ff (dB) | +15.0 | +13.4 | +10.9 | +11.0 |
+| close microphones, E7–C8, ff: second partial re the fundamental (real grands −21 to −34) | −13.8 | −18.7 | −25.0 | −27.6 |
+| the same, fundamental re the set's C4–B5 (real grands −12, from −6 to −21) | −17.0 | −12.0 | −9.0 | −7.5 |
+| bench, overall / treble / top | 1.75 / 1.66 / 2.50 | 1.77 | 1.82 / 1.61 / 2.75 | |
+
+With 0.05 the contact stays a real grand's: 0.55 ms at C7 and 0.33 at C8 at velocity 105 (Askenfelt and Jansson 0.55 and 0.45, read to 0.05 ms), 0.71 and 0.52 at velocity 60 (0.65 and 0.5).
+
+**The bench of real grands, top register, 0.05.** Everything the item is about comes to the real pianos': the attack's second partial −14.2 → −27.4 dB (theirs −27.0), its third −35.3 → −47.5 (−45.9), 4–8 kHz in the attack −10.8 → −20.3 (−19.6), the centroid 1.15 → 1.03 (1.03), the top's level against the keyboard −11.0 → −6.4 (−1.4). The register's score still rises, 2.50 → 2.75, on measures that were off before and go further: the 1 kHz band of the sustain (−112 → −122 dB, theirs −43: the last damper, item 7), the 2 kHz band (−32 → −39, theirs −29), the sustain's second partial after half a second (−45 → −55, theirs −37: it decays too fast, at either strike point), and ff − pp (17.0 → 23.1 dB, one source at 17.8). To be read with that: the attack is nearer, the sustain between and under the partials is not this item's and looks worse for it.
+
+**Kept**: `strike_ratio_top` 0.05, the engine's default, 1/14 at C8, inside Conklin's range. No code changes. Played at the keyboard by the user and taken into the preset the same day, without a listening remark. The trial's files: `out/keyboard/instruments/Top strike trial/` (the preset and the trial), listening page `out/ab_top_strike/index.html` (C6–C8, the real grand at the player's seat and the commercial D through close microphones).
+
+**Not verified.** The D's own strike line at the top (no measured source found; RT-425's is a rule). The law between C6 and C8 is a straight line in the ratio, the real one follows the hammers' line and the strings' lengths. What is left at the bridge after the change (8 dB of fundamental, G#7–B7 most) between the bridge's mobility at 2.6–4.2 kHz, the unknown blow and the real piano's own 9 dB from one state to the other. The mf fundamental stays 8 dB under the commercial D's. The front termination. The upper partials' excess against the commercial D (+11 dB on partials 2–4, at the real grand's level at the bridge) is still there.
