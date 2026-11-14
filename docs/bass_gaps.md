@@ -1,6 +1,6 @@
 # The bass against its two references
 
-Status as of 2026-11-14. A0–B2 of the Concert grand preset, measured against the commercial D and against a real concert grand, each gap put on a stage of the model, and the cheap levers tried one line at a time. Sections 1 to 4 are the first pass, on the preset as it was on 2026-11-12; what was heard afterwards, the measure that follows the ear and the change the preset took are in the sections from "After listening" on; the last one, "At the keyboard", takes half of that change back. The variants are in `out/presets/`, their renders in `out/v/`, a listening page in `out/ab_bass_gaps/` (none of it in the repository). Tool: `tools/bass_gaps.py`.
+Status as of 2026-11-14. A0–B2 of the Concert grand preset, measured against the commercial D and against a real concert grand, each gap put on a stage of the model, and the cheap levers tried one line at a time. Sections 1 to 4 are the first pass, on the preset as it was on 2026-11-12; what was heard afterwards, the measure that follows the ear and the change the preset took are in the sections from "After listening" on; "At the keyboard" takes half of that change back; the last one, "The bass bridge's coupling", finds the cause of the first gap below in the board's ribs; the board as it is drawn is in the preset since 2026-11-14. The variants are in `out/presets/`, their renders in `out/v/`, a listening page in `out/ab_bass_gaps/` (none of it in the repository). Tool: `tools/bass_gaps.py`.
 
 ## What comes out
 
@@ -9,7 +9,7 @@ Status as of 2026-11-14. A0–B2 of the Concert grand preset, measured against t
   2. the strings' own loss above 1.2 kHz is two to three times too high over the whole bass (`losses.b2`);
   3. the strings of a bichord or trichord beat (F1–B2), where the real ones do not (`unison.width_mid`).
 - **The largest term of the distance to the commercial D is not a fault.** The D's low fundamentals fade at 6–10 dB/s; the real grand's and the preset's hold (0.3–1.4 dB/s). After half a second the preset's fundamental stands 14 dB over the D's at A0–B1, and that alone is the −11 to −13 dB bias of the distance's sustain family. The real piano rules: not to be corrected.
-- **The bass bridge at 60–140 Hz is still the main gap against the real grand**, but not as it was described. Fitted on the real grand's own partials, its resonances are about as broad as the model's with half the resting strings' load (loss factor 0.10 at 97 Hz, 0.07 at 139 Hz). What is wrong is how hard the bridge is coupled to them: seven times too much near 70–80 Hz, 2.3 times near 95 Hz. No cheap lever changes that.
+- **The bass bridge at 60–140 Hz is still the main gap against the real grand**, but not as it was described. Fitted on the real grand's own partials, its resonances are about as broad as the model's with half the resting strings' load (loss factor 0.10 at 97 Hz, 0.07 at 139 Hz). What is wrong is how hard the bridge is coupled to them: seven times too much near 70–80 Hz, 2.3 times near 95 Hz. No cheap lever changes that. The cause is the board itself, built from a simplified mesh: with the D's 17 ribs carried to the rim, the bridge in one piece and the strings' grip on it, the board has the real grand's three resonances (78, 100, 137 Hz against 74, 98, 136) and the bass strings lose what the real ones lose (partials 2–4 of A0–E1: 4.3 dB/s against 4.3, 10.3 before). In the preset since 2026-11-14: see "The bass bridge's coupling".
 - **Two one-line changes close gaps 2 and 3**, `losses.b2` 1.0e-7 and `unison.width_mid` 0.2: the bench's bass register goes from 1.50 to 1.22 with `string_load` 0.5 added. They act on the whole keyboard, where they are not yet judged by ear.
 - **The felt over the core in the bass (`core_depth_bass` 0.3) follows the commercial D against the real grands**: at mf the bass attack has 19 dB too little at 4–8 kHz on the bench, and none with the core at the surface.
 
@@ -364,6 +364,7 @@ Each of them moves the modes by a few hertz and passes strength from one band to
 - *Crown and bearing as a shell under the strings' load* (item 7 of docs/steinway_d_gaps.md): the foundation term raises every mode alike and cannot change which part of the board a mode moves. Test before building: in `board_fem`, a stiffness under the bass bridge alone, on top of the strings' hold, scanned until the 77 Hz mode's share at D1–D#1 is halved; if the value is of the order of a bearing's (the strings' down-force over the bridge's deflection), the shell is worth building.
 - *The bass bridge's real construction*: on a D it stands on an apron, the strings bearing in front of its foot; here it is a layer of the plate at the strings' points. Test: the same scan with the bridge's foot moved a few centimetres towards the tail, the strings left where they are (`bass_bridge` in a preset moves both).
 - *The sideways polarisation of a single wound string*: if a real string's movement turns between the two planes faster than it decays, it loses half of what the board takes from the vertical plane, at one rate, which is what is seen. That would halve every figure of the first table without touching the board. Test: Plath's accelerometer has one axis; a recording of a single bass string's two planes would settle it, and none is in the corpus.
+- (2026-11-14) None of the three was it; the last line's check was: see "The bass bridge's coupling: the board as it is drawn".
 - A check that costs nothing: `mode_map` of the first six modes along the bass bridge against which real keys see which resonance (the real 97 Hz one peaks on B0–C#1, the 139 Hz one on A0 and C#1, the 71 Hz one on C#1–D1).
 
 **The string's loss by register.** `losses.b2` is one figure for 88 keys; the bass wants 0.6–1.0e-7 by the real grand and by the D, the D's treble 2–3e-7. A second value below the break, or a slope by key. The test is done: the bass rendered with 1.0e-7 is that lever, since the keys above were not played.
@@ -643,6 +644,170 @@ The buzz is the string loss alone, on every felt, and half of the way back (1.0e
 
 From A3 to F#5 the low loss holds 5 to 12 dB more highs than the real grand after a second (C4 +11, C5 +11, D#5 +12), and the preset's loss is right there. Below A3 this measure does not agree with the ear: it reads the low loss as right and 2.0e-7 as 8 to 14 dB short, while the three presets that kept the low loss below C4, F#4 or C5 only were all heard as buzzing. Not understood; single held notes at one velocity through a dummy head are not what was played (chords, repeated notes, the instrument's own listening set-up). A measure of the buzz that agrees with the keyboard is still to find, and until then a string-loss change is to be played before it is kept.
 
+## The bass bridge's coupling: the board as it is drawn (2026-11-14)
+
+Item 5 of the ranking, taken alone. The cause is found, and it is not in the bass bridge: the model's ribs were those of a simplified mesh, not the D's, and three more things about the bridge and its strings were missing. With them the board has the real grand's three resonances and the bass strings lose what the real ones lose. Measured as a candidate beside the preset of that morning, then taken into the preset the same day, after it was played at the keyboard ("In the preset", below). "The preset" in this section's tables is the one before it.
+
+### The gap again, and how firm it is
+
+`bass_loss` on the preset and the fit of section 2 give back section 2's table to the digit. The real side is firm: the decay of each partial of A0–B2 below 320 Hz (0.15–1 s, at the bridge), read on three recordings of the same grand:
+
+| | 45–160 Hz (59 partials) | 160–320 Hz (81) |
+|---|---|---|
+| two takes of the same day | 0.7 dB rms | 0.2 dB rms |
+| new, and after a year in a hall | 1.8 dB rms | 2.9 dB rms |
+
+The three resonances stand where they stood a year before: D1's second partial (73 Hz) loses 10.2 and 8.2 dB/s, C1's third (97.6 Hz) 23.8 and 25.3, A0's fifth (137 Hz) 39.4 and 39.2. And they are the board's own: the same grand's bridge mobility, measured with a hammer at each stage of its building (Plath 2019, below), has its first three resonances at 74, 98 and 136 Hz once strung.
+
+The factors 7 and 2.3 are less firm than the decays. They come from one resonance fitted on eight partials per band, and in the first band the fit gives the preset a loss factor of 0.32 that no mode has, so that its area spreads outside the band. Without a fit, the sum of the single strings' decays in each band (A0–E1, dB/s, the preset's being its budget, own loss and bridge):
+
+| | 60–88 Hz | 88–120 Hz | 120–160 Hz | 60–160 Hz |
+|---|---|---|---|---|
+| the real grand | 45 | 60 | 102 | 207 |
+| the preset | 120 | 114 | 76 | 310 |
+| preset / real | 2.7 | 1.9 | 0.75 | 1.5 |
+
+So: two to three times too much from 60 to 120 Hz, a quarter too little at 120–160 Hz, and 1.5 times in all. The same as a mass, which is what a string sees of a mode (1/Φ² at its bridge point, the mode being mass-normalised; from the fits' areas for the real grand, B0–D1): 15 kg at 71–73 Hz, 5 kg at 97 Hz and 4 kg at 139 Hz, where the preset shows C1 5 kg at 76 Hz, 3 kg at 94 Hz, 10 kg at 128 Hz, and three more modes in the same span. The fault is as much the number of modes the bass bridge sees, six below 140 Hz against three, as how hard each is coupled.
+
+### What the sources say of this piano
+
+The real grand is the one of N. Plath's dissertation (*From Workshop to Concert Hall: Acoustic Observations on a Grand Piano under Construction*, Hamburg 2019), measured at every stage of its building; its maker is not named there, the plate in the data set's photograph reads Steinway, and its board has the D's 17 ribs and 20 keys on the bass bridge.
+
+| | first three resonances (Hz) | mean mobility at 15 bridge points, 50–1000 Hz (s/kg) |
+|---|---|---|
+| board glued in the rim, no plate, no strings | 56, 80, 114 | 0.8e-3 |
+| plate and strings on | 74, 98, 136 | 0.7e-3 |
+| regulated and tuned | 76, 106, 149 | 0.7e-3 |
+
+(Read off its figures 6.8 and 6.9, to 2 Hz and 0.1e-3.) Its text: stringing raises the resonances by about 20 Hz up to 350 Hz and takes 10 dB off their peaks; the second resonance is a dipole whose nodal line crosses the long bridge at its key 34 (F#3); at the long bridge's bass end the first resonance hardly shows once strung. Its board: panel 7.9 kg, ribs 3.1 kg once feathered, bridge 3.15 kg in one piece, 13.7 kg glued in.
+
+The D's board as built is drawn, with dimensions, in Boutillon, Ege and Paulello, "Comparison of the vibroacoustical characteristics of different pianos" (Acoustics 2012, arXiv 1210.3948, figure 2): 17 ribs from rim to rim, 17 to 27 mm high and 21 to 26 mm wide, 80 to 119 mm of clear gap between two, the bridge in one piece that turns round at the tail and comes back as the bass bridge, 29 to 37.5 mm high along the long bridge and 60 mm on the bass one, and a bar across the bass front corner. Plath's own drawing has the ribs to the rim and the bridge in one piece (its bend, about 20 cm, not glued to the board), and no bar; he measured the ribs' ends, feathered from full height to 4 mm as 19.55·exp(−0.024·d) + 4 mm.
+
+The model's board came from RT-425's mesh (docs/real_board.md), which is a simplification: 16 ribs 114 to 146 mm apart that stop 10 to 20 cm short of the rim at both ends and leave the bass front corner bare, and bridge heights read off a colour map (55–70 mm on the long bridge, 52–60 on the bass one). The same mesh has the bridge in one piece; the model had cut it in two.
+
+### The candidates, each with its test
+
+| Candidate | Test | Result |
+|---|---|---|
+| The bridge's mobility against published measurements | mean of \|Y\| over 50–1000 Hz at Plath's fifteen points (`bass_shapes`) | the preset 0.93e-3 s/kg, 0.96e-3 unstrung, against 0.7e-3 and 0.8e-3 measured: a third too mobile on the whole, and 2.0e-3 on the bass bridge at 60–160 Hz. No strung bass-bridge curve of a grand is published; Conklin's (E2, a concert grand) has no stated reference |
+| The modes' shapes and masses at the bass bridge | maps of the first modes (`bass_shapes`, `MAP=dir`) | **the cause.** The preset's first two modes, 68 and 76 Hz, have their bellies in the bass front corner, where the mesh has no rib (1.4–1.5 kg there), and its third, 94 Hz, in the tail's corner, on A0's bridge point (2.0 kg), beside the last rib's end and the free end of the bass bridge. None of the three is a real board's first mode |
+| The ribs: to the rim, and the D's own | the mesh's ribs carried on to the rim along their lines; then the drawing's 17 | the mesh's, longer: three modes left under 140 Hz (77, 91, 120 Hz) but the bridge still sees 8, 2 and 3 kg. The drawing's, feathered: 75, 96, 130 Hz and 32, 4, 3 kg at A0; the sum of 60–120 Hz falls from 234 to 117 dB/s (real 105). **Kept** |
+| The bridge in one piece | an arc from the long bridge's lowest key to A0, 10 cm off their chord | alone on the preset: the tail mode's coupling at 88–160 Hz down a fifth (190 → 152 dB/s), the first band hardly (120 → 96). With the drawing's ribs: 4 → 6 kg at 98 Hz. **Kept**: it is the D's, and the smaller of the two |
+| The bridge's own height and mass | the drawing's heights; ±25 % of thickness on the preset (section 3) | the bass bridge's own section does little (section 3). The long bridge at 29–37.5 mm instead of 46–61 lowers the third resonance (130 → 122 Hz): on its own it moves away from the real 138. **Kept** as the D's dimension, with the next line |
+| What the strings do to the board besides the spring T·(1/L + 1/l) | Plath's stages: stringing raises 56, 80, 114 Hz by 18, 18 and 22 Hz. A spring under the bridge raises each mode by the same ω², so less in hertz the higher the mode: the model gave +19, +16, +12 | **a term was missing.** A string pinned on the bridge is stretched when the bridge's top moves along it, that is when the board tilts under the bridge: E·A·(1/L + 1/l)·h² per radian, h the top's height over the stack's neutral plane. A stiffness on the slope, which grows with the mode as k², like the measured shifts. With it: +21, +21, +27 Hz, nothing fitted. **Kept** (`strings_grip`) |
+| The bass bridge on a shelf | the sources | none on a D: glued straight to the board. Closed |
+| The boundary at the rim | not redone | clamped, as before; the rim made two-way changed 2 modes in 227 (docs/real_board.md) |
+| Crown and bearing | the board in its rim against Plath's unstrung stage | with the candidate's ribs and the 40 Hz of `crown_freq` fitted on another board: 57, 79, 110 Hz against 56, 80, 114. The foundation term is enough for these three modes; left as it is |
+| The strings' rear lengths | the bass bridge's at 0.6 of the estimate, with and without the tenor's | first resonance +1 to +3 Hz, third +1 to +2, coupling of 60–88 Hz down a quarter. Not the cause; left at the estimate |
+| A bar across the bass front corner | a bar 5 cm wide and 4 cm high where the drawing has it | +1 to +2 Hz, masses within a fifth. The two drawings disagree on it; left out |
+| The two polarisations, the unison | not redone | measured before (docs/real_board.md): a real single string decays at one rate, and so it reads again here, early and late rates within 1 dB/s on most partials |
+| Part of the loss being elsewhere | the budget | the excess was in the conductance itself, partial by partial; with the candidate the budget follows the real decay to 3.2 dB rms over 45–300 Hz (3.8 before, with a mean 2.1 dB too high) and no other sink is needed |
+
+Step by step, the board's first modes with the mass each shows at A0, C1 and E1 (kg), and the sums of the first table (dB/s):
+
+| | first modes: Hz (kg at A0, C1, E1) | 60–88 | 88–120 | 120–160 Hz |
+|---|---|---|---|---|
+| the real grand, from its strings | 71–73 (15), 97–98 (5), 138–139 (4) | 45 | 60 | 102 |
+| the preset | 68 (45, 38, 31), 76 (6, 5, 5), 94 (2, 3, 5), 111, 128 (6, 10, 32), 135 (6, 21, –) | 120 | 114 | 76 |
+| the mesh's ribs carried to the rim | 77 (8, 8, 8), 91 (2, 3, 5), 120 (3, 4, 10) | 105 | 123 | 86 |
+| the bridge in one piece, alone | 68 (70, 50, 36), 77 (8, 7, 6), 95 (3, 3, 5), 112, 129 (8, 11, 37), 134 | 96 | 98 | 54 |
+| the drawing's 17 ribs, feathered | 75 (32, 21, 14), 96 (4, 4, 5), 130 (3, 4, 11) | 43 | 74 | 86 |
+| and the bridge in one piece | 75 (42, 24, 15), 98 (6, 5, 5), 130 (4, 5, 12) | 35 | 64 | 76 |
+| and the drawing's bridge heights | 76 (54, 29, 17), 95 (7, 6, 6), 122 (4, 5, 12) | 34 | 71 | 66 |
+| **and the strings' grip: the candidate** | 78 (23, 16, 12), 100 (7, 6, 7), 137 (4, 7, 18) | 37 | 53 | 78 |
+
+The candidate's shapes are those the sources describe: one lobe at 78 Hz, weak at the long bridge's bass end (26 kg at F2); a dipole at 100 Hz whose nodal line crosses the long bridge at E3 (F#3 measured); three lobes along the board at 137 Hz. Its mean mobility at Plath's fifteen points is 0.76e-3 s/kg strung and 0.82e-3 in the rim (0.7e-3 and 0.8e-3 measured), its mass 12.7 kg on 2.09 m² (11.2 before; 13.7 for the real board with its margin on the rim).
+
+### What changed in the code
+
+`soundboard.structure`, every default as before, so that a preset without these lines renders bit for bit as it did (eight notes of the Concert grand compared):
+
+- `rib_feather`, `rib_tip`: a rib keeps its middle thickness and is cut over its last `rib_feather` metres to `rib_tip` under the board, as measured; 0, the parabola.
+- `bridge_ring`: the arc that joins the two bridges, by how far it stands from their chord; 0, two bridges.
+- `strings_grip`: the strings' hold on the bridge's top, a stiffness on the board's slope along each key's strings, its steel section taken from the string's inharmonicity; off by default.
+- `tools/steinway_d_ribs.py` places the drawing's ribs on the preset's outline; `bass_shapes` (piano-host's example) prints the first modes, the mass they show at the bridges, the mean mobility at Plath's points, and maps.
+
+The candidate is the preset with these lines under `[soundboard.structure]` (`out/presets/cand.toml`; now the preset's own):
+
+```toml
+ribs = <tools/steinway_d_ribs.py>
+rib_feather = 0.15
+rib_width_treble = 0.0215
+rib_width_bass = 0.0255
+bridge_ring = 0.1
+main_bridge_thickness = [[41.0, 0.0465], [49.0, 0.0455], [57.0, 0.0445], [65.0, 0.044], [77.0, 0.042], [89.0, 0.0395], [99.0, 0.0385], [108.0, 0.038]]
+bass_bridge_thickness = [[21.0, 0.069], [32.0, 0.069], [40.0, 0.069]]
+strings_grip = true
+```
+
+### Measured
+
+**At the bridge against the real grand**, rendered, decay over 0.15–1 s (dB/s, median):
+
+| | partials 2–4: A0–B0 | C1–B1 | A0–E1 | fundamentals of C2–B2 | A0–E1 by frequency: 45–70 | 70–100 | 100–140 Hz | F1–E2: 70–100 | 100–140 | F2–B2: 100–140 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| the real grand | 3.2 | 5.7 | 4.3 | 9.6 | 3.0 | 6.7 | 3.9 | 8.5 | 5.9 | 4.7 |
+| the preset | 11.6 | 8.8 | 10.3 | 18.4 | 4.5 | 20.7 | 10.3 | 24.3 | 18.8 | 14.4 |
+| the candidate | 4.0 | 6.6 | 4.3 | 9.3 | 1.0 | 7.1 | 5.8 | 16.2 | 7.1 | 6.5 |
+
+Partial by partial the budget follows the real resonances: 28.7 dB/s for A0's fifth (39.4 real, 21.8 before), 15.1 for C#1's fourth (22.9; 6.0), 14.5 for C1's third (23.8; 29.8), 4.7 for A#0's third (4.2; 22.4), 8.7 for D#1's second (4.5; 21.0). Fitted as in section 2: 78.5 Hz, η 0.21, strength 128; 99.4 Hz, η 0.13, 186; 136.7 Hz, η 0.07, 204 (real 74, 232, 295; the preset 544, 528, 248). The candidate is now a little under the real coupling at 97 and 139 Hz, and its first resonance 5 Hz too high: the second partials of A0–C#1 (55–69 Hz) decay at 0.7–2.9 dB/s against 1.5–8.4.
+
+Drop of the sound at the ears between 0.2 and 2 s (dB): A0–B0 9.3 (real 11.5, the preset 14.2), C1–B1 11.0 (9.1; 12.6), C2–B2 15.2 (13.6; 16.4).
+
+**Level at the bridge**, model − real, 0–0.3 s (dB): the excess of the low partials at the bridge, which the transfer to the ears undid (section 2), is mostly gone on the lowest keys.
+
+| | partial 1: bridge / to the ears / ears | partials 2–4 | partials 5–8 |
+|---|---|---|---|
+| A0–B0, the preset | +10.7 / −23.7 / −13.1 | +8.7 / −8.4 / +0.3 | +7.0 / −6.2 / +0.8 |
+| A0–B0, the candidate | +1.3 / −30.3 / −29.0 | +1.1 / +1.3 / +2.5 | +3.0 / −3.8 / −0.8 |
+| C1–B1, the preset | +4.8 / −7.2 / −2.4 | +7.9 / −8.6 / −0.7 | +10.1 / −6.9 / +3.2 |
+| C1–B1, the candidate | −0.4 / −8.9 / −9.2 | +5.7 / −4.7 / +0.9 | +4.5 / −2.3 / +2.2 |
+| C2–B2, the preset | +5.9 / −2.8 / +3.1 | +3.9 / −4.5 / −0.5 | +2.9 / −2.2 / +0.7 |
+| C2–B2, the candidate | +2.3 / +1.3 / +3.6 | +4.4 / −3.1 / +1.3 | +2.5 / +1.6 / +4.0 |
+
+**The price: the lowest fundamentals at the ears.** The bridge now moves as the real one at the fundamentals of A0–B1, and what the transfer lacked below 90 Hz is no longer hidden: A0–B0's fundamental (27–31 Hz) is 29 dB under the real grand's at the ears (13 before), C1–B1's 9 dB under (2 before). That is the radiation towards the player at the bottom (the back face cancelling too much, section 2; item 4 of docs/steinway_d_gaps.md), not the board's modes; how far a chamber and a dummy head can be trusted at 30 Hz is not known either. To be judged by ear.
+
+**The per-partial gap at the ears** against the real grand, whole / smooth (dB rms), every key:
+
+| | A0–G#1 | A1–G#2 | A2–G#3 | A3–G#4 | A4–G#5 | A5–G#6 |
+|---|---|---|---|---|---|---|
+| the preset | 8.3 / 4.3 | 8.6 / 5.7 | 8.8 / 5.3 | 8.5 / 4.6 | 7.8 / 2.8 | 4.5 / 1.1 |
+| the candidate | 7.5 / 4.1 | 9.0 / 6.0 | 8.2 / 4.6 | 8.4 / 4.8 | 8.3 / 3.0 | 5.2 / 1.5 |
+
+The first move of A0–G#1 on this measure since it was set up (8.3 → 7.5, the yardstick being 4.9), most of it in the fine structure. Above, it goes both ways by what a redraw of the board gives (docs/real_board.md): the new board is another draw of every partial's level.
+
+**The bench and the commercial D**, all 88 keys, the preset measured again beside it (1.84 and 9.53, as recorded):
+
+| | overall | bass | middle | treble | top |
+|---|---|---|---|---|---|
+| bench, the preset | 1.84 | 1.39 | 1.31 | 1.93 | 2.64 |
+| bench, the candidate | **1.75** | 1.41 | 1.38 | **1.66** | **2.50** |
+| distance to the commercial D, the preset | 9.53 | 8.71 | 10.08 | 10.34 | 8.88 |
+| distance to the commercial D, the candidate | **8.60** | 8.38 | **9.21** | **9.04** | **7.67** |
+
+On the bench the decay family goes from 1.38 to 0.97 and the attack from 1.83 to 1.55; the sustain from 1.21 to 1.61, the resonance from 2.34 to 2.74 and the dynamics from 1.26 to 1.55. Nearer: the treble's envelope at 1–3 s (z −4.2 → −2.0 at mf), its 1 kHz band in the sustain (−5.4 → −3.6), the top's third partial at the attack (+4.4 → +1.6), the bass's balance. Further: the top's balance (−2.1 → −3.7), the noise between the treble's partials (−2.1 → −3.3), the bass's partials 4 and 6 against its fundamental in the sustain (−0.8 → −1.8, −1.5 → −2.5: the fundamental holds, as on the real grand, and these measures are ratios to it). The bass register does not move: it never read the 70–140 Hz decays (section 1). Against the commercial D every register is nearer, the treble and the top by more than a redraw.
+
+### Listening
+
+`out/ab_bass_bridge/index.html` (the `ecoute` entry of `.claude/launch.json`): every key from A0 to B2 at the player's seat, lid off, no room, the real grand, the preset and the candidate, one gain for the two models and the real grand at the same mean level; then eleven keys through the close microphones at velocities 100 and 60 with the commercial D. `out/keyboard/instruments/Bass bridge trial/` holds the two presets for the instrument's own list (`target/release/unsampled-piano --ui --presets out/keyboard`).
+
+### In the preset (2026-11-14)
+
+The two presets were put in the instrument's list and played from the keyboard, and the user had the candidate taken into the preset. `concert_grand.toml` has its eight lines; its renders are the measured candidate's, bit for bit (four notes compared). What was heard is not recorded here: no remark came with the decision, on the lowest fundamentals or on anything else. docs/steinway_d.md still gives the figures of the presets before it.
+
+### Not verified, for this section
+
+- **What was heard.** The candidate was played and kept, without a remark to record; the listening page's verdict key by key, and the lowest fundamentals at the ears, are not on record.
+- **The outline.** Placed on the preset's outline with the 17th rib at its own length, ribs 1–13 come out 10 to 15 cm longer than the drawing's and ribs 14–17 within 6 cm: the model's board is wider at the bentside than the drawing's inner rim, by some 8 cm. RT-425's outline may follow the case rather than the inner rim. Not corrected: it moves every bridge point's distance to the rim.
+- **The ribs' angle**, 50° from the spine (Plath: 40° from the keyboard's line), and the feather's length, 15 cm (the drawing's marks, 15–19 cm on the long ribs, 5–9 on the short), are read, not measured. One length for all ribs, a quarter of the rib at most.
+- **The long bridge's heights by key** are the drawing's five figures placed along the keys by eye; its width stays 3 cm (3.5 cm changes nothing here).
+- **The ring's shape**: an arc 10 cm off the chord, glued all along, where the real bend has 20 cm not glued to the board.
+- **The strings' grip** takes the string as held on the bridge without slipping, its two lengths as springs (true below their own longitudinal resonances, some hundreds of hertz for the longest wound strings), the steel section from the inharmonicity (the winding adds a little to it), and the bass strings as running along the board's length. As a moment at a point it acts a little under its first-order value on a bare plate (a unit test has it at 0.6 to 1). Its measure is the three shifts of one piano.
+- **The first resonance is 5 Hz too high** (78 against 71–73 as the strings see it, 74 as measured after stringing), and the tuned state's 76, 106, 149 Hz, read off a figure, are not what the strings of the same state show (73, 98, 138): not understood.
+- **The strung bass bridge's mobility** was never measured directly on a grand in what was found; the real side is the strings' decay.
+- **The bass's buzz** (section "At the keyboard") was not looked for: no string loss was changed.
+- **The radiation below 90 Hz**, uncovered above.
+
 ## Not verified
 
 - The levers of section 3 were heard as nearly alike; see "After listening".
@@ -654,4 +819,4 @@ From A3 to F#5 the low loss holds 5 to 12 dB more highs than the real grand afte
 
 ## Tools
 
-`tools/bass_gaps.py d <D's notes> name=dir …` and `tools/bass_gaps.py plath <Plath's data> <cache> name=preset.toml …` print every table of section 1. `bass_loss` (piano-host's example) gives the budget of section 2, with `CSV=1` for a file. The scripts that make the variants, fit the resonances and build the listening page are in `out/tools/` (not versioned): `mk.py`, `trial.sh`, `summ.py`, `resfit.py`, `lowsum.py`, `dips.py`, `tfpos.py`, `abpage.py`.
+`tools/bass_gaps.py d <D's notes> name=dir …` and `tools/bass_gaps.py plath <Plath's data> <cache> name=preset.toml …` print every table of section 1. `bass_loss` (piano-host's example) gives the budget of section 2, with `CSV=1` for a file. `bass_shapes` (the same crate's) gives the first modes as the bridges see them, and `tools/steinway_d_ribs.py` the D's ribs from its drawing. The last section's own scripts are in this session's `out/tools/` (`realdec.py`, `cmp.py`, `run.sh`, `measure.sh`, `plotmodes.py`, `layout.py`), with the sources' figures in `out/lit/` and the literature notes in `out/literature.md`. The scripts that make the variants, fit the resonances and build the listening page are in `out/tools/` (not versioned): `mk.py`, `trial.sh`, `summ.py`, `resfit.py`, `lowsum.py`, `dips.py`, `tfpos.py`, `abpage.py`.

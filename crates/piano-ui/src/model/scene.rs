@@ -222,6 +222,9 @@ const BASS_CAP: f64 = 0.016;
 const BOARD_T: f64 = 0.012;
 /// A built board's ribs: sections along each.
 const RIB_SECTIONS: usize = 12;
+/// More of them over each feathered end of a rib
+/// ([`piano_core::fem::BoardStructure::rib_feather`]).
+const RIB_FEATHER_SECTIONS: usize = 5;
 /// The plate's riser under the hitch pins where their strings' bridge
 /// stands high: its half-width, its top under the strings.
 const HITCH_RISER: f64 = 0.009;
@@ -1684,8 +1687,10 @@ fn inner_rim(b: &mut Builder, edge: &[(f64, f64)], closed: bool, inner: f64, z0:
 
 /// A built board's ribs under it, as the engine has them
 /// ([`piano_core::fem::BoardStructure::ribs`]): each from end to end, as
-/// wide as it is, its depth under the board's top a parabola from its
-/// middle to its ends; `thick` is the board's thickness at a point.
+/// wide as it is, its depth under the board's top the engine's own
+/// ([`piano_core::fem::BoardStructure::rib_thickness_at`]): a parabola from
+/// its middle to its ends, or its full height cut down to a tip over its
+/// feathered ends; `thick` is the board's thickness at a point.
 fn ribs(b: &mut Builder, s: &piano_core::fem::BoardStructure, sb: &SoundboardParams, thick: &dyn Fn(f64, f64) -> f64, c: Color32) {
     if !b.draw {
         return;
@@ -1698,26 +1703,38 @@ fn ribs(b: &mut Builder, s: &piano_core::fem::BoardStructure, sb: &SoundboardPar
         let (p, q) = ((r.0 * sb.a, r.1 * sb.b), (r.2 * sb.a, r.3 * sb.b));
         let len = (q.0 - p.0).hypot(q.1 - p.1).max(1e-9);
         let (u, n) = (((q.0 - p.0) / len, (q.1 - p.1) / len), (-(q.1 - p.1) / len * width / 2.0, (q.0 - p.0) / len * width / 2.0));
+        // Where its sections are cut, 0 to 1 along it: evenly, and closer
+        // over a feathered end, where its height falls within centimetres.
+        let feather = if s.rib_feather > 0.0 { s.rib_feather.min(0.25 * len) / len } else { 0.0 };
+        let mut cuts: Vec<f64> = Vec::new();
+        if feather > 0.0 {
+            cuts.extend((0..RIB_FEATHER_SECTIONS).map(|k| feather * k as f64 / RIB_FEATHER_SECTIONS as f64));
+        }
+        cuts.extend((0..=RIB_SECTIONS).map(|k| feather + (1.0 - 2.0 * feather) * k as f64 / RIB_SECTIONS as f64));
+        if feather > 0.0 {
+            cuts.extend((1..=RIB_FEATHER_SECTIONS).map(|k| 1.0 - feather + feather * k as f64 / RIB_FEATHER_SECTIONS as f64));
+        }
+        let sections = cuts.len() - 1;
         // Each section: its two top corners against the board, its two
         // bottom ones.
         let section = |k: usize| {
-            let t = k as f64 / RIB_SECTIONS as f64;
+            let t = cuts[k];
             let (x, y) = (p.0 + u.0 * len * t, p.1 + u.1 * len * t);
-            let w = 2.0 * t - 1.0;
-            let top = -thick(x, y);
-            let bottom = top.min(-(r.4 - (r.4 - r.5) * w * w));
+            let plate = thick(x, y);
+            let top = -plate;
+            let bottom = top.min(-s.rib_thickness_at(&r, len * t, len, plate));
             [place.at(x - n.0, y - n.1, top), place.at(x + n.0, y + n.1, top), place.at(x + n.0, y + n.1, bottom), place.at(x - n.0, y - n.1, bottom)]
         };
-        for k in 0..RIB_SECTIONS {
+        for k in 0..sections {
             let (a, d) = (section(k), section(k + 1));
             b.quad(false, [a[0], a[3], d[3], d[0]], c);
             b.quad(false, [a[1], d[1], d[2], a[2]], c);
             b.quad(false, [a[3], a[2], d[2], d[3]], c);
         }
-        let (a, d) = (section(0), section(RIB_SECTIONS));
+        let (a, d) = (section(0), section(sections));
         b.quad(false, [a[0], a[1], a[2], a[3]], c);
         b.quad(false, [d[0], d[3], d[2], d[1]], c);
-        label.get_or_insert(section(RIB_SECTIONS / 2)[2]);
+        label.get_or_insert(section(sections / 2)[2]);
     }
     if let Some(at) = label {
         b.label(at, "Ribs", "Soundboard");
@@ -1992,6 +2009,14 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
     let (main_w, bass_w) = built.map_or((0.0125, 0.015), |s| (s.bridge_width / 2.0, s.bridge_width / 2.0));
     b.wall(&tb, false, -main_w, main_w, 0.0, &main_top, main);
     b.wall(&bb, false, -bass_w, bass_w, 0.0, &bass_top, bass);
+    // The bend that makes one bridge of the two
+    // ([`piano_core::fem::BoardStructure::bridge_ring`]), from the main
+    // bridge's height at its lowest key to the bass bridge's body.
+    let ring = if built.is_some() { piano_core::fem::ring_line(&sb) } else { Vec::new() };
+    if ring.len() > 1 {
+        let (h0, h1) = (main_top(tb.len() - 1), bass_top(bb.len() - 1));
+        b.wall(&ring, false, -main_w, main_w, 0.0, &|i| h0 + (h1 - h0) * i as f64 / (ring.len() - 1) as f64, main);
+    }
     if built.is_some() {
         b.wall(&bb, false, -BASS_CAP / 2.0, BASS_CAP / 2.0, 0.0, &|_| bass_z, bass);
     }
@@ -2788,6 +2813,37 @@ mod tests {
         let mut m = PianoModel::default();
         m.soundboard.as_mut().unwrap().structure.enabled = true;
         m
+    }
+
+    /// The settings of the board as the D is drawn: feathered ribs and the
+    /// bridge in one piece show as the engine has them.
+    #[test]
+    fn feathered_ribs_and_the_ring_show() {
+        let ribs = |s: &Scene| s.tris.chunks(3).filter(|t| t[0].color == rgba(RIB_WOOD, 1.0)).count();
+        let bridge = |s: &Scene| s.tris.chunks(3).filter(|t| t[0].color == rgba(sketches::BRIDGE, 1.0)).count();
+        let lowest = |s: &Scene| s.tris.iter().filter(|v| v.color == rgba(RIB_WOOD, 1.0)).map(|v| v.pos[2]).fold(f32::MAX, f32::min);
+        let plain = build(&built(), None, &options());
+        let mut m = built();
+        let st = &mut m.soundboard.as_mut().unwrap().structure;
+        st.rib_feather = 0.15;
+        // Every rib as high at its ends as in its middle: only the feather thins it.
+        for r in &mut st.ribs {
+            r.5 = r.4;
+        }
+        let feathered = build(&m, None, &options());
+        assert_eq!(ribs(&feathered), 16 * (3 * (RIB_SECTIONS + 2 * RIB_FEATHER_SECTIONS) + 2) * 2);
+        // As deep in the middle as the parabola's ribs; an end face 4 mm high under the board, not the rib's whole height.
+        assert!((lowest(&feathered) - lowest(&plain)).abs() < 1e-4);
+        let st = m.soundboard.unwrap().structure;
+        let (rib, plate) = (st.ribs[8], st.plate_edge);
+        let len = ((rib.2 - rib.0) * m.soundboard.unwrap().a).hypot((rib.3 - rib.1) * m.soundboard.unwrap().b);
+        assert!((st.rib_thickness_at(&rib, 0.0, len, plate) - plate - st.rib_tip).abs() < 1e-3 && st.rib_thickness_at(&rib, 0.5 * len, len, plate) == rib.4);
+        // The ring: more of the bridge, and none without the setting.
+        assert_eq!(bridge(&feathered), bridge(&plain));
+        m.soundboard.as_mut().unwrap().structure.bridge_ring = 0.1;
+        let ringed = build(&m, None, &options());
+        assert!(bridge(&ringed) > bridge(&plain) + 20, "{} against {}", bridge(&ringed), bridge(&plain));
+        assert_eq!(piano_core::fem::ring_line(&built().soundboard.unwrap()).len(), 0);
     }
 
     #[test]

@@ -92,6 +92,14 @@ pub struct BoardStructure {
     /// (m), parabolic between them. From the treble to the bass; unused
     /// entries have no length.
     pub ribs: [(f64, f64, f64, f64, f64, f64); RIB_POINTS],
+    /// A rib's ends as they are cut: over its last `rib_feather` metres (a
+    /// quarter of its length at most) the rib falls from its full height to
+    /// `rib_tip` (m, under the plate), as measured on a concert grand
+    /// (Plath 2019: 19.55·exp(−0.024·d) + 4 mm, d mm into the notch). A rib
+    /// then keeps its middle thickness up to there, and its entry's end
+    /// thickness is not read. 0: the parabola between middle and end.
+    pub rib_feather: f64,
+    pub rib_tip: f64,
     /// Width of the first rib and of the last (m), linear between them.
     pub rib_width_treble: f64,
     pub rib_width_bass: f64,
@@ -101,6 +109,13 @@ pub struct BoardStructure {
     pub main_bridge_thickness: [(f64, f64); MAIN_BRIDGE_POINTS],
     pub bass_bridge_thickness: [(f64, f64); BASS_BRIDGE_POINTS],
     pub bridge_width: f64,
+    /// The two bridges are one: beyond its lowest key the main bridge turns
+    /// round and comes back as the bass bridge, as on a Steinway grand (its
+    /// ring bridge; RT-425's figure 2 has it). An arc of a circle from the
+    /// main bridge's lowest point to the bass bridge's, on the tail's side,
+    /// this far (m) from the straight line between them at its middle; 0: two
+    /// separate bridges, each ending free on the board.
+    pub bridge_ring: f64,
     /// The strings hold the bridge. A string under tension T that crosses the
     /// bridge between its speaking length L and its rear length l, up to the
     /// hitch pin, pulls the bridge back by T·(1/L + 1/l) per metre it is
@@ -108,12 +123,24 @@ pub struct BoardStructure {
     /// modes are computed with. A board measured without its strings has
     /// none (docs/real_board.md).
     pub strings: bool,
+    /// The strings hold the bridge's top as well. Where the board tilts by θ
+    /// along a string, the bridge's top, a height h over the stack's neutral
+    /// plane, moves by h·θ along it and stretches one side of the string as
+    /// it slackens the other: E·A·(1/L + 1/l)·h² per radian, the string
+    /// pinned on the bridge. A stiffness on the board's slope, which raises
+    /// a mode the more the shorter its waves along the strings; with
+    /// `strings`.
+    pub strings_grip: bool,
     /// The strings' rear length, from the bridge to the hitch pin or to the
     /// duplex bar: pairs of MIDI note and metres, ascending.
     pub back_length: [(f64, f64); BACK_POINTS],
     /// The hold of each key's strings, from the scale's tensions and lengths.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub hold: StringHold,
+    /// Each key's strings along their length, E·A·(1/L + 1/l) summed (N/m),
+    /// from the scale as well.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub grip: StringHold,
 }
 
 impl Default for BoardStructure {
@@ -132,6 +159,23 @@ impl BoardStructure {
     /// bridge or on the bass one.
     pub fn bridge_thickness_at(&self, key: f64, main: bool) -> f64 {
         if main { curve(&self.main_bridge_thickness, key) } else { curve(&self.bass_bridge_thickness, key) }
+    }
+
+    /// A rib's thickness (m), the plate included, `along` metres from one
+    /// end of its `len`, where the plate is `plate` thick: `rib` is its
+    /// entry of [`Self::ribs`]. Feathered ([`Self::rib_feather`]), it keeps
+    /// its middle thickness up to the notch; else the parabola from its
+    /// middle to its ends.
+    pub fn rib_thickness_at(&self, rib: &(f64, f64, f64, f64, f64, f64), along: f64, len: f64, plate: f64) -> f64 {
+        if self.rib_feather > 0.0 {
+            // Into the notch from where it starts, 24 per metre.
+            let feather = self.rib_feather.min(0.25 * len);
+            let into = feather - along.min(len - along);
+            if into > 0.0 { plate + self.rib_tip + (rib.4 - plate - self.rib_tip).max(0.0) * (-24.0 * into).exp() } else { rib.4 }
+        } else {
+            let u = 2.0 * along / len.max(1e-12) - 1.0;
+            rib.4 - (rib.4 - rib.5) * u * u
+        }
     }
 
     /// Plate thickness (m) at `edge` m from the rim.
@@ -196,14 +240,19 @@ impl BoardStructure {
             (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         ],
+        rib_feather: 0.0,
+        rib_tip: 0.004,
         rib_width_treble: 0.02,
         rib_width_bass: 0.026,
         main_bridge_thickness: [(41.0, 0.055), (49.0, 0.067), (53.0, 0.07), (61.0, 0.064), (69.0, 0.055), (81.0, 0.042), (97.0, 0.032), (108.0, 0.029)],
         bass_bridge_thickness: [(21.0, 0.052), (32.0, 0.058), (40.0, 0.06)],
         bridge_width: 0.03,
+        bridge_ring: 0.0,
         strings: false,
+        strings_grip: false,
         back_length: [(21.0, 0.24), (40.0, 0.18), (41.0, 0.22), (60.0, 0.105), (84.0, 0.058), (108.0, 0.045)],
         hold: StringHold([0.0; 88]),
+        grip: StringHold([0.0; 88]),
     };
 }
 
@@ -313,8 +362,7 @@ struct Rib {
     p: (f64, f64),
     dir: (f64, f64),
     len: f64,
-    mid: f64,
-    end: f64,
+    entry: (f64, f64, f64, f64, f64, f64),
     half_width: f64,
 }
 
@@ -323,6 +371,32 @@ struct BridgePiece {
     dir: (f64, f64),
     len: f64,
     thickness: (f64, f64),
+}
+
+/// The arc that joins the two bridges ([`BoardStructure::bridge_ring`]), from
+/// the main bridge's lowest point to the bass bridge's, in metres on the
+/// plate; empty when they are two. Its thickness runs from the one bridge's
+/// to the other's along it.
+pub fn ring_line(p: &SoundboardParams) -> Vec<(f64, f64)> {
+    let ring = p.structure.bridge_ring;
+    let (p0, p1) = (p.bridge_point_at(p.main_bridge_from as f64, true), p.bridge_point_at(21.0, false));
+    let chord = (p1.0 - p0.0).hypot(p1.1 - p0.1);
+    if ring <= 0.0 || chord <= 0.0 {
+        return Vec::new();
+    }
+    let e = ((p1.0 - p0.0) / chord, (p1.1 - p0.1) / chord);
+    // The normal on the tail's side.
+    let n = if e.1 < 0.0 { (-e.1, e.0) } else { (e.1, -e.0) };
+    let half = 2.0 * (2.0 * ring / chord).atan();
+    let radius = 0.5 * chord / half.sin();
+    let centre = (0.5 * (p0.0 + p1.0) + n.0 * (ring - radius), 0.5 * (p0.1 + p1.1) + n.1 * (ring - radius));
+    let pieces = ((2.0 * half * radius / 0.02).ceil() as usize).max(2);
+    (0..=pieces)
+        .map(|i| {
+            let t = half * (2.0 * i as f64 / pieces as f64 - 1.0);
+            (centre.0 + radius * (n.0 * t.cos() + e.0 * t.sin()), centre.1 + radius * (n.1 * t.cos() + e.1 * t.sin()))
+        })
+        .collect()
 }
 
 /// The board's materials, point by point.
@@ -347,7 +421,7 @@ impl Structure {
             .map(|(r, width)| {
                 let (x0, y0, x1, y1) = (r.0 * p.a, r.1 * p.b, r.2 * p.a, r.3 * p.b);
                 let len = (x1 - x0).hypot(y1 - y0);
-                Rib { p: (x0, y0), dir: ((x1 - x0) / len, (y1 - y0) / len), len, mid: r.4, end: r.5, half_width: 0.5 * width }
+                Rib { p: (x0, y0), dir: ((x1 - x0) / len, (y1 - y0) / len), len, entry: r, half_width: 0.5 * width }
             })
             .collect();
         let rib_q = ribs.iter().map(|r| (rotated(s.spruce_el, s.spruce_er, s.spruce_g, s.spruce_nu, r.dir.0, r.dir.1), rotated_shear(s.spruce_gl, s.spruce_gr, r.dir.0, r.dir.1))).collect();
@@ -366,6 +440,16 @@ impl Structure {
                 bridges.push(BridgePiece { p: q0, dir: ((q1.0 - q0.0) / len, (q1.1 - q0.1) / len), len, thickness: (th(at(i)), th(at(i + 1))) });
             }
         }
+        let ring = ring_line(p);
+        let (t0, t1) = (s.bridge_thickness_at(main, true), s.bridge_thickness_at(21.0, false));
+        let th = |i: usize| t0 + (t1 - t0) * i as f64 / (ring.len().max(2) - 1) as f64;
+        for (i, w) in ring.windows(2).enumerate() {
+            let (q0, q1) = (w[0], w[1]);
+            let len = (q1.0 - q0.0).hypot(q1.1 - q0.1);
+            if len > 0.0 {
+                bridges.push(BridgePiece { p: q0, dir: ((q1.0 - q0.0) / len, (q1.1 - q0.1) / len), len, thickness: (th(i), th(i + 1)) });
+            }
+        }
         Self { s, outline: Outline::new(p), a: p.a, b: p.b, ribs, bridges, grain: rotated(s.spruce_el, s.spruce_er, s.spruce_g, s.spruce_nu, ca, sa), grain_shear: rotated_shear(s.spruce_gl, s.spruce_gr, ca, sa), rib_q }
     }
 
@@ -374,9 +458,30 @@ impl Structure {
         self.s.plate_thickness_at(d)
     }
 
+    /// Height (m) of the stack's top over its neutral plane at (x, y), for a
+    /// bending along (c, s): where a string sits on the bridge.
+    fn top_arm(&self, x: f64, y: f64, c: f64, s: f64) -> f64 {
+        let all: Vec<usize> = (0..self.bridges.len()).collect();
+        let (layers, n) = self.layers(x, y, &all);
+        let (mut a, mut b, mut top) = (0.0, 0.0, 0.0f64);
+        for l in &layers[..n] {
+            // Q̄ along (c, s): Q11·c⁴ + 2·(Q12 + 2·Q66)·c²s² + Q22·s⁴ + 4·(Q16·c³s + Q26·c·s³).
+            let q = l.q[0] * c.powi(4) + 2.0 * (l.q[1] + 2.0 * l.q[5]) * c * c * s * s + l.q[3] * s.powi(4) + 4.0 * (l.q[2] * c.powi(3) * s + l.q[4] * c * s.powi(3));
+            a += q * (l.z1 - l.z0);
+            b += q * (l.z1 * l.z1 - l.z0 * l.z0) / 2.0;
+            top = top.max(l.z1);
+        }
+        top - b / a
+    }
+
     /// The stack at (x, y). `near`: the bridge pieces worth looking at for
     /// this element.
     fn section(&self, x: f64, y: f64, near: &[usize]) -> Section {
+        let (layers, n) = self.layers(x, y, near);
+        reduce(&layers[..n])
+    }
+
+    fn layers(&self, x: f64, y: f64, near: &[usize]) -> ([Layer; 3], usize) {
         let s = &self.s;
         let t = self.plate_thickness(x, y);
         let empty = Layer { density: 0.0, q: [0.0; 6], shear: [0.0; 3], z0: 0.0, z1: 0.0 };
@@ -388,8 +493,7 @@ impl Structure {
             if along < 0.0 || along > r.len || (dy * r.dir.0 - dx * r.dir.1).abs() > r.half_width {
                 continue;
             }
-            let u = 2.0 * along / r.len - 1.0;
-            let total = r.mid - (r.mid - r.end) * u * u;
+            let total = s.rib_thickness_at(&r.entry, along, r.len, t);
             layers[n] = Layer { density: s.spruce_density, q: *q, shear: *sh, z0: t - total.max(t), z1: 0.0 };
             n += 1;
             break;
@@ -412,7 +516,7 @@ impl Structure {
             layers[n] = Layer { density: s.bridge_density, q, shear: rotated_shear(s.bridge_gl, s.bridge_gr, b.dir.0, b.dir.1), z0: t, z1: total.max(t) };
             n += 1;
         }
-        reduce(&layers[..n])
+        (layers, n)
     }
 }
 
@@ -885,6 +989,42 @@ impl BoardFem {
                         let Some(gb) = global(c, 3 * b) else { continue };
                         if ga <= gb {
                             k.add(ga, gb, hold as f64 * share[a] * share[b]);
+                        }
+                    }
+                }
+            }
+        }
+        // Their grip on the bridge's top: a stiffness on the board's slope
+        // along each key's strings, at its bridge point.
+        if s.strings && s.strings_grip {
+            for (i, &grip) in s.grip.0.iter().enumerate() {
+                let note = 21 + i as u8;
+                let (x, y) = p.bridge_point(note);
+                let (u, v) = (x / hx, y / hy);
+                if grip <= 0.0 || u < 0.0 || v < 0.0 || u >= nx as f64 || v >= ny as f64 {
+                    continue;
+                }
+                let (ci, cj) = (u as usize, v as usize);
+                if !active[ci * ny + cj] {
+                    continue;
+                }
+                let slant = if note >= p.main_bridge_from { p.string_slant(note as f64) } else { 0.0 };
+                let dir = [slant.cos(), slant.sin()];
+                let arm = st.top_arm(x, y, dir[0], dir[1]);
+                let kappa = grip as f64 * arm * arm;
+                let (fx, fy) = (u - ci as f64, v - cj as f64);
+                let share = [(1.0 - fx) * (1.0 - fy), fx * (1.0 - fy), (1.0 - fx) * fy, fx * fy];
+                let c = ci * ny + cj;
+                for a in 0..4 {
+                    for da in 0..2 {
+                        let Some(ga) = global(c, 3 * a + 1 + da) else { continue };
+                        for b in 0..4 {
+                            for db in 0..2 {
+                                let Some(gb) = global(c, 3 * b + 1 + db) else { continue };
+                                if ga <= gb {
+                                    k.add(ga, gb, kappa * share[a] * share[b] * dir[da] * dir[db]);
+                                }
+                            }
                         }
                     }
                 }
@@ -1371,6 +1511,74 @@ mod tests {
         let expected = (bare.omega[0].powi(2) + k * bare.shape(0, x, y).powi(2)).sqrt();
         assert!(held.omega[0] > bare.omega[0] * 1.001, "{} against {}", held.omega[0], bare.omega[0]);
         assert!((held.omega[0] / expected - 1.0).abs() < 2e-3, "{} against {expected}", held.omega[0]);
+    }
+
+    /// The strings' grip holds the board's slope under the bridge, not its
+    /// movement: it raises the first mode as κ·(∂Φ/∂s)² says, to first order,
+    /// s along the strings and κ their stiffness times the square of the
+    /// height of the stack's top over its neutral plane.
+    #[test]
+    fn the_strings_grip_raises_a_mode_that_tilts_the_bridge() {
+        let mut p = plain(0.6, 0.02, 600.0);
+        p.treble_bridge = [(0.3, 0.3); 5];
+        p.bass_bridge = [(0.3, 0.3); 2];
+        p.structure.strings = true;
+        let bare = BoardFem::build(&p);
+        let (x, y) = p.bridge_point(60);
+        let (sin, cos) = p.string_slant(60.0).sin_cos();
+        let slope = (bare.shape(0, x + 0.02 * cos, y + 0.02 * sin) - bare.shape(0, x - 0.02 * cos, y - 0.02 * sin)) / 0.04;
+        let arm = Structure::new(&p).top_arm(x, y, cos, sin);
+        assert!(arm >= 0.005 - 1e-12, "{arm}");
+        let kappa = 0.01 * bare.omega[0].powi(2) / (slope * slope);
+        let mut grip = StringHold::default();
+        grip.0[39] = (kappa / (arm * arm)) as f32;
+        p.structure.grip = grip;
+        assert_eq!(BoardFem::build(&p).omega[0], bare.omega[0], "the grip acts only when switched on");
+        p.structure.strings_grip = true;
+        let held = BoardFem::build(&p);
+        // A little under the first order: the plate gives way around a moment at a point.
+        let share = (held.omega[0].powi(2) - bare.omega[0].powi(2)) / (kappa * slope * slope);
+        assert!(share > 0.6 && share < 1.02, "{share}: {} against {}", held.omega[0], bare.omega[0]);
+    }
+
+    /// A feathered rib keeps its height up to the notch and ends at its tip;
+    /// without the feather, the parabola as before.
+    #[test]
+    fn a_feathered_rib_ends_at_its_tip() {
+        let mut p = plain(1.0, 0.02, 300.0);
+        p.structure.ribs[0] = (0.1, 0.5, 0.9, 0.5, 0.035, 0.02);
+        (p.structure.rib_width_treble, p.structure.rib_width_bass) = (0.025, 0.025);
+        let height = |p: &SoundboardParams, x: f64| Structure::new(p).section(x, 0.5, &[]).rho / 400.0 - 0.01;
+        assert!((height(&p, 0.5) - 0.025).abs() < 1e-9 && (height(&p, 0.1001) - 0.01).abs() < 1e-4, "the parabola");
+        (p.structure.rib_feather, p.structure.rib_tip) = (0.15, 0.004);
+        assert!((height(&p, 0.5) - 0.025).abs() < 1e-9 && (height(&p, 0.26) - 0.025).abs() < 1e-9, "full height up to the notch");
+        // 10 cm into the notch: the tip and a tenth of what is cut.
+        let into = 0.004 + 0.021 * (-2.4f64).exp();
+        assert!((height(&p, 0.15) - into).abs() < 1e-6 && (height(&p, 0.85) - into).abs() < 1e-6, "{} against {into}", height(&p, 0.15));
+        assert!(height(&p, 0.101) < 0.0047);
+    }
+
+    /// The ring joins the main bridge's lowest point to the bass bridge's by
+    /// an arc that stands as far from their chord as asked, on the tail's side.
+    #[test]
+    fn the_ring_joins_the_two_bridges() {
+        let mut p = SoundboardParams { a: 2.124, b: 1.46, main_bridge_from: 41, treble_bridge: [(0.0443, 0.048), (0.0809, 0.202), (0.1596, 0.38), (0.3441, 0.579), (0.8023, 0.842)], bass_bridge: [(0.5765, 0.562), (0.8707, 0.753)], ..SoundboardParams::GRAND_2M };
+        let apart = Structure::new(&p).bridges.len();
+        p.structure.bridge_ring = 0.1;
+        let st = Structure::new(&p);
+        let ring = &st.bridges[apart..];
+        let (p0, p1) = (p.bridge_point_at(41.0, true), p.bridge_point_at(21.0, false));
+        let end = |b: &BridgePiece| (b.p.0 + b.dir.0 * b.len, b.p.1 + b.dir.1 * b.len);
+        let near = |a: (f64, f64), b: (f64, f64)| (a.0 - b.0).hypot(a.1 - b.1) < 1e-9;
+        assert!(ring.len() > 5 && near(ring[0].p, p0) && near(end(ring.last().unwrap()), p1));
+        assert!(ring.windows(2).all(|w| near(end(&w[0]), w[1].p)), "one line");
+        let chord = (p1.0 - p0.0).hypot(p1.1 - p0.1);
+        let off = |q: (f64, f64)| ((q.0 - p0.0) * (p1.1 - p0.1) - (q.1 - p0.1) * (p1.0 - p0.0)) / chord;
+        let far = ring.iter().map(|b| off(b.p)).fold(0.0f64, |m, v| if v.abs() > m.abs() { v } else { m });
+        assert!((far.abs() - 0.1).abs() < 2e-3, "{far}");
+        // On the tail's side: further along the board than the chord's middle.
+        let most = ring.iter().map(|b| b.p.0).fold(0.0f64, f64::max);
+        assert!(most > 0.5 * (p0.0 + p1.0) + 0.05, "{most}");
     }
 
     #[test]

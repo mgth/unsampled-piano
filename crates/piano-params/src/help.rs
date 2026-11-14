@@ -763,11 +763,27 @@ const HELP: &[(&str, &str, &str)] = &[
         "Each: its two ends in normalised plate coordinates, its thickness with the plate at its \
          middle and at its ends (m), from the treble to the bass. Unused: no length.",
     ),
+    (
+        "soundboard.structure.rib_feather",
+        "The ribs' ends as they are cut: thinned over this length before the rim. 0: ribs higher in \
+         their middle, as a parabola.",
+        "Metres, a quarter of the rib's length at most. The rib keeps its middle thickness up to \
+         there, then falls as exp(−24·d) to `rib_tip`, as measured on a concert grand \
+         (docs/bass_gaps.md).",
+    ),
+    ("soundboard.structure.rib_tip", "Height of a rib's thinned end under the board.", "Metres; with `rib_feather`."),
     ("soundboard.structure.rib_width_treble", "Width of the rib nearest the treble.", "Metres."),
     ("soundboard.structure.rib_width_bass", "Width of the rib nearest the bass.", "Metres."),
     ("soundboard.structure.main_bridge_thickness", "Height of the main bridge along the keys, the board included.", "Pairs of MIDI note and metres, ascending."),
     ("soundboard.structure.bass_bridge_thickness", "Height of the bass bridge along the keys, the board included.", "Pairs of MIDI note and metres, ascending."),
     ("soundboard.structure.bridge_width", "Width of the bridges.", "Metres."),
+    (
+        "soundboard.structure.bridge_ring",
+        "The two bridges are one piece: past its lowest key the main bridge turns round and comes \
+         back as the bass bridge, as on a Steinway grand. 0: two separate bridges.",
+        "Metres: how far the arc that joins them stands from the straight line between their two \
+         lowest keys, on the tail's side.",
+    ),
     (
         "soundboard.structure.strings",
         "The strings hold the bridge: under tension on both sides of it, they pull it back when it \
@@ -775,6 +791,15 @@ const HELP: &[(&str, &str, &str)] = &[
         "A spring T·(1/L + 1/l) per string under its bridge point, L its speaking length and l its \
          rear length (`back_length`), in the stiffness the modes are computed with \
          (docs/real_board.md).",
+    ),
+    (
+        "soundboard.structure.strings_grip",
+        "The strings hold the top of the bridge too: when the board tilts under it, the bridge's \
+         top moves along the strings and stretches them. The board's resonances rise by about as \
+         many hertz each, as measured when a grand is strung. With `strings`.",
+        "A stiffness E·A·(1/L + 1/l)·h² per radian on the board's slope along each string at its \
+         bridge point, h the height of the bridge's top over the neutral plane there, the steel's \
+         section from the string's inharmonicity (docs/bass_gaps.md).",
     ),
     (
         "soundboard.structure.back_length",
