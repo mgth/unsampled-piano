@@ -126,9 +126,26 @@ enabled = true
 # are 4.3 cm long on elements of 1 cm; 8 kHz was heard to sound the same
 # (docs/real_board.md, "Above 3 kHz").
 below = 6000.0
-# The strings hold the bridge, T·(1/L + 1/l) each: the first modes at 68, 77, 95
-# and 111 Hz, a real strung concert grand's first resonance being at 66-72 Hz.
+# The strings hold the bridge, T·(1/L + 1/l) each, and its top along their own
+# length, E·A·(1/L + 1/l)·h² on the board's slope: stringing raises the board's
+# first resonances from 57, 79, 110 Hz to 78, 100, 137 Hz, a real concert grand's
+# from 56, 80, 114 to 74, 98, 136 (Plath 2019; docs/bass_gaps.md).
 strings = true
+strings_grip = true
+# The D's 17 ribs from its dimensioned drawing (Boutillon, Ege & Paulello 2012,
+# figure 2; tools/steinway_d_ribs.py): from rim to rim, 17 to 27 mm high under the
+# board, their ends cut over 15 cm down to 4 mm as measured on a concert grand.
+# RT-425's mesh had 16, short of the rim, and left the bass front corner bare.
+ribs = [[0.0147, 0.2308, 0.1294, 0.0319, 0.026, 0.026], [0.0205, 0.3289, 0.164, 0.0802, 0.028, 0.028], [0.0269, 0.4374, 0.2021, 0.1336, 0.028, 0.028], [0.0331, 0.5421, 0.2391, 0.1849, 0.031, 0.031], [0.0395, 0.6508, 0.2793, 0.235, 0.032, 0.032], [0.046, 0.7618, 0.3203, 0.2861, 0.035, 0.035], [0.0532, 0.8831, 0.38, 0.3164, 0.035, 0.035], [0.0656, 0.9974, 0.4478, 0.3349, 0.035, 0.035], [0.1458, 0.9974, 0.5171, 0.3538, 0.035, 0.035], [0.2279, 0.9974, 0.5896, 0.3702, 0.035, 0.035], [0.3093, 0.9974, 0.6643, 0.3819, 0.035, 0.035], [0.3981, 0.9974, 0.7458, 0.3947, 0.035, 0.035], [0.4863, 0.9974, 0.8266, 0.4073, 0.035, 0.035], [0.5739, 0.9974, 0.892, 0.4458, 0.035, 0.035], [0.6596, 0.9974, 0.9415, 0.5086, 0.035, 0.035], [0.7403, 0.9974, 0.9881, 0.5678, 0.036, 0.036], [0.8245, 0.9974, 0.9961, 0.6999, 0.036, 0.036], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+rib_feather = 0.15
+rib_width_treble = 0.0215
+rib_width_bass = 0.0255
+# The bridge in one piece, turning round at the tail, and its heights on the same
+# drawing: 29 to 37.5 mm along the long bridge, 60 mm on the bass one (the board's
+# 9 mm added).
+bridge_ring = 0.1
+main_bridge_thickness = [[41.0, 0.0465], [49.0, 0.0455], [57.0, 0.0445], [65.0, 0.044], [77.0, 0.042], [89.0, 0.0395], [99.0, 0.0385], [108.0, 0.038]]
+bass_bridge_thickness = [[21.0, 0.069], [32.0, 0.069], [40.0, 0.069]]
 
 [frame]
 # The plate over the board and the pin block (offset_x −0.2), as the default's.

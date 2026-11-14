@@ -340,6 +340,8 @@ Raw level: −25.9 dB against −24.9 before, the D −20.9.
 
 ## Still not in it
 
+(2026-11-14) The ribs and the bridges above are RT-425's mesh, which is not the D as built: 16 ribs that stop short of the rim, the bridge's heights read off a colour map. The D's dimensioned drawing, the bridge in one piece (`bridge_ring`), feathered ribs (`rib_feather`) and the strings' hold on the bridge's top (`strings_grip`) are in docs/bass_gaps.md, "The bass bridge's coupling: the board as it is drawn", and in the preset since that day. This document's figures are the former board's.
+
 - **Crown and bearing**: a foundation term set on four modes, not the shell under the strings' 200 kN.
 - **Coupling**: the rim and the frame receive the board's forces and do not give back. The clamped edge is rigid. Made two-way, the ring would change two modes in 227 ([What the rim and the case could take](#what-the-rim-and-the-case-could-take)).
 - **Air between modes**: each mode loads only itself. The case's own volume, the lid and the room do not act back on the board. The case's field is statistical: no individual reflection, no strut, the frame's real shape being unknown to the sources used here.

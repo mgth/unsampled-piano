@@ -1236,12 +1236,33 @@ impl PianoModel {
         hold
     }
 
+    /// What each key's strings hold the bridge's top with along their own
+    /// length (N/m): E·A·(1/L + 1/l) per string, the steel's section from
+    /// the string's inharmonicity, B = π²·E·I/(T·L²)
+    /// ([`crate::fem::BoardStructure::strings_grip`]).
+    pub fn string_grip(&self, structure: &crate::fem::BoardStructure) -> crate::fem::StringHold {
+        const STEEL: f64 = 2.0e11;
+        let mut grip = crate::fem::StringHold::default();
+        for (i, g) in grip.0.iter_mut().enumerate() {
+            let note = 21 + i as u8;
+            let p = self.note(note);
+            let ei = p.b * p.tension * p.length * p.length / (std::f64::consts::PI * std::f64::consts::PI);
+            let d2 = (64.0 * ei / (std::f64::consts::PI * STEEL)).sqrt();
+            let ea = STEEL * std::f64::consts::PI * d2 / 4.0;
+            *g = (p.strings as f64 * ea * (1.0 / p.length + 1.0 / structure.back_length_at(note).max(1e-3))) as f32;
+        }
+        grip
+    }
+
     /// The soundboard's parameters as it is built: with the strings in its
     /// structure, their hold from this scale.
     pub fn board_params(&self) -> Option<crate::soundboard::SoundboardParams> {
         self.soundboard.map(|mut p| {
             if p.structure.enabled && p.structure.strings {
                 p.structure.hold = self.string_hold(&p.structure);
+                if p.structure.strings_grip {
+                    p.structure.grip = self.string_grip(&p.structure);
+                }
             }
             p
         })
