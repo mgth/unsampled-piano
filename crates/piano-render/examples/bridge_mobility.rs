@@ -4,7 +4,7 @@
 
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();
-    let model = piano_host::load_preset(std::path::Path::new(&a[0])).unwrap();
+    let model = piano_host::load_preset(std::path::Path::new(&a[0])).unwrap().with_macros();
     let sb = model.board().expect("a soundboard");
     let bands: Vec<f64> = (0..11).map(|i| 500.0 * 2f64.powf(i as f64 / 3.0)).collect();
     println!("| key | {} |", bands.iter().map(|b| format!("{b:.0}")).collect::<Vec<_>>().join(" | "));
