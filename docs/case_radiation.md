@@ -64,6 +64,8 @@ Each was switched off or changed alone in `bridge_to_ear` and read in its own ba
 
 The change: with no lid, the field takes only the share of the board's sound that meets the rim before leaving. For a diffuse radiator that is one less the view factor between two parallel rectangles, the board and the opening `lid_hinge_height` above it: 16 % on the D (84 % goes straight out), 8 dB less field. R = A/(share · (1 − the rim's absorption)), and the openings give back that share. No rim, no field. `SoundboardParams::case_room_constant`, `facing_share`; test `without_a_lid_only_the_rim_scatters`. Nothing is fitted.
 
+The Lid control puts a removed lid back by degrees, transparent at first (`lid_transmission` near 1). The field follows: the power a lid passes beyond what its absorption already counts, t² over the 10 %, is an opening the board faces, and the field goes over by that much to the one without a lid. At the preset's lid (t = 0.1) that is nothing; from a removed lid the control moves the field without a step (test `the_case_field_follows_the_lid_fading_in`).
+
 Only a preset with `case_field` and the lid removed changes: the Concert grand played without its lid. With a lid, at any angle, the renders are bit for bit as before (four notes compared through the close microphones), so the bench (1.82) and the distance to the commercial D (8.23), both taken lid on, are unchanged by construction; neither was run again.
 
 Lid off, player's seat, model − real, all keys:
