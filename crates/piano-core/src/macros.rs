@@ -293,6 +293,49 @@ mod tests {
         assert_eq!((open.lid_angle, q), (LID_MAX, 3.0));
     }
 
+    /// The same with the case's field on: the field of a removed lid is the
+    /// rim's share only, and a lid coming back transparent starts from it.
+    #[test]
+    fn the_case_field_follows_the_lid_fading_in() {
+        use crate::soundboard::{Soundboard, SoundboardParams};
+        let sb = SoundboardParams { a: 2.124, b: 1.46, lid_hinge_height: 0.16, case_field: true, mics: [(-1.19, 0.83, 0.45), (-1.19, 0.63, 0.45)], ..SoundboardParams::GRAND_2M };
+        let removed = PianoModel { soundboard: Some(sb), ..PianoModel::default() };
+        let at = |l: f64| {
+            let mut m = removed;
+            m.macros.lid = l;
+            m.with_macros().soundboard.unwrap()
+        };
+        let base = at(0.0);
+        assert!(base.lid_removed && base.case_field);
+        let (r0, leaving0, f0) = base.case_room_constant();
+        for eps in [-1e-6, 1e-6] {
+            let sb = at(eps);
+            assert!(!sb.lid_removed);
+            let (r, leaving, f) = sb.case_room_constant();
+            assert!((r / r0 - 1.0).abs() < 1e-4 && (leaving / leaving0 - 1.0).abs() < 1e-4 && (f / f0 - 1.0).abs() < 1e-4, "{eps}: {r} {r0}, {leaving} {leaving0}");
+        }
+        // The field grows as the lid comes back, up to the whole lid's.
+        let leaving: Vec<f64> = [0.0, 0.3, 0.6, 1.0].iter().map(|&l| at(l).case_room_constant().1).collect();
+        assert!(leaving.windows(2).all(|w| w[0] < w[1]), "{leaving:?}");
+        let whole = SoundboardParams { lid_removed: false, lid_angle: LID_MAX, ..sb };
+        assert_eq!(at(1.0).case_room_constant(), whole.case_room_constant());
+        // The radiation itself, with the field in it, does not jump either.
+        let rad = |sb: SoundboardParams| {
+            let mut b = Soundboard::new(SoundboardParams { f_max: 1500.0, grid_step: 0.05, ..sb }.resolved());
+            for m in b.modes.iter_mut() {
+                m.air = 0.01;
+            }
+            b.radiation()
+        };
+        let w0 = rad(base);
+        let e: f64 = w0.iter().flat_map(|x| x.iter().map(|c| c.norm_sqr())).sum();
+        for eps in [-1e-6, 1e-6] {
+            let w = rad(at(eps));
+            let d: f64 = w.iter().zip(&w0).flat_map(|(x, y)| (0..2).map(move |c| (x[c] - y[c]).norm_sqr())).sum();
+            assert!((d / e).sqrt() < 1e-4, "{eps}: {}", (d / e).sqrt());
+        }
+    }
+
     #[test]
     fn touch_keeps_mezzo_forte_and_stretch_reaches_equal_temperament() {
         let mut m = PianoModel::default();
