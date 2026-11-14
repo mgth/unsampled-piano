@@ -579,7 +579,10 @@ impl SoundboardParams {
     /// S all its surfaces, the share of A that leaves through the openings,
     /// the gap along the rim under the lid, or the whole top with no lid, and
     /// its Schroeder frequency 2000·√(T60/V) = 2000·√(0.161/A) (Hz): below
-    /// it the box's modes stand apart and no diffuse field builds up.
+    /// it the box's modes stand apart and no diffuse field builds up. With the
+    /// lid taken off, the top is the opening and the board faces it: only the
+    /// share of its sound that meets the rim first ([`facing_share`]) stays to
+    /// be scattered, R = A/(that share less the rim's absorption).
     pub fn case_room_constant(&self) -> (f64, f64, f64) {
         let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let relative: &[(f64, f64)] = if self.outline.iter().all(|&q| q == (0.0, 0.0)) { &corners } else { &self.outline };
@@ -597,7 +600,15 @@ impl SoundboardParams {
         let wall = perimeter * self.lid_hinge_height;
         let (open, closed) = if self.lid_removed { (area, area + wall) } else { (gap, 2.0 * area + wall) };
         let absorbing = open + CASE_ABSORPTION * closed;
-        (absorbing / (1.0 - absorbing / (open + closed)), open / absorbing, 2000.0 * (0.161 / absorbing).sqrt())
+        let schroeder = 2000.0 * (0.161 / absorbing).sqrt();
+        if self.lid_removed {
+            // With no lid the board faces the opening: what it radiates leaves
+            // at once, as the direct sound already has it, but for the share
+            // that meets the rim first. Only that share feeds the field.
+            let met = 1.0 - facing_share(self.a, self.b, self.lid_hinge_height);
+            return (absorbing / (met * (1.0 - CASE_ABSORPTION)), met * open / absorbing, schroeder);
+        }
+        (absorbing / (1.0 - absorbing / (open + closed)), open / absorbing, schroeder)
     }
 
     /// The case's reverberant pressure at the point `m` per unit modal
@@ -792,6 +803,19 @@ struct Lid {
     hinge: f64,
     reflection: f64,
     transmission: f64,
+}
+
+/// Share of what a rectangle a × b sends out, as a diffuse radiator, that
+/// reaches the equal rectangle facing it `h` away (the view factor of two
+/// parallel rectangles): the rest meets the walls between them.
+fn facing_share(a: f64, b: f64, h: f64) -> f64 {
+    if h <= 0.0 {
+        return 1.0;
+    }
+    let (x, y) = (a / h, b / h);
+    let (x1, y1) = ((1.0 + x * x).sqrt(), (1.0 + y * y).sqrt());
+    let sum = (x1 * y1 / (1.0 + x * x + y * y).sqrt()).ln() + x * y1 * (x / y1).atan() + y * x1 * (y / x1).atan() - x * x.atan() - y * y.atan();
+    (2.0 / (PI * x * y) * sum).clamp(0.0, 1.0)
 }
 
 fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
@@ -1766,6 +1790,31 @@ mod tests {
         // Shutting the lid closes the openings and nothing leaves.
         let shut = SoundboardParams { lid_angle: 0.0, ..p };
         assert_eq!(shut.case_room_constant().1, 0.0);
+    }
+
+    #[test]
+    fn without_a_lid_only_the_rim_scatters() {
+        // Two unit squares one unit apart see each other for 0.1998 (the
+        // tabulated view factor); a shallow case sends nearly all up.
+        assert!((facing_share(1.0, 1.0, 1.0) - 0.1998).abs() < 2e-4);
+        let p = SoundboardParams { a: 2.124, b: 1.46, outline: [(0.0, 0.0); OUTLINE_POINTS], lid_removed: true, lid_hinge_height: 0.16, ..SoundboardParams::GRAND_2M };
+        let met = 1.0 - facing_share(2.124, 1.46, 0.16);
+        assert!(met > 0.1 && met < 0.2, "{met}");
+        let (area, wall) = (2.124 * 1.46, 2.0 * (2.124 + 1.46) * 0.16);
+        let a = area + 0.1 * (area + wall);
+        let (r, leaving, _) = p.case_room_constant();
+        assert!((r - a / (0.9 * met)).abs() < 1e-9, "{r}");
+        assert!((leaving - met * area / a).abs() < 1e-9, "{leaving}");
+        // No rim: nothing is scattered, no field.
+        let flat = SoundboardParams { lid_hinge_height: 0.0, ..p };
+        let room = flat.case_room_constant();
+        assert_eq!(room.1, 0.0);
+        assert_eq!(flat.case_field_gain(room, TAU * 4000.0, 100.0, [1.0, 0.7, 0.0]), 0.0);
+        // A lid leaves the room as it was.
+        let lid = SoundboardParams { lid_removed: false, lid_angle: 35.0, ..p };
+        let open = (2.124 + 1.46) * 1.46 * 35f64.to_radians().sin();
+        let closed = 2.0 * area + wall;
+        assert!((lid.case_room_constant().0 - (open + 0.1 * closed) / (1.0 - (open + 0.1 * closed) / (open + closed))).abs() < 1e-9);
     }
 
     #[test]
