@@ -6,8 +6,12 @@
 # RT-425's hammer masses against Stulov's: 1.02 at C1, 1.05 at C4, 1.07 at C7.
 hammer_mass_scale = 1.053
 hammer_mass_slope = 0.00078
-# RT-425's strike point is 0.116–0.122 up to B7: no move towards the agraffe.
-strike_ratio_top = 0.0
+# The top hammers strike nearer the capo bar, down to 0.07 of the string at C8 (1/14):
+# a real grand's C8 hammer is set between 1/12 and 1/17 (Conklin). RT-425's 0.12 at
+# every key is a rule of that report; kept to C8, the top octave's fundamentals were
+# 17 dB short at a real grand's bridge and their second partial 19 dB too strong
+# (docs/steinway_d_gaps.md, "The strike point in the top octave").
+strike_ratio_top = 0.05
 # Top felt over a hard core: the recorded D's middle attack is darker than the
 # default's, and its low bass brightens far more from mf to ff (2–4 kHz at A0–B1,
 # 36 dB from velocity 60 to 100; 22 here with the harder felt below, 31 before it).

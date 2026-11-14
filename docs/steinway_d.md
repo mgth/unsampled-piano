@@ -103,7 +103,7 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `soundboard.rib_spacing` | 0 (off) | 0 (off) | the fitted plate's stiffness lines, 0.11 until 2026-11-02; the ribs are now in `soundboard.structure` |
 | `rim.thickness` | 0.075 | 0.083 | Steinway |
 | `strike_ratio` | 0.12 | 0.12 | C♯5 |
-| `strike_ratio_top` | 0.05 | 0 | RT-425's strike point stays at 0.116–0.122 up to B7 |
+| `strike_ratio_top` | 0.05 | 0.05 | 1/14 at C8, inside a real grand's 1/12 to 1/17 (Conklin); RT-425's 0.12 up to B7 is a rule, and cost the top octave its fundamentals (docs/steinway_d_gaps.md; 0 until 2026-11-14) |
 | `hammer_mass_slope` | 0 | 0.00078, with `hammer_mass_scale` 1.053 | RT-425 against Stulov, 1.02 at C1 to 1.07 at C7 |
 | `damper.highest_note` | 86 (D6) | 91 (G6) | the commercial D's setting, checked on its key-ups |
 | `damper.strength_slope` | 0 | 1 | the commercial D's key-ups: every key stops at about the same rate (docs/release.md) |
