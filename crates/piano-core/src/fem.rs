@@ -161,6 +161,23 @@ impl BoardStructure {
         if main { curve(&self.main_bridge_thickness, key) } else { curve(&self.bass_bridge_thickness, key) }
     }
 
+    /// A rib's thickness (m), the plate included, `along` metres from one
+    /// end of its `len`, where the plate is `plate` thick: `rib` is its
+    /// entry of [`Self::ribs`]. Feathered ([`Self::rib_feather`]), it keeps
+    /// its middle thickness up to the notch; else the parabola from its
+    /// middle to its ends.
+    pub fn rib_thickness_at(&self, rib: &(f64, f64, f64, f64, f64, f64), along: f64, len: f64, plate: f64) -> f64 {
+        if self.rib_feather > 0.0 {
+            // Into the notch from where it starts, 24 per metre.
+            let feather = self.rib_feather.min(0.25 * len);
+            let into = feather - along.min(len - along);
+            if into > 0.0 { plate + self.rib_tip + (rib.4 - plate - self.rib_tip).max(0.0) * (-24.0 * into).exp() } else { rib.4 }
+        } else {
+            let u = 2.0 * along / len.max(1e-12) - 1.0;
+            rib.4 - (rib.4 - rib.5) * u * u
+        }
+    }
+
     /// Plate thickness (m) at `edge` m from the rim.
     pub fn plate_thickness_at(&self, edge: f64) -> f64 {
         self.plate_center - (self.plate_center - self.plate_edge) * (-edge / self.plate_taper.max(1e-6)).exp()
@@ -345,8 +362,7 @@ struct Rib {
     p: (f64, f64),
     dir: (f64, f64),
     len: f64,
-    mid: f64,
-    end: f64,
+    entry: (f64, f64, f64, f64, f64, f64),
     half_width: f64,
 }
 
@@ -355,6 +371,32 @@ struct BridgePiece {
     dir: (f64, f64),
     len: f64,
     thickness: (f64, f64),
+}
+
+/// The arc that joins the two bridges ([`BoardStructure::bridge_ring`]), from
+/// the main bridge's lowest point to the bass bridge's, in metres on the
+/// plate; empty when they are two. Its thickness runs from the one bridge's
+/// to the other's along it.
+pub fn ring_line(p: &SoundboardParams) -> Vec<(f64, f64)> {
+    let ring = p.structure.bridge_ring;
+    let (p0, p1) = (p.bridge_point_at(p.main_bridge_from as f64, true), p.bridge_point_at(21.0, false));
+    let chord = (p1.0 - p0.0).hypot(p1.1 - p0.1);
+    if ring <= 0.0 || chord <= 0.0 {
+        return Vec::new();
+    }
+    let e = ((p1.0 - p0.0) / chord, (p1.1 - p0.1) / chord);
+    // The normal on the tail's side.
+    let n = if e.1 < 0.0 { (-e.1, e.0) } else { (e.1, -e.0) };
+    let half = 2.0 * (2.0 * ring / chord).atan();
+    let radius = 0.5 * chord / half.sin();
+    let centre = (0.5 * (p0.0 + p1.0) + n.0 * (ring - radius), 0.5 * (p0.1 + p1.1) + n.1 * (ring - radius));
+    let pieces = ((2.0 * half * radius / 0.02).ceil() as usize).max(2);
+    (0..=pieces)
+        .map(|i| {
+            let t = half * (2.0 * i as f64 / pieces as f64 - 1.0);
+            (centre.0 + radius * (n.0 * t.cos() + e.0 * t.sin()), centre.1 + radius * (n.1 * t.cos() + e.1 * t.sin()))
+        })
+        .collect()
 }
 
 /// The board's materials, point by point.
@@ -379,7 +421,7 @@ impl Structure {
             .map(|(r, width)| {
                 let (x0, y0, x1, y1) = (r.0 * p.a, r.1 * p.b, r.2 * p.a, r.3 * p.b);
                 let len = (x1 - x0).hypot(y1 - y0);
-                Rib { p: (x0, y0), dir: ((x1 - x0) / len, (y1 - y0) / len), len, mid: r.4, end: r.5, half_width: 0.5 * width }
+                Rib { p: (x0, y0), dir: ((x1 - x0) / len, (y1 - y0) / len), len, entry: r, half_width: 0.5 * width }
             })
             .collect();
         let rib_q = ribs.iter().map(|r| (rotated(s.spruce_el, s.spruce_er, s.spruce_g, s.spruce_nu, r.dir.0, r.dir.1), rotated_shear(s.spruce_gl, s.spruce_gr, r.dir.0, r.dir.1))).collect();
@@ -398,28 +440,14 @@ impl Structure {
                 bridges.push(BridgePiece { p: q0, dir: ((q1.0 - q0.0) / len, (q1.1 - q0.1) / len), len, thickness: (th(at(i)), th(at(i + 1))) });
             }
         }
-        if s.bridge_ring > 0.0 {
-            let (p0, p1) = (p.bridge_point_at(main, true), p.bridge_point_at(21.0, false));
-            let chord = (p1.0 - p0.0).hypot(p1.1 - p0.1);
-            if chord > 0.0 {
-                let e = ((p1.0 - p0.0) / chord, (p1.1 - p0.1) / chord);
-                // The normal on the tail's side.
-                let n = if e.1 < 0.0 { (-e.1, e.0) } else { (e.1, -e.0) };
-                let half = 2.0 * (2.0 * s.bridge_ring / chord).atan();
-                let radius = 0.5 * chord / half.sin();
-                let centre = (0.5 * (p0.0 + p1.0) + n.0 * (s.bridge_ring - radius), 0.5 * (p0.1 + p1.1) + n.1 * (s.bridge_ring - radius));
-                let pieces = ((2.0 * half * radius / 0.02).ceil() as usize).max(2);
-                let at = |i: usize| {
-                    let t = half * (2.0 * i as f64 / pieces as f64 - 1.0);
-                    (centre.0 + radius * (n.0 * t.cos() + e.0 * t.sin()), centre.1 + radius * (n.1 * t.cos() + e.1 * t.sin()))
-                };
-                let (t0, t1) = (s.bridge_thickness_at(main, true), s.bridge_thickness_at(21.0, false));
-                let th = |i: usize| t0 + (t1 - t0) * i as f64 / pieces as f64;
-                for i in 0..pieces {
-                    let (q0, q1) = (at(i), at(i + 1));
-                    let len = (q1.0 - q0.0).hypot(q1.1 - q0.1);
-                    bridges.push(BridgePiece { p: q0, dir: ((q1.0 - q0.0) / len, (q1.1 - q0.1) / len), len, thickness: (th(i), th(i + 1)) });
-                }
+        let ring = ring_line(p);
+        let (t0, t1) = (s.bridge_thickness_at(main, true), s.bridge_thickness_at(21.0, false));
+        let th = |i: usize| t0 + (t1 - t0) * i as f64 / (ring.len().max(2) - 1) as f64;
+        for (i, w) in ring.windows(2).enumerate() {
+            let (q0, q1) = (w[0], w[1]);
+            let len = (q1.0 - q0.0).hypot(q1.1 - q0.1);
+            if len > 0.0 {
+                bridges.push(BridgePiece { p: q0, dir: ((q1.0 - q0.0) / len, (q1.1 - q0.1) / len), len, thickness: (th(i), th(i + 1)) });
             }
         }
         Self { s, outline: Outline::new(p), a: p.a, b: p.b, ribs, bridges, grain: rotated(s.spruce_el, s.spruce_er, s.spruce_g, s.spruce_nu, ca, sa), grain_shear: rotated_shear(s.spruce_gl, s.spruce_gr, ca, sa), rib_q }
@@ -465,15 +493,7 @@ impl Structure {
             if along < 0.0 || along > r.len || (dy * r.dir.0 - dx * r.dir.1).abs() > r.half_width {
                 continue;
             }
-            let total = if s.rib_feather > 0.0 {
-                // Into the notch from where it starts, 24 per metre.
-                let feather = s.rib_feather.min(0.25 * r.len);
-                let into = feather - along.min(r.len - along);
-                if into > 0.0 { t + s.rib_tip + (r.mid - t - s.rib_tip).max(0.0) * (-24.0 * into).exp() } else { r.mid }
-            } else {
-                let u = 2.0 * along / r.len - 1.0;
-                r.mid - (r.mid - r.end) * u * u
-            };
+            let total = s.rib_thickness_at(&r.entry, along, r.len, t);
             layers[n] = Layer { density: s.spruce_density, q: *q, shear: *sh, z0: t - total.max(t), z1: 0.0 };
             n += 1;
             break;

@@ -496,6 +496,13 @@ impl MicView {
         let pts = |main: bool| sb.bridge_line(main).into_iter().map(|(x, y)| map.plan(x, y)).collect::<Vec<_>>();
         p.add(Shape::line(pts(true), Stroke::new(3.0, BRIDGE)));
         p.add(Shape::line(pts(false), Stroke::new(3.0, BRIDGE)));
+        // The bend that joins them on a built board whose bridge is one piece.
+        if sb.structure.enabled {
+            let ring: Vec<_> = piano_core::fem::ring_line(sb).into_iter().map(|(x, y)| map.plan(x, y)).collect();
+            if ring.len() > 1 {
+                p.add(Shape::line(ring, Stroke::new(3.0, BRIDGE)));
+            }
+        }
         let (reach, top) = lid_extent(sb);
         // The lid, its shape and overhang the radiation's (`behind_lid`).
         let lid = lid_plan(sb);

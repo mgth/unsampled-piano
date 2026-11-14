@@ -907,6 +907,13 @@ pub fn plan(ui: &mut Ui, model: &PianoModel, lit: &[Part], key: &mut u8, width: 
     };
     bridge(true, lit(Part::Bridges));
     bridge(false, lit(Part::BassBridge) || lit(Part::Bridges));
+    // The bend that joins them on a built board whose bridge is one piece.
+    if sb.structure.enabled {
+        let ring: Vec<Pos2> = piano_core::fem::ring_line(&sb).into_iter().map(|(x, y)| pl(x, y)).collect();
+        if ring.len() > 1 {
+            p.add(Shape::line(ring, line(3.0, if lit(Part::Bridges) { HIGHLIGHT } else { BRIDGE })));
+        }
+    }
     let (mx, my) = (sb.treble_bridge[2].0 * sb.a, sb.treble_bridge[2].1 * sb.b);
     label(pl(mx, my) + Vec2::new(8.0 * k, 0.0), Align2::LEFT_CENTER, "Bridge", Some(Part::Bridges));
     let (bx, by) = (sb.bass_bridge[0].0 * sb.a, sb.bass_bridge[0].1 * sb.b);
