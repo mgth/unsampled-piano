@@ -97,6 +97,7 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("unison.height_spread", "String height spread", "m", 0.0, 0.0005, false),
     ("unison.load_ramp", "Unison tension ramp", "keys", 0.0, 36.0, false),
     ("losses.b1_floor", "Wound-string loss floor", "1/s", 0.0, 1.0, false),
+    ("losses.b2_top", "Top strings' overtone loss", "s", 0.0, 6.0e-7, false),
     ("soundboard.impedance_slope", "Board impedance slope (treble)", "/key", -0.05, 0.1, false),
     ("soundboard.impedance_slope_bass", "Board impedance slope (bass)", "/key", -0.1, 0.1, false),
     ("hammer_mass_scale", "Hammer mass", "", 0.25, 2.0, true),
