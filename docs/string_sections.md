@@ -153,12 +153,31 @@ Within ± 0.25 per register, with both signs: under what a redraw gives (docs/st
 
 **Bass tables** (`tools/bass_gaps.py d`, A0–B2 against the commercial D): the partials' decay rates agree within 0.1 dB/s in every group but two (C2–B2, partials 5–8 and 9–16: 0.3 and 0.2), the levels within 0.5 dB once the set's gain is taken out (it is set on the peaks of A2–A5 and moved by 0.4 dB).
 
+## On the board's new outline
+
+Main took the board's outline on the inner rim's face on the same day (docs/outline.md), after the measures above. Measured again on it, the preset with and without its `string_sections` line, nothing else changed:
+
+| | Without the sections | With them |
+|---|---|---|
+| Distance to the commercial D, 88 keys | 8.40 | 8.21 |
+| by register (bass, middle, treble, top) | 7.22 / 9.28 / 10.07 / 6.55 | 7.22 / 8.96 / 9.87 / 6.33 |
+| Bench of the real grands | 1.45 | 1.46 |
+| by register | 1.10 / 1.21 / 1.60 / 1.88 | 1.06 / 1.27 / 1.55 / 1.91 |
+| Evenness over 88 keys: attack, 0.5–1.5 s, partial 1 (dB) | 3.12, 3.45, 5.24 | 3.16, 3.56, 5.20 |
+| the 8 keys beside the breaks | 2.35, 2.11, 4.28 | 2.20, 1.82, 4.50 |
+| Mobility at the bridge: change with the sections, octave bands 125 Hz to 4 kHz, rms (dB) | | 0.2 to 0.7 |
+
+The same verdict: within the redraw, with both signs. The keys move as before (the bridge is the same). The step at each break stays an ordinary one (attack: −2.2, −3.9, −3.7 and −2.0 dB against 3.3 rms for the others).
+
+One place moves more than a redraw's decibel, and it is the new outline's, not the sections': from G5 to A5 the close microphones now hear a hole (attack −32 to −35 dB where the neighbours stand near −26; the old outline had −21 to −24 there; G♯5's fundamental 15 dB under its neighbours'). The sections move that hole by two keys without filling it (A5 back up by 7.6 dB, C6 down by 4.9), though these keys' bridge points move by less than 1.2 mm: a narrow feature of the board near 800–1000 Hz, on which a small change of where the strings hold the bridge is enough. Not looked into here.
+
 ## Verdict
 
 The sections are the instrument's real geometry, and the Model page is truer with them. For the sound they are neutral by measure: the mobility at the bridge, the levels and decays key by key, the evenness over 88 keys, the distance, the bench and the bass tables all stay within what moving the bridge points by a centimetre redraws, and the real grand shows no mark of the bars either.
 
 ## Not verified
 
+- The hole at G5–A5 on the new outline (above): whether it lies at the bridge or on the way to the close microphones, and whether it is heard.
 - **Not heard and not played.** Listening page: `out/ab_sections/index.html` (the keys either side of each break and six keys in a row across it; preset, candidate, commercial D, real grand). Keyboard: `out/keyboard/instruments/String sections trial/`, with this branch's player (another build does not know the parameter). The sections went into the preset without a listening remark.
 - The counts 15 and 17 of the tenor and the top section rest on the photograph and on the three others; the breaks 35|36 and 71|72 have no written source.
 - The gap's width, 14 mm, is read off one photograph at the dampers' line, ± 4 mm; taken the same at the bridge and the agraffes, and the same at all four breaks.
