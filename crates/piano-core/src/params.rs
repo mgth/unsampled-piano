@@ -265,6 +265,16 @@ pub struct UnisonLaw {
     /// Exponent of the curve from C4 to C8: width_mid + (width_treble −
     /// width_mid)·t^curve, t = (key − C4)/4 octaves (2: quadratic).
     pub width_curve: f64,
+    /// Spread (cents) of the low keys, up to `width_bass_until`, coming back
+    /// to `width_mid` at C4 key by key (0: `width_mid` holds down to the
+    /// lowest unison). A tuner clears the beats he hears, and a bass
+    /// unison's are those of partials ten to forty times its fundamental:
+    /// the same care leaves it nearer in cents. A real concert grand's
+    /// partials of F1–B2, in two tunings a year apart, show no null in
+    /// five seconds: under 0.15 cent, or held by the bridge
+    /// (docs/bass_unisons.md).
+    pub width_bass: f64,
+    pub width_bass_until: u8,
     /// The hammer never strikes the strings of a unison equally (uneven
     /// felt, strings not quite level): relative spread of the force each
     /// string receives (0 = equal). The uneven part directly excites the
@@ -311,7 +321,7 @@ impl UnisonLaw {
     /// at A5 left its tail beating at −21 dB re the attack from 0.6 to 2 s
     /// (real grands −27 to −33); t⁴ gives A5 1.3 cents, keeps C8's 5
     /// (docs/treble_tail.md).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, width_curve: 4.0, hit_spread: 0.3, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0 };
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, width_curve: 4.0, width_bass: 0.0, width_bass_until: 47, hit_spread: 0.3, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 
@@ -337,6 +347,11 @@ impl UnisonLaw {
     }
 
     pub fn width(&self, note: u8) -> f64 {
+        if self.width_bass > 0.0 && note < 60 {
+            let until = self.width_bass_until.min(59) as f64;
+            let t = ((note as f64 - until) / (60.0 - until)).clamp(0.0, 1.0);
+            return (self.width_bass + (self.width_mid - self.width_bass) * t).max(Self::MIN_SPREAD);
+        }
         let t = ((note as f64 - 60.0) / 48.0).max(0.0);
         (self.width_mid + (self.width_treble - self.width_mid) * t.powf(self.width_curve.max(0.5))).max(Self::MIN_SPREAD)
     }
@@ -1509,6 +1524,27 @@ impl Default for VelocityLaw {
 
 #[cfg(test)]
 mod tests {
+    /// The low keys' spread: off, every key keeps its width to the bit;
+    /// on, it holds up to its last key, meets `width_mid` at C4 and leaves
+    /// the keys from C4 up alone.
+    #[test]
+    fn the_bass_unisons_have_their_own_width() {
+        let off = UnisonLaw::GRAND;
+        let on = UnisonLaw { width_bass: 0.3, width_bass_until: 47, ..off };
+        assert_eq!(off.width_bass, 0.0);
+        for note in 21..=108u8 {
+            assert_eq!(off.width(note), if note <= 60 { off.width_mid } else { off.width(note) });
+            if note >= 60 {
+                assert_eq!(on.width(note).to_bits(), off.width(note).to_bits(), "key {note}");
+            }
+        }
+        for note in 21..=47u8 {
+            assert_eq!(on.width(note), 0.3);
+        }
+        assert!((on.width(53) - 0.3 - 0.7 * 6.0 / 13.0).abs() < 1e-12);
+        assert!(on.width(59) < off.width_mid && on.width(59) > on.width(58));
+    }
+
     use super::*;
 
     #[test]

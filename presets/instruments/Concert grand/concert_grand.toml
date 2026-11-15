@@ -70,12 +70,18 @@ k_b = 0.077178
 c = -1.402352
 
 [losses]
-# 3.3 × the default's frequency-dependent string loss, on every key. The default's
+# 3.3 × the default's frequency-dependent string loss, from C4 up. The default's
 # (6.0e-8) up to C5 measured nearer a real concert grand note by note, and was heard
 # at the keyboard as strings that buzz: the high partials held too long (2.5 kHz and
 # up, 5 to 12 dB over the real grand after a second from A3 to F#5), with this felt
 # or the softer one (docs/bass_gaps.md).
-b2 = 2.0e-7
+# Half of it up to C3, back to the whole by C4: with the bass unisons narrowed the
+# low strings' partials died in one line, 5 dB under a real concert grand at 400 to
+# 1200 Hz after 2.5 s. Played with the narrow unisons, and not heard as a buzz
+# (docs/bass_unisons.md).
+b2 = 1.0e-7
+b2_top = 2.0e-7
+b2_top_from = 60
 # Wound strings on the bass bridge only, A0–E2.
 wound_until = 41
 
@@ -95,6 +101,10 @@ tension = 750.0
 # 8 single strings (A0–E1), 5 bichords (F1–A1), then trichords.
 bichord_from = 29
 trichord_from = 34
+# 0.1 cent between the strings of a key up to B2, back to the cent by C4: at a cent
+# every partial of F1-B2 above 300 Hz beat, where a real concert grand shows no null
+# in five seconds (docs/bass_unisons.md).
+width_bass = 0.1
 
 [soundboard]
 # Each key drives the built board's modes at its own bridge point, up to their last.
