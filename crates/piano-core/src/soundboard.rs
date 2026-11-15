@@ -147,6 +147,21 @@ pub struct SoundboardParams {
     /// before the slant existed reads, so that it keeps its bridge.
     #[cfg_attr(feature = "serde", serde(default))]
     pub main_string_slant: f64,
+    /// The strings stand in sections, parted by the frame's struts: up to
+    /// [`STRING_SECTIONS`] pairs of a section's lowest key (MIDI) and the
+    /// gap (m) the strut below it takes, across the strings: how much
+    /// further from the key below its lowest key stands than a neighbour
+    /// would. A pair with no gap, or with a key off the keyboard, counts
+    /// for nothing. On the main bridge the gaps come out of the keys'
+    /// spacing: its two end keys stay where the bridge's layout has them,
+    /// each section's keys draw a little closer together along it
+    /// ([`Self::bridge_place`]), and the bridge's own line does not move.
+    /// The section that starts at `main_bridge_from` is the break from the
+    /// bass strings to the others, which lie on two bridges: its gap parts
+    /// the hammers only. None: every key at equal steps along its bridge,
+    /// and what a preset saved before the sections existed reads.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub string_sections: [(f64, f64); STRING_SECTIONS],
     /// First note on the main bridge (lower notes are on the bass bridge).
     pub main_bridge_from: u8,
     /// Microphones (m, plate coordinates, z above the board).
@@ -456,6 +471,7 @@ impl SoundboardParams {
         // No measured angle was found; the bench scores 1.04 with and
         // without it, and 10° and 12° worse (docs/bridges.md).
         main_string_slant: 8.0,
+        string_sections: [(0.0, 0.0); STRING_SECTIONS],
         mics: [(0.45, 0.35, 1.5), (1.15, 0.85, 1.5)],
         // 1.5 m in front of an upright's board, the left one on the bass side.
         mics_upright: [(0.7, 1.0, 1.5), (0.3, 0.45, 1.5)],
@@ -684,8 +700,54 @@ impl SoundboardParams {
         self.bridge_point_at(note as f64, note >= self.main_bridge_from)
     }
 
-    /// Point at a fractional key position along the main or the bass bridge.
+    /// Point at a fractional key position along the main or the bass
+    /// bridge: where that key's strings sit on it ([`Self::bridge_place`]).
     pub fn bridge_point_at(&self, note: f64, main: bool) -> (f64, f64) {
+        self.bridge_curve_at(self.bridge_place(note, main), main)
+    }
+
+    /// The gap (m) of the section that starts at key `note`
+    /// ([`Self::string_sections`]), 0 if none does.
+    pub fn section_gap(&self, note: u8) -> f64 {
+        self.string_sections.iter().filter(|s| s.1 > 0.0 && s.0.round() == note as f64 && (22.0..=108.0).contains(&s.0)).map(|s| s.1).sum()
+    }
+
+    /// Where key `note` sits along its bridge, as the key whose place it
+    /// would be at equal steps: `note` itself without sections
+    /// ([`Self::string_sections`]) and on the bass bridge. With them, each
+    /// gap counts as its width over the keys' spacing there, across the
+    /// strings (the bridge runs at an angle to them), and the whole is
+    /// scaled so that the main bridge's two end keys keep their places.
+    /// Between two keys it runs straight.
+    pub fn bridge_place(&self, note: f64, main: bool) -> f64 {
+        let lo = self.main_bridge_from;
+        if !main || lo >= 108 || !(lo + 1..=108).any(|k| self.section_gap(k) > 0.0) {
+            return note;
+        }
+        // Keys from the lowest, each gap in keys.
+        let count = |k: u8| {
+            (lo + 1..=k).fold((k - lo) as f64, |c, b| {
+                let gap = self.section_gap(b);
+                if gap <= 0.0 {
+                    return c;
+                }
+                let (p, q) = (self.bridge_curve_at(b as f64 - 1.0, true), self.bridge_curve_at(b as f64, true));
+                let (sin, cos) = self.string_slant(b as f64 - 0.5).sin_cos();
+                let pitch = (-(q.0 - p.0) * sin + (q.1 - p.1) * cos).abs().max(1e-3);
+                c + gap / pitch
+            })
+        };
+        let scale = (108 - lo) as f64 / count(108);
+        let n = note.clamp(lo as f64, 108.0);
+        let k = (n.floor() as u8).min(107);
+        let (c0, c1) = (count(k), count(k + 1));
+        lo as f64 + scale * (c0 + (c1 - c0) * (n - k as f64))
+    }
+
+    /// Point at a fractional key position along the main or the bass
+    /// bridge's own line, its keys at equal steps (what the bridge is built
+    /// and drawn along, whatever the strings' sections).
+    pub fn bridge_curve_at(&self, note: f64, main: bool) -> (f64, f64) {
         let (x, y) = self.upright_point_at(note, main);
         let a = if main { self.string_slant(note) } else { 0.0 };
         if a == 0.0 {
@@ -717,7 +779,7 @@ impl SoundboardParams {
     /// their bridge point, as the frame's agraffes always have.
     pub fn key_across(&self, note: u8) -> f64 {
         let main = note >= self.main_bridge_from;
-        if main { self.upright_point_at(note as f64, true).1 } else { self.bridge_point(note).1 }
+        if main { self.upright_point_at(self.bridge_place(note as f64, true), true).1 } else { self.bridge_point(note).1 }
     }
 
     /// The bridge point before the main strings' slant: the curve through
@@ -781,12 +843,16 @@ impl SoundboardParams {
     pub fn bridge_line(&self, main: bool) -> Vec<(f64, f64)> {
         if main {
             let lo = self.main_bridge_from as f64;
-            (0..=64).map(|i| self.bridge_point_at(108.0 - (108.0 - lo) * i as f64 / 64.0, true)).collect()
+            (0..=64).map(|i| self.bridge_curve_at(108.0 - (108.0 - lo) * i as f64 / 64.0, true)).collect()
         } else {
-            (0..=32).map(|i| self.bridge_point_at(self.main_bridge_from as f64 - 1.0 - (self.main_bridge_from as f64 - 22.0) * i as f64 / 32.0, false)).collect()
+            (0..=32).map(|i| self.bridge_curve_at(self.main_bridge_from as f64 - 1.0 - (self.main_bridge_from as f64 - 22.0) * i as f64 / 32.0, false)).collect()
         }
     }
 }
+
+/// How many sections of strings a board may have after its first
+/// ([`SoundboardParams::string_sections`]).
+pub const STRING_SECTIONS: usize = 4;
 
 /// The keys' line (m, plate x): where the bridges' layout puts the strings'
 /// front ends, 3 cm in front of the board's front edge; the main strings
@@ -1309,11 +1375,11 @@ impl Soundboard {
             if hi <= lo {
                 continue;
             }
-            let (a0, a1) = (p.bridge_point_at(lo, on_main), p.bridge_point_at(hi, on_main));
+            let (a0, a1) = (p.bridge_curve_at(lo, on_main), p.bridge_curve_at(hi, on_main));
             // Fine enough whatever the curve: refine until each piece is
             // shorter than the step.
             let n = 2000.max(((a1.0 - a0.0).hypot(a1.1 - a0.1) / step * 4.0) as usize);
-            let pts: Vec<(f64, f64)> = (0..=n).map(|i| p.bridge_point_at(lo + (hi - lo) * i as f64 / n as f64, on_main)).collect();
+            let pts: Vec<(f64, f64)> = (0..=n).map(|i| p.bridge_curve_at(lo + (hi - lo) * i as f64 / n as f64, on_main)).collect();
             for w in pts.windows(2) {
                 segments.push((w[0], w[1]));
             }
@@ -1920,6 +1986,47 @@ mod tests {
             assert_eq!(p.bridge_point(n), upright.bridge_point(n), "key {n}");
             assert_eq!(p.key_across(n), upright.key_across(n), "key {n}");
         }
+    }
+
+    /// The strings' sections: without them every key where it was, bit for
+    /// bit; with them a gap across the strings below each section's lowest
+    /// key, the main bridge's end keys and its line where they were, the
+    /// bass bridge's keys too.
+    #[test]
+    fn the_sections_part_the_strings_along_the_bridge() {
+        let even = SoundboardParams { main_string_slant: 0.0, ..SoundboardParams::GRAND_2M };
+        let lo = even.main_bridge_from;
+        for n in 21..=108u8 {
+            assert_eq!(even.bridge_point(n), even.bridge_curve_at(n as f64, n >= lo), "key {n}");
+            assert_eq!(even.bridge_place(n as f64 + 0.3, n >= lo), n as f64 + 0.3);
+        }
+        let off = SoundboardParams { string_sections: [(lo as f64, 0.014), (60.0, 0.0), (0.0, 0.02), (120.0, 0.02)], ..even };
+        assert!((21..=108u8).all(|n| off.bridge_point(n) == even.bridge_point(n) && off.key_across(n) == even.key_across(n)));
+        let breaks = [60u8, 78, 96];
+        let p = SoundboardParams { string_sections: [(lo as f64, 0.014), (60.0, 0.014), (78.0, 0.014), (96.0, 0.014)], ..even };
+        assert_eq!(p.bridge_line(true), even.bridge_line(true));
+        for n in (21..lo).chain([lo, 108]) {
+            let (a, b) = (p.bridge_point(n), even.bridge_point(n));
+            assert!((a.0 - b.0).abs() < 1e-12 && (a.1 - b.1).abs() < 1e-12, "key {n} moved");
+        }
+        // Across the strings (upright here: along y), each key's step from
+        // the one below; the gaps came out of the others' spacing.
+        let step = |q: &SoundboardParams, n: u8| q.bridge_point(n - 1).1 - q.bridge_point(n).1;
+        for n in lo + 1..=108 {
+            let (with, without) = (step(&p, n), step(&even, n));
+            assert!(with > 0.0, "key {n} out of order");
+            if breaks.contains(&n) {
+                let around = 0.5 * (step(&p, n - 1) + step(&p, n + 1));
+                assert!((with - around - 0.014).abs() < 0.002, "key {n}: a gap of {with} against {around}");
+            } else {
+                assert!(with < without && with > 0.9 * without, "key {n}: {with} against {without}");
+            }
+            // On the bridge's own line, between its neighbours' old places.
+            let place = p.bridge_place(n as f64, true);
+            assert!((place - n as f64).abs() < 1.0, "key {n} at {place}");
+        }
+        assert_eq!(p.section_gap(60), 0.014);
+        assert_eq!(p.section_gap(61), 0.0);
     }
 
     #[test]

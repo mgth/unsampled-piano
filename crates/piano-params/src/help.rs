@@ -687,6 +687,17 @@ const HELP: &[(&str, &str, &str)] = &[
          5 cm inside the board's bass side and front edge; negative angles read as 0. 0: \
          upright strings; a preset that does not set it gets upright strings.",
     ),
+    (
+        "soundboard.string_sections",
+        "The strings stand in groups, with a gap between two groups where a bar of the iron frame \
+         passes, as on a real grand; the hammers and the dampers follow.",
+        "Up to 4 pairs: the lowest key (MIDI note) of a section, and the gap (m) below it, across \
+         the strings, on top of the usual spacing. On the main bridge the gaps come out of the \
+         keys' spacing along it: its two end keys keep their places and the bridge's line does not \
+         move. A section that starts at `main_bridge_from` is the break from the bass strings: its \
+         gap parts the hammers only. A pair with no gap counts for nothing; a preset that does not \
+         set it gets no sections.",
+    ),
     ("soundboard.main_bridge_from", "Lowest key on the main bridge; the keys below are on the bass bridge.", "MIDI note."),
     (
         "soundboard.outline",

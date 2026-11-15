@@ -379,7 +379,7 @@ struct BridgePiece {
 /// to the other's along it.
 pub fn ring_line(p: &SoundboardParams) -> Vec<(f64, f64)> {
     let ring = p.structure.bridge_ring;
-    let (p0, p1) = (p.bridge_point_at(p.main_bridge_from as f64, true), p.bridge_point_at(21.0, false));
+    let (p0, p1) = (p.bridge_curve_at(p.main_bridge_from as f64, true), p.bridge_curve_at(21.0, false));
     let chord = (p1.0 - p0.0).hypot(p1.1 - p0.1);
     if ring <= 0.0 || chord <= 0.0 {
         return Vec::new();
@@ -431,7 +431,7 @@ impl Structure {
             let n = (((hi - lo) * 2.0) as usize).max(1);
             let at = |i: usize| lo + (hi - lo) * i as f64 / n as f64;
             for i in 0..n {
-                let (q0, q1) = (p.bridge_point_at(at(i), on_main), p.bridge_point_at(at(i + 1), on_main));
+                let (q0, q1) = (p.bridge_curve_at(at(i), on_main), p.bridge_curve_at(at(i + 1), on_main));
                 let len = (q1.0 - q0.0).hypot(q1.1 - q0.1);
                 if len <= 0.0 {
                     continue;
@@ -1346,8 +1346,11 @@ fn air_of_modes(fem: &BoardFem, p: &SoundboardParams, rho0: f64, c0: f64) -> Vec
 /// frequencies afterwards, in [`crate::soundboard::Soundboard::new`]).
 fn key(p: &SoundboardParams) -> u64 {
     const VERSION: u32 = 5;
+    // (The strings' sections move where the strings hold the bridge; none
+    // leaves the hash as it was before they existed.)
+    let sections = if p.string_sections.iter().any(|s| s.1 > 0.0) { format!(" {:?}", p.string_sections) } else { String::new() };
     let text = format!(
-        "{VERSION} {:?} {} {} {:?} {:?} {:?} {} {} {}",
+        "{VERSION} {:?} {} {} {:?} {:?} {:?} {} {} {}{sections}",
         BoardStructure { enabled: true, ..p.structure },
         p.a,
         p.b,

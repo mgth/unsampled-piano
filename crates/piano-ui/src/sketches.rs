@@ -178,6 +178,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("soundboard.bass_bridge", &[BassBridge]),
         ("soundboard.main_bridge_from", &[BassBridge]),
         ("soundboard.main_string_slant", &[Bridges]),
+        ("soundboard.string_sections", &[Bridges]),
         ("soundboard.bridge_", &[Bridges, BridgeSpread]),
         ("soundboard.piston_", &[Piston]),
         ("soundboard.back_", &[BackFace]),
