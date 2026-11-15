@@ -186,7 +186,8 @@ const HELP: &[(&str, &str, &str)] = &[
         "p_bass",
         "Makes the bass hammers more nonlinear: rounder when played softly, biting when played \
          hard.",
-        "Added to the felt exponent p, growing linearly from 0 at C4 to p_bass at A0.",
+        "Added to the felt exponent p, growing linearly from 0 at C4 to p_bass at A0. Negative \
+         values take it down: a sharper attack when played softly, less contrast with loud playing.",
     ),
     (
         "p_offset",
