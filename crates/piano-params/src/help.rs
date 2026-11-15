@@ -695,8 +695,8 @@ const HELP: &[(&str, &str, &str)] = &[
          the strings, on top of the usual spacing. On the main bridge the gaps come out of the \
          keys' spacing along it: its two end keys keep their places and the bridge's line does not \
          move. A section that starts at `main_bridge_from` is the break from the bass strings: its \
-         gap parts the hammers only. A pair with no gap counts for nothing; a preset that does not \
-         set it gets no sections.",
+         gap parts the hammers only. A pair with no gap, or with a key below 22, counts for nothing; a preset that does \
+         not set it gets no sections.",
     ),
     ("soundboard.main_bridge_from", "Lowest key on the main bridge; the keys below are on the bass bridge.", "MIDI note."),
     (
