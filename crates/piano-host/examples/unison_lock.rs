@@ -14,7 +14,8 @@ use std::f64::consts::{PI, TAU};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let model = piano_host::load_preset(std::path::Path::new(&args[1])).unwrap();
+    // With the preset's musician controls resolved, as the instrument plays it.
+    let model = piano_host::load_preset(std::path::Path::new(&args[1])).unwrap().with_macros();
     let lo: u8 = args.get(2).and_then(|v| v.parse().ok()).unwrap_or(29);
     let hi: u8 = args.get(3).and_then(|v| v.parse().ok()).unwrap_or(47);
     let step: usize = args.get(4).and_then(|v| v.parse().ok()).unwrap_or(1);

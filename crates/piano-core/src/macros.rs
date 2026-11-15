@@ -150,6 +150,8 @@ impl PianoModel {
         let w = if u < 0.0 { scale(UNISON_PURE, u) } else { scale(UNISON_WIDTH, u) };
         m.unison.width_mid *= w;
         m.unison.width_treble *= w;
+        // The bass's own width with them (0, off, stays off).
+        m.unison.width_bass *= w;
         m.unison.hit_spread *= scale(UNISON_HITS, u);
 
         // Mechanism: every mechanical noise together.
@@ -211,6 +213,25 @@ mod tests {
     /// PianoModel has no PartialEq (floats, Options): compare its Debug form.
     fn same(a: &PianoModel, b: &PianoModel) -> bool {
         format!("{a:?}") == format!("{b:?}")
+    }
+
+    /// Unisons moves the bass's own width with the others, and leaves it off
+    /// when it is off.
+    #[test]
+    fn unisons_scale_the_bass_width_too() {
+        let mut m = PianoModel::default();
+        m.unison.width_bass = 0.1;
+        for u in [-1.0, 1.0] {
+            m.macros.unisons = u;
+            let r = m.with_macros();
+            let w = r.unison.width_mid / m.unison.width_mid;
+            assert!((w - 1.0).abs() > 0.1);
+            assert!((r.unison.width_bass - 0.1 * w).abs() < 1e-12);
+            assert!((r.unison.width(30) - 0.1 * w).abs() < 1e-12);
+        }
+        m.unison.width_bass = 0.0;
+        m.macros.unisons = 1.0;
+        assert_eq!(m.with_macros().unison.width_bass, 0.0);
     }
 
     #[test]
