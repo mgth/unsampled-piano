@@ -4,15 +4,18 @@
 //! Drawn over the strings as they lie: low, from where the strings' rear
 //! lengths end at their hitch pins out to the walls, the plate that holds
 //! them, its weight cut by round holes where it is broad, in a row along
-//! the curve; a bar across the front between the hammers and the dampers;
-//! struts standing on edge, deep and narrow, from the bar along the
-//! strings: either side of the bass strings, at their slant; beside the
+//! the curve; a bar across the front, in front of the hammers over the
+//! strings (the capo bar where the strings end under it; an upright's
+//! between the hammers and the dampers); struts standing on edge, deep and
+//! narrow, from the bar along the strings: either side of the bass strings, at their slant; beside the
 //! tenor's lowest strings (under the bass strings crossing them), twice
 //! among the treble's in the gaps between unisons (or in the gap between
 //! two sections of strings, where the model has them), and past the last;
 //! crossing where they will, each sloping gently down to its bridge and,
-//! past it, down onto the plate.
-//! Bar and struts stand over the dampers, lifted.
+//! past it, down onto the plate; in front of the bar each goes on as a
+//! ridge across the pin block to the plate's front edge.
+//! The struts stand over the dampers, lifted, or beside them in the gap
+//! between two sections of strings.
 
 use super::*;
 
@@ -53,6 +56,30 @@ const LAND: f64 = 0.03;
 /// thickness along the strings (the hammers strike in front of it).
 pub(super) const BAR_BACK: f64 = -0.003;
 const BAR_W: f64 = 0.024;
+/// A grand's bar, as a concert grand's lies (read off a photograph of one
+/// from above, within 1 cm): in front of the hammers, over the strings
+/// between their agraffes and their strike points; straight from the bass
+/// wall, where it stands [`BAR_BASS`] in front of the hammers' line, to the
+/// lowest key under the capo bar, which it is from there to the treble
+/// wall, the strings ending under it [`CAPO_IN`] inside its back edge on a
+/// nose [`CAPO_NOSE`] wide. Without a capo bar, straight to [`BAR_TREBLE`]
+/// in front of the hammers at the treble wall. Its underside
+/// [`BAR_OVER`] over the strings it crosses, its top level.
+const BAR_BASS: f64 = 0.115;
+const BAR_TREBLE: f64 = 0.03;
+const CAPO_IN: f64 = 0.005;
+const CAPO_NOSE: f64 = 0.005;
+const BAR_OVER: f64 = 0.01;
+/// Where a grand's struts that rise over the dampers have risen from the
+/// bar's height, behind the hammers' line (a damper set forward may rest
+/// right behind its hammer); the ridges that carry the
+/// struts on in front of the bar across the pin block: their thickness,
+/// their height at the plate's front edge, and the length of the short
+/// one in a gap the bass strings cross (no strut behind the bar there).
+const HUMP_END: f64 = 0.0;
+const RIDGE_W: f64 = 0.006;
+const RIDGE_FRONT: f64 = 0.012;
+const RIDGE_SHORT: f64 = 0.09;
 /// The holes in the plate under the hitch pins: their largest radius,
 /// their spacing along the curve, the plate they leave round them, and the
 /// row's distance from the wall past their rims.
@@ -120,6 +147,10 @@ fn inside(q: (f64, f64), p: &[(f64, f64)]) -> bool {
     }
     c
 }
+
+/// A ridge in front of a grand's bar: where it leaves the bar, its
+/// direction (away from the keyboard), whether it is the short one.
+type Ridge = ((f64, f64), (f64, f64), bool);
 
 /// Points, triangles over them and loops, as [`Builder::prism`] takes them.
 type Mesh = (Vec<(f64, f64)>, Vec<[usize; 3]>, Vec<(usize, usize)>);
@@ -190,7 +221,7 @@ fn bridged(outer: &[(f64, f64)], holes: &[Vec<(f64, f64)>]) -> Mesh {
 }
 
 /// The plate over a grand's strings with their `ends`, in `c`.
-pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, ends: &[StringEnds], c: Color32) {
+pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, ends: &[StringEnds], case_front: f64, c: Color32) {
     let place = b.place;
     let at = |x: f64, y: f64, z: f64| place.at(x, y, z);
     // (Over a built board's bridges, as high as its strings are on them.)
@@ -199,6 +230,23 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
     let board = board_outline(sb);
     // The case's inside, carried forward over the pin block.
     let case = frame_outline(model, sb);
+    // (A grand's whose board's front edge is its case's: the sides carried
+    // straight forward from its corners to the case's front, as the case
+    // is drawn, whether or not the engine's frame goes that far.)
+    let case = match front_edge(&board, sb) {
+        Some(k) if !place.vertical => {
+            let n = board.len();
+            let (p, q) = (board[k], board[(k + 1) % n]);
+            let mut sides = vec![(case_front, q.1)];
+            sides.extend((1..=n).map(|i| board[(k + i) % n]).filter(|e| e.0 > case_front + 1e-6));
+            sides.push((case_front, p.1));
+            if signed_area(&sides) < 0.0 {
+                sides.reverse();
+            }
+            sides
+        }
+        _ => case,
+    };
     let mut walls = case.clone();
     walls.push(case[0]);
     // A string's line: its bridge point, direction, speaking length.
@@ -220,6 +268,56 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
     let bass_reach = (21..main).map(|m| line(m).1 .1.min(line(m).0 .1)).fold(f64::MAX, f64::min);
     let clear = (main..=108).find(|&m| line(m).0 .1.max(line(m).1 .1) < bass_reach - PAST_BASS).unwrap_or(main);
     let third = |k: u8| clear + ((108 - clear) as u32 * k as u32 / 3) as u8;
+
+    // A grand's bar across the front (see [`BAR_BASS`]): its middle's line
+    // from the bass wall to the treble wall (across, along, underside).
+    let grand = !place.vertical;
+    let hx = hammer_x(model, sb);
+    let (y_lo, y_hi) = board.iter().fold((f64::MAX, f64::MIN), |(a, z), p| (a.min(p.1), z.max(p.1)));
+    let (wall_lo, wall_hi) = (y_lo + WALL, y_hi - WALL);
+    let capo: Vec<u8> = (21..=108u8).filter(|&m| model.frame.capo(m)).collect();
+    let bar_top = STRING_Z + BAR_OVER + depth;
+    let bar_line: Vec<(f64, f64, f64)> = if grand {
+        let under = |m: u8| ends[(m - 21) as usize].2 + BAR_OVER;
+        let d0 = BAR_BASS.min(0.5 * (hx - ends[0].0 .0)).max(BAR_TREBLE);
+        let mut pts = vec![(wall_hi, hx - d0, under(21))];
+        for &m in &capo {
+            let (ax, ay) = ends[(m - 21) as usize].0;
+            if ay < pts[pts.len() - 1].0 - 1e-4 && ay > wall_lo {
+                pts.push((ay, ax - BAR_W / 2.0 + CAPO_IN, under(m)));
+            }
+        }
+        let end = if capo.is_empty() { hx - BAR_TREBLE } else { pts[pts.len() - 1].1 };
+        pts.push((wall_lo, end, under(108)));
+        // Higher over the bass strings: up from where they cross it.
+        let x_at = |pts: &[(f64, f64, f64)], y: f64| {
+            let i = pts.windows(2).position(|w| y <= w[0].0 && y >= w[1].0).unwrap_or(0);
+            let (p, q) = (pts[i], pts[i + 1]);
+            p.1 + (q.1 - p.1) * (p.0 - y) / (p.0 - q.0).max(1e-9)
+        };
+        let edge = (21..main)
+            .map(|m| {
+                let (a, _, u, _) = line(m);
+                let x = x_at(&pts, a.1);
+                a.1 + u.1 * (x - a.0) / u.0
+            })
+            .fold(f64::MAX, f64::min)
+            - 0.012;
+        if edge < wall_hi - 0.03 && edge > pts[1].0 + 0.03 {
+            let (x0, x1) = (x_at(&pts, edge + 0.012), x_at(&pts, edge));
+            pts.splice(1..1, [(edge + 0.012, x0, under(21)), (edge, x1, under(main))]);
+        } else {
+            pts[0].2 = under(main);
+        }
+        pts
+    } else {
+        Vec::new()
+    };
+    let bar_x = |y: f64| {
+        let i = bar_line.windows(2).position(|w| y <= w[0].0 && y >= w[1].0).unwrap_or(if y > bar_line[0].0 { 0 } else { bar_line.len() - 2 });
+        let (p, q) = (bar_line[i], bar_line[i + 1]);
+        p.1 + (q.1 - p.1) * ((p.0 - y) / (p.0 - q.0).max(1e-9)).clamp(0.0, 1.0)
+    };
     let mut places = vec![Strut::Beside(21, true), Strut::Beside(main - 1, false), Strut::Beside(main, true)];
     // (Where the strings stand in sections, `soundboard.string_sections`,
     // in the gap each leaves below its lowest key.)
@@ -227,12 +325,21 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
     let among = if breaks.is_empty() { vec![third(1), third(2)] } else { breaks };
     places.extend(among.into_iter().filter(|&m| m > main && m < 108).map(Strut::Below));
     places.push(Strut::Beside(108, false));
+    // (A grand's: in front of the bar, each carried on across the pin block
+    // as a ridge.)
+    let mut ridges: Vec<Ridge> = Vec::new();
     let struts: Vec<_> = places
         .into_iter()
         .filter_map(|place| {
             let m = match place {
                 Strut::Beside(m, _) | Strut::Below(m) => m,
             };
+            // In the gap between two sections of strings the struts run
+            // low, beside the dampers; one the bass strings cross stops at
+            // the bar; the others (a gap between two unisons is no room
+            // for the dampers' heads) rise over the dampers.
+            let gap = grand && matches!(place, Strut::Below(m) if sb.section_gap(m) > 0.0);
+            let hump = grand && !gap && m != 108;
             let (a, bp, u, l) = line(m);
             // Across (towards the bass, plate y up on a grand).
             let nrm = (-u.1, u.0);
@@ -242,7 +349,7 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
                     ((px - a.0) * nrm.0 + (py - a.1) * nrm.1) / 2.0
                 }
                 Strut::Beside(m, bass) => {
-                    let half = (model.note(m).strings.max(1) - 1) as f64 * UNISON_GAP / 2.0 + BESIDE;
+                    let half = (model.note(m).strings.max(1) - 1) as f64 * unison_gap(model, m) / 2.0 + BESIDE;
                     if bass { half } else { -half }
                 }
             };
@@ -250,7 +357,24 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
             // From the bar's middle (or where it is first inside the case,
             // the bass's outermost), on until it meets the walls.
             let ok = |q: (f64, f64)| inside(q, &case) && distance(q, &walls) >= WALL + 0.002;
-            let mut start = along(p0, u, (BAR_BACK - BAR_W / 2.0 - p0.0) / u.0);
+            let mut start = if grand {
+                let mut t = (bar_x(p0.1) - p0.0) / u.0;
+                for _ in 0..4 {
+                    let q = along(p0, u, t);
+                    t += (bar_x(q.1) - q.0) / u.0;
+                }
+                along(p0, u, t)
+            } else {
+                along(p0, u, (BAR_BACK - BAR_W / 2.0 - p0.0) / u.0)
+            };
+            if grand && inside(start, &case) && distance(start, &walls) >= WALL + 0.002 {
+                // (Beside the outermost strings, straight to the front.)
+                let wall = matches!(place, Strut::Beside(21 | 108, _));
+                ridges.push((start, if wall { (1.0, 0.0) } else { u }, gap && m < clear));
+            }
+            if gap && m < clear {
+                return None;
+            }
             let mut skip = 0.0;
             while !ok(start) && skip < 1.0 {
                 start = along(start, u, 0.005);
@@ -264,7 +388,7 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
             let on = |p: (f64, f64)| (p.0 - start.0) * u.0 + (p.1 - start.1) * u.1;
             let bridge = on(bp);
             let land = on(along(bp, u, (hitch_length(&board, bp, u, rear_wanted(sb, m, l)) - RAIL_FRONT).max(BRIDGE_CLEAR) + LAND)).min(t);
-            (land >= 0.06 && land > bridge + PAST_BRIDGE + 0.01).then_some((start, u, land, bridge, skip == 0.0))
+            (land >= 0.06 && land > bridge + PAST_BRIDGE + 0.01).then_some((start, u, land, bridge, skip == 0.0, hump))
         })
         .collect();
 
@@ -319,7 +443,7 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
             let centre = point(d);
             let r = HOLE_R.min((distance(centre, &front) - RAIL_FRONT - HOLE_MARGIN) / 1.25).min((distance(centre, &rest) - HOLE_MARGIN) / 1.25);
             let clear = r > 0.015 && inside(centre, &poly) && distance(centre, &edge) > 1.25 * r + HOLE_MARGIN;
-            let free = struts.iter().all(|&(s, u, t, _, _)| distance(centre, &[s, along(s, u, t)]) > FLANGE.0 / 2.0 + 1.25 * r + HOLE_MARGIN);
+            let free = struts.iter().all(|&(s, u, t, _, _, _)| distance(centre, &[s, along(s, u, t)]) > FLANGE.0 / 2.0 + 1.25 * r + HOLE_MARGIN);
             let apart = kept.iter().all(|&(c2, r2)| (c2.0 - centre.0).hypot(c2.1 - centre.1) > (1.25 * (r + r2) + HOLE_MARGIN).max(HOLE_GAP));
             if clear && free && apart {
                 kept.push((centre, r));
@@ -350,24 +474,69 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
 
     // The bar across the front, between the hammers and the dampers, on
     // edge as the struts, from wall to wall.
-    let (y_lo, y_hi) = board.iter().fold((f64::MAX, f64::MIN), |(a, z), p| (a.min(p.1), z.max(p.1)));
     let side = place.dir(0.0, 0.0, 1.0);
-    let x = BAR_BACK - BAR_W / 2.0;
-    let ring = |y: f64, z: (f64, f64), w: f64, r: f64| (at(x, y, (z.0 + z.1) / 2.0), ((z.1 - z.0) / 2.0) as f32, (w / 2.0) as f32, r as f32);
-    let (y0, y1) = (y_lo + WALL, y_hi - WALL);
-    b.sweep(&[ring(y0, (over, over + depth), BAR_W, 0.004), ring(y1, (over, over + depth), BAR_W, 0.004)], side, c);
+    if grand {
+        // In front of the hammers, over the strings; the capo bar where
+        // the strings end under it, on its nose.
+        let rings: Vec<_> = bar_line.iter().map(|&(y, x, lo)| (at(x, y, (lo + bar_top) / 2.0), ((bar_top - lo) / 2.0) as f32, (BAR_W / 2.0) as f32, 0.004f32)).collect();
+        b.sweep(&rings, side, c);
+        let mut m = 0;
+        while m < capo.len() {
+            // One nose to each section of strings under the bar.
+            let n = (m + 1..capo.len()).find(|&k| sb.section_gap(capo[k]) > 0.0).unwrap_or(capo.len());
+            let mut nose: Vec<(f64, f64)> = capo[m..n].iter().map(|&k| ends[(k - 21) as usize].0).collect();
+            if nose.len() > 1 {
+                let k = nose.len();
+                let (a, z) = ((nose[0].0 - nose[1].0, nose[0].1 - nose[1].1), (nose[k - 1].0 - nose[k - 2].0, nose[k - 1].1 - nose[k - 2].1));
+                nose[0] = (nose[0].0 + a.0 / 2.0, nose[0].1 + a.1 / 2.0);
+                nose[k - 1] = (nose[k - 1].0 + z.0 / 2.0, nose[k - 1].1 + z.1 / 2.0);
+                let z = ends[(capo[m] - 21) as usize].2;
+                b.wall(&nose, false, -CAPO_NOSE / 2.0, CAPO_NOSE / 2.0, z + 0.0005, &|_| z + BAR_OVER + 0.002, c);
+            }
+            m = n;
+        }
+        // The ridges across the pin block, from the bar down to the
+        // plate's front edge.
+        for &(start, u, short) in &ridges {
+            let reach = ((start.0 - case_front - 0.006) / u.0).max(0.0);
+            let len = if short { reach.min(RIDGE_SHORT) } else { reach };
+            if len < 0.02 {
+                continue;
+            }
+            let lo = PIN_BLOCK_TOP - 0.001;
+            let rings: Vec<_> = (0..=4)
+                .map(|k| {
+                    let t = k as f64 / 4.0;
+                    let (x, y) = along(start, u, -len * t);
+                    let top = bar_top + (PIN_BLOCK_TOP + RIDGE_FRONT - bar_top) * t * (2.0 - t);
+                    (at(x, y, (lo + top) / 2.0), ((top - lo) / 2.0) as f32, (RIDGE_W / 2.0) as f32, 0.003f32)
+                })
+                .collect();
+            b.sweep(&rings, side, c);
+        }
+    } else {
+        let x = BAR_BACK - BAR_W / 2.0;
+        let ring = |y: f64, z: (f64, f64), w: f64, r: f64| (at(x, y, (z.0 + z.1) / 2.0), ((z.1 - z.0) / 2.0) as f32, (w / 2.0) as f32, r as f32);
+        b.sweep(&[ring(wall_lo, (over, over + depth), BAR_W, 0.004), ring(wall_hi, (over, over + depth), BAR_W, 0.004)], side, c);
+    }
 
     // The struts: on edge, as deep all along, flaring where they leave the
     // bar, over the dampers, sloping gently down to their bridge, past
     // which they go down onto the plate; a flange along the top.
     let up = place.dir(0.0, 0.0, 1.0);
-    for &(start, u, t, bridge, from_bar) in &struts {
+    for &(start, u, t, bridge, from_bar, hump) in &struts {
+        // A grand's leave the bar at its height: those in the gaps run on
+        // level, the others rise over the dampers behind the hammers.
+        let bar_lo = bar_top - depth;
+        let (over, low) = if grand && !hump { (bar_lo, bar_lo) } else { (over, low) };
         // Past the dampers, the slope beginning.
         let at_x = |x: f64| ((x - start.0) / u.0).clamp(0.0, t);
         let level = at_x(DAMPERS_END).min(bridge);
         // Its sections where its shape bends, straight between.
         let mut cuts: Vec<f64> = (0..=6).map(|k| FLARE_L * k as f64 / 6.0).collect();
         cuts.extend([level, bridge]);
+        let risen = if grand && hump { ((hx + HUMP_END - start.0) / u.0).max(0.04) } else { 0.0 };
+        cuts.extend((1..=6).map(|k| risen * k as f64 / 6.0));
         cuts.extend((0..=6).map(|k| bridge + PAST_BRIDGE + (t - bridge - PAST_BRIDGE) * k as f64 / 6.0));
         cuts.retain(|&s| (0.0..=t).contains(&s));
         cuts.sort_by(f64::total_cmp);
@@ -384,6 +553,7 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
             // the strings at its bridge, then down onto the plate; as deep
             // all along.
             let slope = over + (low - over) * ((s - level) / (bridge - level).max(1e-6)).clamp(0.0, 1.0);
+            let slope = if risen > 0.0 { bar_lo + (slope - bar_lo) * smooth(s / risen) } else { slope };
             let lo = slope + (RAIL_TOP - 0.001 - slope) * smooth((s - bridge - PAST_BRIDGE) / (t - bridge - PAST_BRIDGE).max(1e-6));
             let hi = lo + depth;
             let f = if from_bar { (1.0 - s / FLARE_L).max(0.0) } else { 0.0 };

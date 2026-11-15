@@ -1349,6 +1349,8 @@ fn key(p: &SoundboardParams) -> u64 {
     // (The strings' sections move where the strings hold the bridge; none
     // leaves the hash as it was before they existed.)
     let sections = if p.string_sections.iter().any(|s| s.1 > 0.0) { format!(" {:?}", p.string_sections) } else { String::new() };
+    // (Nor do the bridges' measured points, which move the bridges.)
+    let sections = if p.bridge_keys.iter().any(|k| k.0 >= 21.0) { format!("{sections} {:?}", p.bridge_keys) } else { sections };
     let text = format!(
         "{VERSION} {:?} {} {} {:?} {:?} {:?} {} {} {}{sections}",
         BoardStructure { enabled: true, ..p.structure },

@@ -51,7 +51,7 @@ The microphones see the board, not the strings: the strings' places reach them o
 - **On the long bridge** the gaps come out of the keys' spacing (`bridge_place`): the two end keys stay where the measured layout has them, each gap counts as its width over the keys' spacing across the strings there (the bridge runs at an angle to the strings: 14 mm across is 33 mm along it at G♯3, 19 mm at D5, 15 mm at G♯6), and each section's keys draw 3 to 4 % closer. The bridge itself does not move: its line, its beam in the board's modes and its heights are built along `bridge_curve_at`, the curve at equal steps.
 - **The break from the bass** (the pair at `main_bridge_from`) parts the hammers only: the two bridges are apart already.
 - **The frame's agraffes** follow the keys.
-- **The Model page**: the hammers' line takes the same gaps out of its pitch (C8 and F2 stay in line with their strings), the bass's block stands its gap further; keys, action and dampers follow their hammers and strings; the plate's struts among the main strings stand in the gaps instead of at the thirds. Static, live, 3D and editor draw the same scene.
+- **The Model page**: the hammers' line takes the same gaps out of its pitch (C8 and F2 stay in line with their strings; since the keyboard side was redrawn, below, a grand's action wider than its keys keeps its pitch within a section and the gaps come on top), the bass's block stands its gap further; keys, action and dampers follow their hammers and strings; the plate's struts among the main strings stand in the gaps instead of at the thirds. Static, live, 3D and editor draw the same scene.
 
 No sections (the default, and any preset saved before): every key where it was, bit for bit (test `the_sections_part_the_strings_along_the_bridge`; the 88-key renders of the preset reproduce the distance read on main, 8.06).
 
@@ -186,6 +186,114 @@ It is no deeper than what the other boards and a real grand have (C3–C7, each 
 
 So it is not a fault of the outline: the old board had its own at D5, and the real grand has one of the same depth at the player's ears, at G5 as it happens. Only the commercial D is that much more even. Whether three weak keys in a row are heard as such is for the keyboard to say.
 
+## The keyboard side
+
+2026-11-15, after the sections. Code: `string_ends`, `drawn_share`, `tuning_pins`, `duplex_group`, `hammer_line` (`model/scene.rs`), the plate's bar, noses and ridges (`model/scene/plate.rs`), `damper_at` (`model/scene/action.rs`); `FrameParams::capo_bar`, `DamperLaw::dodge` and `place_of` in the core.
+
+What lies between the keyboard and the dampers was drawn from the model's own rules; it is now placed as on the D. The source is the photograph from above (lid off, 1.10 mm a pixel on the keyboard's 1.227 m and on the case's 1.57 m alike, so the view is near enough a plan), read part by part, and the scale's own lengths. Nothing here is published in millimetres: each place below is a reading, with its precision.
+
+| Part | On the D (photograph) | Read to | In the model |
+|---|---|---|---|
+| Hammers' line | straight across; the hammers show under the strings in the top section, 5 to 12 mm behind the bar's back edge | ± 1 cm | straight, as before (`hammer_x`) |
+| Hammers across | 14.35 mm apart within a section (18 dampers over 235 pixels) for keys 13.77 mm apart, the sections' gaps on top: F2 to C8 over 1.02 m, the strings from wall to wall and nearly square to the keyboard in the treble | ± 0.3 mm a key | `HAMMER_FAN` 1.042 on a grand whose strings ask for more than its keys' pitch, the keys cranked to it, the keyboard in the middle of its hammers; C8 and A0 2.5 cm clear of the case's sides |
+| Agraffes | bass, tenor and third section (keys 1–53): on a line 20 cm in front of the hammers at A0 coming up to 4 cm at C♯5, steep through the tenor | ± 1 cm | each key's agraffe at its strike point's share of the scale's speaking length in front of its hammer, along its string (`string_ends`): the engine's own distance, which lands on the photograph's line within its reading (A0 24 cm for 20 to 23 read, G3 10 cm, C♯5 4 cm) |
+| Capo bar | the two top sections (keys 54–88): no agraffes, the strings end under the plate's front bar | the part is plain to see; its bearing edge within the bar's 2.2 cm | `frame.capo_bar`, `frame.capo_from` (D5): the bar's nose on the strings where the scale ends them |
+| Bearing bars | in front of the capo bar, three to each section: straight, slanted (the treble end nearer the capo), stepping back from one to the next; six unisons to each (6, 6, 6 and 6, 6, 5); 48 mm in front of the capo at a bar's bass end, 34 mm at its treble end; a red felt 16 mm further front, 18 mm wide | ± 5 mm | `duplex_group`, `DUPLEX_BAR`: groups of six from each section's lowest key, the same sizes; the strings rise 2 mm over them |
+| Felts | agraffe sections: one band some 35 mm wide from just in front of the agraffes to the pins, one per section | ± 5 mm | 30 mm wide, 26 mm in front of the agraffes |
+| Tuning pins | a quincunx: the unisons side by side, each one's three pins one behind the other two rows apart, the next unison's a row further, so that a row's pins stand two keys apart; six rows 16 to 17 mm apart; each string comes to the right side of its pin (the treble's) and winds on from there, as on any grand; the first row 5 to 6 cm in front of the agraffes, 9 to 10 cm in front of the capo bar; rows level across each section of the long bridge's strings, the field bounded behind by the felt's slanted line (the pins fill the plate from the felt down); along the agraffes' line in the bass | ± 1 cm (rows); the pattern, the strings' side of the pins and the level rows by the user's word, who corrected a first reading (every other unison three rows behind its neighbour, the string to the pin's axis) | the same quincunx per section, rows 1.7 cm apart; each pin on its own string's line carried straight on through the agraffe, the string at a tangent to its right side, the unison's leftmost string to the nearest pin so that the others pass on its right; the long bridge's rows level across each section, each unison taking the first rows of its own that lie 4.8 cm in front of its agraffe (9 cm in front of the capo bar) or more; the bass's first row 4.8 cm from its agraffes, along them. Where the unisons stand too close square to their strings for a string to pass the next unison's pin (under 14 mm for three plain strings), the pins give way to the right and the strings turn a little at the agraffe; where that is not enough (the Concert grand's tenor, whose agraffes stand on a steep line; the default grand's bass and tenor, where a string grazes a pin by up to 0.27 mm), they are spread across the unison's share of the keys' pitch and the strings turn at the agraffe. Bichords in four rows, single strings in two |
+| Front bar | one beam: straight from the bass wall, 11.5 cm in front of the hammers, to the first key under the capo, 4 cm in front, then the capo bar, level, to the treble wall; over the strings between their agraffes and their strike points | ± 1 cm | the same line; 1 cm over the strings it crosses, its top level |
+| Struts in front of the bar | each strut goes on across the pin block to the plate's front edge, parting the pins into the sections' fields; the one between keys 35 and 36 is short and has no strut behind the bar; the two either side of the bass's break leave the bar in a V | positions ± 1 cm | ridges along the strings' dead lengths from the bar to the plate's front; a short one where the bass strings cross the gap behind (no strut there); the struts in the sections' gaps run low beside the dampers, the others rise over them behind the hammers |
+| Dampers' line | straight at the heads' fronts, 1 to 2 cm behind the hammers | ± 1 cm | the pads' front edges in one line 2 cm behind the strike points, along each string, the engine's distance (`drawn_share`, `DamperLaw::place_of`) |
+| Dampers' heads | black, long in the bass and shorter up the keyboard, their backs stepping towards the keyboard from section to section: some 10 cm in the bass, 8 in the tenor, 6.5 in the third section, 4.5 to 5 in the fourth (the dark band's extent along the strings, section by section) | ± 1 cm | `damper.width_bass` 0.10 at A0, evenly key by key down to `damper.width` 0.045 at the last damper; the head as long as the engine's pad |
+| Last damper | the whole fourth section has dampers, the fifth none: G6, 71 dampers | plain to see | `damper.highest_note` 91 |
+| Dampers 19 to 22 | the two last of the bass and the two first of the tenor rest 12 to 18 pixels nearer the keyboard, either side of the two struts that leave the bar in a V at the bass's break: nearer the bar the V is narrower | 15 mm ± 5 | `damper.dodge`, keys 39 to 42, `dodge_by` 0.015 |
+
+What the engine uses of it:
+
+- **The agraffes' and the capo's places: drawing only.** The engine has each string's speaking length and strike share from the scale, and drives the frame at `frame.agraffe_x` (docs/frame_rim.md); it does not tell an agraffe from the capo bar. Renders of D♭2 to A♭2 with `capo_bar` on and off are the same files, bit for bit.
+- **The dampers' length, place and number: engine too**, changed at the user's word that the heads be the real ones' whatever it does to the sound; measured below.
+- **The dampers set forward: engine too.** The pad's place on the string enters every partial's damping (`DamperLaw::place_of`). Measured on the 2 cm pads, before the long ones: the eight keys round the break, velocity 100, held 1 s (close microphones, no room), with against without: the held note is the same sample for sample; after the key-up the level differs by 0.3 dB at most in the first 0.3 s (D♯2 −0.3, E2 −0.1, F2 0.0, F♯2 +0.1) and by 0.7 dB at most in the tail 50 dB down; the time to −20 dB is the same within the 5 ms read (160, 170, 160, 145 ms). The neighbours C♯2, D2, G2 and G♯2 are the same files.
+- **Pins, felts, bearing bars, bar, ridges, the hammers' pitch across: drawing only.** No duplex is modelled (docs/steinway_d_gaps.md, item 12); the engine has no place across for the hammers.
+- Other presets: `capo_bar` and `dodge` are off and `width_bass` is 0 by default and in any preset saved before them; `place_of` is then `place` and every pad `width` long (test `the_dampers_rest_a_fixed_distance_behind_the_strike`).
+
+What changed for every grand on the Model page, not only the Concert grand: a string is drawn with the engine's length from its agraffe to its hammer (it kept the strike's share of the string as drawn, which put the D's treble agraffes 2 cm in front of the hammers for 4 mm); the dampers stand the engine's distance behind the hammers; the plate's bar lies in front of the hammers, where it was drawn between the hammers and the dampers; pins, felt and ridges as above. An upright's are as they were.
+
+### The dampers as long as the D's
+
+The preset had felts 2 cm long, their middle 6 cm behind the strike point, on every key, and 68 dampers. It now has the lengths above, the front edges 2 cm behind the strike points (`behind_strike` 0.0425 is the shortest pad's middle; a longer pad's middle lies further back by half of what it has more), and 71 dampers. In the engine a pad's length is the stretch of string over which each partial's motion is averaged (`DamperLaw::shape_of`): a long pad leaves no partial with a node under it, it does not damp harder.
+
+Sixteen keys, velocity 100, held 1 s, close microphones, no room; the release after the key-up, new against old:
+
+| Key | A0 | E1 | A1 | C2 | E2 | A2 | E3 | A3 | E4 | A4 | E5 | A5 | D6 | E6 | F6 | G6 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Time to −20 dB (ms), old | 235 | 220 | 195 | 180 | 150 | 120 | 140 | 230 | 120 | 95 | 200 | 80 | 60 | 140 | 1055 | 340 |
+| new | 235 | 220 | 200 | 190 | 160 | 130 | 125 | 140 | 115 | 90 | 115 | 90 | 55 | 140 | 65 | 75 |
+| Level 0.3–1 s after the key-up, re the held note (dB), old | −39 | −42 | −45 | −47 | −53 | −57 | −52 | −44 | −61 | −51 | −59 | −66 | −61 | −56 | −18 | −26 |
+| new | −39 | −42 | −43 | −45 | −48 | −56 | −61 | −57 | −63 | −58 | −72 | −67 | −71 | −73 | −73 | −64 |
+
+- Under the wedges (A0 to B1, every partial at one rate) nothing moves; where the wedge fades into the flat felt (C2 to A2) the release is 5 to 10 ms slower and its tail up to 4.5 dB higher.
+- From E3 up the keys that stopped late (A3 230 ms, E5 200 ms, a partial with a node under the short pad) stop with the others: 90 to 140 ms from E3 to A5, where the 2 cm pads gave 80 to 230. The tail left after 0.3 s is 6 to 13 dB lower on those keys.
+- F6 and G6 have their dampers back and stop in 65 and 75 ms.
+- The held notes are not the same samples: with F6 to G6 damped, three strings fewer answer every blow.
+
+Not measured: the bench of the real grands and the distance to the commercial D on the new dampers. With the last damper at E6 the bench's 1 kHz band in the treble's sustain had come to the real grands' (docs/release.md, "Where the dampers end"); at G6 it is back where it was. And a real concert grand's recording shows F6 to G6 ringing as free strings do (the same section): the photograph and the written sources say 71 dampers on a D, that recording says its top three do little. Not heard at the keyboard.
+
+### The strings' lengths
+
+Code: `SoundboardParams::bridge_keys`, `measured_point_at`, `bridge_place` (`soundboard.rs`); `hammer_x` (`model/scene.rs`). Analysis: `out/kb/strike*.txt`, `out/kb/bridge_keys.py` of the worktree.
+
+The strings were drawn too long behind their hammers: C8 14.4 cm for the engine's 4.9, G6 23.8 for 12.4, D5 0.43 m for 0.31, F2 1.97 for 1.83. The engine has two sets of measures of the D, the scale's speaking lengths and the bridge points on the board, and the drawing joined them with a line of hammers 4.5 cm in front of the board's foremost point. Which of the two is off was looked into by asking of every key where its hammer must be, along the strings, for its own length behind the strike point to reach its bridge point.
+
+- **RT-425's two tables agree.** Its 84 bridge points and its lengths put the hammers of the long bridge's keys on one straight line within 2.5 cm (its points are rounded to the centimetre): 7.5 cm behind the board's foremost point in the model's coordinates (x = +0.075), from 9.8 cm at F2 to 4.9 at C8. The bass bridge's keys agree less well with it (0 to 7 cm at C1 to E2). The photograph agrees with the lengths: C8's bridge lies some 4 cm behind its hammer.
+- **The model's bridges put the keys elsewhere.** A bridge was a curve through five points (two and a bow in the bass) with its keys at equal steps along it: right at its points, up to 10 cm from RT-425's own places between them in the tenor (A2 8 cm, C3 10 cm towards the tail) and 5 to 6 cm in the bass (C1 to A1, towards the keyboard).
+- **The hammers' line was drawn 12 cm too far forward**, since the board's outline took its slanted front edge: 4.5 cm in front of the treble corner, the foremost point.
+
+What was changed:
+
+- **Engine.** `soundboard.bridge_keys`: up to 24 measured points, a key and its place on the board; a bridge with two or more runs through them, a cubic by key, and its keys sit where that has them. The Concert grand has 21 of RT-425's 84 (6 on the bass bridge, 15 on the long one); the other 63 lie within 1 cm of the curve (rms 4 to 5 mm), the rounding. On such a bridge the sections' gaps no longer move the keys along it (`bridge_place`): the measured places have them. None, the default and any preset saved before: the bridges as they were.
+- **Drawing.** A grand's hammers stand where its main strings' lengths and bridge points meet (the middle one of the keys' places), as far as the board's front edge leaves them room: 4.5 cm, or 1 cm where the bridge is a measured one (`hammer_x`); C8's hammer then stands in line with its strings (`hammer_line`). On the Concert grand, with the board's edge below: x = +0.073, 11.8 cm further back than before, and the strings are drawn as long as the engine has them: A0 2.06 m for 2.01, E2 1.355 for 1.378, F2 1.86 for 1.83, G3 0.863 for 0.861, C♯5 0.321 for 0.326, G6 12.1 cm for 12.4; only the top few are short, C8 2.0 cm for 4.9 (RT-425's last bridge points lie 1 to 2.5 cm nearer the keyboard than their strings' lengths ask, which is their rounding on strings a few centimetres long).
+- **The board's front edge** (engine), at the user's word that what is measured goes in and the fine settings come after: the outline's front treble corner 4.5 cm further back (x = 0.085 for 0.040), the edge then 1.2 cm behind the hammers there and C8's bridge point 0.9 cm inside it, as the photograph has them (below). Measured below.
+
+Measured, the measured bridge points against the five-point bridges, 88 keys at velocities 60 and 100, close microphones, no room:
+
+| | Overall | Bass | Middle | Treble | Top |
+|---|---|---|---|---|---|
+| Distance to the commercial D, before | 8.22 | 7.21 | 8.97 | 9.90 | 6.32 |
+| with the measured points | 8.27 | 7.03 | 9.24 | 9.93 | 6.33 |
+
+| With the measured points − before, mean / rms over the keys (dB) | attack | 0.5–1.5 s | partial 1 | partials 2–6 re 1 |
+|---|---|---|---|---|
+| Bass bridge (20 keys) | −0.1 / 0.8 | −0.1 / 0.7 | −0.7 / 1.1 | +0.9 / 1.4 |
+| Tenor (15) | −1.0 / 2.1 | −0.7 / 1.9 | −0.2 / 0.8 | −0.7 / 1.5 |
+| Third section (18) | −0.4 / 1.9 | −0.6 / 2.9 | −0.6 / 2.9 | +1.0 / 3.5 |
+| Fourth (18) | +0.2 / 3.7 | +0.1 / 3.8 | +0.3 / 4.3 | −0.1 / 4.4 |
+| Top (17) | +2.4 / 3.4 | +2.3 / 3.3 | +2.5 / 3.4 | −1.0 / 2.8 |
+
+Evenness over 88 keys (each key against the median of the six around it, rms): attack 3.15 to 3.23 dB, sustain 3.54 to 3.44, fundamental 5.19 and 5.19, partials 2–6 against it 4.42 to 3.94 (a real grand at the ears 2.56, 3.21, 4.52, 5.00). Within the redraw any move of the bridge points gives (docs/steinway_d.md), register by register, but for the top section, 2.4 dB louder on average. The bench of the real grands was not run.
+
+What still keeps the drawn strings from the engine's lengths: **the board's front edge.** With the hammers where the strings ask (x = +0.075) they would stand 3.5 cm behind the outline's treble corner, in the board. On the photograph the top section shows what is there: the hammers, a strip 1.3 cm wide just behind them (the belly rail's top, with its screws), then the board, and C8's bridge against that strip: the board's free edge some 2.5 cm behind the hammers, level across the section. The outline (the inner rim's face read off the D's drawing, docs/outline.md) has it 4 to 6 cm further forward in the treble, and RT-425's top bridge points lie 1 to 2.5 cm nearer the keyboard than a straight line of hammers asks. Moving the board's edge back there is a change of the board in the top octave, where its level was tuned (docs/top_treble.md). A first trial moved the top bridge points too, by inference, and was not kept (`out/bridge/edge.toml` of the worktree: the outline's front treble corner 6 cm further back, at x = 0.10, and the bridge points of F7, B7 and C7's neighbours 0.5 to 2.4 cm further back so that their hammers come on the line): the top section's fundamentals fall by 7 dB on average (G♯6 to G7 by 7 to 14 dB) and its sustain by 6 dB, the fourth section's attack rises by 2.7 dB; the bass and the tenor do not move (0.2 dB). The distance to the commercial D reads 8.10 for 8.27 (top 5.87 for 6.33, middle 8.48 for 9.24, treble 10.18 for 9.93), which the fundamentals' fall does not show. The evidence for the edge's place is one section of one photograph, read to 1.5 cm.
+
+What went in, at the user's word (2026-11-15): the corner at x = 0.085, RT-425's bridge points as they are. Against the measured bridge points alone, 88 keys at two velocities:
+
+| Edge moved back − before, mean / rms (dB) | attack | 0.5–1.5 s | partial 1 | partials 2–6 re 1 |
+|---|---|---|---|---|
+| Bass bridge | +0.1 / 0.4 | +0.1 / 0.3 | 0.0 / 0.1 | −0.2 / 0.6 |
+| Tenor | +0.2 / 1.1 | +0.1 / 0.7 | +0.1 / 0.6 | +0.1 / 0.9 |
+| Third section | −0.7 / 1.7 | +1.2 / 3.4 | 0.0 / 2.6 | −1.0 / 2.8 |
+| Fourth | +1.2 / 3.6 | −1.7 / 4.0 | −1.4 / 5.0 | +0.8 / 6.3 |
+| Top | −4.2 / 5.8 | −6.6 / 9.2 | −8.0 / 10.8 | +5.2 / 9.0 |
+
+The top section's fundamentals are 8 dB lower on average (G♯6 to D♯7 11 dB, some keys 19), its attack 4 dB, its sustain 7 dB; C6 to G6 lose 4 dB of fundamental. The distance to the commercial D does not show it (8.19 for 8.27; top 6.30 for 6.33). **To be set again**: the top octave's level and its fundamentals (docs/top_treble.md, docs/steinway_d_gaps.md), which were tuned on the board's old edge. The bench of the real grands was not run. What would settle the edge's place: the board's front edge from the third section up seen from above with the dampers out of the way, or the action cavity seen from the keyboard with the action out (the belly rail's face and its cut in the treble), or a dimensioned drawing of the belly rail.
+
+Still not like the photograph:
+
+- **Behind the hammers.** Settled since for all but the top few keys ("The strings' lengths", above): the top strings are drawn too short (C8 2.0 cm for 4.9), and the board's front edge in the treble is read off one photograph.
+- **The plate's front.** The pins stand in level rows from the felt down to the plate's front edge, which ends just in front of the last; on the D the bare plate in front of the pins is some 12 cm deep.
+- The dampers' heads are black lacquer since the user's word; their wood's shape is the drawing's own.
+- The removable diagonal bar across the tenor, the nose bolts and the plate's screws, the plaque between the bass and the tenor (drawn as the bare plate between two ridges), the raised ledge the agraffes stand on.
+- The gap at the bass's break is the 14 mm of the others; on the photograph the dampers either side stand some 2 cm further apart than that.
+- The agraffes' line, the bar's and the hammers' are read to a centimetre; the bearing bars to 5 mm. A second photograph square to the plate, or a technician's drawing, would settle them.
+
 ## Verdict
 
 The sections are the instrument's real geometry, and the Model page is truer with them. For the sound they are neutral by measure: the mobility at the bridge, the levels and decays key by key, the evenness over 88 keys, the distance, the bench and the bass tables all stay within what moving the bridge points by a centimetre redraws, and the real grand shows no mark of the bars either.
@@ -197,5 +305,5 @@ The sections are the instrument's real geometry, and the Model page is truer wit
 - The counts 15 and 17 of the tenor and the top section rest on the photograph and on the three others; the breaks 35|36 and 71|72 have no written source.
 - The gap's width, 14 mm, is read off one photograph at the dampers' line, ± 4 mm; taken the same at the bridge and the agraffes, and the same at all four breaks.
 - The GPU's 3D view was not opened in a window: the scene is the same one, checked through the software drawing (`PIANO_SHOTS`).
-- Not modelled: the bridge's steps under the two full bars, agraffes against capo bar, the hammers' boring angle, the strings' direction per section (the main strings still run from the hammers' line to the bridge as before), the bars themselves in the frame's plate (a plate of uniform mass and stiffness, docs/frame_rim.md), and the sympathetic strings' regions, which still follow the bridge.
+- Not modelled: the bridge's steps under the two full bars, agraffes against capo bar (drawn since, above; the engine still does not tell them apart), the hammers' boring angle, the strings' direction per section (the main strings still run from the hammers' line to the bridge as before), the bars themselves in the frame's plate (a plate of uniform mass and stiffness, docs/frame_rim.md), and the sympathetic strings' regions, which still follow the bridge.
 - The plan sketch of the parameter pages draws the bridge points, which follow; it has no struts.

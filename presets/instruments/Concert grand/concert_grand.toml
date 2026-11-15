@@ -121,7 +121,12 @@ loss_corner = 3500.0
 # [[0.0, 0.0096], [0.1149, 0.0068], [0.2373, 0.1781], [0.3362, 0.3014], [0.5621, 0.363], [0.8682, 0.411], [0.9976, 0.5753], [0.9976, 0.9315], [0.9341, 1.0], [0.0584, 1.0]]
 a = 2.124
 b = 1.46
-outline = [[0.0187, 0.0469], [0.1106, 0.0435], [0.2860, 0.2972], [0.3684, 0.3560], [0.5206, 0.3865], [0.9223, 0.4540], [0.9735, 0.5841], [0.9808, 0.8799], [0.9423, 0.9727], [0.0687, 0.9796]]
+# The front treble corner 4.5 cm further back than the inner rim's face read off the
+# drawing (it was [0.0187, 0.0469]): a photograph of a D from above shows the board's
+# edge 1 to 2.5 cm behind the hammers in the top section, and the strings' lengths
+# put the hammers 3.5 cm behind the corner as it was (docs/string_sections.md, "The
+# strings' lengths"). Read to 1.5 cm; the top octave's level is to be set again.
+outline = [[0.0400, 0.0469], [0.1106, 0.0435], [0.2860, 0.2972], [0.3684, 0.3560], [0.5206, 0.3865], [0.9223, 0.4540], [0.9735, 0.5841], [0.9808, 0.8799], [0.9423, 0.9727], [0.0687, 0.9796]]
 # RT-425's bridges: 20 keys on the bass bridge, the main bridge from F2, point by
 # point. These are the strings' real, slanted ends: no slant is added below.
 main_bridge_from = 41
@@ -148,6 +153,12 @@ main_string_slant = 0.0
 # apart where the frame's bars pass (each section's lowest key and the gap below it;
 # docs/string_sections.md). The hammers and the dampers follow.
 string_sections = [[41.0, 0.014], [56.0, 0.014], [74.0, 0.014], [92.0, 0.014]]
+# The bridges through RT-425's own points, key by key (21 of its 84, the others within
+# 1 cm, its rounding): between the five points above the keys stood at equal steps, up
+# to 10 cm from their measured places in the tenor (A2-E3), and 5 to 6 cm in the bass
+# (C1-A1). With them every string's measured length ends on its bridge point from one
+# straight line of hammers (docs/string_sections.md, "The strings' lengths").
+bridge_keys = [[24.0, 0.8540, 0.7260], [27.0, 0.8258, 0.6849], [30.0, 0.7740, 0.6438], [33.0, 0.7128, 0.6164], [36.0, 0.6516, 0.5959], [40.0, 0.5810, 0.5753], [41.0, 0.8023, 0.8425], [43.0, 0.7222, 0.8151], [46.0, 0.6186, 0.7603], [50.0, 0.5056, 0.6918], [54.0, 0.4115, 0.6301], [58.0, 0.3409, 0.5753], [63.0, 0.2655, 0.5137], [68.0, 0.2090, 0.4521], [73.0, 0.1667, 0.3973], [78.0, 0.1384, 0.3425], [84.0, 0.1102, 0.2808], [90.0, 0.0866, 0.2123], [96.0, 0.0678, 0.1507], [102.0, 0.0537, 0.0959], [107.0, 0.0443, 0.0548], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
 # The board as it is built, by finite elements: plate, ribs and bridges of the D
 # (fem::BoardStructure::STEINWAY_D, docs/real_board.md).
@@ -183,6 +194,12 @@ bass_bridge_thickness = [[21.0, 0.069], [32.0, 0.069], [40.0, 0.069]]
 # The plate over the board and the pin block (offset_x −0.2), as the default's.
 a = 2.324
 b = 1.46
+# The capo bar on the two top sections of strings, from D5: no agraffes there, the
+# strings bear on short slanted bars in front of it, six unisons to each. The Model
+# page draws it; the engine does not tell an agraffe from the bar
+# (docs/string_sections.md).
+capo_bar = true
+capo_from = 74
 
 [rim]
 follows_outline = true
@@ -191,8 +208,13 @@ thickness = 0.083
 [damper]
 # Every value is given: a partial section would lose the others.
 position = 0.14
-behind_strike = 0.06
-width = 0.02
+# The felts as long as the D's heads on a photograph from above (within 1 cm): 10 cm at
+# A0 down to 4.5 cm at the last damper, their front edges in one line some 2 cm behind
+# the hammers (behind_strike is the shortest pad's middle). They were 2 cm long, 6 cm
+# behind the strike, on every key until 2026-11-15 (docs/string_sections.md).
+behind_strike = 0.0425
+width = 0.045
+width_bass = 0.1
 node_floor = 0.15
 strength = 0.2
 # The felts weaken up the keyboard, so that every key stops at about the same rate, as the
@@ -207,9 +229,17 @@ horizontal = 0.3
 wedges = true
 wedge_until = 35
 wedge_strength = 0.06
-# The last damper at E6, 68 dampers: a real concert grand's strings ring free from F6
-# (docs/release.md). G6 was the commercial D's.
-highest_note = 88
+# The last damper at G6, 71 dampers, the whole of the fourth section of strings, as the
+# D's photograph from above shows and as the commercial D has. E6 (68) from 2026-11-14
+# to 2026-11-15 was a miscount (docs/release.md, docs/string_sections.md).
+highest_note = 91
+# The 19th to 22nd dampers, either side of the break between the bass and the tenor,
+# rest 1.5 cm nearer the hammers than the line of the others, clear of the frame's
+# struts there (read off a photograph of a D, within 5 mm; docs/string_sections.md).
+dodge = true
+dodge_from = 39
+dodge_until = 42
+dodge_by = 0.015
 pedal_free = 0.3
 pedal_contact = 0.6
 pedal_curve = 1.2

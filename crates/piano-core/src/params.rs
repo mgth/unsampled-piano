@@ -553,6 +553,16 @@ pub struct DamperLaw {
     /// Width of the felt pad (m): partials with a node under the damper
     /// are still damped by the rest of the pad.
     pub width: f64,
+    /// Length of the pad at A0 (m): a grand's dampers are longer in the
+    /// bass, their front edges in one line behind the hammers. The pad's
+    /// length then goes evenly, key by key, from this at A0 to `width` at
+    /// the highest damper, and `behind_strike` is the middle of the
+    /// shortest: a longer pad's middle lies further behind the strike by
+    /// half of what it has more ([`Self::pad`], [`Self::place_of`]). 0, the
+    /// default and what a preset saved before it reads: `width` on every
+    /// key.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub width_bass: f64,
     /// Share of the full rate every partial gets at least: the felt is
     /// crushed over a length of string, presses on 2–3 strings whose
     /// contact points differ, and brakes the sideways motion too, so no
@@ -616,6 +626,21 @@ pub struct DamperLaw {
     /// nothing there (bench: top 1 kHz sustain band z −8.3 → −0.2, score
     /// 1.31 → 1.09, docs/top_treble.md).
     pub highest_note: u8,
+    /// A few dampers set forward: on a grand the dampers stand in a straight
+    /// line behind the hammers, but those either side of the break between
+    /// the bass and the tenor rest nearer the hammers, clear of the iron
+    /// frame's struts that leave the front bar there. On: the keys
+    /// `dodge_from` to `dodge_until` rest `dodge_by` (m) nearer the strike
+    /// point than `behind_strike`. Off by default, and in a preset saved
+    /// before it existed: every damper on the line.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub dodge: bool,
+    #[cfg_attr(feature = "serde", serde(default = "dodge_from"))]
+    pub dodge_from: u8,
+    #[cfg_attr(feature = "serde", serde(default = "dodge_until"))]
+    pub dodge_until: u8,
+    #[cfg_attr(feature = "serde", serde(default = "dodge_by"))]
+    pub dodge_by: f64,
     /// Sustain-pedal travel (0–1): lost motion before the dampers start to
     /// lift (`pedal_free`), and travel at which they have left the strings
     /// (`pedal_contact`). Pianists rest the foot on the pedal: recorded
@@ -629,6 +654,21 @@ pub struct DamperLaw {
     pub lift_time: f64,
 }
 
+#[cfg(feature = "serde")]
+fn dodge_from() -> u8 {
+    DamperLaw::GRAND.dodge_from
+}
+
+#[cfg(feature = "serde")]
+fn dodge_until() -> u8 {
+    DamperLaw::GRAND.dodge_until
+}
+
+#[cfg(feature = "serde")]
+fn dodge_by() -> f64 {
+    DamperLaw::GRAND.dodge_by
+}
+
 impl DamperLaw {
     pub const GRAND: Self = Self {
         position: 0.14,
@@ -636,6 +676,7 @@ impl DamperLaw {
         // 0.3, D6 against `place`'s 0.45 (docs/release.md).
         behind_strike: 0.06,
         width: 0.02,
+        width_bass: 0.0,
         // 15 % of a fully exposed partial's rate: the node partials of the
         // bass (7 at A0–C3) die 23–45 dB down within 1.3 s of the release,
         // as on a commercial modelled piano (−25 to −39 dB).
@@ -648,6 +689,12 @@ impl DamperLaw {
         wedge_until: 35,
         wedge_strength: 0.06,
         highest_note: 86,
+        // The two last keys of a 20-key bass and the two first of the
+        // tenor, 1.5 cm (read off a photograph of a D, within 5 mm).
+        dodge: false,
+        dodge_from: 39,
+        dodge_until: 42,
+        dodge_by: 0.015,
         // Dampers resting up to CC64 ≈ 38, off the strings from ≈ 76: on a
         // Disklavier grand (Liang's pedalling dataset, tools/pedal_bench.py)
         // CC64 = 64 is still a half pedal, a released note losing 7–28 dB
@@ -693,6 +740,33 @@ impl DamperLaw {
         }
     }
 
+    /// Key `note`'s contact point ([`Self::place`]), nearer the strike point
+    /// by `dodge_by` on the keys set forward (`dodge`), but never nearer
+    /// than the pad's half-width behind it.
+    pub fn place_of(&self, note: u8, strike: f64, length: f64) -> f64 {
+        let set = self.dodge && (self.dodge_from..=self.dodge_until).contains(&note);
+        let pad = self.pad(note);
+        if self.behind_strike <= 0.0 || (!set && pad == self.width) {
+            return self.place(strike, length);
+        }
+        // The pads' front edges in one line: a longer pad's middle further
+        // behind the strike.
+        let line = self.behind_strike + (pad - self.width) / 2.0;
+        let behind = if set { (line - self.dodge_by).max(pad / 2.0).min(line) } else { line };
+        (strike + behind / length.max(1e-6)).min(0.45)
+    }
+
+    /// Key `note`'s pad's length (m): `width`, or with `width_bass` from
+    /// that at A0 evenly down to `width` at the highest damper.
+    pub fn pad(&self, note: u8) -> f64 {
+        if self.width_bass <= 0.0 || self.highest_note <= 21 {
+            return self.width;
+        }
+        let t = ((note as f64 - 21.0) / (self.highest_note as f64 - 21.0)).clamp(0.0, 1.0);
+        // (Exactly `width` at the highest damper.)
+        self.width_bass * (1.0 - t) + self.width * t
+    }
+
     /// Mean of sin²(kπx/L) over the pad at `place` (x/L):
     /// 1/2 − cos(2kπ·place)·sinc(kπ·w/L)/2.
     pub fn shape(&self, k: u32, place: f64, length: f64) -> f64 {
@@ -702,7 +776,12 @@ impl DamperLaw {
     /// [`Self::shape`] under a felt that is a wedge by the share `wedge`
     /// ([`Self::wedge`]): a wedge leaves no partial behind.
     pub fn shape_under(&self, k: u32, place: f64, length: f64, wedge: f64) -> f64 {
-        let a = k as f64 * std::f64::consts::PI * self.width / length;
+        self.shape_of(self.width, k, place, length, wedge)
+    }
+
+    /// [`Self::shape_under`] for a pad `width` long ([`Self::pad`]).
+    pub fn shape_of(&self, width: f64, k: u32, place: f64, length: f64, wedge: f64) -> f64 {
+        let a = k as f64 * std::f64::consts::PI * width / length;
         let sinc = if a > 1e-9 { a.sin() / a } else { 1.0 };
         let pad = 0.5 - 0.5 * (2.0 * k as f64 * std::f64::consts::PI * place).cos() * sinc;
         // ⟨sin²⟩ peaks at 1: the floor is a share of a fully exposed partial.
@@ -1611,6 +1690,21 @@ mod tests {
         // 0: the share of the length everywhere.
         let old = DamperLaw { behind_strike: 0.0, ..m.damper };
         assert_eq!(old.place(0.12, 0.2), old.position);
+        // Off, every key on the line; on, the keys set forward rest that
+        // much nearer the strike and the others where they were.
+        assert!((21..=108).all(|n| m.damper.place_of(n, 0.12, 1.0) == m.damper.place(0.12, 1.0)));
+        let set = DamperLaw { dodge: true, ..m.damper };
+        assert!((set.place(0.12, 1.0) - set.place_of(40, 0.12, 1.0) - set.dodge_by).abs() < 1e-12);
+        assert_eq!(set.place_of(38, 0.12, 1.0), set.place(0.12, 1.0));
+        assert_eq!(set.place_of(43, 0.12, 1.0), set.place(0.12, 1.0));
+        // Longer pads in the bass: their front edges in one line, the
+        // highest damper's as it was.
+        let long = DamperLaw { width_bass: 0.1, ..m.damper };
+        assert_eq!(long.pad(long.highest_note), long.width);
+        assert!((long.pad(21) - 0.1).abs() < 1e-12 && long.pad(60) < long.pad(40));
+        let front = |n: u8| (long.place_of(n, 0.12, 2.0) - 0.12) * 2.0 - long.pad(n) / 2.0;
+        assert!((front(21) - front(60)).abs() < 1e-12 && (front(21) - (long.behind_strike - long.width / 2.0)).abs() < 1e-12);
+        assert!((21..=108).all(|n| m.damper.pad(n) == m.damper.width));
     }
 
     /// With the slope at 1 the felt stops every key at nearly the same
