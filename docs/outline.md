@@ -135,3 +135,139 @@ The model's lowest board mode, lightly damped once the pedal is down, makes one 
 ## 2026-10-28: on by default
 
 What settled it was not the evenness but the stereo attack of the bass ([bass_metal.md](bass_metal.md), "The attack's coherence, band by band"). With the rectangle, the modes at 260–335 Hz reach the two close microphones in antiphase: a bass attack arrives at them 3.7 ms apart with no correlation between the channels (real pairs 0.2–1.7 ms, +0.2 to +0.5), which the user heard as part of the bass's "tube". With the outline and the same microphones the attack is coherent in every band from 250 Hz to 8 kHz. The user chose the outline with the board recalibrated: `rho_h`, `dx`, `dy` × 1.2 (the modes above `outline_below` keep a fifth of their mass outside the outline), `impedance_slope` 0.0024 and `impedance_slope_bass` 0.0076 instead of 0.02 and 0. Bench 1.11 against the rectangle's 1.09 (17 measures worse, 19 better); the new baseline. Still to do: ribs and the two bridges; the sustain's 315 Hz still reaches the pair in antiphase (−0.84).
+
+## 2026-11-15: the Concert grand's outline against the D's drawing
+
+Item 12b of [steinway_d_gaps.md](steinway_d_gaps.md): placed on the preset's outline, the D's drawn ribs came out 10 to 15 cm too long, which read as a board "some 8 cm too wide at the bentside". It is not an error of the bentside. The preset's outline is the edge of the panel, where it meets the outer rim; the drawing's ribs stop at the inner rim's face, which is where the board stops being free to move. The two lines are 3 to 5 cm apart all round the board.
+
+### The drawing and its scale
+
+The dimensioned drawing "STEINWAY D (2,74 m)" of Boutillon, Ege & Paulello (Acoustics 2012, arXiv 1210.3948, figure 2), an image of 1794 × 2484 pixels. It has two closed lines: an outer one, and an inner one at which every rib ends. Its dimensions are the ribs' lengths, widths, heights and clear gaps.
+
+- **Scale.** The ribs' long edges, found on the image across their direction, against the drawing's own figures: 0.8888 mm a pixel over the 1.85 m from the third rib to the seventeenth, each of the fourteen gaps and fifteen widths giving 0.86 to 0.91.
+- **With that scale** the outer line is 1.455 m wide and 2.10 m long, the inner one 1.37 m and 2.05 m. The margin between them, measured on the drawing: 3.8 cm along the spine, 3.7 at the tail, 4.4 to 4.7 along the bentside, 4.9 at the treble cheek, 2.8 along the belly rail.
+- **The case.** A D is 157 cm wide: 5.75 cm of outer rim on each side of the outer line, 9.8 cm of rim in all with the margin. The preset's 1.46 m with its rim of 8.3 cm (`rim.thickness`, counted outwards from the outline, as the Model page draws it) makes a case 1.63 m wide; on the inner line it is 1.54 m.
+- **Plath's Figure 4.1**, a factory-style drawing put to scale by his own table of fifteen bridge points (cm from the case's outer corner; the figure's dots fit the table within 13 mm rms): its outline is 1.455 m wide at the treble cheek and 2.12 m long. It is the panel's edge too.
+- **Not checked**: the keyboard's width, which the drawing does not show, and the D's length, which no line of it spans.
+
+### The preset's outline is the panel's edge
+
+`soundboard.outline` was traced off RT-425's figure 1, ten points. Fitted on it by a rotation and a shift, the scale held, the drawing's outer line lies within 3 mm of it (median; 13 mm rms, the rounded corners being cut by straight sides). The inner line does not fit it (41 mm rms). With the outer line laid on the preset's outline, the preset's edge lies outside the drawing's inner line by:
+
+| | treble cheek | bentside, front | bentside, curve | bentside, long part | tail | spine | belly rail |
+|---|---|---|---|---|---|---|---|
+| cm | 5.4 | 3.5 | 5.5 to 6.2 | 4.6 | 4.5 | 3.4 | 2.9 |
+
+Area 2.09 m² against 1.85 m² inside the inner line (the published 2.07 m² is the panel's). A rib at 50° to the spine crosses both margins: 10 to 15 cm of length, the "8 cm" of the first reading.
+
+Everything else in the model already takes the outline for the rim's inner face: the built board is held along it (docs/real_board.md), the rim's wall and the lid stand outside it, and the Model page draws the inner rim under a board that goes on over it. So the line to draw is the inner one.
+
+### Bridges, strings' points, ribs
+
+- **Bridge points.** RT-425's 84 points (the model's bridges) against Plath's table, key for key on the thirteen keys they share, by a rotation and a shift: 31 mm rms, 9 to 30 mm along the long bridge, 52 and 74 mm at two keys of the bass bridge, along it. With them RT-425's frame has its origin 5.4 cm inside the case's outer face at the spine (5.75 expected for the panel's edge). The two tables agree; nothing to move.
+- **The drawn bridge.** The drawing's own bridge line follows both tables from the bass up to about C5, then runs up to 6 cm nearer the belly rail and ends in the board's treble corner. Plath's figure and both tables keep the top of the bridge further back. The drawing's bridge is a sketch there; its line was not used.
+- **The ribs.** Measured on the drawing, they lie at 51.2° to the spine (50° in `tools/steinway_d_ribs.py`, from Plath's "40° to the keyboard"; ± 0.5° for the drawing's place in the model's frame). On the preset's outline the tool had put them 4.3 to 6.0 cm from where the drawing has them, across their direction, since it places the seventeenth rib by its length in the tail's corner. On the inner line and at 51.2°:
+
+| rib | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| drawn length, mm | 241 | 370 | 488 | 553 | 655 | 776 | 936 | 1123 | 1130 | 1106 | 1080 | 1054 | 1029 | 1002 | 956 | 802 | 577 |
+| on the preset's outline, 50° | +148 | +114 | +101 | +138 | +148 | +140 | +154 | +150 | +107 | +99 | +103 | +105 | +106 | +59 | −15 | +27 | 0 |
+| on the inner line, 51.2° | −25 | −23 | −33 | +5 | +11 | 0 | −2 | −4 | 0 | −4 | −2 | −2 | −4 | −3 | +4 | 0 | 0 |
+
+  Each rib's centre line then lies within 2 mm of the drawn one (ribs 3 to 17, those found on the image). Ribs 6 to 17 have their drawn length within 4 mm, with nothing fitted but the seventeenth's place: the inner line, the scale and the angle check each other. Ribs 1 to 3, in the treble corner, are 2 to 3 cm short: ten points cut that corner.
+
+### The outline on the inner line
+
+Ten points fitted on the drawing's inner line, in the preset's frame (`a` and `b` unchanged, so no bridge point moves): within 5 mm rms of the line, 34 mm at worst (a rounded corner), area 1.85 m².
+
+```toml
+outline = [[0.0187, 0.0469], [0.1106, 0.0435], [0.2860, 0.2972], [0.3684, 0.3560], [0.5206, 0.3865], [0.9223, 0.4540], [0.9735, 0.5841], [0.9808, 0.8799], [0.9423, 0.9727], [0.0687, 0.9796]]
+```
+
+Every bridge point comes 3 to 5.5 cm nearer the rim: A0 from 27 to 23 cm, F2 from 23 to 19, C4 from 37 to 31, C6 from 19 to 16. The top of the long bridge ends close to the treble cheek: B7 at 1.3 cm of the inner line, C8 at less than a centimetre, where the preset has them at 6.8 and 5.7 cm. That place is known to ± 1.5 cm only: it hangs on RT-425's bridge points against its own figure, and from Plath's table and a case of 157 cm with equal rims C8 would lie 3 cm inside the line.
+
+### What it is worth: the board's resonances
+
+The cheap test before anything else: the preset with that outline and the ribs placed again on it (`out/presets/cand.toml`), its first modes as the bridges see them (`bass_shapes`), against the D that Plath measured at each stage of its making.
+
+| | in the rim, no strings (Hz) | strung (Hz) | mean mobility at Plath's fifteen points, strung / in the rim (s/kg) | board |
+|---|---|---|---|---|
+| the real D (Plath) | 56, 80, 114 | 74, 98, 136 | 0.7e-3 / 0.8e-3 | 13.7 kg with its margin |
+| the preset: the panel's edge, clamped | 57, 79, 110 | 78, 100, 137 | 0.76e-3 / 0.76e-3 | 12.7 kg, 2.09 m² |
+| the inner line, clamped, the ribs as they were | | 85, 112, 154 | 0.63e-3 | 11.8 kg, 1.85 m² |
+| **the inner line, clamped, the ribs on it: the candidate** | 63, 87, 125 | 83, 108, 148 | 0.63e-3 / 0.63e-3 | 11.5 kg |
+| the same, `crown_freq` 28 Hz instead of 40 | 57, 83, 122 | 79, 104, 146 | 0.63e-3 | |
+| the same, simply supported (`clamped` off) | 55, 75, 105 | 75, 94, 129 | 0.63e-3 | |
+| the panel's edge, simply supported | 51, 68, 93 | | 0.79e-3 | |
+
+The outline as drawn, clamped, puts the three resonances 9 to 12 % above the real board's, where the preset has them within 4 %; simply supported on the same line, 2 to 8 % under. A real edge is between the two, and the preset's wider board, clamped, happens to stand where the real one does. What the 10 % may be is not settled: a rim's glued ledge that lets the edge turn a little, the spruce's moduli (RT-425's 11 GPa along the grain, on which a frequency goes as the square root), the feathered ends, or `crown_freq`, a term fitted on another board with the wider outline. Refitted on Plath's first resonance it is 28 Hz, and the second and third stay 4 and 7 % high: one term cannot do it.
+
+Mobility at each key's bridge point, the candidate against the preset, by third of an octave from 500 Hz to 5 kHz (`bridge_mobility`): within 1 dB on average in most bands (3 to 4 at 500 Hz above A4, both ways) and 2 to 4 dB rms from key to key up to G#6, which is a redraw. From A6 the points are within 9 cm of the rim and lose mobility below their own fundamentals: A6–G#7 −11 dB at 500 Hz, −6 at 630, +5 at 1.6–2 kHz, nothing above; A7–C8 −34 dB at 500 Hz, −14 at 2 kHz, −5 at 3.15 kHz, −3 at 4 kHz, +1 at 5 kHz. At their partials the top four keys lose 3 to 5 dB.
+
+So it can move three things: the partials of A0–B2 that fall between 60 and 200 Hz, through the resonances; the top four keys, through their distance to the rim; and, as any change of the board does, the level of every partial of every key.
+
+### Measured beside the preset
+
+All 88 keys at velocities 60 and 100 through the close microphones, no room (the distance to the commercial D, `dscore.py`); the bench of eight real grands; the bass against Plath's grand (`tools/bass_gaps.py plath`) and the per-partial gap at the ears. The preset is main at 88e4f13, measured again the same day: after the felt, the unisons, the string loss and the dampers it reads 1.44 on the bench and 8.06 against the commercial D.
+
+| | bench | bass | middle | treble | top | D, 88 keys | bass | middle | treble | top |
+|---|---|---|---|---|---|---|---|---|---|---|
+| the preset | 1.44 | 1.21 | 1.21 | 1.44 | 1.91 | 8.06 | 8.40 | 9.21 | 8.37 | 5.86 |
+| the candidate | 1.45 | 1.10 | 1.21 | 1.60 | 1.88 | 8.40 | 7.22 | 9.28 | 10.07 | 6.55 |
+| the candidate, `crown_freq` 28 | 1.46 | 1.09 | 1.23 | 1.60 | 1.89 | 8.46 | 7.42 | 9.29 | 10.10 | 6.54 |
+| the inner line, simply supported | 1.54 | 1.28 | 1.19 | 1.52 | 2.14 | 8.84 | 8.39 | 10.11 | 10.10 | 6.15 |
+
+Decay of the partials at the bridge by their frequency, 0.15–1 s (dB/s, median):
+
+| | 45–70 | 70–100 | 100–140 | 140–200 | 200–280 Hz |
+|---|---|---|---|---|---|
+| A0–E1, one string: the real grand | 3.0 | 6.7 | 3.9 | 3.7 | 4.6 |
+| the preset | 1.0 | 7.1 | 5.8 | 3.8 | 2.9 |
+| the candidate | 0.6 | 3.9 | 5.6 | 6.1 | 3.7 |
+| the candidate, `crown_freq` 28 | 0.8 | 4.0 | 5.8 | 5.7 | 3.6 |
+| F1–E2, the bass bridge: the real grand | 2.6 | 8.5 | 5.9 | 6.9 | 2.9 |
+| the preset | 1.8 | 16.0 | 6.8 | 8.5 | 4.5 |
+| the candidate | 1.2 | 11.7 | 5.8 | 9.9 | 4.7 |
+| F2–B2, the main bridge: the real grand | | 18.8 | 4.7 | 21.3 | 5.8 |
+| the preset | | 10.2 | 6.3 | 6.5 | 6.1 |
+| the candidate | | 4.9 | 14.7 | 11.0 | 6.7 |
+
+Per-partial gap at the ears against the real grand, whole / smooth (dB rms):
+
+| | A0–G#1 | A1–G#2 | A2–G#3 | A3–G#4 | A4–G#5 | A5–G#6 |
+|---|---|---|---|---|---|---|
+| the preset | 7.8 / 4.5 | 8.8 / 5.7 | 8.0 / 4.2 | 8.8 / 5.4 | 7.9 / 3.0 | 6.3 / 2.3 |
+| the candidate | 7.7 / 4.2 | 7.8 / 4.3 | 9.1 / 5.8 | 8.9 / 5.6 | 8.5 / 3.1 | 5.2 / 1.9 |
+
+Drop of the sound at the ears between 0.2 and 2 s (dB), A0–B0, C1–B1, C2–B2: the real grand 11.5, 9.1, 13.6; the preset 9.1, 9.9, 12.6; the candidate 9.8, 10.2, 12.9.
+
+**What is cause and what is the redraw.** A step under 0.5 in a register (1.3 at the top) says nothing about a board (docs/real_board.md).
+
+- *Cause.* The resonances: the single strings' loss moves from 70–100 Hz, where the real grand and the preset have it (6.7 and 7.1 dB/s), to 140–200 Hz (3.9 and 6.1 where the real one reads 6.7 and 3.7). On the bass bridge's upper keys the preset's excess at 70–100 Hz comes down (16.0 to 11.7 against 8.5); on the main bridge's lowest keys the candidate takes at 100–140 Hz what the real board takes at 70–100. On the whole the low partials' decays are further from the real grand's.
+- *Beyond a redraw, cause not traced.* The bass is 1.2 nearer the commercial D (its attack's partials, 10.3 to 8.3 dB rms at ff) and 0.11 better on the bench. The treble is 1.7 further from the D and 0.16 worse on the bench: C5–B6 are 1.3 dB lower against the keyboard's median and their partials 2 to 8 stand higher over the D's (attack +5.0 to +7.2 dB, sustain −2.2 to +4.5). Their bridge points are 2 to 3 cm nearer the rim on a board a ninth smaller.
+- *Redraw.* The middle, the top, the gap at the ears (one octave nearer by 1.0, the next further by 1.1), the bench's total (1.44, 1.45, 1.46).
+
+By measure the outline as drawn is neutral on the real grands and 0.3 further from the commercial D, and it takes the board's resonances away from the measured D's. Nothing in these figures asks for it in the preset; it is the drawing's line, and the ear and the keyboard were to say the rest.
+
+### Listening
+
+`out/ab_outline/index.html` (the `ecoute-contour` entry of `.claude/launch.json`): 23 keys from A0 to C8 through the close microphones at velocities 100 and 60 with the commercial D, and 20 keys up to C7 at the player's seat, lid off, with the real grand; the preset, the candidate and the candidate with `crown_freq` 28, one gain for the three. `out/keyboard/instruments/Board outline trial/` holds the three presets for the instrument's own list (`target/release/unsampled-piano --ui --presets out/keyboard`). The Model page draws whatever outline the preset has, with the inner rim under the board's margin outside it: no change of the interface was needed. The workspace's tests pass with the candidate in the place of the preset (316).
+
+### In the preset (2026-11-15)
+
+The three presets were put in the instrument's list and the user had the outline of the drawing taken into the preset, as it is drawn, `crown_freq` left at 40 Hz. `concert_grand.toml` has the ten points on the inner line and the ribs placed on it at 51.2° (`tools/steinway_d_ribs.py`, whose default angle that now is and which gives the preset's ribs back); its renders are the measured candidate's, bit for bit (four notes compared). The former outline is kept in a comment beside it; a preset that carries its own outline renders as before, and the examples `board_fem` and `board_tf` keep the former one, the board of docs/real_board.md's figures. What was heard is not recorded here: no remark came with the decision. The preset now reads 1.45 on the bench and 8.40 against the commercial D, and its board's first resonances are 63, 87, 125 Hz in the rim and 83, 108, 148 Hz strung, 9 to 12 % over the measured D's: the edge is the open question, below.
+
+### Not verified
+
+- **What was heard.** The outline was taken into the preset without a remark to record; whether the keyboard or the listening page decided, and on which keys, is not on record.
+- **Which edge the real board has.** The inner rim's face is where the drawing ends its ribs; how far the glued margin lets the edge turn is not measured, and the 10 % on the resonances is not explained.
+- **The drawing's place in the model's frame**, through the fit of its outer line on an outline that was itself traced by hand off RT-425's figure: ± 1 cm, ± 0.5°. The top keys' distance to the treble cheek hangs on it (± 1.5 cm on 1 cm).
+- **The scale** on the ribs' figures only; no outer dimension of the piano is on the drawing. Plath's figure and the case's 157 cm agree with it within a centimetre or two.
+- **Ten points**: the rounded corners are cut (34 mm at worst), ribs 1 to 3 are 2 to 3 cm short.
+- **The case's plan.** With the outline on the inner line the rim's wall, the lid (7.5 cm outside the outline) and the frame's plate all come in by the margin: a case 1.54 m wide where the D has 1.57 and the preset 1.63. `rim.thickness` would be 9.8 cm; not changed, not measured for its effect.
+- **The treble's 1.7** against the commercial D: read on the figures, not traced to a cause.
+- **RT-425's figure 1** was not looked at again (not stored); that the preset's outline is its trace is the earlier record's word.
+
+### Tools
+
+`tools/steinway_d_ribs.py [angle] [short] [preset]` now reads the outline from a preset. The scripts of this section are in the session's `out/tools/` (not versioned): `extract.py` (the drawing's lines by colour), `scale.py` (its scale from the ribs), `shapefit.py` (the drawing's lines on the model's outline), `plathfig.py` (Plath's figure by his table, RT-425 against Plath), `polyfit.py` (the ten points), `ribcheck.py`, `mkpresets.py`, `measure.sh`, `summ.py`, `abpage.py`; the figures in `out/lit/`.
