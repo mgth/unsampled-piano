@@ -428,6 +428,16 @@ const HELP: &[(&str, &str, &str)] = &[
         "Exponent of width_mid + (width_treble − width_mid)·t^curve, t from 0 at C4 to 1 at C8 (2: quadratic).",
     ),
     (
+        "unison.width_bass",
+        "The low keys' strings tuned closer to each other than the middle's: a tuner clears the \
+         beats he hears, and in the bass those are the beats of high partials, many times faster \
+         than the fundamental's. 0 leaves the middle's spread down to the lowest key.",
+        "Spread between the extreme strings (cents) up to `width_bass_until`, then key by key to \
+         `width_mid` at C4; 0: off. A real concert grand's partials of F1-B2 show no null in five \
+         seconds: under 0.15 cent (docs/bass_unisons.md).",
+    ),
+    ("unison.width_bass_until", "Highest key that keeps the low keys' spread.", "MIDI note; above it the spread goes to `width_mid` at C4."),
+    (
         "unison.hit_spread",
         "The hammer never hits the strings of a key exactly evenly. The uneven part sets them \
          swinging against each other, which feeds the long aftersound.",

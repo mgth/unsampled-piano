@@ -1,6 +1,6 @@
 # The bass against its two references
 
-Status as of 2026-11-14. A0–B2 of the Concert grand preset, measured against the commercial D and against a real concert grand, each gap put on a stage of the model, and the cheap levers tried one line at a time. Sections 1 to 4 are the first pass, on the preset as it was on 2026-11-12; what was heard afterwards, the measure that follows the ear and the change the preset took are in the sections from "After listening" on; "At the keyboard" takes half of that change back; the last one, "The bass bridge's coupling", finds the cause of the first gap below in the board's ribs; the board as it is drawn is in the preset since 2026-11-14. The variants are in `out/presets/`, their renders in `out/v/`, a listening page in `out/ab_bass_gaps/` (none of it in the repository). Tool: `tools/bass_gaps.py`.
+Status as of 2026-11-14. A0–B2 of the Concert grand preset, measured against the commercial D and against a real concert grand, each gap put on a stage of the model, and the cheap levers tried one line at a time. Sections 1 to 4 are the first pass, on the preset as it was on 2026-11-12; what was heard afterwards, the measure that follows the ear and the change the preset took are in the sections from "After listening" on; "At the keyboard" takes half of that change back; the last one, "The bass bridge's coupling", finds the cause of the first gap below in the board's ribs; the board as it is drawn is in the preset since 2026-11-14. The third gap, the unisons, is taken up in docs/bass_unisons.md (2026-11-15): the 0.2 cent of sections 2 and 3 was read on the first second and a half, and over five seconds no width gives the real decay; the preset took 0.1 cent up to B2 with half the strings' frequency loss up to C3, after the keyboard. The variants are in `out/presets/`, their renders in `out/v/`, a listening page in `out/ab_bass_gaps/` (none of it in the repository). Tool: `tools/bass_gaps.py`.
 
 ## What comes out
 
@@ -815,6 +815,7 @@ The two presets were put in the instrument's list and played from the keyboard, 
 - The real resonances are fitted on eight or nine partials each, from eight keys along 30 cm of bridge: the loss factors are good to a third, the strengths to a factor of 1.5.
 - Which of the bridge and the radiation is wrong above 1.5 kHz (section 2).
 - The cost of `string_load` on the evenness from key to key, and of `unison.width_mid` on the middle by ear.
+- The unison's width was read here on dips over 0.15–1.6 s with long windows: docs/bass_unisons.md reads the real grand's two tunings and its five seconds, and finds that a narrow unison uncovers a decay that is too fast.
 - The dynamics against a real grand: the bench's Disklavier only.
 
 ## Tools
