@@ -16,11 +16,11 @@ The outline is read from the preset (the Concert grand's by default): its
 `soundboard.a`, `b` and `outline`. On the drawing's inner line, the preset's
 since 2026-11-15, ribs 6 to 17 have their drawn lengths within 4 mm
 (docs/outline.md)."""
-import os, re, sys, json, numpy as np
+import os, sys, tomllib, numpy as np
 PRESET = sys.argv[3] if len(sys.argv) > 3 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "presets/instruments/Concert grand/concert_grand.toml")
-text = open(PRESET).read(); board = text[text.index("[soundboard]"):]
-a, b = (float(re.search(rf"^{k} = ([0-9.]+)", board, re.M).group(1)) for k in ("a", "b"))
-out = np.array(json.loads(re.search(r"^outline = (.*)$", board, re.M).group(1))) * [a, b]
+with open(PRESET, "rb") as f: board = tomllib.load(f)["soundboard"]
+a, b = float(board["a"]), float(board["b"])
+out = np.array(board["outline"], dtype=float) * [a, b]
 LEN = [241, 370, 488, 553, 655, 776, 936, 1123, 1130, 1106, 1080, 1054, 1029, 1002, 956, 802, 577]
 SPACE = [80, 91, 86, 89, 90, 100, 102, 105, 108, 107, 119, 118, 117, 114, 106, 112]
 WIDTH = [22, 21, 21.5, 23, 24, 25.5, 25.5, 25.5, 25.5, 25.5, 25.5, 25.5, 25.5, 25.5, 25.5, 25, 25]
