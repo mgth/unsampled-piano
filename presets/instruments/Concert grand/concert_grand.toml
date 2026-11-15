@@ -28,7 +28,17 @@ shank_freq_mid = 700.0
 # to 1.39, middle 1.70 to 1.31). The recorded commercial D asks for the softer felt
 # (docs/bass_gaps.md).
 hardness = 1.2
-hardness_slope_top = 0.035
+# A lower exponent in the bass, 2.7 at A0 coming back to the law's own at C4, on a
+# felt softer by half at A0: the bass's mf attack had nothing at 4-8 kHz (-75.8 dB re
+# the attack, eight real grands -62.1) and now has (-66.5); its 4-8 kHz grows from mf
+# to ff by 30 dB, a real Disklavier grand's by 26 (48.6 before).
+p_bass = -1.0
+hardness_slope_bass = 0.0378
+# A softer felt above C4, 0.55 of the hardness at C5 and 0.30 from C6 up: the treble's
+# mf attack was 7 to 9 dB brighter than the real grands' at 2-8 kHz, and loses half of
+# that at 4-8 kHz. Kept at the keyboard (docs/felt_law.md).
+hardness_slope = -0.05
+hardness_slope_top = 0.085
 
 [polarization]
 # The sideways coupling as measured on a real grand's partials (0.03, the cross

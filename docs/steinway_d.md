@@ -105,6 +105,8 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `strike_ratio` | 0.12 | 0.12 | C♯5 |
 | `strike_ratio_top` | 0.05 | 0.05 | 1/14 at C8, inside a real grand's 1/12 to 1/17 (Conklin); RT-425's 0.12 up to B7 is a rule, and cost the top octave its fundamentals (docs/steinway_d_gaps.md; 0 until 2026-11-14) |
 | `hammer_mass_slope` | 0 | 0.00078, with `hammer_mass_scale` 1.053 | RT-425 against Stulov, 1.02 at C1 to 1.07 at C7 |
+| `p_bass`, `hardness_slope_bass` | 0, 0.02 | −1.0, 0.0378 | the bass's mf attack at 4–8 kHz against eight real grands (docs/felt_law.md, 2026-11-15) |
+| `hardness_slope`, `hardness_slope_top` | 0, 0.15 | −0.05, 0.085 | a softer felt above C4: the treble's mf attack against the real grands (docs/felt_law.md) |
 | `damper.highest_note` | 86 (D6) | 91 (G6) | the commercial D's setting, checked on its key-ups |
 | `damper.strength_slope` | 0 | 1 | the commercial D's key-ups: every key stops at about the same rate (docs/release.md) |
 | `damper.horizontal` | 0.03 | 0.3 | the tail after the key-up, 34–50 dB under the attack from key to key, the commercial D's near −60 (docs/release.md) |

@@ -2,7 +2,7 @@
 
 Status as of 2026-11-15. Item 3 of [steinway_d_gaps.md](steinway_d_gaps.md): the Concert grand's felt has an exponent of 3.7 to 5.0 where "measured felts" are said to have 2.3 to 3.5, and the measured values, put in, made the sound worse. This document says what the literature gives, why the measured laws failed here, what was tried and what is left to hear. Rule of the session: the real pianos rule over the commercial D; its distance is reported and not optimised for.
 
-No code changed and the preset is unchanged. Three candidates are in the instrument's preset list to be played, none of them a clear gain by measure.
+Candidate B is in the preset since it was played at the keyboard (below, "In the preset"). The other figures of this document are those of the preset before it.
 
 ## What comes out
 
@@ -156,6 +156,10 @@ What each one does where it was aimed:
 
 **None of them beats the present law on the real pianos by more than the bench can tell** (1.77 to 1.82 across all seven; the changes that brought 1.98 to 1.84 and 1.84 to 1.75 were heard). A and B correct two measured faults at no measured cost and are the ones worth hearing. Nothing goes into the preset before the keyboard.
 
+## In the preset (2026-11-15)
+
+The four presets were played at the keyboard by the user and B was kept, without a listening remark: `concert_grand.toml` has `p_bass` −1.0, `hardness_slope_bass` 0.0378, `hardness_slope` −0.05 and `hardness_slope_top` 0.085 (0.035 before). Its renders are those of `out/presets/c2.toml`, bit for bit on five keys. Bench 1.82 → 1.80 (bass 1.41, middle 1.40, treble 1.54, top 2.74); distance to the commercial D 8.23 → 8.02 (bass 8.37, middle 9.13, treble 8.34, top 5.85). `p_bass`'s range in the interface now goes down to −2 (it stopped at 0). The core's lines stay in the preset, idle.
+
 ## What the present law stands in for
 
 - For a voiced D's hammers, in the middle and the treble, it stands in for something the rigid-target measures do not hold: put on the model's strings, the measured law is worse there, with or without hysteresis. The candidates for that something, none of them tested here: the pulse on a real string is not the rigid target's (Giordano); the felt's own transit time and its graded hardness; the shank, which both Giordano and Birkett name as a first-order effect and which is an estimate in the model; the strings' nonlinearity in the bass's brightening.
@@ -170,7 +174,7 @@ What each one does where it was aimed:
 
 ## Not verified
 
-- Nothing was heard or played: every statement here is a measure on single held notes, which have missed what the keyboard showed before (the buzz of a lower string loss).
+- B was played and kept; A and C were played beside it and not kept, and no remark on what was heard is recorded. The measures are on single held notes.
 - The simulator against the engine: 5 % on force and length; its predictions for the bass's mf attack at 4–8 kHz were met in sign and size by the bench (`c1`: +9.8 predicted, +14.0 measured; B: +4.9 and +9.3), nothing else of it was checked in the engine.
 - Russell and Rossing's test on the model was made with a rigid hammer; theirs were on their shanks. The fit of C on their table carries that.
 - The real references for the growth from mf to ff are one Disklavier grand with known velocities and three sample sets whose velocities are not known (per dB of level only). A binaural pair at the player's seat against the model's close microphones.
