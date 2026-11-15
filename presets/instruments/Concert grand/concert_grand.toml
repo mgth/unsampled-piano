@@ -113,12 +113,15 @@ exact_below = 6000.0
 # frequencies, as it says and as measured (docs/real_board.md).
 loss_factor = 0.0223
 loss_corner = 3500.0
-# The D's board, RT-425's figure 1: 2.1 m², along the spine from its front edge,
+# The D's panel, RT-425's figure 1: 2.1 m², along the spine from its front edge,
 # which runs 12.4 cm further forward on the treble side than at the spine, so a
-# is 2.124 m. The outline's ten points follow that slanted edge and the bentside.
+# is 2.124 m. The outline is where the board becomes free: the inner rim's face on
+# the D's dimensioned drawing, 3 to 5 cm inside the panel's glued edge all round,
+# 1.85 m² (docs/outline.md). The panel's edge, until 2026-11-15:
+# [[0.0, 0.0096], [0.1149, 0.0068], [0.2373, 0.1781], [0.3362, 0.3014], [0.5621, 0.363], [0.8682, 0.411], [0.9976, 0.5753], [0.9976, 0.9315], [0.9341, 1.0], [0.0584, 1.0]]
 a = 2.124
 b = 1.46
-outline = [[0.0, 0.0096], [0.1149, 0.0068], [0.2373, 0.1781], [0.3362, 0.3014], [0.5621, 0.363], [0.8682, 0.411], [0.9976, 0.5753], [0.9976, 0.9315], [0.9341, 1.0], [0.0584, 1.0]]
+outline = [[0.0187, 0.0469], [0.1106, 0.0435], [0.2860, 0.2972], [0.3684, 0.3560], [0.5206, 0.3865], [0.9223, 0.4540], [0.9735, 0.5841], [0.9808, 0.8799], [0.9423, 0.9727], [0.0687, 0.9796]]
 # RT-425's bridges: 20 keys on the bass bridge, the main bridge from F2, point by
 # point. These are the strings' real, slanted ends: no slant is added below.
 main_bridge_from = 41
@@ -156,15 +159,16 @@ enabled = true
 below = 6000.0
 # The strings hold the bridge, T·(1/L + 1/l) each, and its top along their own
 # length, E·A·(1/L + 1/l)·h² on the board's slope: stringing raises the board's
-# first resonances from 57, 79, 110 Hz to 78, 100, 137 Hz, a real concert grand's
-# from 56, 80, 114 to 74, 98, 136 (Plath 2019; docs/bass_gaps.md).
+# first resonances from 63, 87, 125 Hz to 83, 108, 148 Hz, a real concert grand's
+# from 56, 80, 114 to 74, 98, 136 (Plath 2019; docs/bass_gaps.md, docs/outline.md).
 strings = true
 strings_grip = true
 # The D's 17 ribs from its dimensioned drawing (Boutillon, Ege & Paulello 2012,
-# figure 2; tools/steinway_d_ribs.py): from rim to rim, 17 to 27 mm high under the
+# figure 2; tools/steinway_d_ribs.py): from rim to rim at 51.2° to the spine, as the
+# drawing has them (their lengths within 4 mm from the sixth on), 17 to 27 mm high under the
 # board, their ends cut over 15 cm down to 4 mm as measured on a concert grand.
 # RT-425's mesh had 16, short of the rim, and left the bass front corner bare.
-ribs = [[0.0147, 0.2308, 0.1294, 0.0319, 0.026, 0.026], [0.0205, 0.3289, 0.164, 0.0802, 0.028, 0.028], [0.0269, 0.4374, 0.2021, 0.1336, 0.028, 0.028], [0.0331, 0.5421, 0.2391, 0.1849, 0.031, 0.031], [0.0395, 0.6508, 0.2793, 0.235, 0.032, 0.032], [0.046, 0.7618, 0.3203, 0.2861, 0.035, 0.035], [0.0532, 0.8831, 0.38, 0.3164, 0.035, 0.035], [0.0656, 0.9974, 0.4478, 0.3349, 0.035, 0.035], [0.1458, 0.9974, 0.5171, 0.3538, 0.035, 0.035], [0.2279, 0.9974, 0.5896, 0.3702, 0.035, 0.035], [0.3093, 0.9974, 0.6643, 0.3819, 0.035, 0.035], [0.3981, 0.9974, 0.7458, 0.3947, 0.035, 0.035], [0.4863, 0.9974, 0.8266, 0.4073, 0.035, 0.035], [0.5739, 0.9974, 0.892, 0.4458, 0.035, 0.035], [0.6596, 0.9974, 0.9415, 0.5086, 0.035, 0.035], [0.7403, 0.9974, 0.9881, 0.5678, 0.036, 0.036], [0.8245, 0.9974, 0.9961, 0.6999, 0.036, 0.036], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+ribs = [[0.0262, 0.1568, 0.0869, 0.047, 0.026, 0.026], [0.0316, 0.258, 0.1311, 0.078, 0.028, 0.028], [0.0376, 0.3698, 0.1688, 0.1325, 0.028, 0.028], [0.0434, 0.4777, 0.2051, 0.1851, 0.031, 0.031], [0.0494, 0.5898, 0.2429, 0.2397, 0.032, 0.032], [0.0556, 0.7041, 0.2814, 0.2954, 0.035, 0.035], [0.0623, 0.8292, 0.3349, 0.3358, 0.035, 0.035], [0.0691, 0.9562, 0.3961, 0.3645, 0.035, 0.035], [0.1368, 0.9764, 0.4671, 0.3787, 0.035, 0.035], [0.2178, 0.9758, 0.54, 0.3927, 0.035, 0.035], [0.2981, 0.9751, 0.6133, 0.405, 0.035, 0.035], [0.3858, 0.9744, 0.6931, 0.4184, 0.035, 0.035], [0.4729, 0.9738, 0.7725, 0.4317, 0.035, 0.035], [0.5594, 0.9731, 0.8512, 0.445, 0.035, 0.035], [0.644, 0.9724, 0.9242, 0.4653, 0.035, 0.035], [0.7236, 0.9718, 0.9572, 0.5491, 0.036, 0.036], [0.8068, 0.9711, 0.974, 0.6685, 0.036, 0.036], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
 rib_feather = 0.15
 rib_width_treble = 0.0215
 rib_width_bass = 0.0255
