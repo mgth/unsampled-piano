@@ -63,6 +63,7 @@ live_params! {
     VelocityMin => "velocity.vmin", velocity.vmin;
     VelocityMax => "velocity.vmax", velocity.vmax;
     DamperStrength => "damper.strength", damper.strength;
+    DamperWedgeStrength => "damper.wedge_strength", damper.wedge_strength;
     DamperContactExponent => "damper.contact_exponent", damper.contact_exponent;
     DamperPedalFree => "damper.pedal_free", damper.pedal_free;
     DamperPedalContact => "damper.pedal_contact", damper.pedal_contact;

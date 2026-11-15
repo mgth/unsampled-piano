@@ -141,6 +141,9 @@ impl PianoModel {
         // Release: a softer, slower felt lets the released note fade.
         let rl = v(c.release);
         m.damper.strength *= scale(RELEASE_STRENGTH, -rl);
+        // The bass wedges have a strength of their own: the same factor,
+        // or the low notes would keep their endings whatever the control.
+        m.damper.wedge_strength *= scale(RELEASE_STRENGTH, -rl);
         m.damper.fall_time *= scale(RELEASE_STRENGTH, 0.5 * rl);
 
         // Unisons: strings further apart, struck less evenly.
@@ -213,6 +216,28 @@ mod tests {
     /// PianoModel has no PartialEq (floats, Options): compare its Debug form.
     fn same(a: &PianoModel, b: &PianoModel) -> bool {
         format!("{a:?}") == format!("{b:?}")
+    }
+
+    /// Release moves the wedges' strength as the flat felts': a wedge key's
+    /// rate follows the control by the same factor as a key above.
+    #[test]
+    fn release_reaches_the_wedges() {
+        let rates = |release: f64| {
+            let mut m = PianoModel::default();
+            m.damper.wedges = true;
+            m.macros.release = release;
+            let m = m.with_macros();
+            let rate = |n: u8| {
+                let p = m.note(n);
+                m.damper.rate_under(1.0, p.tension, p.mu, p.length, m.damper.wedge(n))
+            };
+            (rate(21), rate(72))
+        };
+        let (clean, mid, soft) = (rates(-1.0), rates(0.0), rates(1.0));
+        assert!(clean.0 > 1.5 * mid.0 && mid.0 > 1.5 * soft.0, "{clean:?} {mid:?} {soft:?}");
+        // A weak felt's rate goes nearly as its strength (9 from clean to soft).
+        assert!(clean.0 / soft.0 > 4.0, "{clean:?} {soft:?}");
+        assert!(clean.1 / soft.1 > 3.0, "{clean:?} {soft:?}");
     }
 
     /// Unisons moves the bass's own width with the others, and leaves it off

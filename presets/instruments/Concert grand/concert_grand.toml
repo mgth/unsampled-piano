@@ -181,8 +181,7 @@ follows_outline = true
 thickness = 0.083
 
 [damper]
-# The commercial D's last damper, G6, checked on its key-ups: the only damper value
-# not the default's; a partial section would lose the others.
+# Every value is given: a partial section would lose the others.
 position = 0.14
 behind_strike = 0.06
 width = 0.02
@@ -195,7 +194,14 @@ contact_exponent = 1.5
 # The felt's grip on the sideways motion: at 0.03 the slow mode the bridge's cross term
 # leaves rang on after the key-up, 34-50 dB under the attack from key to key (docs/release.md).
 horizontal = 0.3
-highest_note = 91
+# Wedge felts up to B1: every partial of the low bass stops at one rate, as on a real
+# grand (about 0.2 s for 20 dB on A0-B1; docs/release.md).
+wedges = true
+wedge_until = 35
+wedge_strength = 0.06
+# The last damper at E6, 68 dampers: a real concert grand's strings ring free from F6
+# (docs/release.md). G6 was the commercial D's.
+highest_note = 88
 pedal_free = 0.3
 pedal_contact = 0.6
 pedal_curve = 1.2

@@ -146,6 +146,9 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("damper.width", &[DamperPoint]),
         ("damper.node_floor", &[DamperPoint]),
         ("damper.horizontal", &[DamperPoint, Polarization]),
+        ("damper.wedges", &[DamperPoint]),
+        ("damper.wedge_until", &[DamperPoint, Keys]),
+        ("damper.wedge_strength", &[DamperPoint]),
         ("damper.highest_note", &[DamperPoint, Keys]),
         ("scale.break_note", &[Length, Keys]),
         ("scale.", &[Length]),
@@ -1177,6 +1180,7 @@ fn key_range(model: &PianoModel, path: &str) -> Option<(u8, u8)> {
     let u = &model.unison;
     Some(match path {
         "damper.highest_note" => (21, model.damper.highest_note),
+        "damper.wedge_until" => (21, model.damper.wedge_until),
         "scale.break_note" => (21, model.scale.break_note),
         "unison.bichord_from" => (u.bichord_from, u.trichord_from.saturating_sub(1)),
         "unison.trichord_from" => (u.trichord_from, 108),

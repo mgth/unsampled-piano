@@ -586,6 +586,29 @@ pub struct DamperLaw {
     /// A released note keeps a slow tail 25–40 dB down, as on a Disklavier
     /// grand (docs/release.md).
     pub horizontal: f64,
+    /// Wedge felts in the bass: its dampers sit astride a single string or
+    /// between the two of a bichord, where the flat pads above rest on top
+    /// of theirs. Under a wedge every partial stops at one rate: on a
+    /// Disklavier grand, partials 1 to 8 of A0–B1 all take about 0.2 s to
+    /// lose 20 dB, where the flat felt's law (a rate following the
+    /// partial's motion under the pad) stopped partials 2 to 4 twice as
+    /// fast and the fundamental more slowly (docs/release.md). A felt that
+    /// limits the string's displacement over its span works on the wave,
+    /// not on each mode (Stulov, Välimäki and Lehtonen 2012). Off by
+    /// default, and in a preset saved before it existed: flat felts on
+    /// every key.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub wedges: bool,
+    /// Highest key under a wedge; it fades into the flat felt over the
+    /// octave above.
+    pub wedge_until: u8,
+    /// `strength` of the wedge felts (c / (2·Z0) at A1, with the same
+    /// `strength_slope`). Every partial taking the full rate, it is lower
+    /// than the flat felt's. As a viscous felt it must stay weak: at 5 the
+    /// felt passed through the matched impedance as it landed and took
+    /// 10 dB within 40 ms, where a real bass string has lost 0.6 dB after
+    /// 30 ms.
+    pub wedge_strength: f64,
     /// Highest key with a damper: D6 (86), the top 22 keys ring freely. In
     /// the sustain of the top notes, real grands have lines at 0.7–1.4 kHz,
     /// the undamped strings answering sympathetically; with F#6 (90), set
@@ -621,6 +644,9 @@ impl DamperLaw {
         strength_slope: 0.0,
         contact_exponent: 1.5,
         horizontal: 0.03,
+        wedges: false,
+        wedge_until: 35,
+        wedge_strength: 0.06,
         highest_note: 86,
         // Dampers resting up to CC64 ≈ 38, off the strings from ≈ 76: on a
         // Disklavier grand (Liang's pedalling dataset, tools/pedal_bench.py)
@@ -638,6 +664,18 @@ impl DamperLaw {
     /// Frequency (Hz) of the key whose felt has `strength` when
     /// `strength_slope` is not 0: A1.
     pub const STRENGTH_AT: f64 = 55.0;
+
+    /// How much of a wedge felt key `note` has: 1 up to `wedge_until`,
+    /// falling to 0 over the octave above it; 0 without `wedges`.
+    pub fn wedge(&self, note: u8) -> f64 {
+        if !self.wedges {
+            0.0
+        } else if note <= self.wedge_until {
+            1.0
+        } else {
+            (1.0 - (note - self.wedge_until) as f64 / 12.0).max(0.0)
+        }
+    }
 
     /// Contact (0 lifted … 1 resting) imposed by the sustain pedal alone.
     pub fn pedal_engagement(&self, travel: f64) -> f64 {
@@ -658,17 +696,30 @@ impl DamperLaw {
     /// Mean of sin²(kπx/L) over the pad at `place` (x/L):
     /// 1/2 − cos(2kπ·place)·sinc(kπ·w/L)/2.
     pub fn shape(&self, k: u32, place: f64, length: f64) -> f64 {
+        self.shape_under(k, place, length, 0.0)
+    }
+
+    /// [`Self::shape`] under a felt that is a wedge by the share `wedge`
+    /// ([`Self::wedge`]): a wedge leaves no partial behind.
+    pub fn shape_under(&self, k: u32, place: f64, length: f64, wedge: f64) -> f64 {
         let a = k as f64 * std::f64::consts::PI * self.width / length;
         let sinc = if a > 1e-9 { a.sin() / a } else { 1.0 };
         let pad = 0.5 - 0.5 * (2.0 * k as f64 * std::f64::consts::PI * place).cos() * sinc;
         // ⟨sin²⟩ peaks at 1: the floor is a share of a fully exposed partial.
-        self.node_floor + (1.0 - self.node_floor) * pad
+        let floor = if wedge > 0.0 { self.node_floor + (1.0 - self.node_floor) * wedge } else { self.node_floor };
+        floor + (1.0 - floor) * pad
     }
 
     /// Decay-rate factor g(c) such that σ_k = g·shape(k).
     pub fn rate(&self, engagement: f64, tension: f64, mu: f64, length: f64) -> f64 {
+        self.rate_under(engagement, tension, mu, length, 0.0)
+    }
+
+    /// [`Self::rate`] under a felt that is a wedge by the share `wedge`: its
+    /// strength goes from `strength` to `wedge_strength`.
+    pub fn rate_under(&self, engagement: f64, tension: f64, mu: f64, length: f64, wedge: f64) -> f64 {
         let z0 = (tension * mu).sqrt();
-        let mut strength = self.strength;
+        let mut strength = if wedge > 0.0 { self.strength.powf(1.0 - wedge) * self.wedge_strength.powf(wedge) } else { self.strength };
         if self.strength_slope != 0.0 {
             let f0 = (tension / mu).sqrt() / (2.0 * length);
             strength *= (Self::STRENGTH_AT / f0).powf(self.strength_slope);
@@ -1580,6 +1631,29 @@ mod tests {
         // A1 keeps its strength.
         let a1 = rate(&sloped, 33) / rate(&flat, 33);
         assert!((a1 - 1.0).abs() < 0.05, "{a1}");
+    }
+
+    #[test]
+    fn a_wedge_stops_every_partial_at_one_rate() {
+        let m = PianoModel::default();
+        assert!(!m.damper.wedges);
+        assert_eq!(m.damper.wedge(21), 0.0);
+        let law = DamperLaw { wedges: true, wedge_until: 33, ..m.damper };
+        assert_eq!((law.wedge(21), law.wedge(33), law.wedge(39), law.wedge(45), law.wedge(60)), (1.0, 1.0, 0.5, 0.0, 0.0));
+        let p = m.note(21);
+        let at = law.place(p.strike_pos, p.length);
+        let spread = |w: f64| {
+            let s: Vec<f64> = (1..=8).map(|k| law.shape_under(k, at, p.length, w)).collect();
+            s.iter().cloned().fold(0.0, f64::max) / s.iter().cloned().fold(f64::MAX, f64::min)
+        };
+        assert!(spread(0.0) > 4.0);
+        assert!((spread(1.0) - 1.0).abs() < 1e-12);
+        // Without a wedge, the flat felt's law to the bit.
+        assert_eq!(law.shape_under(3, at, p.length, 0.0), m.damper.shape(3, at, p.length));
+        assert_eq!(law.rate_under(0.7, p.tension, p.mu, p.length, 0.0), m.damper.rate(0.7, p.tension, p.mu, p.length));
+        // The wedge's own strength, with the flat felt's slope.
+        let ratio = law.rate_under(1.0, p.tension, p.mu, p.length, 1.0) / law.rate_under(1.0, p.tension, p.mu, p.length, 0.0);
+        assert!(ratio < 0.5 && ratio > 0.2, "{ratio}");
     }
 
     fn temperament(kind: i32, key: i32) -> [f64; 12] {
