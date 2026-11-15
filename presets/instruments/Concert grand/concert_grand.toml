@@ -121,12 +121,14 @@ loss_corner = 3500.0
 # [[0.0, 0.0096], [0.1149, 0.0068], [0.2373, 0.1781], [0.3362, 0.3014], [0.5621, 0.363], [0.8682, 0.411], [0.9976, 0.5753], [0.9976, 0.9315], [0.9341, 1.0], [0.0584, 1.0]]
 a = 2.124
 b = 1.46
-# The front treble corner 4.5 cm further back than the inner rim's face read off the
-# drawing (it was [0.0187, 0.0469]): a photograph of a D from above shows the board's
-# edge 1 to 2.5 cm behind the hammers in the top section, and the strings' lengths
-# put the hammers 3.5 cm behind the corner as it was (docs/string_sections.md, "The
-# strings' lengths"). Read to 1.5 cm; the top octave's level is to be set again.
-outline = [[0.0400, 0.0469], [0.1106, 0.0435], [0.2860, 0.2972], [0.3684, 0.3560], [0.5206, 0.3865], [0.9223, 0.4540], [0.9735, 0.5841], [0.9808, 0.8799], [0.9423, 0.9727], [0.0687, 0.9796]]
+# The front treble corner 3 cm further back than the inner rim's face read off the
+# drawing (it was [0.0187, 0.0469]): the strings' lengths put the top hammers 1.4 cm
+# behind the corner as it was, on a line of hammers that slants by 2 degrees against
+# the board's axis, and a photograph of a D from above shows the board's edge 1 to
+# 2.5 cm behind the hammers in the top section (here 1.6 cm). Of the trials measured,
+# the one whose top octaves' fundamentals lie nearest the real grand's and the
+# commercial D's (docs/string_sections.md, "The strings' lengths").
+outline = [[0.0330, 0.0469], [0.1106, 0.0435], [0.2860, 0.2972], [0.3684, 0.3560], [0.5206, 0.3865], [0.9223, 0.4540], [0.9735, 0.5841], [0.9808, 0.8799], [0.9423, 0.9727], [0.0687, 0.9796]]
 # RT-425's bridges: 20 keys on the bass bridge, the main bridge from F2, point by
 # point. These are the strings' real, slanted ends: no slant is added below.
 main_bridge_from = 41

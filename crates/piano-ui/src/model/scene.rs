@@ -246,6 +246,9 @@ const HAMMER_CLEAR: f64 = 0.045;
 /// grand's photograph the top hammers strike 1 cm in front of the strip
 /// the board ends on.
 const HAMMER_EDGE: f64 = 0.01;
+/// The most a grand's hammers' line may slant against its board's axis
+/// (along per metre across: 3°).
+const HAMMER_SLANT: f64 = 0.0524;
 const BLOCK_CLEAR: f64 = 0.015;
 /// The tuning pins (7 mm), one per string in front of the agraffes (see
 /// [`tuning_pins`]): the first row's distance, the rows' spacing.
@@ -1396,38 +1399,90 @@ pub fn agraffe_x(model: &PianoModel) -> f64 {
 /// rise in front of its board, though: there the line stops short of the
 /// board's edge, and the bass's agraffes come forward of the agraffe line.
 pub fn hammer_x(model: &PianoModel, sb: &SoundboardParams) -> f64 {
+    hammers(model, sb).x
+}
+
+/// The hammers' line: its place along (plate x) at `mid` across, and how
+/// much further back it stands per metre towards the bass ([`hammers`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hammers {
+    pub x: f64,
+    pub slope: f64,
+    pub mid: f64,
+}
+
+impl Hammers {
+    /// The line's place along at `y` across.
+    pub fn at(&self, y: f64) -> f64 {
+        self.x + self.slope * (y - self.mid)
+    }
+}
+
+/// The hammers' line of an instrument ([`hammer_x`] is its place at the
+/// middle). An upright's and a grand's whose bridge is the drawing's own
+/// are square to the strings' axis. A grand's whose bridge is a measured
+/// one ([`SoundboardParams::bridge_keys`]) stands where its main strings'
+/// own lengths, from their bridge points, put their hammers: each key's
+/// where its speaking length behind the strike point reaches its bridge
+/// point from its hammer's place across, and the straight line that fits
+/// them best, which may slant a little against the board's axis
+/// ([`HAMMER_SLANT`] at the most; a concert grand's does, by a degree or
+/// two, the treble's hammers nearer the keyboard), so that the strings are
+/// drawn as long as the engine has them; [`HAMMER_EDGE`] in front of the
+/// board's front edge at the least. Kept from one call to the next for the
+/// same instrument.
+pub fn hammers(model: &PianoModel, sb: &SoundboardParams) -> Hammers {
+    thread_local! {
+        static LAST: std::cell::RefCell<Option<(PianoModel, SoundboardParams, Hammers)>> = const { std::cell::RefCell::new(None) };
+    }
+    if let Some(h) = LAST.with(|l| l.borrow().as_ref().filter(|(m, s, _)| m == model && s == sb).map(|l| l.2)) {
+        return h;
+    }
+    let h = hammers_of(model, sb);
+    LAST.with(|l| *l.borrow_mut() = Some((model.clone(), *sb, h)));
+    h
+}
+
+fn hammers_of(model: &PianoModel, sb: &SoundboardParams) -> Hammers {
     let ag = agraffe_x(model);
     let x = (21..=108u8).map(|m| ag + model.note(m).strike_pos * (sb.bridge_point(m).0 - ag)).fold(f64::MIN, f64::max);
     if sb.vertical {
-        return x;
+        return Hammers { x, slope: 0.0, mid: sb.b / 2.0 };
     }
-    // A grand's: where the main strings' own lengths, from their bridge
-    // points, put their hammers (the middle one of the keys' places, each
-    // key's where its speaking length behind the strike point reaches its
-    // bridge point from its hammer's place across), so that the strings
-    // are drawn as long as the engine has them; [`HAMMER_CLEAR`] in front
-    // of the board's front edge at the least, or only [`HAMMER_EDGE`]
-    // where the bridge is a measured one
-    // ([`SoundboardParams::bridge_keys`]): there the strings' lengths and
-    // their bridge points are an instrument's own, and say where its
-    // hammers are.
-    let mut places: Vec<f64> = (sb.main_bridge_from.min(108)..=108)
+    // Each main key's hammer's place across, and along where its string's
+    // length asks for it.
+    let places: Vec<(f64, f64)> = (sb.main_bridge_from.min(108)..=108)
         .map(|m| {
             let n = model.note(m);
             let (bx, by) = sb.bridge_point(m);
-            let (back, dy) = ((1.0 - n.strike_pos) * n.length, by - key_across(model, sb, m));
-            bx - (back * back - dy * dy).max(0.0).sqrt()
+            let hy = key_across(model, sb, m);
+            let (back, dy) = ((1.0 - n.strike_pos) * n.length, by - hy);
+            (hy, bx - (back * back - dy * dy).max(0.0).sqrt())
         })
         .collect();
-    places.sort_by(f64::total_cmp);
     let outline = board_outline(sb);
-    let edge = front_edge(&outline, sb).map_or(0.0, |k| outline[k].0.min(outline[(k + 1) % outline.len()].0));
+    let front = front_edge(&outline, sb).map(|k| (outline[k], outline[(k + 1) % outline.len()]));
     // (Without a measured bridge the board's layout is the drawing's own:
-    // its hammers keep their room in front of the board.)
+    // its hammers keep their room in front of the board, square to it.)
     if !sb.bridge_measured(true) {
-        return places[places.len() / 2].min(edge - HAMMER_CLEAR);
+        let mut along: Vec<f64> = places.iter().map(|p| p.1).collect();
+        along.sort_by(f64::total_cmp);
+        let edge = front.map_or(0.0, |(p, q)| p.0.min(q.0));
+        return Hammers { x: along[along.len() / 2].min(edge - HAMMER_CLEAR), slope: 0.0, mid: sb.b / 2.0 };
     }
-    places[places.len() / 2].min(edge - HAMMER_EDGE)
+    // The line that fits them best, and no nearer the board's front edge
+    // than [`HAMMER_EDGE`] at any key.
+    let n = places.len() as f64;
+    let (my, mx) = (places.iter().map(|p| p.0).sum::<f64>() / n, places.iter().map(|p| p.1).sum::<f64>() / n);
+    let (sxy, syy) = places.iter().fold((0.0, 0.0), |(a, b), p| (a + (p.0 - my) * (p.1 - mx), b + (p.0 - my) * (p.0 - my)));
+    let slope = if syy > 0.0 { (sxy / syy).clamp(-HAMMER_SLANT, HAMMER_SLANT) } else { 0.0 };
+    let mut h = Hammers { x: mx, slope, mid: my };
+    if let Some((p, q)) = front {
+        let edge = |y: f64| p.0 + (q.0 - p.0) * ((y - p.1) / (q.1 - p.1)).clamp(0.0, 1.0);
+        let over = places.iter().map(|&(y, _)| h.at(y) - (edge(y) - HAMMER_EDGE)).fold(0.0, f64::max);
+        h.x -= over;
+    }
+    h
 }
 
 /// A key's string's ends in plate coordinates (its agraffe, its bridge
@@ -1475,6 +1530,9 @@ pub fn string_ends(model: &PianoModel, sb: &SoundboardParams, hx: f64, m: u8) ->
     let n = model.note(m);
     let s = n.strike_pos;
     let hy = key_across(model, sb, m);
+    // (`hx` is the hammers' line at its middle: the key's own place on it.)
+    let line = hammers(model, sb);
+    let hx = hx + line.slope * (hy - line.mid);
     // A grand's: the engine's own length from the hammer to the agraffe
     // (its strike point's share of the scale's speaking length), so that
     // what lies in front of the hammers stands where it does on the
@@ -2290,8 +2348,9 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
 
     // The pin block under the plate, from the case's front to just behind
     // the agraffes, short of the hammers.
-    let block_back = |ax: f64| (ax + 0.008).min(hx - BLOCK_CLEAR);
-    let mut back: Vec<(f64, f64)> = ends.iter().map(|&((ax, ay), _, _)| (block_back(ax), ay.clamp(across_lo, across_hi))).collect();
+    let line = hammers(model, &sb);
+    let block_back = |ax: f64, ay: f64| (ax + 0.008).min(line.at(ay) - BLOCK_CLEAR);
+    let mut back: Vec<(f64, f64)> = ends.iter().map(|&((ax, ay), _, _)| (block_back(ax, ay), ay.clamp(across_lo, across_hi))).collect();
     back.sort_by(|p, q| q.1.total_cmp(&p.1));
     let mut block = vec![(case_front, across_lo), (case_front, across_hi), (back[0].0, across_hi)];
     block.extend(&back);
@@ -2507,7 +2566,7 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
         // (the highest treble's overhang it).
         // (None under a capo bar: the plate's bar holds the strings.)
         let r = agraffe_head(n.strings, gap) + AGRAFFE_FLANGE;
-        let foot = if ax + r <= block_back(ax) { PIN_BLOCK_TOP } else { z - 0.008 };
+        let foot = if ax + r <= block_back(ax, ay) { PIN_BLOCK_TOP } else { z - 0.008 };
         if vertical || !f.capo(m) {
             agraffe(&mut b, (ax, ay), (ux, uy), z, foot, n.strings, gap, pick(Part::Agraffes, BRASS), pick(Part::Frame, IRON));
         }
@@ -3143,9 +3202,18 @@ mod tests {
         let hx = hammer_x(&m, &sb);
         for k in 21..=108u8 {
             let ((ax, ay), (bx, by), _) = string_ends(&m, &sb, hx, k);
-            let s = (hx - ax) / (bx - ax);
+            // (On its own place of the hammers' line, which slants a little.)
+            let s = (hammers(&m, &sb).at(key_across(&m, &sb, k)) - ax) / (bx - ax);
             assert!((ay + s * (by - ay) - key_across(&m, &sb, k)).abs() < 1e-9, "key {k} struck off its key");
         }
+        // The Concert grand's hammers' line slants by a degree or two, the
+        // treble's nearer the keyboard, and clears the board's front edge.
+        let line = hammers(&m, &sb);
+        assert!(line.slope > 0.015 && line.slope <= HAMMER_SLANT, "{line:?}");
+        let outline = board_outline(&sb);
+        let f = front_edge(&outline, &sb).unwrap();
+        let edge = outline[f].0.min(outline[(f + 1) % outline.len()].0);
+        assert!(line.at(key_across(&m, &sb, 108)) <= edge - HAMMER_EDGE + 1e-9, "{line:?}, edge at {edge}");
     }
 
     /// The Concert grand's board: its front edge runs forward towards the

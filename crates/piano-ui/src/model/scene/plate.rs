@@ -272,22 +272,23 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
     // A grand's bar across the front (see [`BAR_BASS`]): its middle's line
     // from the bass wall to the treble wall (across, along, underside).
     let grand = !place.vertical;
-    let hx = hammer_x(model, sb);
+    let strike = hammers(model, sb);
+    let hx = strike.x;
     let (y_lo, y_hi) = board.iter().fold((f64::MAX, f64::MIN), |(a, z), p| (a.min(p.1), z.max(p.1)));
     let (wall_lo, wall_hi) = (y_lo + WALL, y_hi - WALL);
     let capo: Vec<u8> = (21..=108u8).filter(|&m| model.frame.capo(m)).collect();
     let bar_top = STRING_Z + BAR_OVER + depth;
     let bar_line: Vec<(f64, f64, f64)> = if grand {
         let under = |m: u8| ends[(m - 21) as usize].2 + BAR_OVER;
-        let d0 = BAR_BASS.min(0.5 * (hx - ends[0].0 .0)).max(BAR_TREBLE);
-        let mut pts = vec![(wall_hi, hx - d0, under(21))];
+        let d0 = BAR_BASS.min(0.5 * (strike.at(ends[0].0 .1) - ends[0].0 .0)).max(BAR_TREBLE);
+        let mut pts = vec![(wall_hi, strike.at(wall_hi) - d0, under(21))];
         for &m in &capo {
             let (ax, ay) = ends[(m - 21) as usize].0;
             if ay < pts[pts.len() - 1].0 - 1e-4 && ay > wall_lo {
                 pts.push((ay, ax - BAR_W / 2.0 + CAPO_IN, under(m)));
             }
         }
-        let end = if capo.is_empty() { hx - BAR_TREBLE } else { pts[pts.len() - 1].1 };
+        let end = if capo.is_empty() { strike.at(wall_lo) - BAR_TREBLE } else { pts[pts.len() - 1].1 };
         pts.push((wall_lo, end, under(108)));
         // Higher over the bass strings: up from where they cross it.
         let x_at = |pts: &[(f64, f64, f64)], y: f64| {
