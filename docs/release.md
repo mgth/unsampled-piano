@@ -113,6 +113,91 @@ The cross term is the one measured on a real grand's partials and sets the held 
 
 The drops' benches hardly see it: both read down to the reference's floor, which hides a tail 35 dB down. The held notes do not change (distance to the commercial D 9.49 → 9.49). Pedal bench, 0.03 → 0.3: halo 3.6 → 3.6, hold 4.5 → 4.8, after 10.0 → 11.5. The middle's "after" comes closer (−9.7 → −2.0 dB at CC64 = 96), the treble's goes back to where it stood before the slope (+5.7 → +15.7): once a key released without the pedal falls deeper, what the other strings add under the pedal, already 5–6 dB over in the treble's halo, shows whole.
 
+## The dampers against a real grand's (2026-11-15)
+
+Items 7 and 8 of docs/steinway_d_gaps.md, measured again on the preset after the board, the top strike point, the felt and the bass unisons changed, then split into parts. The scripts and renders are in `out/` of the worktree `dampers-release-34d47e` (`tools/`, `base/`, `cand/`, `pieces/`, `ab_dampers/`); the literature notes with their sources in `out/literature.md`.
+
+### Where the dampers end
+
+**The literature**: 71 dampers on a D, the last at G6, from a pianist's blog, a forum snippet and a technician's post giving 71 for the model C; no document of the maker's was found. Steinway's B, M and L have 67 (D#6), a Hamburg B 68, Yamaha's grands 69 (F6).
+
+**The real recordings.** A string without a damper answers any blow at its own fundamental. In the sustain (0.3–1 s) of the thirteen keys C7–C8, the line at each key's own measured fundamental, in dB over the floor around it (median over the played keys):
+
+| | C6 | C#6 | D6 | D#6 | E6 | F6 | F#6 | G6 | G#6 | A6 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| a real concert grand (Plath, anechoic) | 8 | 8 | 9 | 10 | 6 | 19 | 18 | 30 | 19 | 24 |
+| Yamaha CF-3 (Helgesson), five keys, 0.5–2 s | 6 | 4 | 3 | 2 | 10 | 6 | 5 | 6 | 25 | 28 |
+| Disklavier grand (Liang), five keys, 0.5–2 s | 6 | 7 | 6 | 7 | 7 | 9 | 17 | 20 | 29 | 28 |
+
+The real concert grand's strings ring free from F6: its last damper is E6, 68 dampers, which is also the count read by the user on a photograph of a D from above. The CF-3's last damper is G6, the Disklavier's F6. The candidate takes E6 (`highest_note` 88); G6 was the commercial D's setting.
+
+**The −110 dB against −43 is not the last damper's place.** The bench's measure is the 707–1414 Hz octave, 0.6–1 s after the blow, on C7–C8: no partial of the played key lies there. In the real grands it is made of lines (75 to 98 % of the band's energy in six lines on the sets with a low floor), 12 to 25 dB over their own noise. On the real concert grand most of these lines are not free strings' fundamentals: 1105–1108, 1167–1172, 1238–1256, 1365 and 1388 Hz, some 20 cents under the damped keys C#6 to F6, and others between the keys. With the last damper at G6 the model's first free string (G#6, 1661 Hz) is outside the band and nothing is in it: −121 dB. At E6, F6 enters it: −62 dB (the real grands −34 to −53, mean −43). The 20 dB left are what else rings in a real piano there: the strings under their felts and the lengths beyond the bridge and the capo bar (item 12), none of which the model has.
+
+### The release, split into parts
+
+**The bench of the drops** (out/tools/relbench.py: broadband drop after the key-up re the last 0.2 s held, each key read down to 3 dB above the reference's floor; it gives 8.6 and 5.3 dB rms on the renders of 2026-11-12 where the tables above give 9.4 and 6.1). On the preset of today: 5.3 dB rms against the commercial D (bass 4.9, middle 4.2, treble 6.8), 4.8 against the Disklavier grand (bass 5.5, middle 4.3, treble 3.2).
+
+**The damper's rate per partial** (out/tools/relpart.py): time each partial takes to lose 20 dB after the key-up, median over the keys (ms), read only where the partial stands 23 dB above the file's floor.
+
+| | partial 1 | 2 | 3–4 | 5–8 |
+|---|---|---|---|---|
+| A0–B1, Disklavier grand | 188 | 201 | 226 | 333 |
+| A0–B1, commercial D | 191 | 209 | 187 | 198 |
+| A0–B1, the preset | 265 | 145 | 103 | 325 |
+| A0–B1, wedges | 208 | 225 | 214 | 208 |
+| C2–B2, Disklavier grand | 177 | 206 | 103 | 197 |
+| C2–B2, the preset | 204 | 103 | 100 | 201 |
+| C2–B2, wedges | 185 | 133 | 134 | 185 |
+| C3–B3, Disklavier grand | 208 | 120 | 63 | 64 |
+| C3–B3, the preset | 163 | 107 | 94 | 131 |
+| C4–B4, Disklavier grand | 83 | 80 | 90 | 108 |
+| C4–B4, the preset | 134 | 75 | 161 | 103 |
+| C5–B5, Disklavier grand | 81 | 112 | 128 | 103 |
+| C5–B5, the preset | 92 | 95 | 144 | 92 |
+
+From C3 up the preset stops its partials as the real grand does, within the scatter of twelve keys (the Disklavier's own lag between the note-off and the damper is not known). In the low bass it does not: the real grand and the commercial D stop every partial at one rate, the model's law (a rate following the partial's motion under the pad) stops partials 2 to 4 twice too fast and the fundamental too slowly.
+
+**A strong felt, refuted.** The exact modes of a string with a point dashpot (out/tools/dashpot.py) decay as the model's law only for a weak felt; from c = 4·Z0 up every mode decays at one rate, the string cut in two. But a viscous felt that strong passes through the matched impedance as it lands: with `wedge_strength` 5 at A0 the bass lost 10 dB within 40 ms, where the real string has lost 0.6 dB after 30 ms. And one strength law does not carry the exact rates from the bass (uniform) to C3–B3 (the fundamental three times slower than partials 3–4). Not built.
+
+**Wedges, kept as a candidate.** The bass dampers are wedges astride one string or between two (Lehtonen, Askenfelt and Välimäki 2009, on a Steinway C: single wedge at C1, bichord wedge at A1, double wedges at G2 and G3, flat pads from A4; a felt of 98 mm at C1 and 71 mm at G3, starting at the strike line), and their model of the damper limits the string's displacement over the felt's span (Stulov, Välimäki and Lehtonen 2012), which acts on the wave and not mode by mode. New `damper.wedges` (a switch, off by default: every other preset renders bit for bit as before), `wedge_until` (B1, the wedge fading over the octave above) and `wedge_strength` (0.06: c/(2·Z0) at A1, every partial at the full rate). A uniform rate on every key was tried first (`node_floor` 1): 4.8 against the commercial D but 7.2 against the Disklavier grand, the bass too fast, and it loses the real grand's pattern from C3 up.
+
+**The timing of the fall.** The real grands start slowly (Disklavier bass: 0.6 dB at 30 ms, 2.6 at 120 ms; Askenfelt and Jansson: the damper meets the string some 80 ms into a staccato note and bounces). The model's broadband drop is 2 to 3 dB ahead of both references at 30–120 ms. `fall_time` was not changed: the Disklavier's lag is unknown and the commercial D's is its own.
+
+**The tail and the pedal's "after": the measure's.** In Liang's recordings the level 0.3–0.6 s after the dampers fall is 0 to 5 dB over the level before the note in every register and at every pedal depth (9 dB in the bass without the pedal): the bench's "after" reads the recording's noise, and the model, which has none, falls 20 to 50 dB deeper. With the recording's own noise put under the model (out/tools/pedfl.py) the "after" rows go from 9.5 to 2.9 dB rms. The treble's "after", 15.7 dB over the recording on 2026-11-12, is 4.2 as read on today's preset and nothing over the floor. What the recording does say: after the dampers fall the residue is at least 16 dB down in the treble, 25 in the middle and 29 to 37 in the bass. The "hold" rows are sound: its partials stand 35 dB or more over the noise.
+
+**The half pedal.** Lehtonen and others: the part-pedal range is narrow, about 0.5 mm of damper lift, the string free at 0.9 mm in the treble and 1.35 mm in the bass; the tail's decay time grows from under 0.5 s to 10 s through it; Brauss puts it at 30 to 50 % of the pedal's travel, which is `pedal_free` 0.3 and `pedal_contact` 0.6. At CC64 = 64 (hold, pedal minus no pedal, model − recording): bass −9.3 dB, middle +2.6, treble +6.0. The bass's excess is the same fault as its key-up: partials 2 to 4 stopped too fast.
+
+### The change, beside the preset before it
+
+`wedges` on up to B1 with `wedge_strength` 0.06, `highest_note` 88 (E6). Everything else as the preset.
+
+| | before | in the preset |
+|---|---|---|
+| drops against the Disklavier grand, all / bass (dB rms) | 4.8 / 5.5 | 5.2 / 6.1 |
+| drops against the commercial D, all / bass | 5.3 / 4.9 | 4.7 / 3.1 |
+| pedal bench: halo / hold / after as read / after over the floor (dB rms) | 5.5 / 4.7 / 9.5 / 2.9 | 5.1 / 4.2 / 9.6 / 2.7 |
+| half pedal, hold: bass / middle / treble (model − recording, dB) | −9.3 / +2.6 / +6.0 | −5.9 / +4.4 / +5.3 |
+| top keys' sustain, 1 kHz band (real grands −43) | −121 | −62 |
+| distance to the commercial D, 88 keys | 8.06 | 8.06 |
+| bench of eight real grands, overall / treble / top | 1.73 / 1.54 / 2.74 | 1.44 / 1.44 / 1.91 |
+| the treble's sustain, 1 kHz band (real grands −26.4) | −40.7 | −26.4 |
+
+The bench moves by the last damper alone: its 1 kHz band in the sustain, where F6 to G6 now ring, comes to the real grands' in the treble and nearer in the top (z −12.9 to −3.4); every other family of measures is the same to the figure (attack 1.23, dynamics 1.66, sustain 1.68, decay 1.00), as is the distance on the 88 held keys.
+
+Against the real grand the per-partial times come right in the low bass while the broadband drops get 0.6 dB worse there: the model's bass already fell 3 dB deeper than the recording at 120–500 ms, and falls 4.8 deeper once the fundamental stops in time. What the recording keeps at that depth (other strings, the case, its room) is not told apart.
+
+Listening page: `out/ab_dampers/index.html` (key-ups against the Disklavier grand and against the commercial D, pedal at 127, 96 and 64 against the Disklavier grand). Keyboard presets: `out/keyboard/instruments/Dampers trial/` (the preset, the candidate, the wedges alone with the last damper left at G6). Taken into the Concert grand preset on 2026-11-15, on the user's decision, once the keyboard presets were up.
+
+### Not verified
+
+- **The D's own damper count**: 68 from one real concert grand's free strings and one photograph, against 71 in informal sources. No maker's document.
+- **Where a D's wedges end**, the felts' lengths on a D, and the wound trichords' felts: Lehtonen's shapes are a Steinway C's; `wedge_until` B1 is where the Disklavier's partials stop at one rate.
+- **The Disklavier's lag** from note-off to damper, hence any absolute time under some 30 ms, and `fall_time`.
+- **The commercial D under the pedal**: no take was made; its key-ups only.
+- **The halo** (bass and middle 5 dB short, treble 7 to 9 over) was not split: the recording's floor lies in its no-pedal reference too (treble −38 dB against the model's −50).
+- **The treble's hold at every depth** (+4 to +5 dB) and the top's.
+- No listening remark was given with the decision.
+
 ## Soft blows: the unison struck unevenly
 
 The most audible cut left came 0.3 s after a soft chord, the pedal changing just after it. Rendered with the pedal held throughout, the model still lost its 1.5–6 kHz band within 0.3 s; the recording kept it for 0.7 s. Over the first 0.3 s, eight real grands (tools/bench.py's references) decay the middle's upper partials at about −20 dB/s at pp and −30 at ff. The model had the same decay at every velocity: it is linear once the hammer leaves.
@@ -161,7 +246,7 @@ Two other levers were tried:
 
 ## Still open
 
-- **The treble's level after a pedal release**: 16–19 dB above a plain key-up's where the recording has −2 to −6 (pedal bench, "after").
+- **The treble's level after a pedal release** read 16–19 dB above a plain key-up's where the recording has −2 to −6 (pedal bench, "after"): the recording's noise floor, not the model ("The dampers against a real grand's").
 - **The default instrument's felt** still has one strength for every key; the slope is set on the Concert grand only.
 - **The middle's upper partials at pp**: partials 5–12 still decay at −29 to −45 dB/s over 0.1–0.3 s against about −20 on the real grands.
 - **The cut after the soft chord** (Liang, Chopin op. 10 no. 3, 22.3 s): the model's 1.5–6 kHz band still drops 16 dB within 0.35 s, the recording 5. The chord's E4 dominates it, and isolated it sits within the real grands at pp, on their fast side.

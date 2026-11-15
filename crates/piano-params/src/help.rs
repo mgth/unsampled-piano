@@ -1004,6 +1004,22 @@ const HELP: &[(&str, &str, &str)] = &[
          every key and the rate grows as f0 (docs/release.md).",
     ),
     (
+        "damper.wedges",
+        "The bass dampers are wedges that sit astride a string or between two, where the pads \
+         higher up rest on top of theirs. Under a wedge every overtone of a low note stops in \
+         the same time, as on a real grand.",
+        "On: up to wedge_until every partial takes the full rate, with wedge_strength. On a \
+         Disklavier grand, partials 1 to 8 of A0-B1 all lose 20 dB in about 0.2 s \
+         (docs/release.md).",
+    ),
+    ("damper.wedge_until", "Highest key with a wedge felt.", "MIDI note. The wedge fades into the flat felt over the octave above."),
+    (
+        "damper.wedge_strength",
+        "How firmly the bass wedges stop their strings. Lower: the low notes take longer to die.",
+        "c/(2·Z0) at A1 for the wedge felts, with the same slope as the flat felts' strength. \
+         Lower than theirs, every partial taking the full rate (docs/release.md).",
+    ),
+    (
         "damper.horizontal",
         "The felt rests on top of the strings: it stops their up-and-down motion but only \
          rubs against the sideways one, which leaves a faint tail after the release.",

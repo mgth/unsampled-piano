@@ -159,6 +159,7 @@ impl NoteModel {
             low.map(|ld| (ld.n, ld.inputs.iter().map(|inp| inp.iter().zip(ld.key(note)).map(|(a, b)| a * b).sum()).collect()));
         let has_damper = note <= model.damper.highest_note;
         let damper_at = model.damper.place(np.strike_pos, np.length);
+        let wedge = model.damper.wedge(note);
         let sympathy = board_modes.filter(|_| model.sympathetic.enabled);
         let dt = 1.0 / sample_rate;
         let mut n_listen = 0;
@@ -223,7 +224,7 @@ impl NoteModel {
 
             let mut vert = [0.0; MAX_OSC];
             vert[..ns].fill(1.0);
-            let damp_w = if has_damper { model.damper.shape(k, damper_at, np.length) } else { 0.0 };
+            let damp_w = if has_damper { model.damper.shape_under(k, damper_at, np.length, wedge) } else { 0.0 };
             for m in 0..n_osc {
                 let u = cl.output_weight(m, &wout).scale(wk);
                 // The felt rests on the strings: it brakes the vertical
@@ -323,7 +324,7 @@ impl NoteModel {
         if !self.has_damper {
             return 0.0;
         }
-        model.damper.rate(engagement, self.params.tension, self.params.mu, self.params.length)
+        model.damper.rate_under(engagement, self.params.tension, self.params.mu, self.params.length, model.damper.wedge(self.note))
     }
 }
 

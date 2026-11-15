@@ -63,6 +63,7 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("damper.strength", "Damper strength", "", 0.01, 4.0, true),
     ("damper.strength_slope", "Damper strength falling up the keyboard", "", 0.0, 2.0, false),
     ("damper.horizontal", "Damper grip on sideways motion", "", 0.0, 1.0, false),
+    ("damper.wedge_strength", "Bass wedge strength", "", 0.01, 4.0, true),
     ("damper.contact_exponent", "Damper felt exponent", "", 1.0, 5.0, false),
     ("damper.pedal_free", "Pedal lost motion", "", 0.0, 0.8, false),
     ("damper.pedal_contact", "Pedal lift point", "", 0.1, 1.0, false),
