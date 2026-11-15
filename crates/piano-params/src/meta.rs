@@ -126,6 +126,16 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("room.piano[1]", "Piano position y", "m", 0.0, 60.0, false),
     ("room.piano[2]", "Board height", "m", 0.3, 2.0, false),
     ("soundboard.main_string_slant", "Main strings' slant", "°", 0.0, 12.0, false),
+    // The sections' lowest keys are MIDI notes kept as floats (pairs with
+    // their gaps): 22–108 start a section, anything lower is none.
+    ("soundboard.string_sections[0][0]", "2nd section's lowest key (below 22: none)", "", 0.0, 108.0, false),
+    ("soundboard.string_sections[0][1]", "Gap below the 2nd section", "m", 0.0, 0.03, false),
+    ("soundboard.string_sections[1][0]", "3rd section's lowest key (below 22: none)", "", 0.0, 108.0, false),
+    ("soundboard.string_sections[1][1]", "Gap below the 3rd section", "m", 0.0, 0.03, false),
+    ("soundboard.string_sections[2][0]", "4th section's lowest key (below 22: none)", "", 0.0, 108.0, false),
+    ("soundboard.string_sections[2][1]", "Gap below the 4th section", "m", 0.0, 0.03, false),
+    ("soundboard.string_sections[3][0]", "5th section's lowest key (below 22: none)", "", 0.0, 108.0, false),
+    ("soundboard.string_sections[3][1]", "Gap below the 5th section", "m", 0.0, 0.03, false),
     ("soundboard.lid_angle", "Lid angle (0: shut)", "°", 0.0, 60.0, false),
     ("soundboard.lid_removed", "Lid removed", "", 0.0, 1.0, false),
     ("soundboard.lid_hinge_height", "Lid hinge height", "m", 0.05, 0.6, false),
@@ -201,6 +211,19 @@ mod tests {
             assert!(p.meta.curated);
             let d = p.default.as_f64();
             assert!(c.3 <= d && d <= c.4, "{}: default {d} outside [{}, {}]", c.0, c.3, c.4);
+        }
+    }
+
+    /// The sections' lowest keys can be set over the keyboard with the
+    /// standard controls, and their gaps in millimetres.
+    #[test]
+    fn the_sections_have_note_and_gap_ranges() {
+        let reg = crate::Registry::new();
+        for i in 0..4 {
+            let key = &reg.get(&format!("soundboard.string_sections[{i}][0]")).unwrap().meta;
+            assert!(key.min <= 22.0 && key.max == 108.0 && !key.log);
+            let gap = &reg.get(&format!("soundboard.string_sections[{i}][1]")).unwrap().meta;
+            assert!(gap.min == 0.0 && gap.max <= 0.05 && gap.unit == "m");
         }
     }
 

@@ -1169,6 +1169,8 @@ pub fn triangulate(p: &[(f64, f64)]) -> Vec<[usize; 3]> {
 /// action's shanks fan out to the strings), C8 and the main bridge's
 /// lowest key in line with where their strings cross the keys' line
 /// ([`SoundboardParams::key_across`]), the bass beyond at the same pitch,
+/// each section of strings (`soundboard.string_sections`) its gap further
+/// from the one below, where a strut of the frame passes,
 /// but closer together if that would bring A0's agraffe within
 /// [`AGRAFFE_EDGE`] of the board's bass side (the case's wall): its
 /// string runs on from its strike, away from its bridge, to its agraffe.
@@ -1178,10 +1180,20 @@ pub fn triangulate(p: &[(f64, f64)]) -> Vec<[usize; 3]> {
 pub fn key_across(model: &PianoModel, sb: &SoundboardParams, m: u8) -> f64 {
     let lo_key = sb.main_bridge_from.min(107);
     let (c8, pitch) = hammer_line(sb);
+    // The sections' gaps (`soundboard.string_sections`), where the frame's
+    // struts pass: taken out of the main bridge's hammers' pitch, so that
+    // its two end keys stay in line with their strings; the bass's whole
+    // section stands its own gap further.
+    let gaps = |from: u8| (from + 1..=108).map(|b| sb.section_gap(b)).sum::<f64>();
+    let span = pitch * (108 - lo_key) as f64;
+    let all = gaps(lo_key).min(0.5 * span);
     if m >= lo_key || pitch <= 0.0 {
-        return c8 + pitch * (108 - m) as f64;
+        if all <= 0.0 {
+            return c8 + pitch * (108 - m) as f64;
+        }
+        return c8 + (span - all) / (108 - lo_key) as f64 * (108 - m) as f64 + gaps(m).min(all);
     }
-    let lowest = c8 + pitch * (108 - lo_key) as f64;
+    let lowest = c8 + span + sb.section_gap(lo_key);
     let s = model.note(21).strike_pos;
     let a0 = (1.0 - s) * (sb.b - AGRAFFE_EDGE) + s * sb.bridge_point(21).1;
     let bass = ((a0 - lowest) / (lo_key - 21) as f64).clamp(0.5 * pitch, pitch);
@@ -2713,6 +2725,40 @@ mod tests {
         for k in 21..sb.main_bridge_from {
             let gap = key_across(&m, &sb, k) - key_across(&m, &sb, k + 1);
             assert!(gap >= 0.5 * main - 1e-12 && gap <= main + 1e-12, "key {k}: {gap} vs {main}");
+        }
+    }
+
+    /// The strings' sections part the hammers: a gap below each section's
+    /// lowest key, the bass's included, taken out of the main bridge's
+    /// pitch (its end keys' hammers stay where they were), each key still
+    /// struck on its strings; none, and nothing moves.
+    #[test]
+    fn the_sections_part_the_hammers() {
+        let preset = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/instruments/Concert grand/concert_grand.toml");
+        let mut even = piano_host::load_preset(&preset).unwrap();
+        even.soundboard.as_mut().unwrap().string_sections = Default::default();
+        let sb0 = even.soundboard.unwrap().resolved();
+        let lo = sb0.main_bridge_from;
+        let mut m = even.clone();
+        let breaks = [lo, 56, 74, 92];
+        m.soundboard.as_mut().unwrap().string_sections = breaks.map(|k| (k as f64, 0.014));
+        let sb = m.soundboard.unwrap().resolved();
+        for k in [lo, 108] {
+            assert!((key_across(&m, &sb, k) - key_across(&even, &sb0, k)).abs() < 1e-12, "key {k}'s hammer moved");
+        }
+        let step = |k: u8| key_across(&m, &sb, k - 1) - key_across(&m, &sb, k);
+        let pitch = step(108);
+        for k in 22..=108u8 {
+            let gap = if breaks.contains(&k) { 0.014 } else { 0.0 };
+            let want = if k <= lo { step(22) } else { pitch };
+            assert!((step(k) - want - gap).abs() < 1e-9, "key {k}: {} for {}", step(k), want + gap);
+        }
+        assert!(pitch < key_across(&even, &sb0, 107) - key_across(&even, &sb0, 108));
+        let hx = hammer_x(&m, &sb);
+        for k in 21..=108u8 {
+            let ((ax, ay), (bx, by), _) = string_ends(&m, &sb, hx, k);
+            let s = (hx - ax) / (bx - ax);
+            assert!((ay + s * (by - ay) - key_across(&m, &sb, k)).abs() < 1e-9, "key {k} struck off its key");
         }
     }
 

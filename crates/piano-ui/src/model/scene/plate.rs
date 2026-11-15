@@ -8,7 +8,8 @@
 //! struts standing on edge, deep and narrow, from the bar along the
 //! strings: either side of the bass strings, at their slant; beside the
 //! tenor's lowest strings (under the bass strings crossing them), twice
-//! among the treble's in the gaps between unisons, and past the last;
+//! among the treble's in the gaps between unisons (or in the gap between
+//! two sections of strings, where the model has them), and past the last;
 //! crossing where they will, each sloping gently down to its bridge and,
 //! past it, down onto the plate.
 //! Bar and struts stand over the dampers, lifted.
@@ -220,7 +221,11 @@ pub(super) fn plate(b: &mut Builder, model: &PianoModel, sb: &SoundboardParams, 
     let clear = (main..=108).find(|&m| line(m).0 .1.max(line(m).1 .1) < bass_reach - PAST_BASS).unwrap_or(main);
     let third = |k: u8| clear + ((108 - clear) as u32 * k as u32 / 3) as u8;
     let mut places = vec![Strut::Beside(21, true), Strut::Beside(main - 1, false), Strut::Beside(main, true)];
-    places.extend([third(1), third(2)].into_iter().filter(|&m| m > main && m < 108).map(Strut::Below));
+    // (Where the strings stand in sections, `soundboard.string_sections`,
+    // in the gap each leaves below its lowest key.)
+    let breaks: Vec<u8> = (main + 1..=108).filter(|&m| sb.section_gap(m) > 0.0).collect();
+    let among = if breaks.is_empty() { vec![third(1), third(2)] } else { breaks };
+    places.extend(among.into_iter().filter(|&m| m > main && m < 108).map(Strut::Below));
     places.push(Strut::Beside(108, false));
     let struts: Vec<_> = places
         .into_iter()

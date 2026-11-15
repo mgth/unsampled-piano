@@ -100,6 +100,7 @@ The bass bridge is where the model already puts it (its A0 end at 0.867, 0.753; 
 | `soundboard.a` × `b` | 1.70 × 1.30 | 2.124 × 1.46 | Chabassier's Figure 6, with the front edge's 12.4 cm slant |
 | `soundboard.outline` | the 2 m grand's | RT-425's figure 1, ten points | 2.10 m² (published 2.07), against 2.38 m² |
 | `soundboard.treble_bridge` | the 2 m grand's | RT-425's points | no slant added: they are the strings' real ends |
+| `soundboard.string_sections` | none | F2, G♯3, D5 and G♯6 start a section, 14 mm below each | five sections of 20, 15, 18, 18 and 17 keys, the gaps read off a photograph (docs/string_sections.md); neutral for the sound |
 | `soundboard.rib_spacing` | 0 (off) | 0 (off) | the fitted plate's stiffness lines, 0.11 until 2026-11-02; the ribs are now in `soundboard.structure` |
 | `rim.thickness` | 0.075 | 0.083 | Steinway |
 | `strike_ratio` | 0.12 | 0.12 | C♯5 |

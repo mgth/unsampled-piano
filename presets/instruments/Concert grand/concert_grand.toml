@@ -144,6 +144,10 @@ edge_loss = 0.0
 piston_freq = 0.0
 bass_bridge_bow = 0.034
 main_string_slant = 0.0
+# The strings in five sections, as the D's: 20, 15, 18, 18 and 17 keys, some 14 mm
+# apart where the frame's bars pass (each section's lowest key and the gap below it;
+# docs/string_sections.md). The hammers and the dampers follow.
+string_sections = [[41.0, 0.014], [56.0, 0.014], [74.0, 0.014], [92.0, 0.014]]
 
 # The board as it is built, by finite elements: plate, ribs and bridges of the D
 # (fem::BoardStructure::STEINWAY_D, docs/real_board.md).

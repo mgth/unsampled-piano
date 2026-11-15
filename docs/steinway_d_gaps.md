@@ -39,6 +39,7 @@ And a fifth, the same day: the board's outline on the inner rim's face, as the D
 ## Not a gap
 
 - **The low fundamentals' hold.** The commercial D's fade at 6–10 dB/s; the real grand's and the preset's hold (0.3–1.4 dB/s). After half a second the preset's fundamental stands 14 dB over the D's at A0–B1: the largest term of the bass's distance to the commercial D, and not to be corrected (docs/bass_gaps.md).
+- **The strings in sections.** A D's strings and hammers stand in five blocks of 20, 15, 18, 18 and 17 keys, some 14 mm apart where the frame's bars pass; the model spaced them evenly. `soundboard.string_sections` places them so (docs/string_sections.md, 2026-11-15), and the Model page draws the blocks and the bars in the gaps. For the sound it is neutral by measure: the keys of the long bridge move by 7 mm on average (28 at most), the mobility they see by 0.1 to 0.7 dB, the distance to the commercial D from 8.06 to 8.01, the evenness over 88 keys not at all; and a real concert grand shows no step from key to key under the bars, at the bridge or at the ears, only at the bass's break, which the model has. In the preset since 2026-11-15, for the geometry's truth. A step of the model's own was seen on the way, C♯5 to D5: the fundamental 12 dB down, there before the sections.
 - **The contact's length in the top octave.** Longer than the string's period, as on a real grand (Askenfelt and Jansson, below).
 
 ## Done or closed
