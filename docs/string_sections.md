@@ -169,7 +169,22 @@ Main took the board's outline on the inner rim's face on the same day (docs/outl
 
 The same verdict: within the redraw, with both signs. The keys move as before (the bridge is the same). The step at each break stays an ordinary one (attack: −2.2, −3.9, −3.7 and −2.0 dB against 3.3 rms for the others).
 
-One place moves more than a redraw's decibel, and it is the new outline's, not the sections': from G5 to A5 the close microphones now hear a hole (attack −32 to −35 dB where the neighbours stand near −26; the old outline had −21 to −24 there; G♯5's fundamental 15 dB under its neighbours'). The sections move that hole by two keys without filling it (A5 back up by 7.6 dB, C6 down by 4.9), though these keys' bridge points move by less than 1.2 mm: a narrow feature of the board near 800–1000 Hz, on which a small change of where the strings hold the bridge is enough. Not looked into here.
+One place moves more than a redraw's decibel, and it is the new outline's, not the sections': from G5 to A5 the close microphones now hear a hole (attack −32 to −35 dB where the neighbours stand near −26; the old outline had −21 to −24 there; G♯5's fundamental 15 dB under its neighbours'). The sections move that hole by two keys without filling it (A5 back up by 7.6 dB, C6 down by 4.9), though these keys' bridge points move by less than 1.2 mm: a narrow feature of the board near 800–1000 Hz, on which a small change of where the strings hold the bridge is enough.
+
+Looked into (`bridge_signal` on E5–D6, the old outline, the new one, the new one with the sections): the hole is not at the bridge. The fundamental's acceleration there is level from key to key (25.6 to 29.4 dB on the new outline, 22.0 to 30.6 on the old); what falls is the board's transfer from that bridge region (the keys E5–A5 share one) to both close microphones: −22 dB at 780–860 Hz on the old outline, −38 on the new, and −28 against −19 at 700–780 Hz. Neither of the two changes made that day does it alone: the old outline with the new ribs gives −27.5 at 780–860 Hz, the new outline with the old ribs −31. The old board had a hump there (6 dB over the bands around it), the new one a hole: one more redraw of a transfer that swings by ± 8 dB from one 80 Hz band to the next, at its unlucky end on three neighbouring keys.
+
+It is no deeper than what the other boards and a real grand have (C3–C7, each key against the median of the three either side, velocity 100):
+
+| | Attack: rms, deepest | Fundamental: rms, keys under −6 dB, under −9 dB, deepest |
+|---|---|---|
+| Old outline | 2.78, D5 −6.9 | 3.62, 4, 1, D5 −14.5 |
+| New outline | 2.72, G♯5 −7.0 | 4.16, 6, 3, D3 −11.3 |
+| New outline with the sections | 2.85, C6 −6.3 | 4.09, 7, 2, D5 −11.3 |
+| Real grand at the ears | 2.99, G5 −8.3 | 4.49, 5, 2, G5 −14.2 |
+| Real grand at the bridge | 1.70, D♯6 −3.8 | 4.27, 6, 2, E3 −10.5 |
+| Commercial D | 1.18, C♯5 −3.0 | 2.65, 1, 0, B3 −7.9 |
+
+So it is not a fault of the outline: the old board had its own at D5, and the real grand has one of the same depth at the player's ears, at G5 as it happens. Only the commercial D is that much more even. Whether three weak keys in a row are heard as such is for the keyboard to say.
 
 ## Verdict
 
@@ -177,7 +192,7 @@ The sections are the instrument's real geometry, and the Model page is truer wit
 
 ## Not verified
 
-- The hole at G5–A5 on the new outline (above): whether it lies at the bridge or on the way to the close microphones, and whether it is heard.
+- The hole at G5–A5 on the new outline (above): whether it is heard; and it was read at the close microphones only, not at the player's place.
 - **Not heard and not played.** Listening page: `out/ab_sections/index.html` (the keys either side of each break and six keys in a row across it; preset, candidate, commercial D, real grand). Keyboard: `out/keyboard/instruments/String sections trial/`, with this branch's player (another build does not know the parameter). The sections went into the preset without a listening remark.
 - The counts 15 and 17 of the tenor and the top section rest on the photograph and on the three others; the breaks 35|36 and 71|72 have no written source.
 - The gap's width, 14 mm, is read off one photograph at the dampers' line, ± 4 mm; taken the same at the bridge and the agraffes, and the same at all four breaks.
