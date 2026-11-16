@@ -18,8 +18,7 @@ use super::*;
 
 /// The key: its front's travel, its sticks' width short of the action's
 /// pitch (room for the brackets), the white keys' head and the black
-/// keys' height and length, the crank from the keyboard's spacing to the
-/// action's.
+/// keys' height and length.
 const KEY_DIP: f64 = 0.010;
 const STICK_GAP: f64 = 0.0034;
 const WHITE_HEAD: f64 = 0.05;
@@ -44,7 +43,6 @@ const BLACK_TAPER: f64 = 0.0012;
 const BLACK_FILLET: f64 = 0.002;
 const BLACK_SLOPE: f64 = 0.011;
 const BLACK_NOSE: f64 = 0.004;
-const CRANK: f64 = 0.035;
 /// The balance rail behind the keys' front.
 const BALANCE: f64 = 0.2;
 
@@ -164,6 +162,18 @@ impl Builder {
             let mut n = Vertex { pos: v.normal, ..*v };
             spin(&mut n, false);
             v.normal = n.pos;
+        }
+    }
+
+    /// Slants everything drawn since `m` (a grand's, world y along and −x
+    /// across): `slope` further along per metre across from `mid` (plate
+    /// y), as a hammers' line that is not square to the keyboard.
+    pub(super) fn shear(&mut self, m: Mark, slope: f64, mid: f64) {
+        if slope == 0.0 {
+            return;
+        }
+        for v in self.s.tris[m.0..].iter_mut().chain(&mut self.s.lines[m.1..]) {
+            v.pos[1] += (slope * (-(v.pos[0] as f64) - mid)) as f32;
         }
     }
 
@@ -426,6 +436,13 @@ impl Ctx<'_> {
         self.obs.map_or_else(KeyState::default, |o| o.keys[m as usize])
     }
 
+    /// Key `m`'s place on the hammers' line (plate x): the line's own at
+    /// its middle, `hx`, but for a slant ([`hammers`]).
+    fn hx_at(&self, m: u8) -> f64 {
+        let line = hammers(self.model, self.sb);
+        self.hx + line.slope * (key_across(self.model, self.sb, m) - line.mid)
+    }
+
     /// World x across of key `m`'s action (its strings' strike point).
     fn across(&self, m: u8) -> f64 {
         -key_across(self.model, self.sb, m)
@@ -479,7 +496,12 @@ struct Hammer {
 
 impl Geo {
     fn new(c: &Ctx) -> Self {
-        let yh = c.hx;
+        Self::at(c, c.hx)
+    }
+
+    /// The action whose hammers strike on the line at `yh` along: a key's
+    /// own where the hammers' line slants ([`Ctx::hx_at`]).
+    fn at(c: &Ctx, yh: f64) -> Self {
         let (s, co) = BLOW_TILT.sin_cos();
         let pivot = (yh - (SHANK_L * co - HEAD_H * s), STRING_Z - (SHANK_L * s + HEAD_H * co));
         let treble = Self::hammer_at(pivot, yh, STRING_Z, 0.0, 0.0);
@@ -596,12 +618,14 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
             let dip = if k.down { dip } else { 0.0 };
             stick(b, c, m, tail, y1, end, balance.0);
             let rings = [(0.0, 0.0028, false), (0.008, 0.0028, false), (0.008, 0.0046, false), (CAPSTAN_H as f32 - 0.001, 0.0046, false), (CAPSTAN_H as f32, 0.003, false)];
-            b.lathe(f32s([c.across(m), up.cap, key_top]), [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], &rings, &[BRASS]);
+            b.lathe(f32s([capstan_across(c, m, tail, y1, end, up.cap), up.cap, key_top]), [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], &rings, &[BRASS]);
             b.turn(mark, balance, dip, 0.0);
             upright(b, c, &up, m, dip, balance);
             continue;
         }
         let cx = c.across(m);
+        // (Its own action, on its own place of a slanted hammers' line.)
+        let g = Geo::at(c, c.hx_at(m));
         let hammer = hammer(c, &g, m);
         let checked = tail_at(&g, &hammer, hammer.checked);
         let backcheck = checked.0 + 0.008;
@@ -615,7 +639,7 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
         let hc = (heel - key_top) as f32;
         #[rustfmt::skip]
         let rings = [(0.0, 0.0028, false), (hc - 0.007, 0.0028, false), (hc - 0.007, 0.0046, false), (hc - 0.0018, 0.0046, false), (hc - 0.0004, 0.0032, false), (hc, 0.0012, false)];
-        b.lathe(f32s([cx, g.cap, key_top]), [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], &rings, &[BRASS]);
+        b.lathe(f32s([capstan_across(c, m, tail, y1, end, g.cap), g.cap, key_top]), [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], &rings, &[BRASS]);
         // The backcheck on the tail, facing the hammer's tail as it falls.
         let bz = checked.1 + 0.005;
         b.rod(f32s([cx, backcheck + 0.002, key_top - 0.002]), f32s([cx, backcheck + 0.003, bz - 0.012]), (0.0011, 0.0011), STEEL);
@@ -632,7 +656,11 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
     if c.vertical {
         upright_rails(b, c, &up, balance, end);
     } else {
+        // The rails with the hammers' line: slanted as it is.
+        let mark = b.mark();
         rails(b, c, &g, shift);
+        let line = hammers(c.model, c.sb);
+        b.shear(mark, line.slope, line.mid);
     }
     b.mat = Material::Paint;
 }
@@ -693,7 +721,7 @@ fn f32s(p: [f64; 3]) -> V3 {
 
 fn hammer(c: &Ctx, g: &Geo, m: u8) -> Hammer {
     // Where it strikes its strings, which may slope up to their bridge.
-    let z = string_z(c.sb, c.ends[(m - 21) as usize], m, c.model.note(m).strike_pos);
+    let z = string_z(c.sb, c.ends[(m - 21) as usize], m, drawn_share(c.model, c.sb, c.ends[(m - 21) as usize], m, c.model.note(m).strike_pos));
     let mass = c.model.note(m).hammer.mass_kg;
     let size = ((mass - 0.0054) / (0.011 - 0.0054)).clamp(0.0, 1.0);
     Geo::hammer_at(g.pivot, g.yh, z, size, c.pitch(m))
@@ -750,25 +778,45 @@ fn head(b: &mut Builder, c: &Ctx, m: u8, h: &Hammer, cx: f64, tail: f64, at: &dy
     b.mat = Material::Wood;
 }
 
-/// A key's stick behind the keyboard, from the back `y1` of its part the
-/// pianist sees, where it is `tail` across, cranked from the keyboard's
-/// spacing to the action's, then straight on to `end`; its leads in front
-/// of the balance rail at `balance` along.
-fn stick(b: &mut Builder, c: &Ctx, m: u8, tail: (f64, f64), y1: f64, end: f64, balance: f64) {
+/// A key's stick's sides across at `y` along: straight from its `tail`
+/// at the back `y1` of the part the pianist sees to its action's place at
+/// its `end`, as a grand's keys are made: no crank, each key slanted from
+/// the keyboard's spacing to the action's all along, so that the keys of a
+/// section run nearly parallel and the gap between two sections opens as a
+/// wedge towards the action.
+fn stick_at(c: &Ctx, m: u8, tail: (f64, f64), y1: f64, end: f64, y: f64) -> (f64, f64) {
     let cx = c.across(m);
-    let key_top = c.kz + 0.022;
     let stick = c.pitch(m) - STICK_GAP;
-    let (s0, s1) = (cx - stick / 2.0, cx + stick / 2.0);
-    let (yc, z0, z1) = (y1 + CRANK, c.kz, key_top);
-    let lo = [[tail.0, y1, z0], [tail.1, y1, z0], [s1, yc, z0], [s0, yc, z0]];
+    let t = ((y - y1) / (end - y1).max(1e-9)).clamp(0.0, 1.0);
+    (tail.0 + (cx - stick / 2.0 - tail.0) * t, tail.1 + (cx + stick / 2.0 - tail.1) * t)
+}
+
+/// A key's stick behind the keyboard, from the back `y1` of its part the
+/// pianist sees, where it is `tail` across, straight to its action's place
+/// at its `end` ([`stick_at`]); its leads in front of the balance rail at
+/// `balance` along, across it.
+fn stick(b: &mut Builder, c: &Ctx, m: u8, tail: (f64, f64), y1: f64, end: f64, balance: f64) {
+    let key_top = c.kz + 0.022;
+    let (s0, s1) = stick_at(c, m, tail, y1, end, end);
+    let (z0, z1) = (c.kz, key_top);
+    let lo = [[tail.0, y1, z0], [tail.1, y1, z0], [s1, end, z0], [s0, end, z0]];
     let hi = lo.map(|[x, y, _]| [x, y, z1]);
     b.hexa(lo.map(f32s), hi.map(f32s), KEY_WOOD);
-    b.block((yc, end), (z0, z1), cx, stick, KEY_WOOD);
     // Its leads, more in the bass, in front of the balance rail.
     let leads = 1 + (108 - m as usize) / 30;
     for i in 0..leads {
-        b.rod_x(s0 - 0.0003, s1 + 0.0003, balance - 0.022 - i as f64 * 0.016, c.kz + 0.011, 0.0065, LEAD);
+        let y = balance - 0.022 - i as f64 * 0.016;
+        let (l0, l1) = stick_at(c, m, tail, y1, end, y);
+        b.rod_x(l0 - 0.0003, l1 + 0.0003, y, c.kz + 0.011, 0.0065, LEAD);
     }
+}
+
+/// Where a key's capstan stands across: under its wippen's heel at `cx`,
+/// as near as the key's wood at `y` leaves it.
+fn capstan_across(c: &Ctx, m: u8, tail: (f64, f64), y1: f64, end: f64, y: f64) -> f64 {
+    let (k0, k1) = stick_at(c, m, tail, y1, end, y);
+    let (lo, hi) = (k0.min(k1) + 0.0046, k0.max(k1) - 0.0046);
+    if lo < hi { c.across(m).clamp(lo, hi) } else { (k0 + k1) / 2.0 }
 }
 
 /// An upright's action, the same for every key (world y, z), as most are
@@ -824,7 +872,7 @@ impl Upright {
     /// upright) at rest, on them and checked. The soft pedal moves the
     /// rest rail half way to the strings if the model has a half blow.
     fn hammer(&self, c: &Ctx, m: u8) -> Hammer {
-        let sy = -string_z(c.sb, c.ends[(m - 21) as usize], m, c.model.note(m).strike_pos);
+        let sy = -string_z(c.sb, c.ends[(m - 21) as usize], m, drawn_share(c.model, c.sb, c.ends[(m - 21) as usize], m, c.model.note(m).strike_pos));
         let mass = c.model.note(m).hammer.mass_kg;
         let size = ((mass - 0.0054) / (0.011 - 0.0054)).clamp(0.0, 1.0);
         let (r, phi) = (U_SHANK_L.hypot(U_CROWN), U_CROWN.atan2(U_SHANK_L));
@@ -1033,7 +1081,7 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
     // The strings' height there (they may slope up to their bridge).
     let z = {
         let n = c.model.note(m);
-        string_z(c.sb, c.ends[(m - 21) as usize], m, c.model.damper.place(n.strike_pos, n.length))
+        string_z(c.sb, c.ends[(m - 21) as usize], m, drawn_share(c.model, c.sb, c.ends[(m - 21) as usize], m, c.model.damper.place_of(m, n.strike_pos, n.length)))
     };
     let place = b.place;
     let corner = |a: f64, s: f64, h: f64| place.at(px + ux * a - uy * s, py + uy * a + ux * s, z + lift + h);
@@ -1058,18 +1106,28 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
 }
 
 
+/// A grand's damper wire behind the hammers' line, at least.
+const DAMPER_WIRE_MIN: f64 = 0.053;
+
 /// Where key `m`'s damper rests on its strings with `ends` (plate x, y):
-/// the share of the speaking length the engine damps at, from its own
-/// length (the drawn string's is the bridge's and the hammers' line's),
-/// laid on the string as drawn.
+/// where the engine damps it ([`piano_core::params::DamperLaw::place_of`]),
+/// as far behind the hammer as the engine has it on a grand
+/// ([`drawn_share`]): in a straight line behind the hammers', but for the
+/// short top strings' (never past 0.45 of their length) and those set
+/// forward.
 pub(super) fn damper_at(model: &PianoModel, ends: StringEnds, m: u8) -> (f64, f64) {
     let n = model.note(m);
-    damper_point(ends, model.damper.place(n.strike_pos, n.length))
+    let sb = model.soundboard.map(|s| s.resolved()).unwrap_or_default();
+    damper_point(ends, drawn_share(model, &sb, ends, m, model.damper.place_of(m, n.strike_pos, n.length)))
 }
 
 /// A grand's key `m`'s damper wire along (world y): under its head.
 fn damper_wire(c: &Ctx, m: u8) -> f64 {
-    damper_at(c.model, c.ends[(m - 21) as usize], m).0
+    let x = damper_at(c.model, c.ends[(m - 21) as usize], m).0;
+    // (A grand's never nearer the hammers' line than its backcheck leaves
+    // room for: under a head that rests nearer, the short top strings' or
+    // one set forward, the wire comes up behind its middle and bends to it.)
+    if c.vertical { x } else { x.max(c.hx_at(m) + DAMPER_WIRE_MIN) }
 }
 
 /// Where the strings of a key with `ends` pass at `t` of their speaking
@@ -1084,11 +1142,11 @@ pub(super) fn damper_point(ends: StringEnds, t: f64) -> (f64, f64) {
     (ax + (dx + cx) * t, ay + (dy + cy) * t)
 }
 
-/// A damper's felt in section across its `strings` of radius `r`
+/// A damper's felt in section across its `strings`, `g` apart, of radius `r`
 /// (across, up from their centres), cut to them unless `flat`, and its
 /// half-width.
-fn felt_section(strings: usize, r: f64, flat: bool) -> (Vec<(f64, f64)>, f64) {
-    let (g, top) = (UNISON_GAP, DAMPER_FELT_TOP);
+fn felt_section(strings: usize, g: f64, r: f64, flat: bool) -> (Vec<(f64, f64)>, f64) {
+    let top = DAMPER_FELT_TOP;
     let half = (strings as f64 - 1.0) * g / 2.0 + 0.0025;
     if flat || !(1..=3).contains(&strings) {
         return (vec![(-half, r), (half, r), (half, top), (-half, top)], half);
@@ -1130,8 +1188,8 @@ fn felt_section(strings: usize, r: f64, flat: bool) -> (Vec<(f64, f64)>, f64) {
 pub(super) fn damper_head(b: &mut Builder, at: &dyn Fn(f64, f64, f64) -> V3, model: &PianoModel, m: u8, felt: Color32, wood: Color32) -> (f64, f64) {
     let n = model.note(m);
     let r = (n.mu / (STEEL_DENSITY * std::f64::consts::PI)).sqrt();
-    let (section, half) = felt_section(n.strings, r, m >= FLAT_DAMPERS_FROM);
-    let l = model.damper.width / 2.0;
+    let (section, half) = felt_section(n.strings, unison_gap(model, m), r, m >= FLAT_DAMPERS_FROM);
+    let l = model.damper.pad(m) / 2.0;
     let base = DAMPER_FELT_TOP + DAMPER_CLOTH;
     for pad in [(-l, -DAMPER_SLIT), (DAMPER_SLIT, l)] {
         b.extrude(&section, pad, at, felt);
@@ -1289,7 +1347,7 @@ mod tests {
             let place = Place { vertical, top: 1.0 };
             let mut b = Builder::new(place, Layer::All);
             let at = |a: f64, s: f64, h: f64| place.at(0.3 * a - 0.8 * s, 0.8 * a + 0.3 * s, h);
-            let (section, _) = felt_section(1, 0.001, false);
+            let (section, _) = felt_section(1, UNISON_GAP, 0.001, false);
             b.extrude(&section, (-0.01, 0.01), &at, Color32::WHITE);
             for t in b.s.tris.chunks(3) {
                 // Every face seen from outside: its normal away from a point
@@ -1338,7 +1396,7 @@ mod tests {
         for strings in 1..=3 {
             for r in [0.0004, 0.0008, 0.0015, 0.0025] {
                 for flat in [false, true] {
-                    let (p, half) = felt_section(strings, r, flat);
+                    let (p, half) = felt_section(strings, UNISON_GAP, r, flat);
                     let r = if strings == 1 { r.min(0.003) } else if flat { r } else { r.min(0.4 * UNISON_GAP) };
                     assert!(p.iter().all(|q| q.0.abs() <= half + 1e-12 && q.1 <= DAMPER_FELT_TOP), "{p:?}");
                     for s in 0..strings {
@@ -1372,7 +1430,7 @@ mod tests {
             key: 60,
             lit: &lit,
             level: &level,
-            span: keyboard_span(&sb),
+            span: keyboard_span(&model, &sb),
             key_front: -0.44,
             key_back: -0.29,
             kz: -0.175,

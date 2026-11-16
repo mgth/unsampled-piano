@@ -61,6 +61,20 @@ pub struct FrameParams {
     /// (1 = physical, 0 = one way): a partial that falls on a frame mode
     /// gives it its energy, as it does to the board at the bridge.
     pub coupling: f64,
+    /// A capo d'astro bar: from the key `capo_from` up the strings have no
+    /// agraffes, they pass under a bar cast in the frame, over bearing bars
+    /// in front of it. The Model page draws it; the engine holds every
+    /// string's far end the same way, agraffe or bar. Off by default, and
+    /// in a preset saved before it existed: agraffes on every key.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub capo_bar: bool,
+    #[cfg_attr(feature = "serde", serde(default = "capo_from"))]
+    pub capo_from: u8,
+}
+
+#[cfg(feature = "serde")]
+fn capo_from() -> u8 {
+    FrameParams::GRAND_2M.capo_from
 }
 
 impl Default for FrameParams {
@@ -96,7 +110,15 @@ impl FrameParams {
         f_max: 12_000.0,
         gain: 1.0,
         coupling: 1.0,
+        capo_bar: false,
+        // D5, where a concert grand's begins.
+        capo_from: 74,
     };
+
+    /// Whether key `note`'s strings end under the capo bar.
+    pub fn capo(&self, note: u8) -> bool {
+        self.capo_bar && note >= self.capo_from
+    }
 
     /// The frame's outline in its own normalised coordinates: the case's,
     /// as the board's outline draws it, carried forward over the pin block

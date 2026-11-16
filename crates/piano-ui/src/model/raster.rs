@@ -6,7 +6,8 @@
 //! `case` 1 draws the case; `cut` leaves out what lies across below it, a
 //! section). `PIANO_SHOT_PRESET=<file.toml>` draws that instrument preset,
 //! `PIANO_SHOT_UPRIGHT` stands the board, `PIANO_SHOT_FRONT` sets how
-//! solid the case's front is (0–1).
+//! solid the case's front is (0–1), `PIANO_SHOT_UNDER=<z>` leaves out
+//! what stands above that height (m).
 
 use super::cam::{Mat4, Orbit};
 use super::paint::shade;
@@ -130,6 +131,13 @@ fn shots() {
         let mut scene = scene::build(&model, Some(&live), &Options { case: v.get(7).is_some_and(|&c| c > 0.0), ..options });
         if let Some(&cut) = v.get(8) {
             let keep = |t: &[scene::Vertex]| t.iter().any(|v| v.pos[0] >= cut);
+            scene.tris = scene.tris.chunks(3).filter(|t| keep(t)).flatten().copied().collect();
+            scene.lines = scene.lines.chunks(2).filter(|t| keep(t)).flatten().copied().collect();
+        }
+        // (`PIANO_SHOT_UNDER=<z>`: only what lies under that height, the
+        // keys under their action and the plate.)
+        if let Some(top) = std::env::var("PIANO_SHOT_UNDER").ok().and_then(|z| z.parse::<f32>().ok()) {
+            let keep = |t: &[scene::Vertex]| t.iter().all(|v| v.pos[2] <= top);
             scene.tris = scene.tris.chunks(3).filter(|t| keep(t)).flatten().copied().collect();
             scene.lines = scene.lines.chunks(2).filter(|t| keep(t)).flatten().copied().collect();
         }

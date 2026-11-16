@@ -162,6 +162,18 @@ pub struct SoundboardParams {
     /// and what a preset saved before the sections existed reads.
     #[cfg_attr(feature = "serde", serde(default))]
     pub string_sections: [(f64, f64); STRING_SECTIONS],
+    /// The bridges as measured key by key: up to [`BRIDGE_KEYS`] triples of
+    /// a key (MIDI) and its bridge point, as shares of `a` and `b` like
+    /// `treble_bridge`'s. A bridge with two of them or more (the keys below
+    /// `main_bridge_from` are the bass bridge's) runs through them, a
+    /// smooth curve by key, each key between two of them where that curve
+    /// has it and the keys beyond the outermost straight on: `treble_bridge`
+    /// (keys at equal steps between five points) or `bass_bridge` and its
+    /// bow then count for nothing on that bridge. A triple with a key off
+    /// the keyboard counts for nothing. None, the default and what a preset
+    /// saved before them reads: the bridges as they were.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub bridge_keys: [(f64, f64, f64); BRIDGE_KEYS],
     /// First note on the main bridge (lower notes are on the bass bridge).
     pub main_bridge_from: u8,
     /// Microphones (m, plate coordinates, z above the board).
@@ -472,6 +484,7 @@ impl SoundboardParams {
         // without it, and 10° and 12° worse (docs/bridges.md).
         main_string_slant: 8.0,
         string_sections: [(0.0, 0.0); STRING_SECTIONS],
+        bridge_keys: [(0.0, 0.0, 0.0); BRIDGE_KEYS],
         mics: [(0.45, 0.35, 1.5), (1.15, 0.85, 1.5)],
         // 1.5 m in front of an upright's board, the left one on the bass side.
         mics_upright: [(0.7, 1.0, 1.5), (0.3, 0.45, 1.5)],
@@ -718,10 +731,13 @@ impl SoundboardParams {
     /// gap counts as its width over the keys' spacing there, across the
     /// strings (the bridge runs at an angle to them), and the whole is
     /// scaled so that the main bridge's two end keys keep their places.
-    /// Between two keys it runs straight.
+    /// Between two keys it runs straight. On a bridge through measured
+    /// points ([`Self::bridge_keys`]): `note` itself.
     pub fn bridge_place(&self, note: f64, main: bool) -> f64 {
         let lo = self.main_bridge_from;
-        if !main || lo >= 108 || !(lo + 1..=108).any(|k| self.section_gap(k) > 0.0) {
+        // (A bridge through measured points has its keys where they were
+        // measured, gaps and all.)
+        if !main || lo >= 108 || !(lo + 1..=108).any(|k| self.section_gap(k) > 0.0) || self.bridge_measured(true) {
             return note;
         }
         // Keys from the lowest, each gap in keys.
@@ -785,6 +801,9 @@ impl SoundboardParams {
     /// The bridge point before the main strings' slant: the curve through
     /// `treble_bridge`, or the bass bridge.
     fn upright_point_at(&self, note: f64, main: bool) -> (f64, f64) {
+        if let Some((u, v)) = self.measured_point_at(note, main) {
+            return (u * self.a, v * self.b);
+        }
         let lerp = |p: (f64, f64), q: (f64, f64), t: f64| (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
         let (u, v) = if main {
             // 0 at C8, 1 at the lowest note of the main bridge.
@@ -818,6 +837,60 @@ impl SoundboardParams {
         (u * self.a, v * self.b)
     }
 
+    /// Whether the main or the bass bridge runs through measured points
+    /// ([`Self::bridge_keys`]): two of them or more, at as many keys.
+    pub fn bridge_measured(&self, main: bool) -> bool {
+        self.measured_point_at(self.main_bridge_from as f64, main).is_some()
+    }
+
+    /// The measured points of the main or the bass bridge.
+    fn measured(&self, main: bool) -> impl Iterator<Item = (f64, f64, f64)> + '_ {
+        let from = self.main_bridge_from as f64;
+        self.bridge_keys.iter().copied().filter(move |p| (21.0..=108.0).contains(&p.0) && (p.0 >= from) == main)
+    }
+
+    /// The point (shares of `a`, `b`) at a fractional key position on a
+    /// bridge given by measured points ([`Self::bridge_keys`]): a cubic by
+    /// key through them, its slope at each the one from its neighbour
+    /// below to its neighbour above; straight on beyond the outermost.
+    fn measured_point_at(&self, note: f64, main: bool) -> Option<(f64, f64)> {
+        let mut k = [(0.0, 0.0, 0.0); BRIDGE_KEYS];
+        let mut n = 0;
+        for p in self.measured(main) {
+            k[n] = p;
+            n += 1;
+        }
+        if n < 2 {
+            return None;
+        }
+        let k = &mut k[..n];
+        k.sort_by(|p, q| p.0.total_cmp(&q.0));
+        // (Two points at one key: no curve by key.)
+        if k.windows(2).any(|w| w[1].0 - w[0].0 < 1e-9) {
+            return None;
+        }
+        let slope = |i: usize| {
+            let (p, q) = (k[i.saturating_sub(1)], k[(i + 1).min(n - 1)]);
+            ((q.1 - p.1) / (q.0 - p.0), (q.2 - p.2) / (q.0 - p.0))
+        };
+        let beyond = |i: usize| {
+            let m = slope(i);
+            (k[i].1 + m.0 * (note - k[i].0), k[i].2 + m.1 * (note - k[i].0))
+        };
+        if note <= k[0].0 {
+            return Some(beyond(0));
+        }
+        if note >= k[n - 1].0 {
+            return Some(beyond(n - 1));
+        }
+        let i = (0..n - 1).rev().find(|&i| k[i].0 <= note).unwrap_or(0);
+        let h = k[i + 1].0 - k[i].0;
+        let t = (note - k[i].0) / h;
+        let (m0, m1) = (slope(i), slope(i + 1));
+        let (h00, h10, h01, h11) = (2.0 * t * t * t - 3.0 * t * t + 1.0, t * t * t - 2.0 * t * t + t, -2.0 * t * t * t + 3.0 * t * t, t * t * t - t * t);
+        Some((h00 * k[i].1 + h10 * h * m0.0 + h01 * k[i + 1].1 + h11 * h * m1.0, h00 * k[i].2 + h10 * h * m0.1 + h01 * k[i + 1].2 + h11 * h * m1.1))
+    }
+
     /// Point at `t` (0 at the highest bass key, 1 at A0) along the bowed
     /// bass bridge, in metres: equal steps of `t` are equal arc lengths.
     fn bass_arc(&self, t: f64) -> (f64, f64) {
@@ -849,6 +922,10 @@ impl SoundboardParams {
         }
     }
 }
+
+/// How many measured bridge points a board may have, both bridges'
+/// ([`SoundboardParams::bridge_keys`]).
+pub const BRIDGE_KEYS: usize = 24;
 
 /// How many sections of strings a board may have after its first
 /// ([`SoundboardParams::string_sections`]).
@@ -1992,6 +2069,42 @@ mod tests {
     /// bit; with them a gap across the strings below each section's lowest
     /// key, the main bridge's end keys and its line where they were, the
     /// bass bridge's keys too.
+    #[test]
+    fn measured_points_place_the_keys_on_their_bridge() {
+        // (Upright strings: the measured points are the strings' ends.)
+        let even = SoundboardParams { main_string_slant: 0.0, ..SoundboardParams::GRAND_2M };
+        let lo = even.main_bridge_from;
+        // None, or one alone on a bridge: the bridges as they were.
+        let mut p = even;
+        p.bridge_keys[0] = (60.0, 0.3, 0.5);
+        assert!(!p.bridge_measured(true) && !p.bridge_measured(false));
+        assert!((21..=108u8).all(|k| p.bridge_point(k) == even.bridge_point(k)));
+        // Two at one key: no curve by key, the bridge as it was.
+        let mut twice = p;
+        twice.bridge_keys[1] = (60.0, 0.2, 0.4);
+        assert!(!twice.bridge_measured(true));
+        assert!((21..=108u8).all(|k| twice.bridge_point(k) == even.bridge_point(k)));
+        // Three on the main bridge: through them, the keys between in
+        // order, the keys beyond straight on; the bass bridge as it was.
+        p.bridge_keys[1] = (84.0, 0.1, 0.25);
+        p.bridge_keys[2] = (lo as f64, 0.7, 0.8);
+        assert!(p.bridge_measured(true) && !p.bridge_measured(false));
+        for (k, u, v) in [(60u8, 0.3, 0.5), (84, 0.1, 0.25), (lo, 0.7, 0.8)] {
+            let (x, y) = p.bridge_point(k);
+            assert!((x - u * p.a).abs() < 1e-12 && (y - v * p.b).abs() < 1e-12, "key {k} at ({x}, {y})");
+        }
+        assert!((lo..108).all(|k| p.bridge_point(k + 1).1 < p.bridge_point(k).1), "keys out of order");
+        let step = |k: u8| p.bridge_point(k + 1).0 - p.bridge_point(k).0;
+        assert!((step(100) - step(106)).abs() < 1e-12);
+        assert!((21..lo).all(|k| p.bridge_point(k) == even.bridge_point(k)));
+        // Two on the bass bridge: a straight line by key.
+        p.bridge_keys[3] = (24.0, 0.85, 0.72);
+        p.bridge_keys[4] = (36.0, 0.65, 0.6);
+        assert!(p.bridge_measured(false));
+        let (x, _) = p.bridge_point(30);
+        assert!((x - 0.75 * p.a).abs() < 1e-12, "{x}");
+    }
+
     #[test]
     fn the_sections_part_the_strings_along_the_bridge() {
         let even = SoundboardParams { main_string_slant: 0.0, ..SoundboardParams::GRAND_2M };

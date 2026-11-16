@@ -688,6 +688,17 @@ const HELP: &[(&str, &str, &str)] = &[
          upright strings; a preset that does not set it gets upright strings.",
     ),
     (
+        "soundboard.bridge_keys",
+        "The bridges as measured on a real piano, key by key: where on the board a few keys' strings \
+         cross their bridge. The bridge then runs through these points and every key sits where the \
+         real one does, instead of at equal steps between a few points of the bridge.",
+        "Up to 24 triples: a key (MIDI note), then its bridge point along and across the board as \
+         shares of its length and width (as treble_bridge). The keys below main_bridge_from are the \
+         bass bridge's. A bridge with two or more runs through them, a cubic by key (straight on \
+         beyond the outermost), and treble_bridge, or bass_bridge and its bow, no longer place that \
+         bridge. A key off the keyboard (0): no point.",
+    ),
+    (
         "soundboard.string_sections",
         "The strings stand in groups, with a gap between two groups where a bar of the iron frame \
          passes, as on a real grand; the hammers and the dampers follow.",
@@ -1044,6 +1055,30 @@ const HELP: &[(&str, &str, &str)] = &[
         "The dashpot grows as contact^exponent (felt compression). With 1, half contact already \
          gave 89 % of the full rate.",
     ),
+    (
+        "damper.width_bass",
+        "Length of the bass dampers' felt. A grand's dampers are long in the bass and shorter up the \
+         keyboard, their front edges in one line behind the hammers.",
+        "Pad length (m) at A0, going evenly key by key to `width` at the highest damper; `behind_strike` is \
+         then the middle of the shortest pad, a longer one's middle further back by half of what it has \
+         more. 0: `width` on every key (presets saved before it).",
+    ),
+    (
+        "damper.dodge",
+        "A few dampers rest a little nearer the hammers than the others. On a concert grand the \
+         dampers stand in one straight line, except the two either side of the break between the \
+         bass and the tenor, set forward to clear the iron frame's struts.",
+        "On: the keys dodge_from to dodge_until rest dodge_by nearer the strike point than \
+         behind_strike. The Model page draws them there.",
+    ),
+    ("damper.dodge_from", "Lowest key whose damper is set forward.", "MIDI note; 39 is the 19th key."),
+    ("damper.dodge_until", "Highest key whose damper is set forward.", "MIDI note; 42 is the 22nd key."),
+    (
+        "damper.dodge_by",
+        "How much nearer the hammers those dampers rest.",
+        "Distance (m) taken off behind_strike on those keys, the pad never nearer the strike than its half-width. \
+         1.5 cm read off a photograph of a concert grand, within 5 mm.",
+    ),
     ("damper.highest_note", "Highest key with a damper. The short top strings have none and ring until they die.", "MIDI note: D6 by default, from the top notes' sustain on eight real grands (docs/top_treble.md); F#6 was taken from a commercial modelled piano."),
     (
         "damper.pedal_free",
@@ -1169,6 +1204,15 @@ const HELP: &[(&str, &str, &str)] = &[
         "Factor on the frame's admittance at each key's agraffe, added to the bridge's in the strings' \
          coupled modes (1 = physical).",
     ),
+    (
+        "frame.capo_bar",
+        "In the treble of a grand the strings have no agraffes: they pass under a bar cast in the iron \
+         frame, the capo bar, after bearing on short slanted bars in front of it, a few notes to each.",
+        "On: from capo_from up the Model page draws the capo bar, the bearing bars in groups of six \
+         unisons and their felts in place of the agraffes. Drawing only: the engine holds every string's \
+         far end the same way.",
+    ),
+    ("frame.capo_from", "Lowest key under the capo bar.", "MIDI note; D5 (74) on a concert grand, the lowest key of its fourth section of strings."),
     ("frame.a", "Length of the iron frame.", "Plate size (m); it starts at `offset_x` in board coordinates, over the pin block."),
     ("frame.b", "Width of the iron frame.", "Plate size (m)."),
     ("frame.offset_x", "Where the frame starts relative to the soundboard (negative: in front of it, over the tuning pins).", "x of the frame's corner in board coordinates (m)."),

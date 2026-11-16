@@ -55,10 +55,10 @@ pub enum Mode {
 /// The geometry the editor lists beside the plan.
 const GEOMETRY: &[(&str, &[&str])] = &[
     ("Soundboard", &["soundboard.a", "soundboard.b", "soundboard.outline_below", "soundboard.main_bridge_from", "soundboard.main_string_slant"]),
-    ("Frame", &["frame.offset_x", "frame.agraffe_x", "frame.a", "frame.b", "frame.height"]),
+    ("Frame", &["frame.offset_x", "frame.agraffe_x", "frame.a", "frame.b", "frame.height", "frame.capo_bar", "frame.capo_from"]),
     ("Rim", &["rim.thickness", "rim.height", "rim.top"]),
     ("Lid", &["soundboard.lid_angle", "soundboard.lid_removed", "soundboard.lid_hinge_height"]),
-    ("Along the strings", &["strike_ratio", "damper.position", "damper.highest_note"]),
+    ("Along the strings", &["strike_ratio", "damper.position", "damper.highest_note", "damper.dodge", "damper.dodge_by"]),
 ];
 
 pub struct ModelView {
@@ -428,23 +428,34 @@ fn handles(model: &PianoModel) -> Vec<Handle> {
         Handle { name: "Board length", at: (sb.a, sb.b / 2.0), x: Some(("soundboard.a".into(), 1.0, 0.0)), y: None, slant: 0.0 },
         Handle { name: "Board width", at: (sb.a / 2.0, sb.b), x: None, y: Some(("soundboard.b".into(), 1.0, 0.0)), slant: 0.0 },
     ];
-    let point = |name, path: &str, i: usize, (u, v): (f64, f64), slant: f64| {
-        let mut h = Handle {
-            name,
-            at: (u * sb.a, v * sb.b),
-            x: Some((format!("soundboard.{path}[{i}][0]"), sb.a, 0.0)),
-            y: Some((format!("soundboard.{path}[{i}][1]"), sb.b, 0.0)),
-            slant,
-        };
+    // A point (shares of the board) and the two fields its coordinates set.
+    let point = |name, (x, y): (String, String), (u, v): (f64, f64), slant: f64| {
+        let mut h = Handle { name, at: (u * sb.a, v * sb.b), x: Some((x, sb.a, 0.0)), y: Some((y, sb.b, 0.0)), slant };
         h.at = h.turn(h.at, false);
         h
     };
+    let pair = |path: &str, i: usize| (format!("soundboard.{path}[{i}][0]"), format!("soundboard.{path}[{i}][1]"));
+    // A bridge through measured points ([`SoundboardParams::bridge_keys`])
+    // is moved by them, each drawn on its key's bridge point; the others by
+    // their own points.
     let lo = sb.main_bridge_from as f64;
-    for (i, &p) in sb.treble_bridge.iter().enumerate() {
-        h.push(point("Bridge point", "treble_bridge", i, p, sb.string_slant(108.0 - (108.0 - lo) * i as f64 / 4.0)));
+    for (i, &(key, u, v)) in sb.bridge_keys.iter().enumerate() {
+        let main = key >= lo;
+        if (21.0..=108.0).contains(&key) && sb.bridge_measured(main) {
+            let fields = (format!("soundboard.bridge_keys[{i}][1]"), format!("soundboard.bridge_keys[{i}][2]"));
+            let name = if main { "Measured bridge point" } else { "Measured bass bridge point" };
+            h.push(point(name, fields, (u, v), if main { sb.string_slant(key) } else { 0.0 }));
+        }
     }
-    for (i, &p) in sb.bass_bridge.iter().enumerate() {
-        h.push(point("Bass bridge point", "bass_bridge", i, p, 0.0));
+    if !sb.bridge_measured(true) {
+        for (i, &p) in sb.treble_bridge.iter().enumerate() {
+            h.push(point("Bridge point", pair("treble_bridge", i), p, sb.string_slant(108.0 - (108.0 - lo) * i as f64 / 4.0)));
+        }
+    }
+    if !sb.bridge_measured(false) {
+        for (i, &p) in sb.bass_bridge.iter().enumerate() {
+            h.push(point("Bass bridge point", pair("bass_bridge", i), p, 0.0));
+        }
     }
     if piano_core::soundboard::Outline::new(&sb).is_some() {
         // Repeated vertices (the unused ones) share one handle: the first.
@@ -1336,6 +1347,45 @@ mod tests {
         for path in GEOMETRY.iter().flat_map(|g| g.1) {
             assert!(reg.get(path).is_some(), "{path}");
         }
+    }
+
+    /// On bridges through measured points (the Concert grand's two) the
+    /// handles are those points, each on its key's bridge point, and a drag
+    /// moves that point; the bridges' own points get none. A bridge without
+    /// them keeps its own points' handles.
+    #[test]
+    fn the_bridge_handles_move_the_bridges_as_they_are_built() {
+        let reg = Registry::new();
+        let preset = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/instruments/Concert grand/concert_grand.toml");
+        let m = piano_host::load_preset(&preset).unwrap();
+        let sb = m.soundboard.unwrap();
+        assert!(sb.bridge_measured(true) && sb.bridge_measured(false));
+        let hs = handles(&m);
+        assert!(!hs.iter().any(|h| h.name == "Bridge point" || h.name == "Bass bridge point"));
+        let measured: Vec<&Handle> = hs.iter().filter(|h| h.name.starts_with("Measured")).collect();
+        let points: Vec<(usize, f64)> = sb.bridge_keys.iter().enumerate().filter(|p| (21.0..=108.0).contains(&p.1.0)).map(|(i, p)| (i, p.0)).collect();
+        assert_eq!(measured.len(), points.len());
+        for (h, &(i, key)) in measured.iter().zip(&points) {
+            let at = sb.bridge_point(key as u8);
+            assert!((h.at.0 - at.0).abs() < 1e-9 && (h.at.1 - at.1).abs() < 1e-9, "point {i} (key {key}) drawn at {:?}, its key at {at:?}", h.at);
+            // Dragged 10 mm along the plate's x, as the editor does.
+            let (dx, dy) = h.turn((h.at.0 + 0.01, h.at.1), true);
+            let mut moved = m;
+            for ((path, s, off), v) in h.x.iter().map(|a| (a, dx)).chain(h.y.iter().map(|a| (a, dy))) {
+                let meta = &reg.get(path).unwrap().meta;
+                moved = piano_params::set(&moved, path, Value::Float((v / s - off).clamp(meta.min, meta.max))).unwrap();
+            }
+            let to = moved.soundboard.unwrap().bridge_point(key as u8);
+            assert!((to.0 - at.0 - 0.01).abs() < 1e-6 && (to.1 - at.1).abs() < 1e-6, "point {i} (key {key}): {at:?} to {to:?}");
+            assert_eq!(handles(&moved).iter().filter(|h| h.name.starts_with("Measured")).count(), points.len());
+        }
+        // Without them, the bridges' own points.
+        let mut plain = m;
+        plain.soundboard.as_mut().unwrap().bridge_keys = [(0.0, 0.0, 0.0); piano_core::soundboard::BRIDGE_KEYS];
+        let hs = handles(&plain);
+        assert_eq!(hs.iter().filter(|h| h.name == "Bridge point").count(), 5);
+        assert_eq!(hs.iter().filter(|h| h.name == "Bass bridge point").count(), 2);
+        assert!(!hs.iter().any(|h| h.name.starts_with("Measured")));
     }
 
     /// What takes long is worked out one board at a time: boards asked for

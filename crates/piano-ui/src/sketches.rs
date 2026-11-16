@@ -144,12 +144,14 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("damper.position", &[DamperPoint]),
         ("damper.behind_strike", &[DamperPoint]),
         ("damper.width", &[DamperPoint]),
+        ("damper.width_bass", &[DamperPoint]),
         ("damper.node_floor", &[DamperPoint]),
         ("damper.horizontal", &[DamperPoint, Polarization]),
         ("damper.wedges", &[DamperPoint]),
         ("damper.wedge_until", &[DamperPoint, Keys]),
         ("damper.wedge_strength", &[DamperPoint]),
         ("damper.highest_note", &[DamperPoint, Keys]),
+        ("damper.dodge", &[DamperPoint, Keys]),
         ("scale.break_note", &[Length, Keys]),
         ("scale.", &[Length]),
         ("unison.bichord_from", &[Unison, Keys]),
@@ -175,6 +177,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("soundboard.impedance_slope_bass", &[BoardBass]),
         ("soundboard.impedance_slope", &[BoardTreble]),
         ("soundboard.treble_bridge", &[Bridges]),
+        ("soundboard.bridge_keys", &[Bridges]),
         ("soundboard.bass_bridge", &[BassBridge]),
         ("soundboard.main_bridge_from", &[BassBridge]),
         ("soundboard.main_string_slant", &[Bridges]),
@@ -186,6 +189,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("soundboard.wall_", &[Wall]),
         ("soundboard.", &[Board]),
         ("frame.agraffe_x", &[Agraffes]),
+        ("frame.capo", &[Agraffes, Keys]),
         ("frame.height", &[FrameHeight]),
         ("frame.back_", &[FrameHeight]),
         ("frame.", &[Frame]),
@@ -624,9 +628,9 @@ pub fn string(ui: &mut Ui, model: &PianoModel, lit: &[Part], path: &str, key: &m
     let d = &model.damper;
     if *key <= d.highest_note {
         // Where the engine puts it (`behind_strike` behind the hammer).
-        let place = d.place(n.strike_pos, n.length);
+        let place = d.place_of(*key, n.strike_pos, n.length);
         let xd = AGRAFFE_X + place as f32 * len_px;
-        let w = (d.width / n.length) as f32 * len_px;
+        let w = (d.pad(*key) / n.length) as f32 * len_px;
         let w = w.max(3.0);
         let pad = r(xd - w / 2.0, sy - 11.0, xd + w / 2.0, sy);
         p.rect_filled(pad, 1.0, if lit(Part::DamperPoint) { HIGHLIGHT } else { FELT });
@@ -1189,6 +1193,8 @@ fn key_range(model: &PianoModel, path: &str) -> Option<(u8, u8)> {
         "losses.wound_until" => (21, model.losses.wound_until),
         "losses.top_from" => (model.losses.top_from, 108),
         "losses.b2_top_from" => (model.losses.b2_top_from, 108),
+        p if p.starts_with("damper.dodge") => (model.damper.dodge_from.clamp(21, 108), model.damper.dodge_until.clamp(model.damper.dodge_from.clamp(21, 108), 108)),
+        p if p.starts_with("frame.capo") => (model.frame.capo_from.clamp(21, 108), 108),
         _ => return None,
     })
 }

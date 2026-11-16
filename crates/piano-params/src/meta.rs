@@ -64,6 +64,11 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("damper.strength_slope", "Damper strength falling up the keyboard", "", 0.0, 2.0, false),
     ("damper.horizontal", "Damper grip on sideways motion", "", 0.0, 1.0, false),
     ("damper.wedge_strength", "Bass wedge strength", "", 0.01, 4.0, true),
+    ("damper.width_bass", "Pad length at A0 (0: as the others)", "m", 0.0, 0.15, false),
+    ("damper.dodge", "Dampers set forward at the bass break", "", 0.0, 1.0, false),
+    ("damper.dodge_from", "First damper set forward", "", 21.0, 108.0, false),
+    ("damper.dodge_until", "Last damper set forward", "", 21.0, 108.0, false),
+    ("damper.dodge_by", "How far forward", "m", 0.0, 0.04, false),
     ("damper.contact_exponent", "Damper felt exponent", "", 1.0, 5.0, false),
     ("damper.pedal_free", "Pedal lost motion", "", 0.0, 0.8, false),
     ("damper.pedal_contact", "Pedal lift point", "", 0.1, 1.0, false),
@@ -138,6 +143,8 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("soundboard.string_sections[3][1]", "Gap below the 5th section", "m", 0.0, 0.03, false),
     ("soundboard.lid_angle", "Lid angle (0: shut)", "°", 0.0, 60.0, false),
     ("soundboard.lid_removed", "Lid removed", "", 0.0, 1.0, false),
+    ("frame.capo_bar", "Capo bar in the treble", "", 0.0, 1.0, false),
+    ("frame.capo_from", "Lowest key under the capo bar", "", 21.0, 108.0, false),
     ("soundboard.lid_hinge_height", "Lid hinge height", "m", 0.05, 0.6, false),
     ("soundboard.lid_reflection", "Lid reflection", "", 0.0, 1.0, false),
     ("soundboard.lid_transmission", "Sound through the lid", "", 0.0, 1.0, false),
@@ -148,6 +155,9 @@ impl Meta {
     pub(crate) fn of(path: &str, default: Value) -> Self {
         if let Some(&(_, label, unit, min, max, log)) = CURATED.iter().find(|c| c.0 == path) {
             return Self { label: label.into(), unit, min, max, log, curated: true };
+        }
+        if let Some(m) = bridge_key(path) {
+            return m;
         }
         let name = path.rsplit('.').next().unwrap_or(path);
         let unit = guess_unit(name);
@@ -161,6 +171,22 @@ impl Meta {
         };
         Self { label: label(path), unit, min, max, log, curated: false }
     }
+}
+
+/// The measured bridge points (`soundboard.bridge_keys[i][e]`, triples of
+/// floats with a default of 0): a key over the keyboard, 21–108 placing a
+/// point and anything lower none, then the point as shares of the board's
+/// length and width.
+fn bridge_key(path: &str) -> Option<Meta> {
+    let (i, e) = path.strip_prefix("soundboard.bridge_keys[")?.strip_suffix(']')?.split_once("][")?;
+    let n = i.parse::<usize>().ok()? + 1;
+    let (label, max) = match e {
+        "0" => (format!("Measured bridge point {n}: key (below 21: none)"), 108.0),
+        "1" => (format!("Measured bridge point {n}: along the board"), 1.0),
+        "2" => (format!("Measured bridge point {n}: across the board"), 1.0),
+        _ => return None,
+    };
+    Some(Meta { label, unit: "", min: 0.0, max, log: false, curated: true })
 }
 
 /// "soundboard.treble_bridge[2][1]" → "Treble bridge [2][1]".
@@ -225,6 +251,29 @@ mod tests {
             let gap = &reg.get(&format!("soundboard.string_sections[{i}][1]")).unwrap().meta;
             assert!(gap.min == 0.0 && gap.max <= 0.05 && gap.unit == "m");
         }
+    }
+
+    /// The measured bridge points' keys can be set over the keyboard with
+    /// the standard controls and MIDI learn, 0 still meaning none, and
+    /// their points over the board.
+    #[test]
+    fn the_measured_bridge_points_have_key_and_share_ranges() {
+        let reg = crate::Registry::new();
+        let mut map = crate::midi::MidiMap::default();
+        for i in 0..piano_core::soundboard::BRIDGE_KEYS {
+            let path = format!("soundboard.bridge_keys[{i}][0]");
+            let key = &reg.get(&path).unwrap_or_else(|| panic!("{path} is not a parameter")).meta;
+            assert!(key.curated && key.min == 0.0 && key.max == 108.0 && !key.log, "{key:?}");
+            map.assign(&reg, 1, &path);
+            let m = map.for_path(&path).unwrap();
+            let on = (0..=127u8).filter(|&cc| (21.0..=108.0).contains(&crate::midi::scale(m.min, m.max, false, cc))).count();
+            assert!(on > 100, "{path}: {on} CC values place a point");
+            for e in [1, 2] {
+                let share = &reg.get(&format!("soundboard.bridge_keys[{i}][{e}]")).unwrap().meta;
+                assert!(share.curated && share.min == 0.0 && share.max == 1.0, "{share:?}");
+            }
+        }
+        assert!(reg.get(&format!("soundboard.bridge_keys[{}][0]", piano_core::soundboard::BRIDGE_KEYS)).is_none());
     }
 
     #[test]
