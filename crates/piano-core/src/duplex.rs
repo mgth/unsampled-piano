@@ -94,8 +94,8 @@ pub fn modes(length: f64, b: f64, strike_pos: f64, front: f64, f_max: f64) -> St
     };
     let plain = |k: u32| 0.5 * k as f64 * (1.0 + b * (k * k) as f64).sqrt();
     // Every mode up to f_max (re the plain first partial, a little over: the
-    // real first partial is some cents higher).
-    let top = f_max * plain(1) * 1.05;
+    // real first partial is up to 4 % higher, C8 with 120 mm in front).
+    let top = f_max * plain(1) * 1.1;
     let step = SCAN * plain(1);
     let mut found: Vec<(f64, DuplexMode)> = Vec::new();
     let (mut f0, mut g0) = (step, g(step));
@@ -118,24 +118,33 @@ pub fn modes(length: f64, b: f64, strike_pos: f64, front: f64, f_max: f64) -> St
         }
         (f0, g0) = (f1, g1);
     }
-    let Some(&(first, _)) = found.first() else { return out };
-    // Each partial is the mode nearest its place that has most of its
-    // motion in the speaking length; what is left is the short length's.
+    // Partial k: of the modes near `at` (none taken yet), the one with most
+    // of its motion in the speaking length, if it has more than half of it.
     let mut taken = vec![false; found.len()];
-    let mut k = 1u32;
+    let partial = |at: f64, near: f64, taken: &mut [bool]| {
+        let best = (0..found.len())
+            .filter(|&i| !taken[i] && (found[i].0 - at).abs() < near)
+            .max_by(|&i, &j| found[i].1.speaking.total_cmp(&found[j].1.speaking))
+            .filter(|&i| found[i].1.speaking > 0.5)?;
+        taken[best] = true;
+        Some(best)
+    };
+    // The first is the one the tuner sets, near the plain string's first:
+    // not the lowest mode, which is the short length's once it is the
+    // longer of the two.
+    let Some(i1) = partial(plain(1), 0.45 * (plain(2) - plain(1)), &mut taken) else { return out };
+    let first = found[i1].0;
+    out.partials.push(Some(DuplexMode { ratio: 1.0, ..found[i1].1 }));
+    // Each further partial near its place re the first; what is left is
+    // the short length's.
+    let mut k = 2u32;
     loop {
         let at = first * plain(k) / plain(1);
         if at > first * f_max {
             break;
         }
         let near = 0.45 * (plain(k + 1) - plain(k)) / plain(1) * first;
-        let best = (0..found.len())
-            .filter(|&i| !taken[i] && (found[i].0 - at).abs() < near)
-            .max_by(|&i, &j| found[i].1.speaking.total_cmp(&found[j].1.speaking));
-        out.partials.push(best.map(|i| {
-            taken[i] = true;
-            DuplexMode { ratio: found[i].0 / first, ..found[i].1 }
-        }));
+        out.partials.push(partial(at, near, &mut taken).map(|i| DuplexMode { ratio: found[i].0 / first, ..found[i].1 }));
         k += 1;
     }
     out.duplex = (0..found.len())
@@ -223,6 +232,26 @@ mod tests {
         let (p2, d) = (m.partials[1].unwrap(), m.duplex[0]);
         assert!(d.speaking > 0.15 && p2.speaking < 0.85, "{} {}", d.speaking, p2.speaking);
         assert!((p2.speaking + d.speaking - 1.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn a_front_length_longer_than_the_speaking_one_keeps_the_tuned_first() {
+        // C8 on a concert grand, 49 mm, with 60 and 120 mm in front (inside
+        // the controls' range): the short length's first modes fall below
+        // the speaking length's first partial, which stays the tuned one.
+        for front in [0.06, 0.12] {
+            let m = modes(0.0494, 0.023, 0.07, front, 5.0);
+            assert!(m.partials.len() >= 4 && m.partials.iter().all(|p| p.is_some()));
+            assert_eq!(m.partials[0].unwrap().ratio, 1.0);
+            let plain = |k: u32| k as f64 * ((1.0 + 0.023 * (k * k) as f64) / 1.023).sqrt();
+            for (i, p) in m.partials.iter().enumerate() {
+                let (k, p) = (i as u32 + 1, p.unwrap());
+                assert!(p.speaking > 0.5, "partial {k}: {} in the speaking length", p.speaking);
+                assert!((1200.0 * (p.ratio / plain(k)).log2()).abs() < 35.0, "partial {k} with {front} m in front: {} against {}", p.ratio, plain(k));
+            }
+            let below = m.duplex.iter().take_while(|d| d.ratio < 1.0).count();
+            assert!(below >= 1 && m.duplex[..below].iter().all(|d| d.speaking < 0.05), "{:?}", m.duplex);
+        }
     }
 
     #[test]

@@ -855,6 +855,32 @@ mod tests {
         assert!(b.modes[b.n_partials * n..].iter().all(|m| m.gain_re == 0.0 && m.gain_im == 0.0 && m.out2_re == 0.0 && (m.out_re != 0.0 || m.out_im != 0.0)));
     }
 
+    /// Lengths in front of the capo longer than the speaking ones (the
+    /// controls go to 120 mm, C8 speaks 52 mm): the first partial keeps its
+    /// tuning and the others their places, the short lengths' first modes
+    /// falling below the note.
+    #[test]
+    fn a_front_length_longer_than_the_speaking_one_keeps_the_top_in_tune() {
+        let build = |m: &PianoModel, note| NoteModel::build(m, None, None, note, 48_000.0, 768);
+        let mut capo = PianoModel::default();
+        capo.frame.capo_bar = true;
+        for front in [0.06, 0.12] {
+            let mut duplex = capo;
+            duplex.frame.duplex = true;
+            (duplex.frame.duplex_far, duplex.frame.duplex_near) = (front, front);
+            for note in [96u8, 104, 108] {
+                let (a, b) = (build(&capo, note), build(&duplex, note));
+                let n = b.n_osc;
+                assert!(b.n_partials > 0);
+                for (i, (p, q)) in a.phys.iter().zip(&b.phys[..b.n_partials * n]).enumerate() {
+                    let cents = 1200.0 * (q.freq / p.freq).log2();
+                    assert!(q.k == p.k && cents.abs() < if i < n { 2.0 } else { 40.0 }, "key {note}, {front} m in front, partial {}: {cents} cents", p.k);
+                }
+                assert!(b.modes.iter().all(|m| m.sigma > 0.0 && m.freq_hz > 0.0));
+            }
+        }
+    }
+
     /// Every key, including single strings, has a fast and a slow component
     /// per partial (in-phase vertical vs out-of-phase/horizontal motion).
     #[test]
