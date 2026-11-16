@@ -307,4 +307,26 @@ The real grand's partials 3 and 4 in the top lie on the recording's floor (−51
 
 **Bench of the real grands**: 1.80 → 1.81 at 0.25 (dynamics 1.28 → 1.06), 1.87 at 0.4 (attack 1.19 → 1.46). **Distance to the commercial D** (88 keys): 8.00 → 8.18 at 0.25, top 6.19 → 6.87: its dynamics family nearer (5.30 → 3.63), its level against the keyboard further (6.19 → 6.83). The commercial D grows less than the real grand (ff − mf about 8 dB everywhere); the real grand is the target. At 0.25, in the top: the mf attack's partial 3 z −4.7 → +0.6, its partial 4 −1.6 → +0.9, the level against the keyboard at mf −2.2 → +0.1, ff − pp +1.8 → +0.4; against that, the mf attack's partial 2 re the fundamental −36.8 → −22.3 dB (theirs −35.0; z −0.6 → +4.2) and 4–8 kHz at mf +1.8 z. The contact at C8 is now shorter than the real one (0.28 ms at ff against 0.45), which is where the mf attack's second partial may come from.
 
-0.25 in the Concert grand, heard against the preset before (`out/ab_top/`: the same key from velocity 30 to 120 on C6, G6, C7, G7, C8, and ten single keys at 100 and 60 with the commercial D) and kept. Left in the top: G#6–D#7 5 dB too loud at ff against both references (before this change too), B7 and C8 weak (C8 −25 dB at ff, the references −6 to −8), the sustain's 1 kHz band (the last damper, item 7).
+0.25 in the Concert grand, heard against the preset before (`out/ab_top/`: the same key from velocity 30 to 120 on C6, G6, C7, G7, C8, and ten single keys at 100 and 60 with the commercial D) and kept. Left in the top: G#6–D#7 5 dB too loud at ff against both references (before this change too), B7 and C8 weak (C8 −25 dB at ff, the references −6 to −8; see "B7 and C8" below), the sustain's 1 kHz band (the last damper, item 7).
+
+## B7 and C8 (2026-11-16, later)
+
+RT-425's bridge points stop at B7 (key 107); C8's is drawn on along the line. Since the board's edge moved to the rim's inner face (2026-11-15), B7 stood 1.2 cm from the clamped edge and C8 on it, within 0.1 mm: there the board hardly moves, its mobility at 4 kHz 13 dB below A7's. At the bridge C8 matched Plath's real grand; at the player's ears it was 29 dB weak.
+
+- **A simply supported edge**: no change for C8, whose point lies on the edge itself.
+- **The treble side's edge 2.5 cm further out**: C8 back, but the board's modes redistributed (C6–G6 −6 dB) and the top more uneven.
+- **B7's point moved in, the edge left alone**: 2 cm put C8 5 to 7 dB above the references; 1 cm (0.0548 → 0.0617) leaves C8 1.2 cm from the edge, the rest of the board unchanged.
+
+Close microphones, no room, level re each set's C4–B5 at ff (dB):
+
+| | B7 | C8 | top unevenness ff / mf |
+|---|---|---|---|
+| the commercial D | −8.1 | −8.4 | 2.3 / 2.2 |
+| a real Disklavier grand (BiVib) | −4.2 | −6.3 | 3.1 / 3.1 |
+| Helgesson's grand | −14.1 | −15.0 | |
+| before | −8.6 | −23.9 | 3.6 / 4.2 |
+| B7's point 1 cm in | −3.7 | −12.8 | 3.3 / 3.7 |
+
+**Distance to the commercial D**: 8.18 → 8.07 (top 6.87 → 6.33). **Bench of the real grands**: 1.81 → 1.85: half from the top's sustain 1 kHz band (known unreliable), the rest from bands taken re the note's level, which drop as C8 gets louder; ff − pp and the top's partial 2 nearer. The bridge end's real distance from the rim is not measured: 1 cm is the shift that brings C8 into the three real grands' range.
+
+Kept in the Concert grand after listening against the preset before (`out/ab_b7c8/`: a C7–C8 chromatic run at mf then softer, F7 to C8 single at 100 and 60 with the commercial D). Left: at the player's ears (Plath) A7–B7 stay 12 to 14 dB weak, the radiation toward the player.
