@@ -42,11 +42,18 @@ hardness = 1.2
 # to ff by 30 dB, a real Disklavier grand's by 26 (48.6 before).
 p_bass = -1.0
 hardness_slope_bass = 0.0378
-# A softer felt above C4, 0.55 of the hardness at C5 and 0.30 from C6 up: the treble's
+# A softer felt above C4, 0.55 of the hardness at C5 and 0.30 at C6 (harder above, below): the treble's
 # mf attack was 7 to 9 dB brighter than the real grands' at 2-8 kHz, and loses half of
 # that at 4-8 kHz. Kept at the keyboard (docs/felt_law.md).
 hardness_slope = -0.05
-hardness_slope_top = 0.085
+# Harder again from C6 up (0.085 before): the top grew far too much from soft to loud,
+# its hammers' contact lasting 69 % longer at mf than at ff at C8 where a real grand's
+# lasts 11 % longer. Against a real Disklavier grand at its own eight velocities the
+# top's fundamental now grows by 4.2 dB per 10 velocity steps (6.2 before, the real
+# one 4.25) and its ff - mf comes to 12.6-15.6 dB (13.4-18.8; real 11.2-14.3). The
+# top's mf attack a little brighter (docs/steinway_d_gaps.md, "The top's growth with
+# the blow").
+hardness_slope_top = 0.25
 
 [polarization]
 # The sideways coupling as measured on a real grand's partials (0.03, the cross

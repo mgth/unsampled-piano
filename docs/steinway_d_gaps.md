@@ -276,3 +276,35 @@ As expected nothing moves where the strings are single or tuned within 0.1 cent 
 | and the strings of a unison apart | 1.80 | 8.00 | 11.5 dB |
 
 The bench's rise with the spread per key was the isolated nodes: struck apart, its 8–11 kHz step comes below main's. Left against main: the bass's 8th partial in the sustain (−11.0 → −14.9 dB, the real grands −4.3), the strike point's mean of 0.1215 nearer that partial's notch. Heard the same day (`out/ab_unison/`: the preset before against this one, the commercial D beside, F3–A#3, D3–C#4 and two bass keys): kept.
+
+## The top's growth with the blow (2026-11-16, later)
+
+The top two octaves key by key (close microphones, no room, velocities 60 and 100, each set's level re its own C4–B5 at ff), against the commercial D and a real Disklavier grand (BiVib):
+
+| ff − mf, attack (dB) | C6–G6 | G#6–D#7 | E7–C8 | C4–B5 |
+|---|---|---|---|---|
+| the commercial D | 7.9 | 8.2 | 7.6 | 7.9 |
+| a real Disklavier grand | 11.2 | 12.1 | 14.3 | 9.1 |
+| the preset (`hardness_slope_top` 0.085) | 13.4 | 16.3 | 18.8 | 9.8 |
+| `hardness_slope_top` 0.25 | 12.6 | 13.6 | 15.6 | 9.8 |
+| `hardness_slope_top` 0.4 | 12.1 | 12.0 | 13.3 | 9.8 |
+
+The middle grows as the real grands do; the top grows too much, too quiet and dull at mf (E7–C8 −24 dB at mf, the Disklavier −20, the D −14) for its ff. Per partial, at BiVib's eight velocities played through the Disklavier's own scale (`touch/disklavier_playback.toml`), growth in dB per ten velocity steps, top register (C7–C8):
+
+| | p1 | p2 | p3 | p4 |
+|---|---|---|---|---|
+| the real Disklavier grand | 4.25 | 3.90 | (floor) | (floor) |
+| the preset | 6.16 | 9.00 | 10.73 | 8.61 |
+| `hardness_slope_top` 0.25 | 4.24 | 5.97 | 7.38 | 9.62 |
+| `hardness_slope_top` 0.4 | 3.68 | 3.73 | 4.69 | 5.90 |
+
+The real grand's partials 3 and 4 in the top lie on the recording's floor (−51 to −55 dB) up to mf: their slopes near 0 are the floor's, not the piano's.
+
+**The cause is the hammer's contact.** A real grand's top contact hardly depends on the blow (Askenfelt and Jansson: C7 0.55 ms at ff, 0.65 at mf; C8 0.45 and 0.5): the string's stiffness under a hard felt sets it. The preset's lasted 0.55 and 0.79 ms at C7, 0.32 and 0.55 at C8 (velocities 105 and 60), the felt soft enough to set it. Harder from C6 up: 0.52 / 0.67 ms at C7 and 0.28 / 0.42 at C8 at 0.25; 0.50 / 0.60 and 0.26 / 0.34 at 0.4.
+
+- **Not the felt's exponent**: an extra exponent in the top (up to −1.5 at C8) leaves every figure within 0.5 dB.
+- **Not the hammer's mass**: heavier top hammers (`hammer_mass_slope` 0.004 and 0.008) lengthen C8's contact by 3 to 5 % only.
+
+**Bench of the real grands**: 1.80 → 1.81 at 0.25 (dynamics 1.28 → 1.06), 1.87 at 0.4 (attack 1.19 → 1.46). At 0.25, in the top: the mf attack's partial 3 z −4.7 → +0.6, its partial 4 −1.6 → +0.9, the level against the keyboard at mf −2.2 → +0.1, ff − pp +1.8 → +0.4; against that, the mf attack's partial 2 re the fundamental −36.8 → −22.3 dB (theirs −35.0; z −0.6 → +4.2) and 4–8 kHz at mf +1.8 z. The contact at C8 is now shorter than the real one (0.28 ms at ff against 0.45), which is where the mf attack's second partial may come from.
+
+0.25 in the Concert grand, heard against the preset before (`out/ab_top/`: the same key from velocity 30 to 120 on C6, G6, C7, G7, C8, and ten single keys at 100 and 60 with the commercial D) and kept. Left in the top: G#6–D#7 5 dB too loud at ff against both references (before this change too), B7 and C8 weak (C8 −25 dB at ff, the references −6 to −8), the sustain's 1 kHz band (the last damper, item 7).
