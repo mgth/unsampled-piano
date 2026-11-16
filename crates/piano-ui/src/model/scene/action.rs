@@ -165,6 +165,18 @@ impl Builder {
         }
     }
 
+    /// Slants everything drawn since `m` (a grand's, world y along and −x
+    /// across): `slope` further along per metre across from `mid` (plate
+    /// y), as a hammers' line that is not square to the keyboard.
+    pub(super) fn shear(&mut self, m: Mark, slope: f64, mid: f64) {
+        if slope == 0.0 {
+            return;
+        }
+        for v in self.s.tris[m.0..].iter_mut().chain(&mut self.s.lines[m.1..]) {
+            v.pos[1] += (slope * (-(v.pos[0] as f64) - mid)) as f32;
+        }
+    }
+
     /// The polygon `p` (across, up) swept along from `a.0` to `a.1`, each
     /// point placed by `at(along, across, up)`: flat faces turned
     /// outwards, capped.
@@ -424,6 +436,13 @@ impl Ctx<'_> {
         self.obs.map_or_else(KeyState::default, |o| o.keys[m as usize])
     }
 
+    /// Key `m`'s place on the hammers' line (plate x): the line's own at
+    /// its middle, `hx`, but for a slant ([`hammers`]).
+    fn hx_at(&self, m: u8) -> f64 {
+        let line = hammers(self.model, self.sb);
+        self.hx + line.slope * (key_across(self.model, self.sb, m) - line.mid)
+    }
+
     /// World x across of key `m`'s action (its strings' strike point).
     fn across(&self, m: u8) -> f64 {
         -key_across(self.model, self.sb, m)
@@ -477,7 +496,12 @@ struct Hammer {
 
 impl Geo {
     fn new(c: &Ctx) -> Self {
-        let yh = c.hx;
+        Self::at(c, c.hx)
+    }
+
+    /// The action whose hammers strike on the line at `yh` along: a key's
+    /// own where the hammers' line slants ([`Ctx::hx_at`]).
+    fn at(c: &Ctx, yh: f64) -> Self {
         let (s, co) = BLOW_TILT.sin_cos();
         let pivot = (yh - (SHANK_L * co - HEAD_H * s), STRING_Z - (SHANK_L * s + HEAD_H * co));
         let treble = Self::hammer_at(pivot, yh, STRING_Z, 0.0, 0.0);
@@ -600,6 +624,8 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
             continue;
         }
         let cx = c.across(m);
+        // (Its own action, on its own place of a slanted hammers' line.)
+        let g = Geo::at(c, c.hx_at(m));
         let hammer = hammer(c, &g, m);
         let checked = tail_at(&g, &hammer, hammer.checked);
         let backcheck = checked.0 + 0.008;
@@ -630,7 +656,11 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
     if c.vertical {
         upright_rails(b, c, &up, balance, end);
     } else {
+        // The rails with the hammers' line: slanted as it is.
+        let mark = b.mark();
         rails(b, c, &g, shift);
+        let line = hammers(c.model, c.sb);
+        b.shear(mark, line.slope, line.mid);
     }
     b.mat = Material::Paint;
 }
@@ -1097,7 +1127,7 @@ fn damper_wire(c: &Ctx, m: u8) -> f64 {
     // (A grand's never nearer the hammers' line than its backcheck leaves
     // room for: under a head that rests nearer, the short top strings' or
     // one set forward, the wire comes up behind its middle and bends to it.)
-    if c.vertical { x } else { x.max(c.hx + DAMPER_WIRE_MIN) }
+    if c.vertical { x } else { x.max(c.hx_at(m) + DAMPER_WIRE_MIN) }
 }
 
 /// Where the strings of a key with `ends` pass at `t` of their speaking
