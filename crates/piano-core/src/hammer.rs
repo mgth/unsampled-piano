@@ -41,6 +41,19 @@
 use crate::complex::C64;
 use crate::params::NoteParams;
 
+/// A mode's shape where it is not the plain sin(kπx/L) of a string between
+/// two supports (a string that runs on under a capo bar, [`crate::duplex`]),
+/// for the same modal mass μL/2.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ModeShape {
+    /// Half-waves along the speaking length (k for a plain partial).
+    pub nu: f64,
+    /// The shape at the strike point (sin(kπ·(1 − strike)) for a plain one).
+    pub strike: f64,
+    /// Its slope at the bridge, in units of π/L (k for a plain one).
+    pub bridge: f64,
+}
+
 /// One string mode as seen by the contact solver.
 #[derive(Clone, Copy, Debug)]
 pub struct PhysMode {
@@ -62,6 +75,9 @@ pub struct PhysMode {
     /// bank: 1 for a vertical oscillator, `polarization.radiation` for a
     /// horizontal one.
     pub radiation: f64,
+    /// Its shape when it is not the plain partial `k`'s; `k` is 0 for a
+    /// mode of the length in front of a capo bar.
+    pub shape: Option<ModeShape>,
 }
 
 /// Separation time after which the hammer is considered gone (re-contacts
@@ -323,10 +339,14 @@ impl ContactSolver {
             // hammer strikes `strike_pos`·L from the *agraffe* (x = L):
             // striking near the bridge would push it quasi-statically with
             // most of the hammer force (a thump).
-            let x = k * half_w;
+            let (nu, at_strike, at_bridge) = match m.shape {
+                Some(sh) => (sh.nu, sh.strike, sh.bridge),
+                None => (k, (k * std::f64::consts::PI * (1.0 - note.strike_pos)).sin(), k),
+            };
+            let x = nu * half_w;
             let phi = if sigma[s] > 0.0 {
                 m.hit / (share * sigma[s])
-                    * (k * std::f64::consts::PI * (1.0 - note.strike_pos)).sin()
+                    * at_strike
                     * if x > 1e-9 { x.sin() / x } else { 1.0 }
             } else {
                 0.0
@@ -343,8 +363,11 @@ impl ContactSolver {
             // weights it (a horizontal oscillator radiated at full weight
             // here: a ringing string's sideways motion jumped at each
             // re-strike, a click).
-            ln.out_w[l] = m.radiation * note.tension * k * std::f64::consts::PI / note.length;
-            ln.out_a[l] = if m.k % 2 == 0 { -ln.out_w[l] } else { ln.out_w[l] };
+            ln.out_w[l] = m.radiation * note.tension * at_bridge * std::f64::consts::PI / note.length;
+            // (A mode of the length in front of the capo, k = 0, pulls on
+            // the frame at both its ends: left out, the frame is far too
+            // stiff there to answer.)
+            ln.out_a[l] = if m.k == 0 { 0.0 } else if m.k % 2 == 0 { -ln.out_w[l] } else { ln.out_w[l] };
             lambda[s] += phi * phi * gamma;
             // Displacements now and one sub-step earlier from the complex amplitude.
             let pole = C64::new(r * cs, r * sn);
@@ -695,6 +718,7 @@ mod tests {
                     delay: 0.0,
                     string: 0,
                     radiation: 1.0,
+                    shape: None,
                 })
             })
             .collect();

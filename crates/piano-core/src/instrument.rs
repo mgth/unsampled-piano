@@ -26,6 +26,9 @@ pub struct Instrument {
     /// with a rendered soundboard.
     pub frame: Option<Vec<BoardMode>>,
     pub rim: Option<RimModel>,
+    /// The rear lengths' modes per board region (`sympathetic.rear`), with
+    /// a rendered soundboard.
+    pub rear: Option<Vec<Vec<crate::modal::ModeSpec>>>,
 }
 
 impl Instrument {
@@ -83,6 +86,7 @@ impl Instrument {
                 });
             }
         }
-        Self { model, source, sample_rate, table, board: modes, low, frame, rim }
+        let rear = modes.as_ref().and_then(|_| crate::note_model::rear_modes(&model, sb.as_ref(), sample_rate));
+        Self { model, source, sample_rate, table, board: modes, low, frame, rim, rear }
     }
 }

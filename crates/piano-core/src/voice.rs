@@ -205,7 +205,7 @@ impl Voice {
                 let p = nm.phys[ki * n + j];
                 let hit = p.hit * (1.0 + spread * p.uneven);
                 let hit = if j % ns == 0 { hit * (1.0 - shift) } else { hit };
-                PhysMode { k: p.k, freq: p.freq, sigma: p.sigma, state: zeta[j], hit, delay: lag[j % ns], string: (j % ns) as u8, radiation: if j < ns { 1.0 } else { nm.h_radiation } }
+                PhysMode { k: p.k, freq: p.freq, sigma: p.sigma, state: zeta[j], hit, delay: lag[j % ns], string: (j % ns) as u8, radiation: if j < ns { 1.0 } else { nm.h_radiation }, shape: p.shape }
             })
         });
         self.contact.strike(&np, v, oversample, modes);
@@ -473,7 +473,7 @@ impl Voice {
         }
         // A listening string only runs its sympathetic bank.
         let bank = if self.bank.is_empty() { &mut self.sym } else { &mut self.bank };
-        for (ki, cl) in nm.clusters.iter().enumerate() {
+        for (ki, cl) in nm.clusters.iter().take(nm.n_partials).enumerate() {
             if (ki + 1) * n > bank.len() {
                 break;
             }

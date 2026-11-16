@@ -70,6 +70,49 @@ pub struct FrameParams {
     pub capo_bar: bool,
     #[cfg_attr(feature = "serde", serde(default = "capo_from"))]
     pub capo_from: u8,
+    /// The front duplex sounds: under the capo bar a string runs on, stiff
+    /// and in one piece, to its bearing bar, and the short length in
+    /// between has modes of its own that the speaking length rings and the
+    /// bridge hears through it ([`crate::duplex`]). With `capo_bar`. Off by
+    /// default, and in a preset saved before it existed: every string ends
+    /// at its far support.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub duplex: bool,
+    /// The bearing bars in front of the capo bar: one to each group of
+    /// `duplex_group` unisons from their section's lowest, straight and
+    /// slanted, `duplex_far` metres in front of the capo at the group's
+    /// lowest key and `duplex_near` at its highest. The Model page draws
+    /// them there; they are the short lengths of `duplex`.
+    #[cfg_attr(feature = "serde", serde(default = "duplex_group"))]
+    pub duplex_group: u8,
+    #[cfg_attr(feature = "serde", serde(default = "duplex_far"))]
+    pub duplex_far: f64,
+    #[cfg_attr(feature = "serde", serde(default = "duplex_near"))]
+    pub duplex_near: f64,
+    /// Decay rate (1/s) of the short lengths' motion beyond the string's
+    /// own: what the bearing bar and the felt in front of it take.
+    #[cfg_attr(feature = "serde", serde(default = "duplex_loss"))]
+    pub duplex_loss: f64,
+}
+
+#[cfg(feature = "serde")]
+fn duplex_group() -> u8 {
+    FrameParams::GRAND_2M.duplex_group
+}
+
+#[cfg(feature = "serde")]
+fn duplex_far() -> f64 {
+    FrameParams::GRAND_2M.duplex_far
+}
+
+#[cfg(feature = "serde")]
+fn duplex_near() -> f64 {
+    FrameParams::GRAND_2M.duplex_near
+}
+
+#[cfg(feature = "serde")]
+fn duplex_loss() -> f64 {
+    FrameParams::GRAND_2M.duplex_loss
 }
 
 #[cfg(feature = "serde")]
@@ -113,11 +156,52 @@ impl FrameParams {
         capo_bar: false,
         // D5, where a concert grand's begins.
         capo_from: 74,
+        duplex: false,
+        // A concert grand's, read off a photograph from above (within
+        // 5 mm): six unisons to a bar, 48 to 34 mm in front of the capo.
+        duplex_group: 6,
+        duplex_far: 0.048,
+        duplex_near: 0.034,
+        // 30 dB/s: the short lengths' lines die at 50 to 110 dB/s at a
+        // real concert grand's bridge (docs/capo_duplex.md), the string's
+        // own losses give 30 to 90 there.
+        duplex_loss: 3.5,
     };
 
     /// Whether key `note`'s strings end under the capo bar.
     pub fn capo(&self, note: u8) -> bool {
         self.capo_bar && note >= self.capo_from
+    }
+
+    /// The keys that bear on one bar with key `note` in front of the capo
+    /// bar (first, last), if its strings end under it: `duplex_group`
+    /// unisons to a bar from the lowest key of its section of strings.
+    pub fn duplex_keys(&self, board: &SoundboardParams, note: u8) -> Option<(u8, u8)> {
+        if board.vertical || !self.capo(note) {
+            return None;
+        }
+        let group = self.duplex_group.max(1);
+        let starts = |k: u8| k == self.capo_from || k == board.main_bridge_from || board.section_gap(k) > 0.0;
+        let lo = (21..=note).rev().find(|&k| starts(k)).unwrap_or(21);
+        let hi = (note + 1..=108).find(|&k| starts(k)).map_or(108, |k| k - 1);
+        let first = lo + (note - lo) / group * group;
+        Some((first, (first + group - 1).min(hi)))
+    }
+
+    /// How far in front of the capo bar key `note`'s strings bear on their
+    /// bar (m), if they end under it.
+    pub fn duplex_length(&self, board: &SoundboardParams, note: u8) -> Option<f64> {
+        let (lo, hi) = self.duplex_keys(board, note)?;
+        let t = if hi > lo { (note - lo) as f64 / (hi - lo) as f64 } else { 0.5 };
+        Some(self.duplex_far + (self.duplex_near - self.duplex_far) * t)
+    }
+
+    /// The same for string `j` of the key's `strings`: the bar is slanted,
+    /// each string a step further along it.
+    pub fn duplex_string(&self, board: &SoundboardParams, note: u8, j: usize, strings: usize) -> Option<f64> {
+        let at = self.duplex_length(board, note)?;
+        let step = (self.duplex_near - self.duplex_far) / (self.duplex_group.max(2) - 1) as f64;
+        Some((at + step * (j as f64 - (strings as f64 - 1.0) / 2.0) / strings.max(1) as f64).max(1e-3))
     }
 
     /// The frame's outline in its own normalised coordinates: the case's,
@@ -736,6 +820,25 @@ impl RimBank {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The bearing bars in front of the capo bar: six unisons to each from
+    /// the capo's lowest key, the far length at a bar's lowest key and the
+    /// near one at its highest, a unison's strings a step apart along it.
+    #[test]
+    fn the_bearing_bars_stand_in_groups_under_the_capo() {
+        let board = SoundboardParams::GRAND_2M;
+        let mut f = FrameParams::GRAND_2M;
+        assert!((21..=108u8).all(|k| f.duplex_keys(&board, k).is_none()));
+        f.capo_bar = true;
+        assert!(f.duplex_keys(&board, 73).is_none());
+        assert_eq!(f.duplex_keys(&board, 74), Some((74, 79)));
+        assert_eq!(f.duplex_keys(&board, 85), Some((80, 85)));
+        assert_eq!(f.duplex_length(&board, 74), Some(f.duplex_far));
+        assert_eq!(f.duplex_length(&board, 79), Some(f.duplex_near));
+        let s: Vec<f64> = (0..3).map(|j| f.duplex_string(&board, 76, j, 3).unwrap()).collect();
+        assert!(s[0] > s[1] && s[1] > s[2] && (s[1] - f.duplex_length(&board, 76).unwrap()).abs() < 1e-12);
+        assert!(s[0] - s[2] < (f.duplex_far - f.duplex_near) / 5.0);
+    }
 
     /// Edge shear plus corner forces balance the plate's inertia:
     /// net = ω_ss²·ρh·∫Φ (zero for modes with an even index).

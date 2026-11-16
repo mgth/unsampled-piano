@@ -258,7 +258,7 @@ const PIN_ROW: f64 = 0.016;
 /// A grand's, as a concert grand's are (read off a photograph of one from
 /// above, within 1 cm): the first row behind the broad felt in front of the
 /// agraffes, or that far from the capo bar where the strings bear on bars
-/// in front of it ([`DUPLEX_BAR`]); the rows' spacing, each unison's pins
+/// in front of it (`frame.duplex_far`); the rows' spacing, each unison's pins
 /// one behind the other two rows apart, each on its own string's line
 /// carried straight on (the leftmost string's nearest), and every other
 /// unison's one row further: unisons side by side in a quincunx, a row's
@@ -281,13 +281,11 @@ const PIN_TURN: f64 = 0.25;
 /// Under a capo bar ([`piano_core::structure::FrameParams::capo_bar`]) the
 /// strings bear on short bars of the plate in front of it, one to each
 /// group of that many unisons from their section's lowest, straight and
-/// slanted: this far in front of the capo at the group's lowest key and at
-/// its highest (48 to 34 mm on a concert grand, within 5 mm), stepping back
+/// slanted (`frame.duplex_group`, `frame.duplex_far`, `frame.duplex_near`:
+/// the engine's short lengths, [`piano_core::duplex`]), stepping back
 /// from one group to the next; the bar's width, how far its top lifts the
 /// strings over the capo's height; the felt in front of it, its distance
 /// from the bar and its width.
-const DUPLEX_GROUP: u8 = 6;
-const DUPLEX_BAR: (f64, f64) = (0.048, 0.034);
 const DUPLEX_BAR_W: f64 = 0.008;
 const DUPLEX_RISE: f64 = 0.002;
 const DUPLEX_FELT: f64 = 0.016;
@@ -1560,26 +1558,17 @@ pub fn drawn_share(model: &PianoModel, sb: &SoundboardParams, ends: StringEnds, 
 }
 
 /// The keys that bear on one bar with key `m` in front of the capo bar
-/// (first, last), if `m`'s strings end under it: [`DUPLEX_GROUP`] unisons
+/// (first, last), if `m`'s strings end under it: `frame.duplex_group` unisons
 /// to a bar from the lowest key of its section of strings.
 pub fn duplex_group(model: &PianoModel, sb: &SoundboardParams, m: u8) -> Option<(u8, u8)> {
-    let f = &model.frame;
-    if sb.vertical || !f.capo(m) {
-        return None;
-    }
-    let starts = |k: u8| k == f.capo_from || k == sb.main_bridge_from || sb.section_gap(k) > 0.0;
-    let lo = (21..=m).rev().find(|&k| starts(k)).unwrap_or(21);
-    let hi = (m + 1..=108).find(|&k| starts(k)).map_or(108, |k| k - 1);
-    let first = lo + (m - lo) / DUPLEX_GROUP * DUPLEX_GROUP;
-    Some((first, (first + DUPLEX_GROUP - 1).min(hi)))
+    model.frame.duplex_keys(sb, m)
 }
 
 /// How far in front of the capo bar key `m`'s strings bear on their bar
-/// ([`DUPLEX_BAR`]), if they end under it.
+/// (`frame.duplex_far` to `frame.duplex_near` within a group), if they end
+/// under it.
 pub fn duplex_at(model: &PianoModel, sb: &SoundboardParams, m: u8) -> Option<f64> {
-    let (lo, hi) = duplex_group(model, sb, m)?;
-    let t = if hi > lo { (m - lo) as f64 / (hi - lo) as f64 } else { 0.5 };
-    Some(DUPLEX_BAR.0 + (DUPLEX_BAR.1 - DUPLEX_BAR.0) * t)
+    model.frame.duplex_length(sb, m)
 }
 
 /// A string's tuning pin: where it stands on the plate, the agraffe hole
@@ -2377,7 +2366,7 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
     // A grand's: a broad band, one per section of strings; and under a
     // capo bar, in its place, the bars the strings bear on in front of it,
     // one to each group of unisons, each with its felt in front
-    // ([`DUPLEX_BAR`]).
+    // (`frame.duplex_far`, `frame.duplex_near`).
     let (felt_at, felt_w) = if vertical { (UNDER_FELT_AT, UNDER_FELT_W) } else { (UNDER_FELT_AT_GRAND, UNDER_FELT_W_GRAND) };
     let in_front = |m: u8, d: f64| {
         let ((ax, ay), (bx, by), _) = ends[(m - 21) as usize];
@@ -3319,11 +3308,11 @@ mod tests {
         assert!(duplex_group(&m, &sb, 73).is_none());
         // Each bar slanted, nearer the capo at its treble end, stepping
         // back to the next; the pins further than the bars and their felts.
-        assert!((duplex_at(&m, &sb, 74).unwrap() - DUPLEX_BAR.0).abs() < 1e-12 && (duplex_at(&m, &sb, 79).unwrap() - DUPLEX_BAR.1).abs() < 1e-12);
+        assert!((duplex_at(&m, &sb, 74).unwrap() - m.frame.duplex_far).abs() < 1e-12 && (duplex_at(&m, &sb, 79).unwrap() - m.frame.duplex_near).abs() < 1e-12);
         assert!(duplex_at(&m, &sb, 80).unwrap() > duplex_at(&m, &sb, 79).unwrap());
         let pins = tuning_pins(&m, &sb, &ends);
         let top: Vec<_> = pins.iter().rev().take(3).collect();
-        assert!(top.iter().all(|p| p.rise > 0.0 && (p.at.0 - ends[87].0 .0).abs() > DUPLEX_BAR.0 + DUPLEX_FELT + DUPLEX_FELT_W / 2.0));
+        assert!(top.iter().all(|p| p.rise > 0.0 && (p.at.0 - ends[87].0 .0).abs() > m.frame.duplex_far + DUPLEX_FELT + DUPLEX_FELT_W / 2.0));
         assert!(pins[0].rise == 0.0);
         // No agraffes under the bar.
         assert!(brass(&m) < all, "{} of {all}", brass(&m));
