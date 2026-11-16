@@ -249,3 +249,30 @@ The comb 20·log10(|sin(πkr)| + ε) fitted on the bridge's partials 1–48 (fir
 - The block is gone; single keys now meet a node of their own, as any strike point does: F3 and F#3 the 41st partial (5/41 = 0.12195) at −67 and −51 dB, G3 the 33rd (4/33 = 0.12121) at −79 dB, where the real grand reads −26 to −38. A real grand's nodes stay 25 to 40 dB down; the model's point strike leaves them empty. What fills them on a real grand (the strings of a unison struck a little apart, the felt's patch moving during the contact) is not modelled.
 - The bench moves by two measures: the middle's 8–11 kHz attack from key to key at mf (largest step 12.1 → 16.9 dB, the real grands 4.3), and the bass's 8th partial in the sustain (−11.0 → −14.9 dB, theirs −4.3), the 8th partial nearer its notch (8 × 0.1215 = 0.972). The distance does not move.
 - Heard on 2026-11-16 (`out/ab_strike/`: main against the preset, the commercial D beside, A#3–D#4, F3, G3 and four bass keys): the preset kept.
+
+## The strings of a unison struck apart (2026-11-16, later)
+
+With one strike point per key, a key whose point falls on a node of one of its partials leaves that partial empty: with the spread above, F3 and F#3 on the 41st, G3 on the 33rd, 50 to 80 dB under the note's median partial at the bridge. A real grand's deepest dip stays above −40 dB at every key from A0 to C5, in both states. What fills them: a hammer does not strike the strings of a unison at one point (the felt's crown grooved by them, the strings not quite parallel), and from F2 up, where the unisons are mistuned by a cent and more, the strings' small out-of-phase excitations of a node partial do not cancel at the bridge. The real grand's notches are deep where its strings are single or held together (A0–E2), filled above (ε 0.12–0.5 from F2 up, above).
+
+`unison.strike_spread` (new, 0 by default and in any preset saved before): each string of a bichord or trichord strikes at its own fixed offset from the key's point, of zero mean within the unison (the key's point is unchanged) and the given rms; a single string keeps the key's point. A duplex string's mode shapes keep the key's point.
+
+Bridge, velocity 105, first 0.4 s, partials 1–48 about their 9-partial running median: median over the keys of the deepest dip (dB):
+
+| | A0–E1 | F1–E2 | F2–C#3 | D3–C#4 | D4–C#5 | Keys under −40 dB |
+|---|---|---|---|---|---|---|
+| the real grand, two states | −24.3 / −24.6 | −26.2 / −23.2 | −16.9 / −15.9 | −19.1 / −16.4 | −14.3 / −15.6 | none |
+| one point per key (the preset before) | −29.4 | −24.7 | −17.6 | −21.0 | −11.4 | F1, F3, G3 |
+| `strike_spread` 0.0002 | −29.4 | −24.5 | −17.7 | −18.0 | −11.4 | F3 |
+| 0.0003 | −29.4 | −24.5 | −17.7 | −14.5 | −11.4 | none |
+| 0.0005 | −29.4 | −24.5 | −17.9 | −14.3 | −11.3 | none |
+| 0.001 | −29.4 | −25.3 | −17.2 | −10.4 | −10.0 | none |
+
+As expected nothing moves where the strings are single or tuned within 0.1 cent (A0–C3). 0.0003 is the smallest that leaves no key under −40 dB (F3's 41st partial −50 → −14 dB, G3's 33rd −79 → −20); D3–C#4 then lies 2 to 4.5 dB shallower than the real grand. It is 0.2 mm at C4 and 0.4 mm at C3. In the Concert grand.
+
+| | Bench of the real grands | Distance to the commercial D | The middle's 8–11 kHz attack key to key at mf, largest step (real grands 4.3 dB) |
+|---|---|---|---|
+| main: 0.12 at every key | 1.79 | 8.01 | 12.1 dB |
+| the strike point measured, one per key | 1.82 | 8.00 | 16.9 dB |
+| and the strings of a unison apart | 1.80 | 8.00 | 11.5 dB |
+
+The bench's rise with the spread per key was the isolated nodes: struck apart, its 8–11 kHz step comes below main's. Left against main: the bass's 8th partial in the sustain (−11.0 → −14.9 dB, the real grands −4.3), the strike point's mean of 0.1215 nearer that partial's notch. Heard the same day (`out/ab_unison/`: the preset before against this one, the commercial D beside, F3–A#3, D3–C#4 and two bass keys): kept.

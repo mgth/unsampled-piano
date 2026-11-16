@@ -469,6 +469,13 @@ const HELP: &[(&str, &str, &str)] = &[
          h_j·spread/v (h_j in 0…1, irregular per key, v the hammer speed) (docs/release.md).",
     ),
     (
+        "unison.strike_spread",
+        "The strings of a key are not struck at quite the same point: a partial the hammer \
+         cannot excite on one string is excited a little on the others.",
+        "Rms (share of the length) of each string's fixed offset from the key's strike point, \
+         zero mean within the unison; single strings keep the key's point.",
+    ),
+    (
         "unison.load_ramp",
         "Where a key gets a second or a third string, the strings start a little slacker and \
          reach their full tension over this many keys. More: the first double and triple \

@@ -101,6 +101,7 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("hysteresis", "Felt hysteresis", "", 0.0, 3.0, false),
     ("contact_width_scale", "Felt contact width", "", 0.25, 4.0, true),
     ("unison.height_spread", "String height spread", "m", 0.0, 0.0005, false),
+    ("unison.strike_spread", "Strike point spread across a unison", "", 0.0, 0.002, false),
     ("unison.load_ramp", "Unison tension ramp", "keys", 0.0, 36.0, false),
     ("losses.b1_floor", "Wound-string loss floor", "1/s", 0.0, 1.0, false),
     ("losses.b2_top", "Top strings' overtone loss", "s", 0.0, 6.0e-7, false),

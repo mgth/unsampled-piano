@@ -106,6 +106,12 @@ len_a0 = 2.01
 tension = 750.0
 
 [unison]
+# The strings of a key struck a little apart (0.2 mm at C4, 0.4 at C3): at one point
+# a partial whose node falls there was left 50 to 80 dB down at the bridge (F3, G3);
+# a real grand's deepest dips stay above −40 dB at every key, and their median over
+# D3–C#4 is −16 to −19 dB, here −14.5 (docs/steinway_d_gaps.md, "The strings of a
+# unison struck apart").
+strike_spread = 0.0003
 # 8 single strings (A0–E1), 5 bichords (F1–A1), then trichords.
 bichord_from = 29
 trichord_from = 34

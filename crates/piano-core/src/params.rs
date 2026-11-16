@@ -304,6 +304,16 @@ pub struct UnisonLaw {
     /// 1.4–2 times (A2–A3). 36: bench 1.14 → 1.09; 24 did nearly as well
     /// (1.10) and the user heard both alike (docs/bass_metal.md).
     pub load_ramp: f64,
+    /// The strings of a unison are not struck at quite the same point (the
+    /// felt's crown grooved by them, strings not quite parallel): each string's
+    /// strike point departs from the key's by a fixed amount of its own, of
+    /// zero mean within the unison and this rms (share of the length; 0: one
+    /// point for all, and any preset saved before). A point strike leaves a
+    /// partial whose node falls on it empty, 50 to 80 dB down; a real grand's
+    /// stay 25 to 40 dB down from F2 up, where its unisons are not struck at
+    /// one point (docs/steinway_d_gaps.md, "The strings of a unison struck
+    /// apart").
+    pub strike_spread: f64,
 }
 
 impl UnisonLaw {
@@ -321,7 +331,7 @@ impl UnisonLaw {
     /// at A5 left its tail beating at −21 dB re the attack from 0.6 to 2 s
     /// (real grands −27 to −33); t⁴ gives A5 1.3 cents, keeps C8's 5
     /// (docs/treble_tail.md).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, width_curve: 4.0, width_bass: 0.0, width_bass_until: 47, hit_spread: 0.3, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0 };
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, width_curve: 4.0, width_bass: 0.0, width_bass_until: 47, hit_spread: 0.3, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0, strike_spread: 0.0 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 
@@ -405,6 +415,30 @@ impl UnisonLaw {
                 [base[r], base[(r + 1) % 3], base[(r + 2) % 3]]
             }
         }
+    }
+
+    /// Each string's departure from the key's strike point (share of the
+    /// length): zero mean within the unison, `strike_spread` rms, fixed per
+    /// key and string, the same at every build. A single string has none.
+    pub fn strike_offsets(&self, note: u8) -> [f64; 3] {
+        let n = self.strings(note);
+        if n < 2 || self.strike_spread == 0.0 {
+            return [0.0; 3];
+        }
+        let mut u = [0.0; 3];
+        for (s, x) in u.iter_mut().enumerate().take(n) {
+            *x = splitmix_unit(0x5741_4B45_0000_0000 ^ ((note as u64) << 8 | s as u64));
+        }
+        let mean = u[..n].iter().sum::<f64>() / n as f64;
+        let rms = (u[..n].iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n as f64).sqrt();
+        if rms < 1e-6 {
+            return [0.0; 3];
+        }
+        let mut out = [0.0; 3];
+        for s in 0..n {
+            out[s] = self.strike_spread * (u[s] - mean) / rms;
+        }
+        out
     }
 
     /// Spread of the hammer force at hammer speed `v` (m/s).
@@ -1124,6 +1158,9 @@ pub struct NoteParams {
     /// Striking point relative to the string length, from the agraffe end
     /// (the bridge is at the other end).
     pub strike_pos: f64,
+    /// Each string's departure from `strike_pos` (share of the length; first
+    /// `strings` entries, zero mean).
+    pub strike_offset: [f64; 3],
     /// Width of the felt contact patch (m).
     pub contact_width: f64,
     pub hammer: HammerParams,
@@ -1324,17 +1361,20 @@ pub struct PianoModel {
 /// A fixed number for each key, of zero mean and unit rms over A0–C8, the same
 /// on every build and platform (splitmix64 of the key, uniform, normalised).
 fn key_offset(note: u8) -> f64 {
-    fn raw(note: u8) -> f64 {
-        let mut z = (note as u64).wrapping_add(0x9E37_79B9_7F4A_7C15);
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^= z >> 31;
-        2.0 * ((z >> 11) as f64 / (1u64 << 53) as f64) - 1.0
-    }
+    let raw = |note: u8| splitmix_unit(note as u64);
     let n = 88.0;
     let mean = (21..=108).map(raw).sum::<f64>() / n;
     let rms = ((21..=108).map(|k| (raw(k) - mean).powi(2)).sum::<f64>() / n).sqrt();
     (raw(note) - mean) / rms
+}
+
+/// Uniform in [−1, 1), a fixed function of `x` (splitmix64).
+fn splitmix_unit(x: u64) -> f64 {
+    let mut z = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^= z >> 31;
+    2.0 * ((z >> 11) as f64 / (1u64 << 53) as f64) - 1.0
 }
 
 impl Default for PianoModel {
@@ -1537,6 +1577,7 @@ impl PianoModel {
             tension,
             mu,
             strike_pos,
+            strike_offset: self.unison.strike_offsets(note),
             contact_width,
             hammer,
             strings: self.unison.strings(note),
@@ -1726,6 +1767,31 @@ mod tests {
         assert!(d.windows(2).filter(|w| (w[0] - w[1]).abs() < 1e-5).count() < 3);
         assert_eq!(spread.note(60).strike_pos, spread.note(60).strike_pos);
         assert_eq!(law.note(60).strike_pos, 0.12);
+    }
+
+    /// The strings of a unison: none apart by default; with a spread, each
+    /// string of a bichord or trichord off the key's point by a fixed amount,
+    /// of zero mean and the spread's rms within the unison; a single string
+    /// on the key's point.
+    #[test]
+    fn the_strings_of_a_unison_are_struck_apart() {
+        let off = UnisonLaw::GRAND;
+        assert!((21..=108u8).all(|n| off.strike_offsets(n) == [0.0; 3]));
+        let on = UnisonLaw { strike_spread: 4e-4, ..off };
+        for n in 21..=108u8 {
+            let o = on.strike_offsets(n);
+            let k = on.strings(n);
+            assert!(o[k..].iter().all(|&x| x == 0.0));
+            if k == 1 {
+                assert_eq!(o, [0.0; 3]);
+                continue;
+            }
+            let mean = o[..k].iter().sum::<f64>() / k as f64;
+            let rms = (o[..k].iter().map(|x| x * x).sum::<f64>() / k as f64).sqrt();
+            assert!(mean.abs() < 1e-15 && (rms - 4e-4).abs() < 1e-12, "{n}: {o:?}");
+            assert_eq!(o, on.strike_offsets(n));
+        }
+        assert_ne!(on.strike_offsets(60), on.strike_offsets(61));
     }
 
     /// The low keys' spread: off, every key keeps its width to the bit;
