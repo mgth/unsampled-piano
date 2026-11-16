@@ -12,6 +12,14 @@ hammer_mass_slope = 0.00078
 # 17 dB short at a real grand's bridge and their second partial 19 dB too strong
 # (docs/steinway_d_gaps.md, "The strike point in the top octave").
 strike_ratio_top = 0.05
+# Each hammer at its own place, as on a real action regulated by hand. A real concert
+# grand's bridge reads its strike points at 0.1214 on average from A0 to C#3, in two
+# states a year apart, with no slope along the keyboard, scattered by 0.0005–0.001 about
+# that mean (RT-425's 0.12 at every key is a rule). At 0.12 on every key the 25th
+# partial had a node on the strike point and was lost from A#3 to D#4, 40 to 60 dB
+# under the real grand's (docs/steinway_d_gaps.md, "The strike point key by key").
+strike_ratio = 0.1215
+strike_ratio_spread = 0.0007
 # Top felt over a hard core: the recorded D's middle attack is darker than the
 # default's, and its low bass brightens far more from mf to ff (2–4 kHz at A0–B1,
 # 36 dB from velocity 60 to 100; 22 here with the harder felt below, 31 before it).

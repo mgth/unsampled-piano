@@ -108,6 +108,7 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("soundboard.impedance_slope_bass", "Board impedance slope (bass)", "/key", -0.1, 0.1, false),
     ("hammer_mass_scale", "Hammer mass", "", 0.25, 2.0, true),
     ("strike_ratio", "Strike point", "", 0.06, 0.2, false),
+    ("strike_ratio_spread", "Strike point spread", "", 0.0, 0.003, false),
     ("soundboard.mics[0][0]", "Left mic x (along)", "", -3.0, 5.0, false),
     ("soundboard.mics[0][1]", "Left mic y (across)", "", -5.0, 5.0, false),
     ("soundboard.mics[0][2]", "Left mic height", "m", 0.05, 4.0, false),

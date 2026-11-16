@@ -228,3 +228,24 @@ With 0.05 the contact stays a real grand's: 0.55 ms at C7 and 0.33 at C8 at velo
 **Kept**: `strike_ratio_top` 0.05, the engine's default, 1/14 at C8, inside Conklin's range. No code changes. Played at the keyboard by the user and taken into the preset the same day, without a listening remark. The trial's files: `out/keyboard/instruments/Top strike trial/` (the preset and the trial), listening page `out/ab_top_strike/index.html` (C6–C8, the real grand at the player's seat and the commercial D through close microphones).
 
 **Not verified.** The D's own strike line at the top (no measured source found; RT-425's is a rule). The law between C6 and C8 is a straight line in the ratio, the real one follows the hammers' line and the strings' lengths. What is left at the bridge after the change (8 dB of fundamental, G#7–B7 most) between the bridge's mobility at 2.6–4.2 kHz, the unknown blow and the real piano's own 9 dB from one state to the other. The mf fundamental stays 8 dB under the commercial D's. The front termination. The upper partials' excess against the commercial D (+11 dB on partials 2–4, at the real grand's level at the bridge) is still there.
+
+## The strike point key by key (2026-11-16)
+
+The comb 20·log10(|sin(πkr)| + ε) fitted on the bridge's partials 1–48 (first 0.4 s, velocity 105) of every key from A0 to C#5, Plath's real grand against the Concert grand, as docs/bass_gaps.md did for the bass ("The strike point is right"). Steps of 0.0001; the real grand in its two states a year apart (PROD08, PROD07).
+
+- **The real grand's strike point, A0–C#3: 0.1214 on average, with no slope along the keyboard** (−0.0003 per octave over A0–E2). About that mean each key scatters by 0.0005 (PROD08) and 0.0009 (PROD07) rms, and the two states differ by 0.0010 rms key by key: one key's value is not a stable measure, the mean and the scatter are. RT-425's 0.12 at every key is a rule.
+- **Above D3 the real bridge shows no comb** (ε 0.5, r anywhere, the comb taking less than 1 dB off the spectrum's roughness). Its notches are filled from F2 up (ε 0.12–0.5); the model's are deep down to F#2.
+- **The model's gap was one partial, not a comb.** At 0.12 exactly, 25 × 0.12 = 3: the 25th partial has a node on the strike point at every key. From G3 to A3 it lies under 6 kHz, where the built board's modes (`exact_below`) fill it to −20 to −25 dB about the note's median partial; from A#3 to D#4 it lies above, and it fell to −56 to −82 dB, against −17 to −45 on the real grand. A wider contact does not fill it (`contact_width_scale` ×2, ×3): a symmetric patch keeps the node. Nor is it the contact's length (0.43 to 0.53 periods, nothing proper to those keys).
+
+`strike_ratio_spread` (new, 0 by default and in any preset saved before): each key's strike point moves by a fixed offset of its own, of zero mean and the given rms over the keyboard, the same at every build. In the Concert grand: `strike_ratio` 0.1215, the real grand's mean, and a spread of 0.0007, its scatter.
+
+| | Bench of the real grands | Distance to the commercial D | 25th partial of A#3–D#4 at the bridge (dB re the median partial) |
+|---|---|---|---|
+| main: 0.12 at every key | 1.79 | 8.01 | −56 to −82 |
+| 0.1215 at every key | 1.81 | 7.99 | −12 to −27 |
+| 0.1215, spread 0.0007: the preset | 1.82 | 8.00 | −13 to −31 |
+| the real grand | | | −17 to −45 |
+
+- The block is gone; single keys now meet a node of their own, as any strike point does: F3 and F#3 the 41st partial (5/41 = 0.12195) at −67 and −51 dB, G3 the 33rd (4/33 = 0.12121) at −79 dB, where the real grand reads −26 to −38. A real grand's nodes stay 25 to 40 dB down; the model's point strike leaves them empty. What fills them on a real grand (the strings of a unison struck a little apart, the felt's patch moving during the contact) is not modelled.
+- The bench moves by two measures: the middle's 8–11 kHz attack from key to key at mf (largest step 12.1 → 16.9 dB, the real grands 4.3), and the bass's 8th partial in the sustain (−11.0 → −14.9 dB, theirs −4.3), the 8th partial nearer its notch (8 × 0.1215 = 0.972). The distance does not move.
+- Heard on 2026-11-16 (`out/ab_strike/`: main against the preset, the commercial D beside, A#3–D#4, F3, G3 and four bass keys): the preset kept.

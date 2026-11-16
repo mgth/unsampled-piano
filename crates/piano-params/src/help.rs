@@ -234,6 +234,15 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("shank_loss", "Damping of the shank's swing.", "Loss factor of the head-against-shank mode (c = loss·m_r·2πf)."),
     (
+        "strike_ratio_spread",
+        "How far each hammer strays from the line where it should strike, as a real action \
+         regulated by hand: at 0 every key strikes on the law, and a partial whose node falls \
+         there is lost on a whole run of keys.",
+        "Rms over the keyboard (share of the length) of a fixed offset per key added to the strike \
+         law, the same at every build. A real concert grand reads 0.0005–0.001 at its bridge from \
+         A0 to C#3.",
+    ),
+    (
         "strike_ratio_top",
         "How much nearer the end of the string the hammers strike at the very top of the keyboard.",
         "Share of the length taken off `strike_ratio` at C8, linearly from C6.",

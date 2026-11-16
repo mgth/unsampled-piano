@@ -77,6 +77,7 @@ pub const SECTIONS: &[Section] = &[
             "shank_",
             "strike_ratio",
             "strike_ratio_top",
+            "strike_ratio_spread",
         ],
         curves: &[
             Curve { title: "Felt stiffness Q0", unit: "N/mm^p", x: KEYS, log: true, f: |m, n| m.note(n).hammer.q0 },
