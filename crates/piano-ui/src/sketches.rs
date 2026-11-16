@@ -190,6 +190,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("soundboard.", &[Board]),
         ("frame.agraffe_x", &[Agraffes]),
         ("frame.capo", &[Agraffes, Keys]),
+        ("frame.duplex", &[Agraffes, Keys]),
         ("frame.height", &[FrameHeight]),
         ("frame.back_", &[FrameHeight]),
         ("frame.", &[Frame]),
@@ -1194,7 +1195,7 @@ fn key_range(model: &PianoModel, path: &str) -> Option<(u8, u8)> {
         "losses.top_from" => (model.losses.top_from, 108),
         "losses.b2_top_from" => (model.losses.b2_top_from, 108),
         p if p.starts_with("damper.dodge") => (model.damper.dodge_from.clamp(21, 108), model.damper.dodge_until.clamp(model.damper.dodge_from.clamp(21, 108), 108)),
-        p if p.starts_with("frame.capo") => (model.frame.capo_from.clamp(21, 108), 108),
+        p if p.starts_with("frame.capo") || p.starts_with("frame.duplex") => (model.frame.capo_from.clamp(21, 108), 108),
         _ => return None,
     })
 }

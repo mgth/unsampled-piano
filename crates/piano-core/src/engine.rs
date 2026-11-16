@@ -13,6 +13,7 @@ use crate::board::{BoardBank, PARTS};
 use crate::denormal::DenormalGuard;
 use crate::instrument::{region_of, Instrument, MICS, REGIONS};
 use crate::live::LiveParam;
+use crate::modal::ModalBank;
 use crate::params::PianoModel;
 use crate::voice::{Voice, RING};
 
@@ -299,6 +300,10 @@ pub struct Engine {
     /// bridge for the strings), and by the sympathetic ones (radiates only).
     board: Option<BoardBank>,
     board_sym: Option<BoardBank>,
+    /// The strings' rear lengths, one bank per board region
+    /// (`sympathetic.rear`): they listen to the bridge there and push on
+    /// the sympathetic board, whatever the dampers do.
+    rear: Vec<ModalBank>,
     /// The low modes driven at each key (Instrument::low) and their
     /// profile inputs for the current block. The sympathetic forces keep
     /// the regions: a diffuse halo, where the exact drive changes nothing
@@ -380,6 +385,16 @@ impl Engine {
             .as_ref()
             .filter(|_| inst.model.sympathetic.enabled)
             .map(|m| BoardBank::new(cfg.sample_rate, m, SUB_BLOCK));
+        let rear: Vec<ModalBank> = inst
+            .rear
+            .iter()
+            .flatten()
+            .map(|m| {
+                let mut b = ModalBank::new(cfg.sample_rate, m.len().max(1), SUB_BLOCK);
+                b.set_modes(m.iter().copied());
+                b
+            })
+            .collect();
         let room = match (inst.model.soundboard, inst.board.is_some()) {
             (Some(sb), true) if inst.model.room.enabled => {
                 Some(crate::room::Room::new(&inst.model.room, &sb, cfg.sample_rate))
@@ -418,6 +433,7 @@ impl Engine {
             rim_awake: false,
             board,
             board_sym,
+            rear,
             board_low,
             basis: vec![vec![0.0; SUB_BLOCK]; n_basis],
             board_sym_awake: false,
@@ -667,6 +683,16 @@ impl Engine {
             self.handle(ev.event);
         }
         self.render(pos, len);
+        // The rear lengths answer the bridge (the same delayed motion the
+        // strings take) and push on the sympathetic board.
+        if self.sympathy() {
+            let silence = self.shortcuts.sym_silence;
+            for ((bank, u), f) in self.rear.iter_mut().zip(&self.disp_in).zip(self.region_sym.iter_mut()) {
+                if !bank.is_empty() && (bank.energy() >= silence || u[..len].iter().any(|&x| x != 0.0)) {
+                    bank.process(Some(&u[..len]), &mut f[..len]);
+                }
+            }
+        }
 
         self.render_knocks(len);
         left.fill(0.0);

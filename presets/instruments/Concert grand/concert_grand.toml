@@ -195,11 +195,14 @@ bass_bridge_thickness = [[21.0, 0.069], [32.0, 0.069], [40.0, 0.069]]
 a = 2.324
 b = 1.46
 # The capo bar on the two top sections of strings, from D5: no agraffes there, the
-# strings bear on short slanted bars in front of it, six unisons to each. The Model
-# page draws it; the engine does not tell an agraffe from the bar
+# strings bear on short slanted bars in front of it, six unisons to each
 # (docs/string_sections.md).
 capo_bar = true
 capo_from = 74
+# The front duplex: the 34 to 48 mm of string between the capo and its bearing bar
+# ring a little with each note, 4 to 14 kHz, as at a real concert grand's bridge
+# (docs/capo_duplex.md).
+duplex = true
 
 [rim]
 follows_outline = true
@@ -245,3 +248,10 @@ pedal_contact = 0.6
 pedal_curve = 1.2
 fall_time = 0.015
 lift_time = 0.005
+
+[sympathetic]
+# (A section without `brake` reads it off: kept on, as the default instrument's.)
+brake = true
+# The rear duplex: from B3 up no felt lies on the strings' rear lengths, which ring a
+# little with everything that is played (docs/capo_duplex.md).
+rear = true

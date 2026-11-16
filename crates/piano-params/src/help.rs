@@ -1113,6 +1113,21 @@ const HELP: &[(&str, &str, &str)] = &[
         "Strings ringing at the same pitch hold the bridge back, as on a real piano.",
         "Divides each listening mode's drive by 1 + Σ Y·Z over the other free strings near its frequency (the two-way coupling to first order); undamped keys alone with the pedal up, every key with it down.",
     ),
+    (
+        "sympathetic.rear",
+        "Behind the bridge each string runs on for a few centimetres to where it is hooked. In the upper \
+         part of a grand no felt lies on that length, and it rings a little with everything that is \
+         played: a faint high shimmer that stays after the notes, pedal or not.",
+        "The rear duplex: from rear_from up, each key's rear length (soundboard.structure.back_length, \
+         at the key's tension) is a short string that listens to the bridge and pushes on the board, \
+         one way, as the free strings do, whatever the dampers do (docs/capo_duplex.md).",
+    ),
+    ("sympathetic.rear_from", "Lowest key whose rear length is bare; below it felt lies on them.", "MIDI note; B3 (59) on a concert grand: the top fifty keys or so."),
+    (
+        "sympathetic.rear_loss",
+        "How fast the rear lengths stop ringing, beyond what the wire itself loses. Higher: a shorter shimmer.",
+        "Decay rate (1/s) added to the string's own losses for the rear lengths' modes: their ends on the bridge's pins and on the plate. Not measured.",
+    ),
     // Nonlinearity
     (
         "nonlinear.enabled",
@@ -1209,8 +1224,42 @@ const HELP: &[(&str, &str, &str)] = &[
         "In the treble of a grand the strings have no agraffes: they pass under a bar cast in the iron \
          frame, the capo bar, after bearing on short slanted bars in front of it, a few notes to each.",
         "On: from capo_from up the Model page draws the capo bar, the bearing bars in groups of six \
-         unisons and their felts in place of the agraffes. Drawing only: the engine holds every string's \
-         far end the same way.",
+         unisons and their felts in place of the agraffes. The drawing; `duplex` makes the short lengths \
+         in front of the bar sound.",
+    ),
+    (
+        "frame.duplex",
+        "Under the capo bar a string is not cut: it runs on, stiff, to its bearing bar a few centimetres \
+         in front, and that short length rings a little with every note of its key. A faint high line \
+         above the treble notes, between their own partials, that dies within half a second.",
+        "With capo_bar. Each string under the bar is taken as one stiff string on three supports (bridge, \
+         capo, bearing bar): its partials move by a few cents and the short length's modes, 4 to 14 kHz, \
+         are added with the share of motion they have in the speaking length. Off: every string ends at \
+         the capo (docs/capo_duplex.md).",
+    ),
+    (
+        "frame.duplex_group",
+        "How many notes bear on each of the short bars in front of the capo bar.",
+        "Unisons to a bearing bar, counted from the lowest key of each section of strings; 6 on a concert grand.",
+    ),
+    (
+        "frame.duplex_far",
+        "Length of string between the capo bar and the bearing bar, at the lowest note of each bar. The \
+         shorter, the higher that length rings.",
+        "m, at the lowest key of each group of duplex_group unisons; the bar is straight to duplex_near at \
+         the highest. 0.048 on a concert grand, read off a photograph within 5 mm.",
+    ),
+    (
+        "frame.duplex_near",
+        "Length of string between the capo bar and the bearing bar, at the highest note of each bar.",
+        "m, at the highest key of each group; 0.034 on a concert grand, within 5 mm.",
+    ),
+    (
+        "frame.duplex_loss",
+        "How fast the short lengths in front of the capo bar stop ringing: what their bearing bar and its \
+         felt take. Higher: a shorter, fainter line.",
+        "Decay rate (1/s) of a mode's motion in front of the capo, added to the string's own in proportion \
+         to its share there; 3.5 is 30 dB/s, which with the string's own losses gives the 50 to 110 dB/s of a real concert grand's lines at its bridge.",
     ),
     ("frame.capo_from", "Lowest key under the capo bar.", "MIDI note; D5 (74) on a concert grand, the lowest key of its fourth section of strings."),
     ("frame.a", "Length of the iron frame.", "Plate size (m); it starts at `offset_x` in board coordinates, over the pin block."),

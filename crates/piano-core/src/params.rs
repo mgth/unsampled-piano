@@ -969,10 +969,38 @@ pub struct SympatheticLaw {
     /// takes the default instrument's, on).
     #[cfg_attr(feature = "serde", serde(default))]
     pub brake: bool,
+    /// The rear duplex: behind the bridge each string runs on to its hitch
+    /// pin or to a bar before it, and from the key `rear_from` up no felt
+    /// lies on that length. It is a short string shaken by the bridge like
+    /// any free string, whatever the dampers do: its modes (the rear
+    /// length's, `soundboard.structure.back_length`, at the key's tension)
+    /// listen to the bridge and push back on the board, one way
+    /// (docs/capo_duplex.md). Off by default, and in a preset saved before
+    /// it existed.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub rear: bool,
+    #[cfg_attr(feature = "serde", serde(default = "rear_from"))]
+    pub rear_from: u8,
+    /// Decay rate (1/s) of the rear lengths beyond the string's own: their
+    /// ends on the bridge's pins and on the plate.
+    #[cfg_attr(feature = "serde", serde(default = "rear_loss"))]
+    pub rear_loss: f64,
+}
+
+#[cfg(feature = "serde")]
+fn rear_from() -> u8 {
+    SympatheticLaw::DEFAULT.rear_from
+}
+
+#[cfg(feature = "serde")]
+fn rear_loss() -> f64 {
+    SympatheticLaw::DEFAULT.rear_loss
 }
 
 impl SympatheticLaw {
-    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 1.0, self_cancel: true, brake: true };
+    /// `rear_from` B3: on a concert grand the rear lengths of the top fifty
+    /// keys or so are bare, the others lie under felt.
+    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 1.0, self_cancel: true, brake: true, rear: false, rear_from: 59, rear_loss: 0.0 };
 }
 
 /// Partial frequency of a stiff string: f_k = k·f0·sqrt(1 + B·k²).

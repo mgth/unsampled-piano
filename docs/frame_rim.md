@@ -132,3 +132,4 @@ The sign of the force at the agraffe was inverted (partial indices counted from 
   - The rim is an equivalent ring, not the real curved shape with its beams and legs.
   - The frame is an equivalent solid plate, not a network of bars.
 - **Air cavity.** The air between the soundboard and the floor, or the underside of the piano, is not modelled. It is probably the most audible “case” contribution remaining.
+- **The frame above 3 kHz.** On the Concert grand the frame is 42 dB or more under the note up to E7, and 9 to 27 dB under it from F7 to C8, whose fundamentals lie above the outline's own modes (docs/capo_duplex.md, section 2): with those modes up to 6 kHz it falls to −25 dB and lower. Not changed.

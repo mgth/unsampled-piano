@@ -55,7 +55,7 @@ pub enum Mode {
 /// The geometry the editor lists beside the plan.
 const GEOMETRY: &[(&str, &[&str])] = &[
     ("Soundboard", &["soundboard.a", "soundboard.b", "soundboard.outline_below", "soundboard.main_bridge_from", "soundboard.main_string_slant"]),
-    ("Frame", &["frame.offset_x", "frame.agraffe_x", "frame.a", "frame.b", "frame.height", "frame.capo_bar", "frame.capo_from"]),
+    ("Frame", &["frame.offset_x", "frame.agraffe_x", "frame.a", "frame.b", "frame.height", "frame.capo_bar", "frame.capo_from", "frame.duplex_group", "frame.duplex_far", "frame.duplex_near"]),
     ("Rim", &["rim.thickness", "rim.height", "rim.top"]),
     ("Lid", &["soundboard.lid_angle", "soundboard.lid_removed", "soundboard.lid_hinge_height"]),
     ("Along the strings", &["strike_ratio", "damper.position", "damper.highest_note", "damper.dodge", "damper.dodge_by"]),
