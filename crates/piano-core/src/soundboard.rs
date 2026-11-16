@@ -838,9 +838,9 @@ impl SoundboardParams {
     }
 
     /// Whether the main or the bass bridge runs through measured points
-    /// ([`Self::bridge_keys`]).
+    /// ([`Self::bridge_keys`]): two of them or more, at as many keys.
     pub fn bridge_measured(&self, main: bool) -> bool {
-        self.measured(main).count() >= 2
+        self.measured_point_at(self.main_bridge_from as f64, main).is_some()
     }
 
     /// The measured points of the main or the bass bridge.
@@ -2079,6 +2079,11 @@ mod tests {
         p.bridge_keys[0] = (60.0, 0.3, 0.5);
         assert!(!p.bridge_measured(true) && !p.bridge_measured(false));
         assert!((21..=108u8).all(|k| p.bridge_point(k) == even.bridge_point(k)));
+        // Two at one key: no curve by key, the bridge as it was.
+        let mut twice = p;
+        twice.bridge_keys[1] = (60.0, 0.2, 0.4);
+        assert!(!twice.bridge_measured(true));
+        assert!((21..=108u8).all(|k| twice.bridge_point(k) == even.bridge_point(k)));
         // Three on the main bridge: through them, the keys between in
         // order, the keys beyond straight on; the bass bridge as it was.
         p.bridge_keys[1] = (84.0, 0.1, 0.25);
