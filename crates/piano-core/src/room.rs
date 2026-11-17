@@ -5,7 +5,13 @@
 //! The direct sound at each microphone is the soundboard's Rayleigh integral
 //! (exact); the room adds what comes back from the walls. The piano is taken
 //! as a point source at the board centre for the reflections, with source
-//! signal s(t) = pressure at 1 m, estimated from the mics as p·r.
+//! signals s_k(t) = pressure at 1 m towards [`PROBES`] directions: the
+//! board's own radiation at the probes ([`crate::board::probe_points`]),
+//! scaled to 1 m, plus what else the mics hear (action, body, rim, frame)
+//! estimated from them as p·r. Each reflection takes the probe facing its
+//! wall; the tail takes the probes on orthogonal inputs, so their powers
+//! add as in a diffuse field (two close mics alone would bring the
+//! interference of their two points into the whole room).
 //!
 //! - Early reflections: image sources of a shoebox room up to `order`, delay
 //!   (r_image − r_direct)/c, gain Π√(1 − α)/r_image, wall absorption growing
@@ -20,6 +26,7 @@
 // Small fixed-size DSP loops read better with explicit indices.
 #![allow(clippy::needless_range_loop)]
 
+use crate::board::{PROBES, PROBE_DISTANCE};
 use crate::soundboard::SoundboardParams;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -113,12 +120,27 @@ struct Tap {
     delay: usize,
     gain: f32,
     order: usize,
+    /// The probe facing the wall the sound leaves for.
+    probe: usize,
+}
+
+/// Hadamard rows (of the 16 × 16 matrix) the probes enter the tail by:
+/// orthogonal to each other and to the all-ones row the Householder
+/// feedback reflects.
+const INJECT_ROWS: [usize; PROBES] = [1, 4, 8, 15];
+
+/// What the board radiates over a block, for the room: its part of the
+/// mic signals and its pressure at the probes, both in the units of the
+/// mic signals (after the differentiator and the output gain).
+pub struct BoardFeed<'a> {
+    pub mics: [&'a [f32]; MICS],
+    pub probes: [&'a [f32]; PROBES],
 }
 
 /// Early reflections and late tail, real-time part.
 pub struct Room {
-    // Source history (pressure at 1 m) for the early taps.
-    hist: Vec<f32>,
+    // Source history (pressure at 1 m, per probe) for the early taps.
+    hist: Vec<[f32; PROBES]>,
     pos: usize,
     taps: [[Tap; MAX_TAPS]; MICS],
     n_taps: [usize; MICS],
@@ -149,7 +171,23 @@ pub struct Room {
     /// the power the piano radiates in every direction, not by its level
     /// towards the mics, and heard through the mics' pattern.
     source_gain: f32,
+    /// Probe pressure → pressure at 1 m (the board's probe outputs are
+    /// levelled with the mics' estimate, [`crate::board::PROBES_BELOW`]).
+    probe_gain: f32,
+    /// Per line, each probe's sign into it (over √PROBES).
+    inject: [[f32; PROBES]; LINES],
     sample_rate: f64,
+}
+
+/// The probes' directions from the board's centre, in room coordinates.
+fn probe_dirs(p: &RoomParams, sb: &SoundboardParams) -> [[f64; 3]; PROBES] {
+    let c = to_room(p, sb, (0.5 * sb.a, 0.5 * sb.b, 0.0));
+    crate::board::probe_points(sb).map(|q| {
+        let r = to_room(p, sb, (q[0], q[1], q[2]));
+        let d = [r[0] - c[0], r[1] - c[1], r[2] - c[2]];
+        let n = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt().max(1e-9);
+        d.map(|x| x / n)
+    })
 }
 
 /// A point in board coordinates (m, z towards the mics) in the room.
@@ -225,6 +263,7 @@ impl Room {
         let own_wall = sb.vertical && sb.wall_distance > 0.0;
         let dist = |a: [f64; 3], b: [f64; 3]| ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt();
         let r_direct: [f64; MICS] = std::array::from_fn(|m| dist(src, mic_room[m]).max(0.3));
+        let dirs = probe_dirs(p, sb);
 
         // Image sources of a shoebox: per axis, image coordinate and number
         // of reflections for index n ∈ [−order, order].
@@ -253,7 +292,17 @@ impl Room {
                         let delay = ((r - r_direct[m]) / C0 * sr).round().max(1.0) as usize;
                         let gain = b_mid.powi(refl as i32) / r;
                         first = first.min((r - r_direct[m]) / C0);
-                        list.push(Tap { delay, gain: gain as f32, order: refl });
+                        // The sound leaves the source towards the mic's
+                        // image in the same walls.
+                        let mi = [img(nx, mic_room[m][0], p.size[0]), img(ny, mic_room[m][1], p.size[1]), img(nz, mic_room[m][2], p.size[2])];
+                        let go = [mi[0] - src[0], mi[1] - src[1], mi[2] - src[2]];
+                        let probe = (0..PROBES)
+                            .max_by(|&a, &b| {
+                                let dot = |k: usize| dirs[k].iter().zip(&go).map(|(x, y)| x * y).sum::<f64>();
+                                dot(a).total_cmp(&dot(b))
+                            })
+                            .unwrap_or(0);
+                        list.push(Tap { delay, gain: gain as f32, order: refl, probe });
                     }
                 }
             }
@@ -299,7 +348,7 @@ impl Room {
         let xo_a = (-std::f64::consts::TAU * (76.0 / d) / sr).exp() as f32;
 
         let mut room = Self {
-            hist: vec![0.0; hist_len.max(pre + 1).next_power_of_two()],
+            hist: vec![[0.0; PROBES]; hist_len.max(pre + 1).next_power_of_two()],
             pos: 0,
             taps,
             n_taps,
@@ -318,6 +367,10 @@ impl Room {
             out_gain: 1.0,
             source_gain: source_gain(sb, directivity) as f32,
             r_direct,
+            probe_gain: PROBE_DISTANCE as f32,
+            inject: std::array::from_fn(|i| {
+                std::array::from_fn(|k| if (INJECT_ROWS[k] & i).count_ones().is_multiple_of(2) { 1.0 } else { -1.0 } / (PROBES as f32).sqrt())
+            }),
             sample_rate,
         };
         // Level of the tail: reverberant/direct energy = (r/r_c)². For a
@@ -338,14 +391,15 @@ impl Room {
         let n = (1.5 * t60 * self.sample_rate) as usize;
         let mut e = 0.0f64;
         for i in 0..n {
-            let (l, _) = self.fdn_step(if i == 0 { 1.0 } else { 0.0 });
+            let x = if i == 0 { 1.0 } else { 0.0 };
+            let (l, _) = self.fdn_step(&std::array::from_fn(|j| if j % 2 == 0 { x } else { -x }));
             e += (l as f64).powi(2);
         }
         e
     }
 
     pub fn reset(&mut self) {
-        self.hist.fill(0.0);
+        self.hist.fill([0.0; PROBES]);
         for l in &mut self.lines {
             l.fill(0.0);
         }
@@ -354,8 +408,9 @@ impl Room {
         self.order_state = [[0.0; 8]; MICS];
     }
 
+    /// One step of the tail, `x[i]` entering line i.
     #[inline]
-    fn fdn_step(&mut self, x: f32) -> (f32, f32) {
+    fn fdn_step(&mut self, x: &[f32; LINES]) -> (f32, f32) {
         // Read the line outputs, attenuated (two bands).
         let mut y = [0.0f32; LINES];
         for i in 0..LINES {
@@ -363,14 +418,13 @@ impl Room {
             self.lp_state[i] = self.lp_a * self.lp_state[i] + (1.0 - self.lp_a) * v;
             y[i] = self.g_hi[i] * v + (self.g_lo[i] - self.g_hi[i]) * self.lp_state[i];
         }
-        // Householder feedback: y − (2/N)·Σy, plus the input with signs.
+        // Householder feedback: y − (2/N)·Σy, plus the input.
         let s = y.iter().sum::<f32>() * (2.0 / LINES as f32);
         // Three mutually orthogonal output mixes (rows 1, 2 and 3 of the
         // 16 × 16 Hadamard matrix: signs (−1)^popcount(row & i)).
         let mut mix = [0.0f32; 3];
         for i in 0..LINES {
-            let sign = if i % 2 == 0 { 1.0 } else { -1.0 };
-            let fb = y[i] - s + sign * x;
+            let fb = y[i] - s + x[i];
             let p = self.line_pos[i];
             self.lines[i][p] = fb;
             self.line_pos[i] = if p + 1 == self.line_len[i] { 0 } else { p + 1 };
@@ -388,21 +442,36 @@ impl Room {
         (common + (mix[1] - self.xo_state[1]), common + (mix[2] - self.xo_state[2]))
     }
 
-    /// Adds the room's response to the microphone signals (in place).
-    /// Real-time safe.
+    /// Adds the room's response to the microphone signals (in place),
+    /// estimating the source from them alone. Real-time safe.
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        self.process_with(left, right, None);
+    }
+
+    /// Adds the room's response to the microphone signals (in place), the
+    /// board's part of the source taken at the probes when given (`board`
+    /// as long as the mics). Real-time safe.
+    pub fn process_with(&mut self, left: &mut [f32], right: &mut [f32], board: Option<BoardFeed>) {
         let mask = self.hist.len() - 1;
         let r = [self.r_direct[0] as f32, self.r_direct[1] as f32];
-        for (lo, ro) in left.iter_mut().zip(right.iter_mut()) {
-            // Equivalent omnidirectional source: pressure at 1 m from the
-            // mics, less the piano's directivity towards them.
-            let s = 0.5 * (*lo * r[0] + *ro * r[1]) * self.source_gain;
+        let (g, pg) = (self.source_gain, self.probe_gain);
+        for (t, (lo, ro)) in left.iter_mut().zip(right.iter_mut()).enumerate() {
+            // Equivalent omnidirectional source: pressure at 1 m, less the
+            // piano's directivity towards the mics. The board's own part
+            // from the probes, the rest from the mics.
+            let s: [f32; PROBES] = match &board {
+                Some(b) => {
+                    let other = 0.5 * ((*lo - b.mics[0][t]) * r[0] + (*ro - b.mics[1][t]) * r[1]);
+                    std::array::from_fn(|k| (other + pg * b.probes[k][t]) * g)
+                }
+                None => [0.5 * (*lo * r[0] + *ro * r[1]) * g; PROBES],
+            };
             self.hist[self.pos & mask] = s;
             let mut early = [0.0f32; MICS];
             for (m, e) in early.iter_mut().enumerate() {
                 let mut by_order = [0.0f32; 8];
                 for t in &self.taps[m][..self.n_taps[m]] {
-                    by_order[t.order] += t.gain * self.hist[(self.pos.wrapping_sub(t.delay)) & mask];
+                    by_order[t.order] += t.gain * self.hist[(self.pos.wrapping_sub(t.delay)) & mask][t.probe];
                 }
                 for (n, &x) in by_order.iter().enumerate().skip(1) {
                     let st = &mut self.order_state[m][n];
@@ -411,7 +480,8 @@ impl Room {
                 }
             }
             let x = self.hist[(self.pos.wrapping_sub(self.pre)) & mask];
-            let (tl, tr) = self.fdn_step(x);
+            let inj: [f32; LINES] = std::array::from_fn(|i| self.inject[i].iter().zip(&x).map(|(a, b)| a * b).sum());
+            let (tl, tr) = self.fdn_step(&inj);
             *lo += early[0] + self.out_gain * tl;
             *ro += early[1] + self.out_gain * tr;
             self.pos = self.pos.wrapping_add(1);
@@ -449,6 +519,42 @@ mod tests {
         l[0] = 1.0;
         room.process(&mut l, &mut r);
         assert!(l.iter().chain(&r).all(|v| v.is_finite()));
+    }
+
+    #[test]
+    fn the_board_reaches_the_room_through_its_probes() {
+        let p = RoomParams::HALL;
+        let sb = SoundboardParams { mics: [(0.5, 0.4, 1.5), (1.2, 0.9, 1.5)], ..SoundboardParams::GRAND_2M };
+        let n = 24_000;
+        let energy = |x: &[f32]| x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>();
+        let run = |board: [f32; 2], probes: [f32; PROBES]| {
+            let mut room = Room::new(&p, &sb, 48_000.0);
+            let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+            l[0] = 1.0;
+            r[0] = 1.0;
+            let (mut bm, mut pr) = ([vec![0.0f32; n], vec![0.0f32; n]], std::array::from_fn::<_, PROBES, _>(|_| vec![0.0f32; n]));
+            bm[0][0] = board[0];
+            bm[1][0] = board[1];
+            for (q, v) in pr.iter_mut().zip(probes) {
+                q[0] = v;
+            }
+            let feed = BoardFeed { mics: [&bm[0], &bm[1]], probes: std::array::from_fn(|k| &pr[k][..]) };
+            room.process_with(&mut l, &mut r, Some(feed));
+            energy(&l[1..]) + energy(&r[1..])
+        };
+        // All the mics hear is the board, whose probes are silent: no room.
+        assert_eq!(run([1.0, 1.0], [0.0; PROBES]), 0.0);
+        // The same board heard at the probes as the mics' estimate: the
+        // room as from the mics alone (the tail by other inputs).
+        let mut alone = Room::new(&p, &sb, 48_000.0);
+        let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+        l[0] = 1.0;
+        r[0] = 1.0;
+        alone.process(&mut l, &mut r);
+        let est = 0.5 * (alone.r_direct[0] + alone.r_direct[1]) as f32 / PROBE_DISTANCE as f32;
+        let probes = run([1.0, 1.0], [est; PROBES]);
+        let mics = energy(&l[1..]) + energy(&r[1..]);
+        assert!((probes / mics - 1.0).abs() < 0.2, "probes {probes:.3e}, mics {mics:.3e}");
     }
 
     fn check_t60(p: RoomParams) {

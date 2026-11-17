@@ -1706,6 +1706,13 @@ impl Soundboard {
         self.field(&mics, p.grid_step, self.modes.len()).into_iter().map(|v| [v[0], v[1]]).collect()
     }
 
+    /// Complex radiation weight of the first `n_modes` modes at each of
+    /// `points` (board coordinates, m): pressure (Pa) per unit modal
+    /// velocity, `[mode][point]`.
+    pub fn radiation_points(&self, points: &[[f64; 3]], n_modes: usize) -> Vec<Vec<C64>> {
+        self.field(points, self.params.grid_step, n_modes.min(self.modes.len()))
+    }
+
     /// The radiation weights of every mode evaluated at one driving
     /// frequency `omega` instead of each mode's own: what the modes' sum
     /// radiates when driven there (the direct field of a point force is a

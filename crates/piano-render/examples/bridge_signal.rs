@@ -97,7 +97,7 @@ fn main() {
                 continue;
             }
             let w = std::f64::consts::TAU * j as f64 * SR / len as f64;
-            let acc = transfer(&modes, r, MICS + r, w, SR) * mic_differentiator(w, SR);
+            let acc = transfer(&modes, r, piano_core::board::BRIDGE + r, w, SR) * mic_differentiator(w, SR);
             for mic in 0..MICS {
                 let h = mic_transfer(&modes, r, mic, w, SR) / acc;
                 out.push(h.re as f32);
