@@ -55,9 +55,13 @@ slope = 0.0
 slope_from = 0.0
 
 [inharmonicity]
-# RT-425's strings, fitted to the law (log B rms 0.064).
-a_bass = -0.1163
-b_bass = -6.727
+# The bass of the Splendid Grand, the sound aimed at: its wound strings are twice as
+# inharmonic as RT-425's D (A0 ×2.0, A1 ×2.2, A2 ×1.3, the same from C3), so that its
+# phantom partials fall half-way between the partials; fitted on its 60 keys, the
+# treble kept (docs/body.md). RT-425's strings until 2026-11-17: a_bass −0.1163,
+# b_bass −6.727 (log B rms 0.064).
+a_bass = -0.0730
+b_bass = -6.901
 a_treble = 0.0903
 b_treble = -13.526
 

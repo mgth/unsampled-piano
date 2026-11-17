@@ -62,6 +62,14 @@ A 91 s Chopin nocturne renders in 22.4 s instead of 21.2 s (+5.5 %, the three ch
 
 Heard on the listening page `out/ab_corps/` (Splendid, the model before and after, the commercial D; notes, their residuals and a phrase): "much better in the treble"; in the bass the gain is more discreet but there, and something is still missing.
 
+## The bass: the strings' inharmonicity
+
+Heard after the body: much better in the treble, more discreet in the bass. Measured on 21 keys B0–B3 against Splendid: A0–B1 within 5 dB per octave and window, but at B0–E1 the 1 kHz octave 17–43 dB short, and the shape of the residual far from Splendid's (profile correlation, sixth-octave bands 0.8–5 kHz, 0.1–0.6 s, the top strings' lines left out: 0.44 at A0–B1).
+
+- **Not the longitudinal modes' frequency.** The model's first longitudinal mode lies at 850 Hz at B0 and 2.0 kHz at C2 (core from the inharmonicity, the whole string's mass); the bumps first read as misplaced were its second mode. A factor on their frequencies (0.7, 0.8, 0.9, 1.1, all keys) does worse than 1.0 on average (correlation 0.33–0.38 against 0.42).
+- **The inharmonicity.** Splendid's bass is twice as inharmonic as the model's, which had RT-425's D (Plath's D the same): A0 ×2.0, A1 ×2.2, A2 ×1.3, the same from C3. The model's phantom partials then fall within a quarter of the spacing from the partials, Splendid's half-way between them. The law fitted on its 60 keys, the treble kept (`a_bass` −0.0730, `b_bass` −6.901): correlation 0.44 → 0.52 at A0–B1 (B0–D1 and A1 from 0.2–0.4 to 0.6–0.7), level −6.4 → −4.3 dB. With the phantoms 3.5 dB louder (`coupling` 1.5) the level comes within 1.2 dB, but a share above 1 is not physical and the ear preferred without.
+- **Bench:** 1.38 → 1.42, 66 → 68 % within, 26 off either way; the bass inharmonicity comes inside the real pianos (z −1.00 → 0.60), the bass p8 sustain closer (−1.56 → −0.71); the bass p5–12 early T60 (2.81 → 3.38) and the treble ff balance (−2.99 → −3.60) further.
+
 ## Making other pianos
 
 The same steps fit any recorded piano: `tools/between_partials.py table` on its note set against the model's, the body law fitted per octave as above, the last damper read from the lines at the top strings' fundamentals, the phantom coupling from the bass lines between the partials.
