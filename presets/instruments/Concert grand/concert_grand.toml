@@ -139,6 +139,12 @@ width_bass = 0.1
 # 25 dB null between 0.6 and 1 s that the real grands do not have (C7 at 1 s −61 dB
 # against −29 to −44; docs/body.md).
 width_treble = 2.0
+# Linear from C4 (t⁴ by default): C5 1.25 cents, C6 1.5, C7 1.75 (1.0, 1.06, 1.32 with
+# t⁴). With the real board the treble's aftersound had fallen 7–12 dB under the real
+# grands' (E5–D6 median at 1/2 s: −7.4/−11.7 dB; partial 1 a fast prompt sound into a
+# deep tail, its ripple 1.5–3 dB too strong at C5–C#6): now −2.7/−5.7, the ripple on
+# theirs, the middle unchanged (docs/treble_tail.md).
+width_curve = 1.0
 
 [soundboard]
 # Each key drives the built board's modes at its own bridge point, up to their last.
