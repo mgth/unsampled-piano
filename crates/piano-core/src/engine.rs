@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use crate::board::{BoardBank, PARTS};
+use crate::board::{BoardBank, PARTS, PROBES};
 use crate::denormal::DenormalGuard;
 use crate::instrument::{region_of, Instrument, MICS, REGIONS};
 use crate::live::LiveParam;
@@ -333,6 +333,12 @@ pub struct Engine {
     sustain_prev: f64,
     /// Last summed mic outputs, for the differentiator.
     mic_last: [f32; MICS],
+    /// The board's own part of the mics and its pressure at the probes,
+    /// for the room (acceleration sums, then pressure), and their
+    /// differentiators' last values.
+    board_mics: [Vec<f32>; MICS],
+    probes: [Vec<f32>; PROBES],
+    board_last: [f32; MICS + PROBES],
     pool: Option<crate::par::Pool>,
     /// Mic outputs of the frame and of the sympathetic board when they run
     /// on the pool, summed after the board's.
@@ -454,6 +460,9 @@ impl Engine {
             room,
             sustain_prev: 0.0,
             mic_last: [0.0; MICS],
+            board_mics: std::array::from_fn(|_| vec![0.0; SUB_BLOCK]),
+            probes: std::array::from_fn(|_| vec![0.0; SUB_BLOCK]),
+            board_last: [0.0; MICS + PROBES],
             pool: Self::pool_for(&cfg),
             side_out: std::array::from_fn(|_| std::array::from_fn(|_| vec![0.0; SUB_BLOCK])),
             busy: Vec::with_capacity(cfg.polyphony),
@@ -762,6 +771,7 @@ impl Engine {
                         let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
                         low.process(&self.basis, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
                     }
+                    Self::board_feed(board, self.board_low.as_ref(), [&*left, &*right], &mut self.board_mics, &mut self.probes, len);
                     self.board_awake = has_input || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr);
                     if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
                         rim.process(&self.rim_force, len, [&mut *left, &mut *right]);
@@ -783,7 +793,12 @@ impl Engine {
                             let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
                             low.process(&self.basis, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
                         }
+                        Self::board_feed(board, self.board_low.as_ref(), [&*left, &*right], &mut self.board_mics, &mut self.probes, len);
                         self.board_awake = has_input || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr);
+                    } else {
+                        for b in self.board_mics.iter_mut().chain(self.probes.iter_mut()) {
+                            b[..len].fill(0.0);
+                        }
                     }
                     if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
                         rim.process(&self.rim_force, len, [&mut *left, &mut *right]);
@@ -815,6 +830,13 @@ impl Engine {
                 for x in left.iter_mut().chain(right.iter_mut()) {
                     *x *= out_gain * PRESSURE_GAIN;
                 }
+                for (b, last) in self.board_mics.iter_mut().chain(self.probes.iter_mut()).zip(self.board_last.iter_mut()) {
+                    for x in b[..len].iter_mut() {
+                        let v = *x;
+                        *x = (v - *last) * fs * out_gain * PRESSURE_GAIN;
+                        *last = v;
+                    }
+                }
                 if self.live.noise.action_time != self.action_time {
                     self.action_time = self.live.noise.action_time;
                     self.action.set_time(self.action_time);
@@ -826,7 +848,11 @@ impl Engine {
                 }
                 self.body.render([&mut *left, &mut *right], out_gain * PRESSURE_GAIN);
                 if let Some(room) = self.room.as_mut() {
-                    room.process(left, right);
+                    let feed = crate::room::BoardFeed {
+                        mics: std::array::from_fn(|m| &self.board_mics[m][..len]),
+                        probes: std::array::from_fn(|k| &self.probes[k][..len]),
+                    };
+                    room.process_with(left, right, Some(feed));
                 }
             }
         }
@@ -893,6 +919,30 @@ impl Engine {
             v.compute(nm, with_frame, t0, from, to, bridge);
             let basis = Some(&mut self.basis[..]);
             v.mix(nm, &mut self.region, &mut self.region_sym, with_frame.then_some(&mut self.region_agraffe[..]), basis, from, to);
+        }
+    }
+
+    /// The board's part of the mics (the mics hold only the board's banks so
+    /// far) and its probes summed over the banks, for the room.
+    fn board_feed(
+        board: &BoardBank,
+        low: Option<&BoardBank<{ crate::board::KEYS }>>,
+        mics: [&[f32]; MICS],
+        board_mics: &mut [Vec<f32>; MICS],
+        probes: &mut [Vec<f32>; PROBES],
+        len: usize,
+    ) {
+        for (b, m) in board_mics.iter_mut().zip(mics) {
+            b[..len].copy_from_slice(&m[..len]);
+        }
+        let low = low.map(|l| l.probes());
+        for (k, (p, b)) in probes.iter_mut().zip(board.probes()).enumerate() {
+            p[..len].copy_from_slice(&b[..len]);
+            if let Some(l) = &low {
+                for (x, y) in p[..len].iter_mut().zip(l[k]) {
+                    *x += y;
+                }
+            }
         }
     }
 
