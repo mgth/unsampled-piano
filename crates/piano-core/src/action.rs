@@ -23,6 +23,7 @@ const PULSE: f64 = 6e-4;
 struct Pending {
     note: u8,
     amp: f32,
+    tilt: crate::body::SpeedTilt,
     wait: u32,
     /// Samples of the pulse already given.
     age: u32,
@@ -91,8 +92,9 @@ impl ActionNoise {
 
     /// A key reaches the bottom of its travel `delay` s after the start of
     /// the next [`Self::render`] call, with a knock of peak pressure `amp`
-    /// (Pa at the microphones).
-    pub fn strike(&mut self, note: u8, amp: f64, delay: f64) {
+    /// (Pa at the microphones), each resonance further weighed by `tilt`
+    /// (a soft blow's knock is darker).
+    pub fn strike(&mut self, note: u8, amp: f64, delay: f64, tilt: crate::body::SpeedTilt) {
         if amp <= 0.0 {
             return;
         }
@@ -103,10 +105,10 @@ impl ActionNoise {
             // All busy: the soonest replaces itself (dense chords).
             None => self.pending.iter_mut().min_by_key(|p| p.wait).unwrap(),
         };
-        *slot = Pending { note, amp: amp as f32, wait, age: 0 };
+        *slot = Pending { note, amp: amp as f32, tilt, wait, age: 0 };
     }
 
-    fn excite(&mut self, note: u8, amp: f32) {
+    fn excite(&mut self, note: u8, amp: f32, tilt: &crate::body::SpeedTilt) {
         // Where the key lies: the strings put the treble on the left
         // microphone and the bass on the right (soundboard `mics`); both
         // hear the whole action.
@@ -117,7 +119,7 @@ impl ActionNoise {
         for i in 0..K {
             let h = hash(note as f64, i as f64 + 7.0);
             // ±4 dB per key and resonance, random sign.
-            let a = norm * self.weight[i] * 10f32.powf((4.0 * (2.0 * h as f32 - 1.0)) / 20.0);
+            let a = norm * self.weight[i] * 10f32.powf((4.0 * (2.0 * h as f32 - 1.0)) / 20.0) * tilt.gain(self.freq[i]) as f32;
             let a = if hash(note as f64 + 0.5, i as f64) < 0.5 { -a } else { a };
             for (ch, g) in gains.iter().enumerate() {
                 self.state[ch][i].0 += a * g;
@@ -141,7 +143,7 @@ impl ActionNoise {
                     if p.wait > 0 {
                         self.pending[j].wait -= 1;
                     } else {
-                        self.excite(p.note, p.amp * self.pulse[p.age as usize]);
+                        self.excite(p.note, p.amp * self.pulse[p.age as usize], &p.tilt);
                         self.pending[j].age += 1;
                         if p.age as usize + 1 >= self.pulse.len() {
                             self.pending[j].amp = 0.0;

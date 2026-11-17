@@ -1210,7 +1210,8 @@ impl Engine {
             // Both banks render from the start of the sub-block: the strike
             // waits for the note's own frame within it, then its delay.
             let within = self.now.saturating_sub(self.clock) as f64 / self.cfg.sample_rate;
-            self.action.strike(note, self.live.noise.action * vh, within + self.live.noise.action_delay);
+            let tilt = crate::body::SpeedTilt::of(&self.live.body, note, vh);
+            self.action.strike(note, self.live.noise.action * vh, within + self.live.noise.action_delay, tilt);
             // A live change of the body's law earlier in this sub-block
             // takes effect for this strike, not only at the next one.
             if self.live.body != *self.body.law() {

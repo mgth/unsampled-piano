@@ -1210,6 +1210,11 @@ const HELP: &[(&str, &str, &str)] = &[
     ("body.t60", "How long the halo rings, octave by octave.", "Decay time T60 (s) of the resonances in the same octave bands."),
     ("body.delay", "How long after the hammer meets the string the halo starts.", "Delay (s) of the strike on the bank after the hammer's contact."),
     ("body.shared", "How much every key shakes the body the same way.", "Share (0–1) of each key's pattern of amplitudes common to all keys; the rest is the key's own."),
+    ("body.speed_ref", "The hammer speed the halo's levels are set for.", "Hammer speed (m/s) at which the octave levels hold; 0: the halo only follows the speed. Away from it the halo grows faster than the speed, by the two growths below (docs/body.md)."),
+    ("body.speed_halo", "How much of that growth the halo takes, beside the knock.", "Share (0–1) of the speed law the halo takes, at A0, C3, C5 and C7; the action's knock takes it whole."),
+    ("body.speed_corner", "Where the halo's top starts growing faster.", "Corner frequency (Hz) above which the top growth takes over."),
+    ("body.speed_low", "How much faster than the hammer the halo grows.", "Exponent γ: each resonance takes (speed/speed_ref)^γ more, below the corner, at A0, C3, C5 and C7 (linear in between)."),
+    ("body.speed_high", "How much faster still the halo's top grows.", "Added to the exponent above the corner, at A0, C3, C5 and C7: a soft blow darkens the halo, most in the bass."),
     // Room
     ("room.enabled", "The hall around the piano: wall reflections and reverberation.", "Image sources for the early reflections, a 16-line feedback delay network for the tail."),
     (

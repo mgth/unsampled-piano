@@ -317,3 +317,16 @@ slope = -3.0
 # 1.5 kHz (the comparison tool's between measure: C3–C5 12–15 dB low, now 4–6).
 levels = [-7.0, 0.0, -4.0, -12.0, -18.0, -13.0, -20.0, -32.0]
 t60 = [1.6, 1.15, 0.9, 0.8, 0.8, 0.5, 0.3, 0.2]
+# Levels set at ff (velocity 100 on the playback scale, 2.76 m/s). On the real grands
+# the attack's knock grows faster than the note with the hammer speed, its top fastest
+# in the bass: from ff to pp, 0–60 ms, 2–4 kHz 20–25 dB lower re the note in the bass,
+# 10–13 dB in the middle (commercial and Splendid layers). The model's fell by 4 dB at
+# most: a pp attack as sharp as ff (docs/body.md, the blow).
+speed_ref = 2.76
+speed_corner = 1300.0
+speed_low = [0.0, 0.0, 0.45, 1.05]
+speed_high = [2.5, 1.5, 1.0, -0.4]
+# The knock takes the whole law, the halo some of it: from the middle up the real
+# grands' halo between the partials keeps at pp its ff level re the partials or more
+# (the comparison tool's between measure), while the bass's darkens with the attack.
+speed_halo = [1.0, 0.25, 0.3, 0.3]

@@ -34,6 +34,11 @@ const F_HI: f64 = 10_000.0;
 const F_KNEE: f64 = 2000.0;
 /// Octave band centres of the law's levels and decay times (Hz).
 pub const BANDS: [f64; 8] = [63.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0];
+/// Keys of the speed law's values ([`BodyLaw::speed_low`]): A0, C3, C5, C7
+/// (linear in between, constant beyond).
+pub const SPEED_KEYS: [f64; 4] = [21.0, 48.0, 72.0, 96.0];
+/// Largest speed ratio the speed law follows above `speed_ref`.
+const SPEED_RATIO_MAX: f64 = 2.0;
 
 #[derive(Clone, Copy, Default)]
 struct Pending {
@@ -54,6 +59,8 @@ pub struct BodyBank {
     /// Per key and resonance: amplitude and sign of the strike, unit rms.
     pattern: Vec<f32>,
     pending: [Pending; PENDING],
+    /// Per pending strike and resonance: the speed law's weight.
+    speed_w: Vec<f32>,
     pulse: Vec<f32>,
     /// Excitation of the current sample, per resonance (scratch).
     exc: Vec<f32>,
@@ -88,6 +95,62 @@ fn frequencies() -> Vec<f64> {
         .collect()
 }
 
+/// The speed law of one blow ([`BodyLaw::speed_ref`]): the further gain of
+/// a resonance at f, (speed/speed_ref)^γ(f). Shared by the body's halo and
+/// the action's knock: the same blow jolts both.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SpeedTilt {
+    /// ln(speed/speed_ref); 0: no tilt.
+    lr: f64,
+    lo: f64,
+    hi: f64,
+    /// Corner squared (Hz²).
+    c2: f64,
+}
+
+impl SpeedTilt {
+    pub fn of(law: &BodyLaw, note: u8, speed: f64) -> Self {
+        if law.speed_ref <= 0.0 || speed <= 0.0 {
+            return Self::default();
+        }
+        Self {
+            lr: (speed / law.speed_ref).clamp(1e-3, SPEED_RATIO_MAX).ln(),
+            lo: at_key(&law.speed_low, note),
+            hi: at_key(&law.speed_high, note),
+            c2: law.speed_corner.max(1.0).powi(2),
+        }
+    }
+
+    /// The same law with its exponents times `k`.
+    pub fn scaled(self, k: f64) -> Self {
+        Self { lr: self.lr * k.max(0.0), ..self }
+    }
+
+    /// γ = low + high·x/(1 + x), x = (f/corner)².
+    pub fn gain(&self, f: f64) -> f64 {
+        if self.lr == 0.0 {
+            return 1.0;
+        }
+        let x = f * f / self.c2;
+        ((self.lo + self.hi * x / (1.0 + x)) * self.lr).exp()
+    }
+}
+
+/// A speed-law value at a key ([`SPEED_KEYS`]).
+fn at_key(v: &[f64; 4], note: u8) -> f64 {
+    let k = note as f64;
+    if k <= SPEED_KEYS[0] {
+        return v[0];
+    }
+    for i in 0..3 {
+        if k <= SPEED_KEYS[i + 1] {
+            let t = (k - SPEED_KEYS[i]) / (SPEED_KEYS[i + 1] - SPEED_KEYS[i]);
+            return v[i] + t * (v[i + 1] - v[i]);
+        }
+    }
+    v[3]
+}
+
 impl BodyBank {
     pub fn new(sample_rate: f64, law: &BodyLaw) -> Self {
         let freq = frequencies();
@@ -104,6 +167,7 @@ impl BodyBank {
             w: [vec![0.0; MODES], vec![0.0; MODES]],
             pattern: Vec::new(),
             pending: [Pending::default(); PENDING],
+            speed_w: vec![1.0; PENDING * MODES],
             pulse: w.iter().map(|x| (x / sum) as f32).collect(),
             exc: vec![0.0; MODES],
             awake: false,
@@ -169,11 +233,15 @@ impl BodyBank {
         }
         let amp = law.gain * speed * 10f64.powf(law.slope * (note as f64 - 60.0) / 12.0 / 20.0);
         let wait = ((offset + law.delay) * self.sample_rate).round().max(0.0) as u32;
-        let slot = match self.pending.iter_mut().find(|p| p.amp == 0.0) {
-            Some(p) => p,
-            None => self.pending.iter_mut().min_by_key(|p| p.wait).unwrap(),
+        let j = match self.pending.iter().position(|p| p.amp == 0.0) {
+            Some(j) => j,
+            None => (0..PENDING).min_by_key(|&j| self.pending[j].wait).unwrap(),
         };
-        *slot = Pending { key: note - 21, amp: amp as f32, wait, age: 0 };
+        self.pending[j] = Pending { key: note - 21, amp: amp as f32, wait, age: 0 };
+        let tilt = SpeedTilt::of(&law, note, speed).scaled(at_key(&law.speed_halo, note));
+        for (w, &f) in self.speed_w[j * MODES..(j + 1) * MODES].iter_mut().zip(&self.freq) {
+            *w = tilt.gain(f) as f32;
+        }
     }
 
     /// Adds the halo to the two microphone signals (pressure, Pa, times
@@ -197,12 +265,13 @@ impl BodyBank {
                 }
                 let a = p.amp * self.pulse[p.age as usize];
                 let pat = &self.pattern[p.key as usize * MODES..(p.key as usize + 1) * MODES];
+                let sw = &self.speed_w[j * MODES..(j + 1) * MODES];
                 if !struck {
                     self.exc.iter_mut().for_each(|e| *e = 0.0);
                     struck = true;
                 }
-                for (e, &q) in self.exc.iter_mut().zip(pat) {
-                    *e += a * q;
+                for ((e, &q), &w) in self.exc.iter_mut().zip(pat).zip(sw) {
+                    *e += a * q * w;
                 }
                 self.pending[j].age += 1;
                 if p.age as usize + 1 >= self.pulse.len() {
@@ -286,6 +355,47 @@ mod tests {
         assert!(late < early * 0.01, "{early} {late}");
         // The two microphones differ.
         assert!(l.iter().zip(&r).any(|(a, b)| (a - b).abs() > 1e-6));
+    }
+
+    #[test]
+    fn a_soft_blow_darkens_the_halo() {
+        // Energy of the halo above and below 1.3 kHz after one strike.
+        let bands = |law: &BodyLaw, speed: f64| {
+            let sr = 48_000.0;
+            let mut b = BodyBank::new(sr, law);
+            b.strike(40, speed, 0.0);
+            let n = 4096;
+            let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+            b.render([&mut l, &mut r], 1.0);
+            let (mut lo, mut hi) = (0.0, 0.0);
+            for k in 1..n / 2 {
+                let f = k as f64 * sr / n as f64;
+                let w = std::f64::consts::TAU * k as f64 / n as f64;
+                let (mut re, mut im) = (0.0, 0.0);
+                for (i, &x) in l.iter().enumerate() {
+                    re += x as f64 * (w * i as f64).cos();
+                    im += x as f64 * (w * i as f64).sin();
+                }
+                if (60.0..300.0).contains(&f) {
+                    lo += re * re + im * im;
+                } else if (2000.0..6000.0).contains(&f) {
+                    hi += re * re + im * im;
+                }
+            }
+            (lo, hi)
+        };
+        let plain = law();
+        let fitted = BodyLaw { speed_ref: 2.8, speed_corner: 1300.0, speed_low: [0.0; 4], speed_high: [2.5, 1.5, 1.0, 0.0], ..plain };
+        // At the reference speed the law changes nothing.
+        let (a, b) = (bands(&plain, 2.8), bands(&fitted, 2.8));
+        assert!((a.0 / b.0 - 1.0).abs() < 1e-3 && (a.1 / b.1 - 1.0).abs() < 1e-3, "{a:?} {b:?}");
+        // Three times slower (9.6 dB): the low band follows the speed alone,
+        // the top (E2: γ ≈ 1.8 well above the corner, 1.4–1.7 over 2–6 kHz)
+        // falls some 14 dB further.
+        let (p, q) = (bands(&plain, 0.93), bands(&fitted, 0.93));
+        assert!((q.0 / p.0 - 1.0).abs() < 0.12, "{p:?} {q:?}");
+        let drop = 10.0 * (q.1 / p.1).log10();
+        assert!((-17.0..-11.0).contains(&drop), "top {drop:.1} dB");
     }
 
     #[test]

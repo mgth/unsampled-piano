@@ -957,6 +957,24 @@ pub struct BodyLaw {
     /// Share of each key's pattern of amplitudes common to every key (the
     /// same body answers them all); the rest is the key's own.
     pub shared: f64,
+    /// Hammer speed (m/s) at which `levels` hold; 0: the strike only follows
+    /// the speed. Away from it, each resonance at f takes a further
+    /// (speed/speed_ref)^γ, γ = speed_low + speed_high·x/(1 + x),
+    /// x = (f/speed_corner)²: on real grands the halo grows faster than the
+    /// note with the hammer speed, and its top fastest in the bass (a soft
+    /// blow jolts the action and the case more gently and more slowly).
+    pub speed_ref: f64,
+    /// Corner (Hz) above which `speed_high` takes over.
+    pub speed_corner: f64,
+    /// γ below the corner and its rise above, at A0, C3, C5 and C7 (linear
+    /// in between, constant beyond).
+    pub speed_low: [f64; 4],
+    pub speed_high: [f64; 4],
+    /// Share (0–1) of the speed law the halo takes, at A0, C3, C5 and C7;
+    /// the action's knock ([`crate::action`]) takes it whole. On real grands
+    /// the attack's knock darkens at pp, while from the middle up the halo
+    /// that rings on keeps, re the partials, the level it has at ff or more.
+    pub speed_halo: [f64; 4],
 }
 
 impl BodyLaw {
@@ -968,6 +986,11 @@ impl BodyLaw {
         t60: [0.6, 0.6, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1],
         delay: 0.002,
         shared: 0.5,
+        speed_ref: 0.0,
+        speed_corner: 1300.0,
+        speed_low: [0.0; 4],
+        speed_high: [0.0; 4],
+        speed_halo: [1.0; 4],
     };
 }
 

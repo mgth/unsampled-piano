@@ -112,6 +112,42 @@ After the top, the comparison tool's between measure was still 12–15 dB low fr
 
 The body's levels at 1, 2, 4 and 8 kHz raised by 5, 15, 20 and 8 dB (−18, −13, −20, −32): C3–C5 within 4–6 dB of the real grands, E5–C6 on them; A6–C7 still 9–16 dB low. A step further (+7, +19, +25, +12) brought C3–C5 within 1–3 dB but E5–C6 2–4 dB over; the ear took the first. Bench 1.36 either way (22 off, 21 before); further: the bass's mf attack at 2–8 kHz (4–8 kHz z −0.2 → +2.6): the body's spectrum does not depend on the blow, and in a soft bass note the strings' high partials are weak. A knock that brightens with the hammer's speed would answer it.
 
+## The blow: a soft attack's knock
+
+**Listening report (2026-11-17).** A "chtac" at the attack, far too sharp at pp, about as strong as at ff, on every key since the halo was added.
+
+**Measurement.** The residual between the partials was measured in the first 20 and 60 ms, relative to the note's level over its first 100 ms. The references are the commercial grand's layers (pp, mf, ff) and Splendid's (mf, ff; its pp files are its mf ones). The playback scale gives 0.94, 1.19 and 2.76 m/s. From ff to pp, the real grands' attack residual falls in the bass by 11, 25 and 28 dB at 1, 2 and 4 kHz, and in the middle by 7, 13 and 13 dB. The model's fell by at most 4 dB, and in the middle at 1 kHz it even rose. Two sources caused this:
+
+- **The action's knock** ([`crate::action`]) dominated the pp attack at 1–2 kHz in the middle. On C4 at pp, the residual was −33 / −37 dB at 1 / 2 kHz with the knock, −37 / −44 without it.
+- **The halo's pulse** carried the bass at 2–4 kHz.
+
+Both scaled linearly with the hammer's speed, with a spectrum that did not depend on the speed.
+
+**Change: one law for the blow.** Each resonance at f takes a further (speed/speed_ref)^γ, with γ = speed_low + speed_high·x/(1 + x) and x = (f/speed_corner)², interpolated over the keys between A0, C3, C5 and C7.
+
+- **Reference speed:** speed_ref = 2.76 m/s (ff), so ff does not move.
+- **Fit:** the law's values are fitted on the exponent the real grands ask for, which they give consistently. Below the corner, γ is 0 in the bass and middle, about 0.45 at C5 and 1 from C6 up. Above it, γ adds about 2.5 in the bass, 1.5 in the middle and 1 at C5.
+- **Concert grand values:** speed_corner 1300 Hz, speed_low [0, 0, 0.45, 1.05], speed_high [2.5, 1.5, 1.0, −0.4].
+- **Knock:** the action's knock takes the whole law.
+- **Halo:** it takes a share, `speed_halo`. With the whole law, the tool's between-partials measure (0.02–0.32 s, relative to the partials) fell in the middle at pp and mf by 9 and 7 dB. The real grands instead keep it at their ff level or above at pp: −46 / −46 / −51 dB on Splendid and −44 / −48 / −50 on Salamander, pp / mf / ff. Only the bass's halo darkens with the attack. The Concert grand uses speed_halo [1, 0.25, 0.3, 0.3].
+
+**Result, pp attack (0–60 ms).** The remaining exponent the real grands ask for, against the commercial grand's pp:
+
+| | 1 kHz | 2 kHz | 4 kHz |
+|---|---|---|---|
+| C4–B4 | 0.57 → 0.14 | 1.10 → 0.72 | 0.89 → 0.58 |
+| C5–B5 | 0.48 → 0.16 | | |
+| A0–B1 | | 2.35 → 1.52 | 2.44 → 1.60 |
+
+The bass stays the furthest: its halo would need more than the between-partials measure allows.
+
+| Between partials, pp / mf / ff | Middle | Treble |
+|---|---|---|
+| Model before the law | −43.4 / −46.9 / −53.6 dB | −48.0 / −51.0 / −56.1 dB |
+| Model with the law | −46.0 / −48.9 / −53.6 dB | −50.5 / −53.3 / −56.1 dB |
+
+In the comparison tool, 294 measures are off against 288 before. The new ones are threshold crossings: between partials +2, rise time +3, top early decay +1.
+
 ## Making other pianos
 
 The same steps fit any recorded piano: `tools/between_partials.py table` on its note set against the model's, the body law fitted per octave as above, the last damper read from the lines at the top strings' fundamentals, the phantom coupling from the bass lines between the partials.
