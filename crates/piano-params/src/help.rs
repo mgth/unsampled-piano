@@ -786,6 +786,12 @@ const HELP: &[(&str, &str, &str)] = &[
         "On: clamped. Off: simply supported, only its transverse movement held, as in the thesis's \
          simulations. The first modes of a real 2.74 m board lie nearer the clamped one.",
     ),
+    (
+        "soundboard.structure.edge_spring",
+        "How hard the rim's glued ledge resists the board's turning at its edge.",
+        "N·m/rad per metre of edge, with `clamped` off: 0 lets the edge turn freely (simply supported), \
+         a very large value holds it square (clamped).",
+    ),
     ("soundboard.structure.step", "Size of the elements of the built board.", "Grid step (m). The cost grows as its inverse cubed."),
     ("soundboard.structure.below", "Up to which pitch the board has its own vibrations.", "Own modes below this frequency (Hz); the rectangle's above."),
     ("soundboard.structure.grain_angle", "Direction of the wood's grain in the board.", "Degrees from the board's length towards the bass side; the D's runs along its main bridge."),

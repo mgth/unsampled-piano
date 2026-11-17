@@ -197,10 +197,17 @@ enabled = true
 below = 6000.0
 # The strings hold the bridge, T·(1/L + 1/l) each, and its top along their own
 # length, E·A·(1/L + 1/l)·h² on the board's slope: stringing raises the board's
-# first resonances from 63, 87, 125 Hz to 83, 108, 148 Hz, a real concert grand's
+# first resonances from 58, 80, 112 Hz to 78, 100, 136 Hz, a real concert grand's
 # from 56, 80, 114 to 74, 98, 136 (Plath 2019; docs/bass_gaps.md, docs/outline.md).
 strings = true
 strings_grip = true
+# The board's edge glued on the rim's ledge, which lets it turn a little: a spring
+# of 1500 N·m/rad per metre of edge, fitted on those resonances. Clamped all round,
+# the board moved two to three times too much under the bridge from C7 to G7: G#6
+# to D#7 came in 5 dB loud and died away too fast in their first tenth of a second
+# (docs/steinway_d_gaps.md, "The board's edge").
+clamped = false
+edge_spring = 1500.0
 # The D's 17 ribs from its dimensioned drawing (Boutillon, Ege & Paulello 2012,
 # figure 2; tools/steinway_d_ribs.py): from rim to rim at 51.2° to the spine, as the
 # drawing has them (their lengths within 4 mm from the sixth on), 17 to 27 mm high under the
