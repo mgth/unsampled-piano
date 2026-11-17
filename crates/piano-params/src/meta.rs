@@ -104,6 +104,20 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("body.t60[5]", "Body halo T60, 2 kHz", "s", 0.02, 3.0, true),
     ("body.t60[6]", "Body halo T60, 4 kHz", "s", 0.02, 3.0, true),
     ("body.t60[7]", "Body halo T60, 8 kHz", "s", 0.02, 3.0, true),
+    // Sideways motion: the cross term and the bass's own values reach 0 and
+    // the presets' settings (the inferred ranges, ×0.1–×10 the default's,
+    // did not: the Concert grand's 0.6 tilt and 0.02 cross in the bass).
+    ("polarization.h_coupling", "Sideways coupling", "", 0.0, 1.0, false),
+    ("polarization.cross", "Cross coupling of the motions", "", 0.0, 1.0, false),
+    ("polarization.radiation", "Sideways radiation", "", 0.0, 2.0, false),
+    ("polarization.hammer_tilt", "Hammer tilt", "", 0.0, 1.0, false),
+    ("polarization.smooth", "Sideways admittance smoothing", "", 0.0, 1.0, false),
+    ("polarization.slope_from", "Sideways slope from (0: all partials)", "Hz", 0.0, 1000.0, false),
+    ("polarization.bass_until", "Last key with the bass's sideways values", "", 21.0, 108.0, false),
+    ("polarization.bass_fade", "Keys over which they blend", "", 1.0, 24.0, false),
+    ("polarization.hammer_tilt_bass", "Hammer tilt, bass", "", 0.0, 1.0, false),
+    ("polarization.radiation_bass", "Sideways radiation, bass", "", 0.0, 2.0, false),
+    ("polarization.cross_bass", "Cross coupling, bass", "", 0.0, 1.0, false),
     ("hardness", "Felt hardness", "", 0.02, 2.0, true),
     ("hardness_slope", "Hardness slope (treble)", "/key", -0.05, 0.08, false),
     ("hardness_slope_bass", "Hardness slope (bass)", "/key", -0.05, 0.08, false),
@@ -256,6 +270,35 @@ fn guess_unit(name: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The shipped instruments' own settings are reachable with the sliders
+    /// and a learned MIDI control.
+    #[test]
+    fn shipped_presets_lie_within_the_ranges() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/instruments");
+        let reg = crate::Registry::new();
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+            for file in std::fs::read_dir(entry.path()).unwrap().flatten() {
+                let path = file.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+                    continue;
+                }
+                let model: piano_core::params::PianoModel = toml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+                for (p, v) in reg.params().iter().zip(reg.read(&model)) {
+                    let x = match v {
+                        Some(crate::Value::Float(x)) => x,
+                        Some(crate::Value::Int(i)) => i as f64,
+                        _ => continue,
+                    };
+                    if p.path.starts_with("polarization.") && (x < p.meta.min || x > p.meta.max) {
+                        out.push(format!("{}: {} = {x} outside {}–{}", path.display(), p.path, p.meta.min, p.meta.max));
+                    }
+                }
+            }
+        }
+        assert!(out.is_empty(), "{out:#?}");
+    }
 
     #[test]
     fn curated_paths_exist() {
