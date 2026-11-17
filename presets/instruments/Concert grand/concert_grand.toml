@@ -63,7 +63,9 @@ bass = true
 bass_until = 40
 bass_fade = 8
 hammer_tilt_bass = 0.6
-radiation_bass = 1.0
+# 0.5: at 1.0 the slow motion held the bass's partials 1–4 too long (bench T60 z
+# +5.0 early); 0.5 with b1_floor 0.1 brings them back (+0.8).
+radiation_bass = 0.5
 cross_bass = 0.02
 
 [inharmonicity]
@@ -100,10 +102,12 @@ b2_top = 2.0e-7
 b2_top_from = 60
 # Wound strings on the bass bridge only, A0–E2.
 wound_until = 41
-# No extra loss on the wound strings: since the bass's own sideways motion (see
-# [polarization]) the loss through the rim (soundboard.edge_loss) shortens the first
-# partial's prompt decay instead. 0.1 from 2026-11-17 to the same day (docs/body.md).
-b1_floor = 0.0
+# A loss on the wound strings (fading out over the octave above them): the first
+# partial of F#1–C#2 held 2–2.5 times as long as on the real grands of the comparison
+# tool (A1 63 s against 31). With the bass's own sideways motion (see [polarization])
+# it also keeps that slow motion from holding the bass too long (bench 1.50 at 0,
+# 1.43 at 0.1 with radiation_bass 0.5; docs/body.md).
+b1_floor = 0.1
 
 [scale]
 # Plain strings F2–B7: 1.91 per octave, C8 at 4.94 cm. Wound strings: RT-425's

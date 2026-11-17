@@ -82,7 +82,20 @@ On the real grands (Splendid, Plath, Helgesson, Salamander, BiVib; Liang's notes
 
 These three settings act on the whole keyboard, and changing them there moves the middle too (its fundamentals and its late decay), so `polarization` now has the bass's own values: `bass`, `bass_until`, `bass_fade`, `hammer_tilt_bass`, `radiation_bass`, `cross_bass` (`PolarizationLaw::at`). The Concert grand takes them to E2, blended into the rest by C3: tilt 0.6, radiation 1.0, cross 0.02, with `edge_loss` 1e-3 for the vertical motion's fast early decay and `b1_floor` back to 0. On A0–E2 against those five grands (rms of the envelope about a line, curvature, slope; mean distance to their median): 2.3 → 1.3 dB, 2.1 → 1.1 dB/s², slope as before; B0 still falls in one line, F1–A1 a little fast, D2 slow. The treble does not move; C4 loses 2 dB at 1 s, nearer the real grands.
 
-Bench 1.42 → 1.50, 68 → 62 % within, 27 off: the bass's sustained partials 2–12 come closer (p4 −1.22 → −0.21 z), but its partials 1–4 decay too slowly early (T60 p1–4 early 0.04 → 4.97 z, late 0.15 → 1.64) and its level at 2 s stands over the real grands' (+1.2 to +1.5 z): the horizontal motion, now heard, holds too long without the wound strings' loss. To do next: give it back part of that loss.
+Bench 1.42 → 1.50, 68 → 62 % within, 27 off: the bass's sustained partials 2–12 come closer (p4 −1.22 → −0.21 z), but its partials 1–4 decay too slowly early (T60 p1–4 early 0.04 → 4.97 z, late 0.15 → 1.64) and its level at 2 s stands over the real grands' (+1.2 to +1.5 z): the horizontal motion, now heard, holds too long without the wound strings' loss. Part of that loss given back, then (bench, all with the bass's own sideways values):
+
+| `b1_floor` | `radiation_bass` | score | within | off | bass T60 p1–4 early (z) | bass level at 2 s, ff (z) |
+|---|---|---|---|---|---|---|
+| 0 | 1.0 | 1.50 | 62 % | 27 | +4.97 | +1.54 |
+| 0.05 | 1.0 | 1.47 | 64 % | 27 | +3.82 | +1.26 |
+| 0.1 | 1.0 | 1.45 | 64 % | 26 | +2.47 | +0.99 |
+| 0.05 | 0.5 | 1.43 | 66 % | 26 | +1.21 | +0.64 |
+| **0.1** | **0.5** | **1.43** | **67 %** | **25** | **+0.78** | **+0.36** |
+| 0.05 | 0.7 | 1.45 | 66 % | 27 | +2.06 | +0.92 |
+
+Kept: `b1_floor` 0.1, `radiation_bass` 0.5, chosen over 0.05/0.7, which follows the real ripple better (D2 4.2 dB against 4.0, E2 1.9 against 1.3) but scores 1.45. With it the ripple of B1–E2 overshoots the real grands' (the comparison tool's measure: B1 3.2 dB against 0.6, D2 6.0 against 4.0, E2 2.3 against 1.3): with less horizontal radiation the dip between the fast and the slow decay is deeper.
+
+In the comparison tool the ripple of A#1–E2 comes up to the real grands' (C#2 0.17 → 3.0 dB, real 1.4), but not at A0–E1 (0.03–0.25 against 1.6–3.4) nor much at F1–A1. There the real first partial is no double decay: it lies 40–80 dB under the note, hardly decays, and wanders by ±3–7 dB (Helgesson's A0 at −70 dB jumps by 7 dB): recording noise, the room and the difference tones of neighbouring partials move a component that weak, and the measure says more about the recording than the piano. Letting the difference tones reach the board (`nonlinear.coupling_corner` 30 Hz instead of 1 kHz) gives 1–1.7 dB of ripple, but as one slow bump: not kept. The gap underneath is the first partial's level against the strongest: 7–12 dB too strong from A0 to C2 (A1 −17 dB against the real grands' −28, Splendid's −34), 8–12 dB too weak from F#2 to F#3 (C3 −9 against 0).
 
 ## Making other pianos
 
