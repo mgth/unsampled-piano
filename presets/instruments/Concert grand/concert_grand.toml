@@ -311,5 +311,9 @@ coupling = 1.0
 enabled = true
 gain = 0.05
 slope = -3.0
-levels = [-7.0, 0.0, -4.0, -12.0, -23.0, -28.0, -40.0, -40.0]
+# Above 1 kHz louder than the first fit (−23/−28/−40/−40 dB at 1/2/4/8 kHz): fitted on
+# the residual's octave energy, where the model's slightly strong partials filled the
+# octaves, the halo in the middle of the gaps stood 7–20 dB under the real grands' from
+# 1.5 kHz (the comparison tool's between measure: C3–C5 12–15 dB low, now 4–6).
+levels = [-7.0, 0.0, -4.0, -12.0, -18.0, -13.0, -20.0, -32.0]
 t60 = [1.6, 1.15, 0.9, 0.8, 0.8, 0.5, 0.3, 0.2]

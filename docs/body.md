@@ -106,6 +106,12 @@ In the comparison tool, from D6 up: the early decay (0.1–1 s) falls twice as f
 - **A third zone for that loss** (`losses.b2_high`, `b2_high_from`, coming in over the octave below): the Concert grand takes 1e-7 from C7, the middle keeps 2e-7; `unison.width_treble` 2. F#7 −35 dB/s, A7 −38, C8 −47; C7 at 1 s −47 dB. Bench 1.43 → 1.36, 25 → 21 off, sustain family 1.75 → 1.03 (top p2 sustain −6.69 → −0.84 z, p1–4 late T60 −2.02 → 0.07, 4 kHz sustained band −1.86 → 0.05, level at 1 s −2.5 → −0.8); further: the top's stretch (−0.01 → +1.44 z, the narrower unisons), C5–B6's sustained p3–p4 (+1.3 → +2.3, +0.0 → +0.8, where the loss blends in), the top's 2 kHz bands (−4.0 → −4.8).
 - **Left: a continuous floor at 2.5–5 kHz** over the first 0.3 s, 10–20 dB over the model's from D#6 up (C7, D#6, Plath included). The body 10 dB louder at 1–4 kHz brings back 3–5 dB of the between measure only, sympathy ×3 next to nothing. The body's spectrum is the same for every key; the small hard hammers of the top likely knock brighter: a body halo that brightens towards the treble, or the hammer's contact noise there.
 
+## The middle: the halo above 1 kHz
+
+After the top, the comparison tool's between measure was still 12–15 dB low from C3 to C5 (C4 −62 dB against −49). Gap by gap at C4: below 1.2 kHz the model sits on the real grands; above, its halo in the middle of the gaps is 7–20 dB under theirs, more the higher, and its partials 6–11 are 4–7 dB strong. The body had been fitted on the residual's energy per octave, where those partials' skirts filled the octaves; the halo between them was too weak. Its spacing above 2 kHz is not the cause.
+
+The body's levels at 1, 2, 4 and 8 kHz raised by 5, 15, 20 and 8 dB (−18, −13, −20, −32): C3–C5 within 4–6 dB of the real grands, E5–C6 on them; A6–C7 still 9–16 dB low. A step further (+7, +19, +25, +12) brought C3–C5 within 1–3 dB but E5–C6 2–4 dB over; the ear took the first. Bench 1.36 either way (22 off, 21 before); further: the bass's mf attack at 2–8 kHz (4–8 kHz z −0.2 → +2.6): the body's spectrum does not depend on the blow, and in a soft bass note the strings' high partials are weak. A knock that brightens with the hammer's speed would answer it.
+
 ## Making other pianos
 
 The same steps fit any recorded piano: `tools/between_partials.py table` on its note set against the model's, the body law fitted per octave as above, the last damper read from the lines at the top strings' fundamentals, the phantom coupling from the bass lines between the partials.
