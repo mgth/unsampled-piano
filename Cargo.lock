@@ -3609,6 +3609,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "piano-compare"
+version = "0.2.1"
+dependencies = [
+ "clap",
+ "cpal",
+ "eframe",
+ "egui",
+ "hound",
+ "libc",
+ "piano-analysis",
+ "piano-core",
+ "piano-host",
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "piano-control"
 version = "0.2.1"
 dependencies = [
