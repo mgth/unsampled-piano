@@ -349,4 +349,20 @@ Clamped on the inner line the board is too stiff at its edge (resonances 9 to 12
 
 Early decay at the bridge against Plath: D6–A#6 now match, C7–D7 about 1.5 times too fast (2.5 to 3 before), D#7–F7 still 2 to 3 times (262 to 307 dB/s against 91 to 154).
 
-The whole board changes, so every key moves a little: the distance to the commercial D grows by 1 (most in the middle), the real grands' bench hardly moves. The distance compares partials key by key, and a new board deals them out again on its resonances: the sets' own unevenness from key to key (partials 2–8 re the fundamental, rms between neighbouring keys, attack at ff) stays the commercial D's, 8.7 → 8.8 in the middle (9.2 clamped), 9.3 → 9.2 in C5–B6 (10.8 clamped); the bias does not move in the middle. One shift is real: D6–D7 lose 3 to 8 dB of peak, and the treble's partials stand higher re its fundamentals (bias +3.0 → +8.7 dB). Kept in the Concert grand after listening against the clamped board with two real pianos beside them (`out/ab_edge/`: an F#6–G7 chromatic run at 100 then 60, rebuilt note by note from Plath's and BiVib's recordings; thirteen single keys C2 to C8 at 100 and 60 with Plath, BiVib and the commercial D). Left: D#7–F7's early decay, the top's unevenness at ff, the middle's distance to the commercial D.
+The whole board changes, so every key moves a little: the distance to the commercial D grows by 1 (most in the middle), the real grands' bench hardly moves. The distance compares partials key by key, and a new board deals them out again on its resonances: the sets' own unevenness from key to key (partials 2–8 re the fundamental, rms between neighbouring keys, attack at ff) stays the commercial D's, 8.7 → 8.8 in the middle (9.2 clamped), 9.3 → 9.2 in C5–B6 (10.8 clamped); the bias does not move in the middle. One shift is real: D6–D7 lose 3 to 8 dB of peak, and the treble's partials stand higher re its fundamentals (bias +3.0 → +8.7 dB). Kept in the Concert grand after listening against the clamped board with two real pianos beside them (`out/ab_edge/`: an F#6–G7 chromatic run at 100 then 60, rebuilt note by note from Plath's and BiVib's recordings; thirteen single keys C2 to C8 at 100 and 60 with Plath, BiVib and the commercial D). Left: the top's unevenness at ff, the middle's distance to the commercial D, D6–F#6 3 to 5 dB lower than before. D#7–F7's early decay turned out not to be a gap (below).
+
+### D#7–F7's early decay: not a gap (2026-11-17)
+
+At the bridge against Plath, D#7–F7 lost 262 to 307 dB/s over their first 0.1 s, the real grand 91 to 154. The unison's in-phase mode loses only 110 to 170 dB/s (`fundamental_probe`): what the 0.1 s fit caught is a beat. The strings of these keys are 2.7 to 3.1 cents apart at the extremes (`width_mid` 1, `width_treble` 5, `width_curve` 4), 4 to 5 Hz, and partial 1 at the bridge dips to −24 dB at 70–100 ms, then comes back. Plath's bridge dips later (F7 at 150 ms, G7 at 100, D#7 not within 300), but its treble unisons are far out of tune (A6's strings at +20, +36, +41 cents, docs/treble_halo.md): no reference for the beats. The eight grands spread their C6–A6 unisons over 0 to 6 cents, the model over 0 to 3.
+
+Partial 1 at the microphones (close, or Plath's dummy head), ff, mean over D#7, E7, F7:
+
+| | at 100 ms (dB re max) | slope 0.1–1 s (dB/s) |
+|---|---|---|
+| the model (the ledge) | −20 | 32 to 43 |
+| Plath, dummy head | −20 | 22 to 39 |
+| Helgesson | −20 | 21 to 31 |
+| the commercial D | −13 | 44 to 59 |
+| BiVib | −10 | 29 to 50 |
+
+Where it is heard the model stands among the real grands. Narrower treble unisons were tried before and lost the top's attack at 2–4 kHz and its envelope at 0.3 s (docs/treble_tail.md): nothing changed.
