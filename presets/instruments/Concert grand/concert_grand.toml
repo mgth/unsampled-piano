@@ -53,11 +53,29 @@ hammer_tilt = 0.05
 smooth = 0.0
 slope = 0.0
 slope_from = 0.0
+# The bass's own sideways motion, to E2 and blended into the rest by C3: on the real
+# grands the bass's first partial falls fast for about a second, then slowly (a double
+# decay, single strings included); with the cross term at its passive limit the slow,
+# horizontal motion pushed nothing and was not heard, and the first partial fell in one
+# straight line (ripple 0.1–0.6 dB against 1–5). Fitted against Splendid, Plath,
+# Helgesson, Salamander and BiVib on A0–E2 (docs/body.md).
+bass = true
+bass_until = 40
+bass_fade = 8
+hammer_tilt_bass = 0.6
+# 0.5: at 1.0 the slow motion held the bass's partials 1–4 too long (bench T60 z
+# +5.0 early); 0.5 with b1_floor 0.1 brings them back (+0.8).
+radiation_bass = 0.5
+cross_bass = 0.02
 
 [inharmonicity]
-# RT-425's strings, fitted to the law (log B rms 0.064).
-a_bass = -0.1163
-b_bass = -6.727
+# The bass of the Splendid Grand, the sound aimed at: its wound strings are twice as
+# inharmonic as RT-425's D (A0 ×2.0, A1 ×2.2, A2 ×1.3, the same from C3), so that its
+# phantom partials fall half-way between the partials; fitted on its 60 keys, the
+# treble kept (docs/body.md). RT-425's strings until 2026-11-17: a_bass −0.1163,
+# b_bass −6.727 (log B rms 0.064).
+a_bass = -0.0730
+b_bass = -6.901
 a_treble = 0.0903
 b_treble = -13.526
 
@@ -81,9 +99,21 @@ c = -1.402352
 # (docs/bass_unisons.md).
 b2 = 1.0e-7
 b2_top = 2.0e-7
+# The top octaves at the default's middle value again, from C7 (in over the octave
+# below): at 2.0e-7 the top strings died twice as fast as on the real grands of the
+# comparison tool (early decay F#7 −47 dB/s against −29, A7 −59 against −33); the
+# middle keeps 2.0e-7, the buzz heard with less (docs/body.md).
+b2_high = 1.0e-7
+b2_high_from = 96
 b2_top_from = 60
 # Wound strings on the bass bridge only, A0–E2.
 wound_until = 41
+# A loss on the wound strings (fading out over the octave above them): the first
+# partial of F#1–C#2 held 2–2.5 times as long as on the real grands of the comparison
+# tool (A1 63 s against 31). With the bass's own sideways motion (see [polarization])
+# it also keeps that slow motion from holding the bass too long (bench 1.50 at 0,
+# 1.43 at 0.1 with radiation_bass 0.5; docs/body.md).
+b1_floor = 0.1
 
 [scale]
 # Plain strings F2–B7: 1.91 per octave, C8 at 4.94 cm. Wound strings: RT-425's
@@ -105,6 +135,10 @@ trichord_from = 34
 # every partial of F1-B2 above 300 Hz beat, where a real concert grand shows no null
 # in five seconds (docs/bass_unisons.md).
 width_bass = 0.1
+# 2 cents between the strings of a key at C8 (5 by default): at C7 their beat left a
+# 25 dB null between 0.6 and 1 s that the real grands do not have (C7 at 1 s −61 dB
+# against −29 to −44; docs/body.md).
+width_treble = 2.0
 
 [soundboard]
 # Each key drives the built board's modes at its own bridge point, up to their last.
@@ -145,7 +179,10 @@ case_field = true
 # The low modes' extra loss at the measured boards' level, 4.7 % at 83 Hz
 # (docs/real_board.md); the rim, made two-way, takes almost nothing, so no edge loss.
 loss_low_corner = 80.0
-edge_loss = 0.0
+# The loss through the rim, seen by the strings whose bridge runs near the board's edge:
+# with the bass's own sideways motion it gives the bass's first partial its fast early
+# decay, the vertical motion's, before the slow horizontal one (docs/body.md).
+edge_loss = 1.0e-3
 # No piston mode: a fit, which took 3-7 dB/s from the fundamentals of A0-E1 where
 # a real concert grand's lose 0.7 (docs/real_board.md).
 piston_freq = 0.0
@@ -234,10 +271,13 @@ horizontal = 0.3
 wedges = true
 wedge_until = 35
 wedge_strength = 0.06
-# The last damper at G6, 71 dampers, the whole of the fourth section of strings, as the
-# D's photograph from above shows and as the commercial D has. E6 (68) from 2026-11-14
-# to 2026-11-15 was a miscount (docs/release.md, docs/string_sections.md).
-highest_note = 91
+# The last damper at D6 (86): the sound aimed at is the Splendid Grand's, whose
+# undamped strings ring from D#6 up under nearly every lower key (lines at D#6–B6 in
+# 10–17 of its 38 keys below C6; Plath's concert grand the same), where this preset had
+# them from G#6 (docs/body.md). G6 (91), the D's photograph from above and the
+# commercial D, until 2026-11-17; E6 (68) from 2026-11-14 to 2026-11-15 was a miscount
+# (docs/release.md, docs/string_sections.md).
+highest_note = 86
 # The 19th to 22nd dampers, either side of the break between the bass and the tenor,
 # rest 1.5 cm nearer the hammers than the line of the others, clear of the frame's
 # struts there (read off a photograph of a D, within 5 mm; docs/string_sections.md).
@@ -257,3 +297,19 @@ brake = true
 # The rear duplex: from B3 up no felt lies on the strings' rear lengths, which ring a
 # little with everything that is played (docs/capo_duplex.md).
 rear = true
+
+[nonlinear]
+# Phantom partials and longitudinal modes at the Splendid Grand's level: its bass lines
+# half-way between the partials (A1: 1.2–1.6 kHz) stand 10 dB over the default's 0.3;
+# 1.0 puts A1 within 2–3 dB of them from 20 ms to 0.4 s (docs/body.md).
+coupling = 1.0
+
+[body]
+# The body's halo after each strike, calibrated on the Splendid Grand: once the
+# partials are taken out, its median over 14 keys (A1–C7, ff) within 5 dB from 63 Hz
+# to 4 kHz and from 20 ms to 1 s (docs/body.md).
+enabled = true
+gain = 0.05
+slope = -3.0
+levels = [-7.0, 0.0, -4.0, -12.0, -23.0, -28.0, -40.0, -40.0]
+t60 = [1.6, 1.15, 0.9, 0.8, 0.8, 0.5, 0.3, 0.2]

@@ -3,6 +3,7 @@
 
 pub mod action;
 pub mod board;
+pub mod body;
 pub mod complex;
 pub mod denormal;
 pub mod duplex;

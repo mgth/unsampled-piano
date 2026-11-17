@@ -173,7 +173,7 @@ impl NoteModel {
         let mut n_listen = 0;
         let bridge_shapes = board.map(|b| b.bridge_shapes(note));
         let ns = np.strings;
-        let pol = model.polarization;
+        let pol = model.polarization.at(note);
         let n_osc = if pol.enabled { 2 * ns } else { ns };
         let nyq = 0.45 * sample_rate;
         let tau = std::f64::consts::TAU;

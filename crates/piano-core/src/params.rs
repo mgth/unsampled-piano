@@ -200,6 +200,12 @@ pub struct LossLaw {
     /// commercial D asks for (docs/bass_gaps.md).
     pub b2_top: f64,
     pub b2_top_from: u8,
+    /// A third `b2` for the top octaves: `b2_high` from `b2_high_from` up,
+    /// coming in linearly over the octave below it. 0: none. The middle
+    /// keeps `b2_top` (heard as strings that buzz with less), while the top
+    /// strings of a real grand ring on with less (docs/body.md).
+    pub b2_high: f64,
+    pub b2_high_from: u8,
 }
 
 
@@ -207,7 +213,7 @@ impl LossLaw {
     /// Early ("prompt") decay of single partials, Salamander survey. A single
     /// string per note cannot reproduce the two-stage decay (Phase 2).
     pub const SALAMANDER_EARLY: Self =
-        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108, winding: 0.0, winding_until: 40, b2_top: 0.0, b2_top_from: 84 };
+        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108, winding: 0.0, winding_until: 40, b2_top: 0.0, b2_top_from: 84, b2_high: 0.0, b2_high_from: 96 };
     /// Intrinsic string losses: law of the ESPRIT aftersound (no bridge
     /// losses), scaled down by the decay calibration of the full instrument
     /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. b1
@@ -228,16 +234,21 @@ impl LossLaw {
     /// darker than the others, left the bass's 1–8 kHz sustain bands under
     /// eight real grands (docs/bench.md, 2026-10-30).
     pub const SALAMANDER_STRING: Self =
-        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 1e-4, winding_until: 40, b2_top: 0.0, b2_top_from: 84 };
+        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 1e-4, winding_until: 40, b2_top: 0.0, b2_top_from: 84, b2_high: 0.0, b2_high_from: 96 };
 
-    /// The frequency term's coefficient on a key: `b2`, or on its way to
-    /// `b2_top` over the octave below `b2_top_from`.
+    /// The frequency term's coefficient on a key: `b2`, on its way to
+    /// `b2_top` over the octave below `b2_top_from`, then to `b2_high` over
+    /// the octave below `b2_high_from`.
     pub fn b2_at(&self, note: u8) -> f64 {
-        if self.b2_top <= 0.0 {
-            return self.b2;
+        let ramp = |from: u8| ((note as f64 - (from as f64 - 12.0)) / 12.0).clamp(0.0, 1.0);
+        let mut b2 = self.b2;
+        if self.b2_top > 0.0 {
+            b2 += (self.b2_top - self.b2) * ramp(self.b2_top_from);
         }
-        let t = ((note as f64 - (self.b2_top_from as f64 - 12.0)) / 12.0).clamp(0.0, 1.0);
-        self.b2 + (self.b2_top - self.b2) * t
+        if self.b2_high > 0.0 {
+            b2 += (self.b2_high - b2) * ramp(self.b2_high_from);
+        }
+        b2
     }
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {
@@ -469,6 +480,20 @@ pub struct PolarizationLaw {
     /// Below this frequency (Hz) ε_H keeps the slope's value there (0: the
     /// slope applies down to the lowest partial).
     pub slope_from: f64,
+    /// The bass's own sideways share: up to `bass_until` the hammer's tilt,
+    /// the horizontal motion's radiation and the cross term take the `_bass`
+    /// values, and blend into the others over the next `bass_fade` keys. On
+    /// real grands the bass's first partial falls fast for about a second,
+    /// then slowly (a double decay, single strings included): the vertical
+    /// motion gives its energy to the board, the horizontal keeps it. With
+    /// the cross term at its passive limit the slow motion pushes nothing
+    /// and is not heard (docs/body.md).
+    pub bass: bool,
+    pub bass_until: u8,
+    pub bass_fade: u8,
+    pub hammer_tilt_bass: f64,
+    pub radiation_bass: f64,
+    pub cross_bass: f64,
 }
 
 /// Reference of `PolarizationLaw::slope` (Hz, C4).
@@ -485,6 +510,12 @@ impl PolarizationLaw {
         smooth: 0.0,
         slope: 0.0,
         slope_from: 0.0,
+        bass: false,
+        bass_until: 40,
+        bass_fade: 8,
+        hammer_tilt_bass: 0.0,
+        radiation_bass: 0.0,
+        cross_bass: 0.0,
     };
     /// The sideways coupling at C4, h = 0.3, falls as C4/f above C3 and is
     /// held below (slope −1 from 130.81 Hz); the cross term is 0.8·√h. The
@@ -503,7 +534,33 @@ impl PolarizationLaw {
             smooth: 0.0,
             slope: -1.0,
             slope_from: 130.81,
+            bass: false,
+            bass_until: 40,
+            bass_fade: 8,
+            hammer_tilt_bass: 0.05,
+            radiation_bass: 0.1,
+            cross_bass: 0.438,
         };
+
+    /// The law at a key: the `_bass` values up to `bass_until`, blended
+    /// linearly into the others over `bass_fade` keys.
+    pub fn at(&self, note: u8) -> Self {
+        if !self.bass {
+            return *self;
+        }
+        let t = if note <= self.bass_until {
+            1.0
+        } else {
+            (1.0 - (note - self.bass_until) as f64 / (self.bass_fade.max(1) as f64)).max(0.0)
+        };
+        let mix = |b: f64, a: f64| b * t + a * (1.0 - t);
+        Self {
+            hammer_tilt: mix(self.hammer_tilt_bass, self.hammer_tilt),
+            radiation: mix(self.radiation_bass, self.radiation),
+            cross: mix(self.cross_bass, self.cross),
+            ..*self
+        }
+    }
 
     /// Cross coupling actually used: clamped to keep the bridge passive.
     pub fn passive_cross(&self) -> f64 {
@@ -873,6 +930,53 @@ impl NoiseLaw {
     }
 }
 
+/// The body ringing after each strike: the keybed, keyframe, case, rim and
+/// the board's low modes, shaken through the action as the hammer meets the
+/// string, radiated as a dense, continuous halo between the partials. On real
+/// grands, once the partials are taken out, this halo is 30 dB louder than
+/// the model's own at 125 Hz–1 kHz from 60 ms on and dies within 0.6–1 s
+/// (docs/body.md); its level and decay set much of each piano's character.
+/// A shared bank of [`crate::body::MODES`] resonances, struck by each key with
+/// its own pattern, heard directly (crate::body).
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct BodyLaw {
+    pub enabled: bool,
+    /// Peak pressure (Pa) at the microphones per m/s of hammer speed, before
+    /// the octave levels.
+    pub gain: f64,
+    /// Level change (dB) per octave of the key above middle C.
+    pub slope: f64,
+    /// Level (dB) of each octave band, centred at 63, 125, 250, 500 Hz, 1, 2,
+    /// 4 and 8 kHz; interpolated between them.
+    pub levels: [f64; 8],
+    /// Decay time T60 (s) in the same octave bands.
+    pub t60: [f64; 8],
+    /// Delay (s) after the hammer meets the string.
+    pub delay: f64,
+    /// Share of each key's pattern of amplitudes common to every key (the
+    /// same body answers them all); the rest is the key's own.
+    pub shared: f64,
+}
+
+impl BodyLaw {
+    pub const DEFAULT: Self = Self {
+        enabled: false,
+        gain: 0.0,
+        slope: 0.0,
+        levels: [0.0; 8],
+        t60: [0.6, 0.6, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1],
+        delay: 0.002,
+        shared: 0.5,
+    };
+}
+
+impl Default for BodyLaw {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
 /// Geometric nonlinearity of the strings (Bank & Sujbert 2005): a string
 /// vibrating with a large amplitude stretches, which drives its
 /// longitudinal modes with the products of the transverse partials (sum and
@@ -1205,6 +1309,8 @@ pub struct PianoModel {
     /// Longitudinal modes driven by the transverse motion (phantom partials).
     pub nonlinear: StringNonlinearity,
     pub noise: NoiseLaw,
+    /// The body's halo after each strike (crate::body).
+    pub body: BodyLaw,
     /// The room around the piano (early reflections and reverberation).
     pub room: crate::room::RoomParams,
     /// The cast-iron frame (driven by the agraffes) and the rim (driven by
@@ -1329,6 +1435,7 @@ impl Default for PianoModel {
             sympathetic: SympatheticLaw::DEFAULT,
             nonlinear: StringNonlinearity::DEFAULT,
             noise: NoiseLaw::DEFAULT,
+            body: BodyLaw::DEFAULT,
             room: crate::room::RoomParams::CONCERT_HALL,
             frame: crate::structure::FrameParams::GRAND_2M,
             rim: crate::structure::RimParams::GRAND_2M,

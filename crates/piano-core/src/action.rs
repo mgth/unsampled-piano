@@ -89,8 +89,9 @@ impl ActionNoise {
         }
     }
 
-    /// A key reaches the bottom of its travel `delay` s from now, with a
-    /// knock of peak pressure `amp` (Pa at the microphones).
+    /// A key reaches the bottom of its travel `delay` s after the start of
+    /// the next [`Self::render`] call, with a knock of peak pressure `amp`
+    /// (Pa at the microphones).
     pub fn strike(&mut self, note: u8, amp: f64, delay: f64) {
         if amp <= 0.0 {
             return;

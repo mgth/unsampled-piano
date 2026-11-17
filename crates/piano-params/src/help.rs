@@ -357,6 +357,12 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("losses.b2_top_from", "Key from which the top strings have their own overtone losses.", "MIDI note where b2_top holds in full."),
     (
+        "losses.b2_high",
+        "Overtone losses of the top octaves, apart from the middle's: lower lets the highest strings ring on as real ones do.",
+        "Coefficient (s) of the frequency term from b2_high_from up, coming in over the octave below. 0: none.",
+    ),
+    ("losses.b2_high_from", "Key from which the top octaves have their own overtone losses.", "MIDI note where b2_high holds in full."),
+    (
         "scale.len_c8",
         "Speaking length of the highest string (C8), between its two bearing points.",
         "Lengths grow by `ratio_per_octave` per octave down to `break_note`. This generic 2 m \
@@ -524,6 +530,16 @@ const HELP: &[(&str, &str, &str)] = &[
         "Lowest pitch the sideways slope follows; below it the bridge's sideways give stays as there.",
         "Hz; ε_H uses max(f, slope_from) in its slope. 0: none.",
     ),
+    (
+        "polarization.bass",
+        "The bass's own sideways motion: lets the low strings' first partial fall fast, then slowly, as on real grands.",
+        "Up to bass_until the hammer's tilt, the horizontal radiation and the cross term take their _bass values, blended into the others over bass_fade keys (docs/body.md).",
+    ),
+    ("polarization.bass_until", "Last key with the bass's own sideways values.", "MIDI note."),
+    ("polarization.bass_fade", "Over how many keys the bass's sideways values blend into the others.", "Keys above bass_until."),
+    ("polarization.hammer_tilt_bass", "Share of the hammer's blow acting sideways, in the bass.", "As hammer_tilt, up to bass_until."),
+    ("polarization.radiation_bass", "How much of the sideways motion is heard, in the bass.", "As radiation, up to bass_until."),
+    ("polarization.cross_bass", "How much the two motions exchange at the bridge, in the bass.", "As cross, up to bass_until; clamped to the passive limit √h_coupling."),
     // Soundboard
     (
         "soundboard.a",
@@ -1178,6 +1194,22 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("noise.action_time", "How long the action's clack rings.", "Decay time T60 (s) of the resonances at 500 Hz, shorter above as (500/f)^0.3."),
     ("noise.action_delay", "How long after the hammer meets the string the action's clack comes.", "Delay (s) of the knock after the strike: the key bottoms just after the hammer reaches the string."),
+    // Body
+    (
+        "body.enabled",
+        "The body's halo: after each strike the keybed, case, rim and the board's low modes ring \
+         for a fraction of a second, filling the space between the partials. Much of a real \
+         piano's character lies there.",
+        "A bank of 1024 damped resonances (40 Hz–10 kHz, one every 3.5–7 Hz below 2 kHz) \
+         shared by all keys, struck by each key with its own pattern, heard directly \
+         (docs/body.md).",
+    ),
+    ("body.gain", "How loud the body's halo is.", "Peak pressure (Pa) at the microphones per m/s of hammer speed, before the octave levels."),
+    ("body.slope", "Whether the halo grows or fades towards the treble.", "Level change (dB) per octave of the key above middle C."),
+    ("body.levels", "The colour of the halo, octave by octave.", "Level (dB) of the octave bands centred at 63, 125, 250, 500 Hz, 1, 2, 4 and 8 kHz, interpolated in between."),
+    ("body.t60", "How long the halo rings, octave by octave.", "Decay time T60 (s) of the resonances in the same octave bands."),
+    ("body.delay", "How long after the hammer meets the string the halo starts.", "Delay (s) of the strike on the bank after the hammer's contact."),
+    ("body.shared", "How much every key shakes the body the same way.", "Share (0–1) of each key's pattern of amplitudes common to all keys; the rest is the key's own."),
     // Room
     ("room.enabled", "The hall around the piano: wall reflections and reverberation.", "Image sources for the early reflections, a 16-line feedback delay network for the tail."),
     (
