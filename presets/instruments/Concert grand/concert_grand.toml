@@ -53,6 +53,18 @@ hammer_tilt = 0.05
 smooth = 0.0
 slope = 0.0
 slope_from = 0.0
+# The bass's own sideways motion, to E2 and blended into the rest by C3: on the real
+# grands the bass's first partial falls fast for about a second, then slowly (a double
+# decay, single strings included); with the cross term at its passive limit the slow,
+# horizontal motion pushed nothing and was not heard, and the first partial fell in one
+# straight line (ripple 0.1–0.6 dB against 1–5). Fitted against Splendid, Plath,
+# Helgesson, Salamander and BiVib on A0–E2 (docs/body.md).
+bass = true
+bass_until = 40
+bass_fade = 8
+hammer_tilt_bass = 0.6
+radiation_bass = 1.0
+cross_bass = 0.02
 
 [inharmonicity]
 # The bass of the Splendid Grand, the sound aimed at: its wound strings are twice as
@@ -88,11 +100,10 @@ b2_top = 2.0e-7
 b2_top_from = 60
 # Wound strings on the bass bridge only, A0–E2.
 wound_until = 41
-# A loss on the wound strings (fading out over the octave above them): the first
-# partial of F#1–C#2 held 2–2.5 times as long as on the real grands of the comparison
-# tool (A1 63 s against 31); 0.1 puts F#1–A1 on their mean (B1–C#2 still long), 0.2
-# under it (docs/body.md).
-b1_floor = 0.1
+# No extra loss on the wound strings: since the bass's own sideways motion (see
+# [polarization]) the loss through the rim (soundboard.edge_loss) shortens the first
+# partial's prompt decay instead. 0.1 from 2026-11-17 to the same day (docs/body.md).
+b1_floor = 0.0
 
 [scale]
 # Plain strings F2–B7: 1.91 per octave, C8 at 4.94 cm. Wound strings: RT-425's
@@ -154,7 +165,10 @@ case_field = true
 # The low modes' extra loss at the measured boards' level, 4.7 % at 83 Hz
 # (docs/real_board.md); the rim, made two-way, takes almost nothing, so no edge loss.
 loss_low_corner = 80.0
-edge_loss = 0.0
+# The loss through the rim, seen by the strings whose bridge runs near the board's edge:
+# with the bass's own sideways motion it gives the bass's first partial its fast early
+# decay, the vertical motion's, before the slow horizontal one (docs/body.md).
+edge_loss = 1.0e-3
 # No piston mode: a fit, which took 3-7 dB/s from the fundamentals of A0-E1 where
 # a real concert grand's lose 0.7 (docs/real_board.md).
 piston_freq = 0.0

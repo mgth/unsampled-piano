@@ -76,6 +76,14 @@ In the comparison tool (median z per register, 8 real grands, three layers), the
 
 Left: the first partial's ripple (z −1.3): its envelope is a straight line (0.1–0.3 dB from it, against 1–3 dB on the real grands, single strings included); no loss changes it.
 
+## The bass: the first partial's double decay
+
+On the real grands (Splendid, Plath, Helgesson, Salamander, BiVib; Liang's notes are released at 2 s) the ripple is mostly a double decay: the bass's first partial falls fast for about a second, then slowly (curvature of its envelope +1 to +5 dB/s² at A0–G1, +14 at Splendid's D2), single strings included; some add beats at 1–3 Hz. The vertical motion gives its energy to the board, the horizontal keeps it. In the model the horizontal motion was not heard: the cross term at its passive limit (0.1732 = √h_coupling) leaves the slow mode pushing nothing on the bridge, its radiation was 0.1 and the hammer's tilt 0.05. More loss through the rim (`edge_loss`) alone, or more tilt alone, only steepen the one straight line.
+
+These three settings act on the whole keyboard, and changing them there moves the middle too (its fundamentals and its late decay), so `polarization` now has the bass's own values: `bass`, `bass_until`, `bass_fade`, `hammer_tilt_bass`, `radiation_bass`, `cross_bass` (`PolarizationLaw::at`). The Concert grand takes them to E2, blended into the rest by C3: tilt 0.6, radiation 1.0, cross 0.02, with `edge_loss` 1e-3 for the vertical motion's fast early decay and `b1_floor` back to 0. On A0–E2 against those five grands (rms of the envelope about a line, curvature, slope; mean distance to their median): 2.3 → 1.3 dB, 2.1 → 1.1 dB/s², slope as before; B0 still falls in one line, F1–A1 a little fast, D2 slow. The treble does not move; C4 loses 2 dB at 1 s, nearer the real grands.
+
+Bench 1.42 → 1.50, 68 → 62 % within, 27 off: the bass's sustained partials 2–12 come closer (p4 −1.22 → −0.21 z), but its partials 1–4 decay too slowly early (T60 p1–4 early 0.04 → 4.97 z, late 0.15 → 1.64) and its level at 2 s stands over the real grands' (+1.2 to +1.5 z): the horizontal motion, now heard, holds too long without the wound strings' loss. To do next: give it back part of that loss.
+
 ## Making other pianos
 
 The same steps fit any recorded piano: `tools/between_partials.py table` on its note set against the model's, the body law fitted per octave as above, the last damper read from the lines at the top strings' fundamentals, the phantom coupling from the bass lines between the partials.

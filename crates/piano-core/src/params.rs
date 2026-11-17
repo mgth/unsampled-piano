@@ -469,6 +469,20 @@ pub struct PolarizationLaw {
     /// Below this frequency (Hz) ε_H keeps the slope's value there (0: the
     /// slope applies down to the lowest partial).
     pub slope_from: f64,
+    /// The bass's own sideways share: up to `bass_until` the hammer's tilt,
+    /// the horizontal motion's radiation and the cross term take the `_bass`
+    /// values, and blend into the others over the next `bass_fade` keys. On
+    /// real grands the bass's first partial falls fast for about a second,
+    /// then slowly (a double decay, single strings included): the vertical
+    /// motion gives its energy to the board, the horizontal keeps it. With
+    /// the cross term at its passive limit the slow motion pushes nothing
+    /// and is not heard (docs/body.md).
+    pub bass: bool,
+    pub bass_until: u8,
+    pub bass_fade: u8,
+    pub hammer_tilt_bass: f64,
+    pub radiation_bass: f64,
+    pub cross_bass: f64,
 }
 
 /// Reference of `PolarizationLaw::slope` (Hz, C4).
@@ -485,6 +499,12 @@ impl PolarizationLaw {
         smooth: 0.0,
         slope: 0.0,
         slope_from: 0.0,
+        bass: false,
+        bass_until: 40,
+        bass_fade: 8,
+        hammer_tilt_bass: 0.0,
+        radiation_bass: 0.0,
+        cross_bass: 0.0,
     };
     /// The sideways coupling at C4, h = 0.3, falls as C4/f above C3 and is
     /// held below (slope −1 from 130.81 Hz); the cross term is 0.8·√h. The
@@ -503,7 +523,33 @@ impl PolarizationLaw {
             smooth: 0.0,
             slope: -1.0,
             slope_from: 130.81,
+            bass: false,
+            bass_until: 40,
+            bass_fade: 8,
+            hammer_tilt_bass: 0.05,
+            radiation_bass: 0.1,
+            cross_bass: 0.438,
         };
+
+    /// The law at a key: the `_bass` values up to `bass_until`, blended
+    /// linearly into the others over `bass_fade` keys.
+    pub fn at(&self, note: u8) -> Self {
+        if !self.bass {
+            return *self;
+        }
+        let t = if note <= self.bass_until {
+            1.0
+        } else {
+            (1.0 - (note - self.bass_until) as f64 / (self.bass_fade.max(1) as f64)).max(0.0)
+        };
+        let mix = |b: f64, a: f64| b * t + a * (1.0 - t);
+        Self {
+            hammer_tilt: mix(self.hammer_tilt_bass, self.hammer_tilt),
+            radiation: mix(self.radiation_bass, self.radiation),
+            cross: mix(self.cross_bass, self.cross),
+            ..*self
+        }
+    }
 
     /// Cross coupling actually used: clamped to keep the bridge passive.
     pub fn passive_cross(&self) -> f64 {

@@ -524,6 +524,16 @@ const HELP: &[(&str, &str, &str)] = &[
         "Lowest pitch the sideways slope follows; below it the bridge's sideways give stays as there.",
         "Hz; ε_H uses max(f, slope_from) in its slope. 0: none.",
     ),
+    (
+        "polarization.bass",
+        "The bass's own sideways motion: lets the low strings' first partial fall fast, then slowly, as on real grands.",
+        "Up to bass_until the hammer's tilt, the horizontal radiation and the cross term take their _bass values, blended into the others over bass_fade keys (docs/body.md).",
+    ),
+    ("polarization.bass_until", "Last key with the bass's own sideways values.", "MIDI note."),
+    ("polarization.bass_fade", "Over how many keys the bass's sideways values blend into the others.", "Keys above bass_until."),
+    ("polarization.hammer_tilt_bass", "Share of the hammer's blow acting sideways, in the bass.", "As hammer_tilt, up to bass_until."),
+    ("polarization.radiation_bass", "How much of the sideways motion is heard, in the bass.", "As radiation, up to bass_until."),
+    ("polarization.cross_bass", "How much the two motions exchange at the bridge, in the bass.", "As cross, up to bass_until; clamped to the passive limit √h_coupling."),
     // Soundboard
     (
         "soundboard.a",
