@@ -160,14 +160,15 @@ impl BodyBank {
         &self.law
     }
 
-    /// The hammer of `note` meets its string now, at `speed` m/s.
-    pub fn strike(&mut self, note: u8, speed: f64) {
+    /// The hammer of `note` meets its string `offset` s after the start of
+    /// the next [`Self::render`] call, at `speed` m/s.
+    pub fn strike(&mut self, note: u8, speed: f64, offset: f64) {
         let law = self.law;
         if !law.enabled || law.gain <= 0.0 || !(21..=108).contains(&note) {
             return;
         }
         let amp = law.gain * speed * 10f64.powf(law.slope * (note as f64 - 60.0) / 12.0 / 20.0);
-        let wait = (law.delay * self.sample_rate).max(0.0) as u32;
+        let wait = ((offset + law.delay) * self.sample_rate).round().max(0.0) as u32;
         let slot = match self.pending.iter_mut().find(|p| p.amp == 0.0) {
             Some(p) => p,
             None => self.pending.iter_mut().min_by_key(|p| p.wait).unwrap(),
@@ -273,7 +274,7 @@ mod tests {
         let (mut l, mut r) = (vec![0.0f32; 4800], vec![0.0f32; 4800]);
         b.render([&mut l, &mut r], 1.0);
         assert!(l.iter().chain(&r).all(|&x| x == 0.0));
-        b.strike(60, 1.0);
+        b.strike(60, 1.0, 0.0);
         let n = (sr * 1.2) as usize;
         let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
         b.render([&mut l, &mut r], 1.0);
@@ -290,7 +291,7 @@ mod tests {
     #[test]
     fn off_or_zero_gain_is_silent() {
         let mut b = BodyBank::new(48_000.0, &BodyLaw::DEFAULT);
-        b.strike(60, 3.0);
+        b.strike(60, 3.0, 0.0);
         let (mut l, mut r) = (vec![0.0f32; 2000], vec![0.0f32; 2000]);
         b.render([&mut l, &mut r], 1.0);
         assert!(l.iter().chain(&r).all(|&x| x == 0.0));

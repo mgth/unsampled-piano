@@ -1157,8 +1157,17 @@ impl Engine {
         // The key bottoms on the keybed as the hammer reaches the string.
         self.knock(region_of(note), self.live.noise.keybed * vh);
         if self.board.is_some() {
-            self.action.strike(note, self.live.noise.action * vh, self.live.noise.action_delay);
-            self.body.strike(note, thrown);
+            // Both banks render from the start of the sub-block: the strike
+            // waits for the note's own frame within it, then its delay.
+            let within = self.now.saturating_sub(self.clock) as f64 / self.cfg.sample_rate;
+            self.action.strike(note, self.live.noise.action * vh, within + self.live.noise.action_delay);
+            // A live change of the body's law earlier in this sub-block
+            // takes effect for this strike, not only at the next one.
+            if self.live.body != *self.body.law() {
+                let law = self.live.body;
+                self.body.set_law(&law);
+            }
+            self.body.strike(note, thrown, within);
         }
     }
 
