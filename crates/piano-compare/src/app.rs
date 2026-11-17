@@ -147,7 +147,7 @@ impl App {
             let mut src = Source {
                 key: "model".into(),
                 label: s.label.clone(),
-                description: format!("Rendered by this build, close microphones in a studio, Disklavier velocity scale (as the bench). Cached in {}", s.dir.display()),
+                description: format!("Rendered by this build (renders cached by preset, engine sources and protocol), close microphones in a studio, Disklavier velocity scale (as the bench). Cached in {}", s.dir.display()),
                 role: Role::Model,
                 dynamics: true,
                 dir: s.dir.clone(),
@@ -421,10 +421,12 @@ impl App {
         };
         self.playing = Some((si, midi, layer));
         let player: Player = audio.player.clone();
+        // A later request or Stop voids this one, however long it takes.
+        let ticket = player.request();
         let (seconds, matched, volume) = (self.seconds as f64, self.match_levels, self.volume_db);
         std::thread::spawn(move || {
             if let Some((clip, sr, gain)) = crate::audio::prepare(&path, seconds, matched, volume) {
-                player.play(&clip, sr, gain);
+                player.play(ticket, &clip, sr, gain);
             }
         });
     }

@@ -102,6 +102,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("model: {} (renders in {})", spec.label, spec.dir.display());
         Some(spec)
     };
+    if srcs.is_empty() && spec.is_none() {
+        return Err("nothing to compare: no note set found and --no-model".into());
+    }
     let cache_file = cache.join(format!("measures-v{}.json", measure::VERSION));
     let viewport = egui::ViewportBuilder::default()
         .with_inner_size([1500.0, 950.0])

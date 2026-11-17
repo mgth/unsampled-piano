@@ -22,7 +22,7 @@ The window remembers its selections from one start to the next in `~/.config/uns
 
 ## The model's notes
 
-The model is rendered as the bench renders it: close microphones in a studio, played on the Disklavier's velocity scale (pp/mf/ff = velocities 45/56/100), each note alone in a fresh engine, held 3.5 s. The renders are cached in `out/compare-tool/model/<preset>-<quality>-<hash>/`. The hash covers the whole preset, listening included: a changed preset renders again, and an unchanged one never does. The selected key renders first, then every octave, then every third key, then the others. With two renders at once (`--renderers`, each about 3 cores) all 264 notes take about 7 minutes.
+The model is rendered as the bench renders it: close microphones in a studio, played on the Disklavier's velocity scale (pp/mf/ff = velocities 45/56/100), each note alone in a fresh engine, held 3.5 s. The renders are cached in `out/compare-tool/model/<preset>-<quality>-<hash>/`. The hash covers the whole preset (listening included), the engine's sources (`crates/piano-core`, read by content when the tool is built, local changes included) and the rendering protocol: a changed preset or engine renders again, and an unchanged one never does. Worktrees with the same engine share their renders. The selected key renders first, then every octave, then every third key, then the others. With two renders at once (`--renderers`, each about 3 cores) all 264 notes take about 7 minutes.
 
 `--preset` chooses the instrument (default: the Concert grand), `--default-instrument` the engine's default, `--quality` the engine quality and `--no-model` leaves the model out.
 

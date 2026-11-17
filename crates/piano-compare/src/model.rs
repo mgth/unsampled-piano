@@ -1,7 +1,9 @@
 //! The model's notes, rendered as the bench renders them: close microphones
 //! in a studio, played on the Disklavier's velocity scale, each note alone
 //! in a fresh engine. Renders are cached on disk by a hash of the full
-//! preset, so a changed preset renders again and an unchanged one never.
+//! preset, of the engine's sources (build.rs) and of the rendering below,
+//! so a changed preset, engine or protocol renders again and an unchanged
+//! one never.
 
 use piano_core::{instrument::Instrument, params::PianoModel, Engine, EngineConfig, Event, Quality, TimedEvent};
 use std::path::{Path, PathBuf};
@@ -12,6 +14,8 @@ pub const SR: u32 = 48_000;
 pub const HOLD: f64 = 3.5;
 pub const TAIL: f64 = 0.5;
 const BLOCK: usize = 128;
+/// Change it when `Renderer::note` renders differently.
+const PROTOCOL: u32 = 1;
 
 /// Listening presets of the bench (tools/bench.py LISTENING, PLAYBACK).
 pub const LISTENING: [&str; 3] = [
@@ -36,8 +40,13 @@ pub fn load(root: &Path, preset: Option<&Path>, quality: Quality, cache: &Path) 
     for l in LISTENING {
         model = piano_host::load_listening(&root.join(l), &model)?;
     }
-    let text = piano_host::preset_toml(&model);
-    let hash = format!("{}-{:012x}", quality.name(), text.bytes().fold(0xcbf29ce484222325u64, |h, b| (h ^ b as u64).wrapping_mul(0x100000001b3)) & 0xffff_ffff_ffff);
+    let velocities: Vec<u8> = crate::sources::LAYERS.iter().map(|l| l.2).collect();
+    let key = format!(
+        "{}\nengine {}\nprotocol {PROTOCOL} sr {SR} hold {HOLD} tail {TAIL} block {BLOCK} velocities {velocities:?}",
+        piano_host::preset_toml(&model),
+        env!("ENGINE_HASH"),
+    );
+    let hash = format!("{}-{:012x}", quality.name(), key.bytes().fold(0xcbf29ce484222325u64, |h, b| (h ^ b as u64).wrapping_mul(0x100000001b3)) & 0xffff_ffff_ffff);
     let name = preset.and_then(|p| p.file_stem()).and_then(|s| s.to_str()).unwrap_or("default").to_string();
     Ok(ModelSpec { label: format!("Model · {name}"), model, quality, dir: cache.join("model").join(format!("{name}-{hash}").replace(' ', "_")) })
 }

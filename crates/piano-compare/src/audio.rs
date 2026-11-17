@@ -8,6 +8,9 @@ struct Playing {
     /// Interleaved stereo at the device rate.
     buf: Vec<f32>,
     pos: usize,
+    /// Number of the last request; a clip prepared for an older one is
+    /// dropped.
+    request: u64,
 }
 
 pub struct Audio {
@@ -50,8 +53,19 @@ impl Audio {
 }
 
 impl Player {
-    /// Plays `channels` (1 or more, at `sr`), replacing what is playing.
-    pub fn play(&self, channels: &[Vec<f32>], sr: f64, gain: f32) {
+    /// Stops what is playing and returns the ticket of the clip to play
+    /// next. Any earlier ticket is void from now on.
+    pub fn request(&self) -> u64 {
+        let mut s = self.state.lock().unwrap();
+        s.request += 1;
+        s.buf.clear();
+        s.pos = 0;
+        s.request
+    }
+
+    /// Plays `channels` (1 or more, at `sr`) if `ticket` is still the last
+    /// request (neither a newer one nor Stop came since); false otherwise.
+    pub fn play(&self, ticket: u64, channels: &[Vec<f32>], sr: f64, gain: f32) -> bool {
         let l = resample(&channels[0], sr, self.rate);
         let r = channels.get(1).map_or_else(|| l.clone(), |c| resample(c, sr, self.rate));
         let n = l.len().min(r.len());
@@ -63,11 +77,18 @@ impl Player {
             buf.push(l[i] * g);
             buf.push(r[i] * g);
         }
-        *self.state.lock().unwrap() = Playing { buf, pos: 0 };
+        let mut s = self.state.lock().unwrap();
+        if s.request != ticket {
+            return false;
+        }
+        s.buf = buf;
+        s.pos = 0;
+        true
     }
 
+    /// Stops, and voids the clips still being prepared.
     pub fn stop(&self) {
-        *self.state.lock().unwrap() = Playing::default();
+        self.request();
     }
 
     /// Seconds played, while something plays.
@@ -202,6 +223,26 @@ fn gcd(a: u64, b: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    /// A clip prepared for an older request never replaces a newer one,
+    /// nor plays after Stop.
+    #[test]
+    fn stale_clips_are_dropped() {
+        let p = Player { state: Arc::new(Mutex::new(Playing::default())), rate: 48000.0 };
+        let clip = |v: f32| vec![vec![v; 4800]];
+        let playing = |p: &Player| p.state.lock().unwrap().buf.first().copied();
+        let a = p.request();
+        let b = p.request();
+        assert!(p.play(b, &clip(0.5), 48000.0, 1.0));
+        assert!(!p.play(a, &clip(0.25), 48000.0, 1.0), "A, slower, finished after B");
+        assert_eq!(playing(&p), Some(0.5));
+        let c = p.request();
+        p.stop();
+        assert!(!p.play(c, &clip(0.25), 48000.0, 1.0), "Stop came while C was prepared");
+        assert_eq!(playing(&p), None);
+    }
+
     /// Time from the click to the first sample, on the bench's sets
     /// (`cargo test --release -p piano-compare -- --ignored --nocapture`).
     #[test]
