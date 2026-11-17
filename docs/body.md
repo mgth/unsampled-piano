@@ -70,6 +70,12 @@ Heard after the body: much better in the treble, more discreet in the bass. Meas
 - **The inharmonicity.** Splendid's bass is twice as inharmonic as the model's, which had RT-425's D (Plath's D the same): A0 ×2.0, A1 ×2.2, A2 ×1.3, the same from C3. The model's phantom partials then fall within a quarter of the spacing from the partials, Splendid's half-way between them. The law fitted on its 60 keys, the treble kept (`a_bass` −0.0730, `b_bass` −6.901): correlation 0.44 → 0.52 at A0–B1 (B0–D1 and A1 from 0.2–0.4 to 0.6–0.7), level −6.4 → −4.3 dB. With the phantoms 3.5 dB louder (`coupling` 1.5) the level comes within 1.2 dB, but a share above 1 is not physical and the ear preferred without.
 - **Bench:** 1.38 → 1.42, 66 → 68 % within, 26 off either way; the bass inharmonicity comes inside the real pianos (z −1.00 → 0.60), the bass p8 sustain closer (−1.56 → −0.71); the bass p5–12 early T60 (2.81 → 3.38) and the treble ff balance (−2.99 → −3.60) further.
 
+## The bass: the first partial's decay
+
+In the comparison tool (median z per register, 8 real grands, three layers), the bass first partial held too long (T60 z +1.0): 2–2.5 times the real grands' mean from F#1 to C#2 (A1 63 s against 31, C#2 15 against 6). `losses.b1_floor`, a loss on the wound strings fading out over the octave above them, at 0.1 puts F#1–A1 on that mean (42/39/37/33 s against 51/38/37/31); B1–C#2 stay long (21/17/13 s against 14/14/6); 0.2 falls under it at F#1–A1. It shortens every partial of those strings. Bench 1.42 either way: the bass's early T60 closer (p5–12 3.38 → 2.57 z, p1–4 0.52 → 0.04), its level at 2 s too (0.93 → 0.38 z at ff, about 0 at mf and pp); its level at 3 s at mf and pp goes under the mean (+0.3 → −0.5 z). Taken after listening.
+
+Left: the first partial's ripple (z −1.3): its envelope is a straight line (0.1–0.3 dB from it, against 1–3 dB on the real grands, single strings included); no loss changes it.
+
 ## Making other pianos
 
 The same steps fit any recorded piano: `tools/between_partials.py table` on its note set against the model's, the body law fitted per octave as above, the last damper read from the lines at the top strings' fundamentals, the phantom coupling from the bass lines between the partials.

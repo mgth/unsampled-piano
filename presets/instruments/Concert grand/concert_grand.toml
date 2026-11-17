@@ -88,6 +88,11 @@ b2_top = 2.0e-7
 b2_top_from = 60
 # Wound strings on the bass bridge only, A0–E2.
 wound_until = 41
+# A loss on the wound strings (fading out over the octave above them): the first
+# partial of F#1–C#2 held 2–2.5 times as long as on the real grands of the comparison
+# tool (A1 63 s against 31); 0.1 puts F#1–A1 on their mean (B1–C#2 still long), 0.2
+# under it (docs/body.md).
+b1_floor = 0.1
 
 [scale]
 # Plain strings F2–B7: 1.91 per octave, C8 at 4.94 cm. Wound strings: RT-425's
