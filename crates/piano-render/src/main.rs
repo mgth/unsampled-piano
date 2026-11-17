@@ -166,17 +166,19 @@ fn replay(dir: &std::path::Path, output: &std::path::Path, threads_cli: usize) -
 }
 
 /// Stereo render (two microphones), interleaved.
-fn render(tl: &Timeline, sr: u32, block: usize, tail: f64, model: piano_core::params::PianoModel, quality: piano_core::Quality, threads: usize) -> (Vec<f32>, usize) {
+fn render(tl: &Timeline, sr: u32, block: usize, tail: f64, model: piano_core::params::PianoModel, quality: piano_core::Quality, threads: usize) -> (Vec<f32>, usize, usize) {
     let cfg = EngineConfig { sample_rate: sr as f64, max_block: block, model, quality, threads, ..Default::default() };
     let mut engine = Engine::new(cfg);
     let end = tl.last().map_or(0.0, |e| e.0) + tail;
     let total = (end * sr as f64).ceil() as usize;
     let frames = total.next_multiple_of(block);
-    let (mut l, mut r) = (vec![0.0f32; frames], vec![0.0f32; frames]);
+    // The set-up's channels: the stereo mix, or one per microphone.
+    let channels = engine.channels();
+    let mut chans = vec![vec![0.0f32; frames]; channels];
     let mut events: Vec<TimedEvent> = Vec::with_capacity(256);
     let mut next = 0;
     let mut peak_voices = 0;
-    for (bi, (bl, br)) in l.chunks_mut(block).zip(r.chunks_mut(block)).enumerate() {
+    for bi in 0..frames / block {
         let start = bi * block;
         events.clear();
         while next < tl.len() {
@@ -187,11 +189,12 @@ fn render(tl: &Timeline, sr: u32, block: usize, tail: f64, model: piano_core::pa
             events.push(TimedEvent { frame: (f.max(start) - start) as u32, event: tl[next].1 });
             next += 1;
         }
-        engine.process_stereo(&events, bl, br);
+        let mut out: Vec<&mut [f32]> = chans.iter_mut().map(|c| &mut c[start..start + block]).collect();
+        engine.process_channels(&events, &mut out);
         peak_voices = peak_voices.max(engine.active_voices());
     }
-    let out = l[..total].iter().zip(&r[..total]).flat_map(|(a, b)| [*a, *b]).collect();
-    (out, peak_voices)
+    let out = (0..total).flat_map(|t| chans.iter().map(move |c| c[t])).collect();
+    (out, peak_voices, channels)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -229,13 +232,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let t = std::time::Instant::now();
     let quality = piano_core::Quality::from_name(&cli.quality).ok_or_else(|| format!("unknown quality {:?}: overkill, full, balanced or light", cli.quality))?;
-    let (audio, peak_voices) = render(&tl, cli.sr, cli.block, cli.tail, model, quality, cli.threads);
+    let (audio, peak_voices, channels) = render(&tl, cli.sr, cli.block, cli.tail, model, quality, cli.threads);
     let wall = t.elapsed().as_secs_f64();
-    let dur = audio.len() as f64 / 2.0 / cli.sr as f64;
+    let dur = audio.len() as f64 / channels as f64 / cli.sr as f64;
     let peak = audio.iter().fold(0.0f32, |m, v| m.max(v.abs()));
 
     let spec = hound::WavSpec {
-        channels: 2,
+        channels: channels as u16,
         sample_rate: cli.sr,
         bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float,

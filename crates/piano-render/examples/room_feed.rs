@@ -21,7 +21,6 @@ fn main() {
     let sb = model.board().expect("a soundboard");
     let p = sb.params.bridge_point(note);
     let modes = board_modes_at(&sb, &[p; piano_core::board::REGIONS], sr);
-    let (pa, pb) = (sb.params.a, sb.params.b);
     // The engine's probes, every mode (the engine stops at PROBES_BELOW).
     let dist = piano_core::board::PROBE_DISTANCE;
     let pts = piano_core::board::probe_points(&sb.params);
@@ -30,8 +29,7 @@ fn main() {
     let kept: Vec<usize> = (0..sb.modes.len()).filter(|&i| sb.modes[i].omega / std::f64::consts::TAU < nyq).collect();
     assert_eq!(kept.len(), modes.len());
     // Mic distances to the room's source point.
-    let src = [pa / 2.0, pb / 2.0, 0.1];
-    let r: Vec<f64> = sb.params.mics.iter().map(|m| ((m.0 - src[0]).powi(2) + (m.1 - src[1]).powi(2) + (m.2 - src[2]).powi(2)).sqrt().max(0.3)).collect();
+    let r = piano_core::room::mic_distances(&sb.params);
     // Probe k as output 0 of a copy of the modes.
     let probe_modes: Vec<Vec<_>> = (0..pts.len())
         .map(|k| {

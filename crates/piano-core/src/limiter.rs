@@ -33,6 +33,23 @@ impl Limiter {
         lowest
     }
 
+    /// [`Self::process`] on any number of channels of the same length, all
+    /// alike.
+    pub fn process_channels(&mut self, out: &mut [&mut [f32]], ceiling: f32) -> f32 {
+        let mut lowest = 1.0f32;
+        let len = out.first().map_or(0, |o| o.len());
+        for t in 0..len {
+            let peak = out.iter().fold(0.0f32, |m, o| m.max(o[t].abs()));
+            let want = if peak > ceiling { ceiling / peak } else { 1.0 };
+            self.gain = if want < self.gain { want } else { self.gain + (want - self.gain) * self.release };
+            for o in out.iter_mut() {
+                o[t] *= self.gain;
+            }
+            lowest = lowest.min(self.gain);
+        }
+        lowest
+    }
+
     /// Off: the next block starts at unity gain.
     pub fn reset(&mut self) {
         self.gain = 1.0;

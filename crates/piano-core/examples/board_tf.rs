@@ -26,9 +26,8 @@ fn main() {
         rib_share: 0.5,
         rib_jitter: 0.3,
         impedance_slope_bass: -0.02,
-        mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
+        mics: piano_core::mics::Mics::new(&SoundboardParams::CLOSE_MICS),
         mics_relative: true,
-        mic_pattern: 0.5,
         lid_angle: 35.0,
         lid_removed: false,
         ..SoundboardParams::GRAND_2M

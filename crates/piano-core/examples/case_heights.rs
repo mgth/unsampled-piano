@@ -72,10 +72,10 @@ fn main() {
     let base = PianoModel { rim: RimParams { top: OLD.1, height: OLD.2, ..new.rim }, ..new };
     let sb0 = SoundboardParams { lid_hinge_height: OLD.0, ..new.soundboard.unwrap() };
     // The listening presets' microphones (archive/presets/listening/Microphones).
-    let rel = |mics, angle, gain| SoundboardParams { mics, mics_relative: true, lid_angle: angle, lid_removed: false, mic_gain_db: gain, ..sb0 };
+    let rel = |mics: [(f64, f64, f64); 2], angle, gain| SoundboardParams { mics: piano_core::mics::Mics::pair(mics[0], mics[1]), mics_relative: true, lid_angle: angle, lid_removed: false, mic_gain_db: gain, ..sb0 };
     let presets: [(&str, SoundboardParams); 5] = [
         ("default (lid off, 1.5 m)", sb0),
-        ("close, lid 35°", SoundboardParams { mic_pattern: 0.5, ..rel([(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)], 35.0, -9.6) }),
+        ("close, lid 35°", SoundboardParams { mics: piano_core::mics::Mics::new(&SoundboardParams::CLOSE_MICS), ..rel([(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)], 35.0, -9.6) }),
         ("concert, lid 35°", rel([(0.323529, -1.230769, 2.0), (0.735294, -1.230769, 2.0)], 35.0, 3.4)),
         ("player, lid 35°", rel([(-0.558824, 0.569231, 0.45), (-0.558824, 0.430769, 0.45)], 35.0, -6.1)),
         ("audience, lid shut", rel([(0.323529, -1.230769, 1.0), (0.735294, -1.230769, 1.0)], 0.0, 0.0)),

@@ -1,0 +1,44 @@
+# How a piano recording is usually mixed (the default set-up): the close
+# cardioids (close.toml) for the detail and the attack, and the spaced omni
+# pair (concert.toml) for the body, the low end and the room, 3 dB under
+# the close pair (each pair measured alone on C2, C4, C6 at mf; the AB pair
+# then needs 7.8 dB more). The set-up's gain brings the sum to the loudness
+# of the concert set-up.
+# Lid open at 35°, positions relative to the board.
+[soundboard]
+lid_removed = false
+lid_angle = 35.0
+mics_relative = true
+mic_gain_db = -9.8
+
+# The close pair, aimed straight down.
+[[soundboard.mics]]
+at = [0.294118, 0.346154, 0.4]
+aim = [0.294118, 0.346154, 0.0]
+upright = [0.705882, 0.653846, 0.4]
+aim_upright = [0.705882, 0.653846, 0.0]
+pattern = 0.5
+pan = -1.0
+
+[[soundboard.mics]]
+at = [0.705882, 0.653846, 0.4]
+aim = [0.705882, 0.653846, 0.0]
+upright = [0.294118, 0.346154, 0.4]
+aim_upright = [0.294118, 0.346154, 0.0]
+pattern = 0.5
+pan = 1.0
+
+# The AB pair, 2 m high in front of the opening.
+[[soundboard.mics]]
+at = [0.323529, -1.230769, 2.0]
+upright = [-0.2, 0.7, 2.0]
+pattern = 1.0
+gain_db = 7.8
+pan = -1.0
+
+[[soundboard.mics]]
+at = [0.735294, -1.230769, 2.0]
+upright = [-0.2, 0.3, 2.0]
+pattern = 1.0
+gain_db = 7.8
+pan = 1.0

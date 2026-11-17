@@ -1,0 +1,29 @@
+# A tree of three omnis 2.5 m above the floor of the opening's side: a left
+# and a right one 1.2 board lengths apart, the centre one 45 cm further out
+# and in the middle of the image, 3 dB under the outer two (a widely used
+# orchestral and piano set-up). Lid open at 35°, positions relative to the
+# board; on an upright, 2.2 m in front of it.
+[soundboard]
+lid_removed = false
+lid_angle = 35.0
+mics_relative = true
+mic_gain_db = 2.9
+
+[[soundboard.mics]]
+at = [0.25, -1.1, 2.5]
+upright = [-0.2, 0.75, 2.2]
+pattern = 1.0
+pan = -1.0
+
+[[soundboard.mics]]
+at = [0.85, -1.1, 2.5]
+upright = [-0.2, 0.25, 2.2]
+pattern = 1.0
+pan = 1.0
+
+[[soundboard.mics]]
+at = [0.55, -1.55, 2.5]
+upright = [-0.4, 0.5, 2.2]
+pattern = 1.0
+gain_db = -3.0
+pan = 0.0

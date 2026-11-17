@@ -5,6 +5,7 @@
 //! no lock.
 
 use crate::song::SongPlayer;
+use piano_control::slot::MAX_CHANNELS;
 use piano_control::EngineSlot;
 use piano_core::upsample::Upsampler;
 use piano_core::{Event, TimedEvent};
@@ -76,23 +77,28 @@ pub struct Player {
     engine: EngineSlot,
     /// The output's rate (buffers, song and clock count its frames).
     sample_rate: f64,
-    /// Output frames per engine sample, and the upsamplers (left, right).
+    /// Output frames per engine sample, and the upsamplers (one per
+    /// channel).
     factor: usize,
-    up: [Upsampler; 2],
-    /// Upsampled output; its frames `held_at..held_at + held` are computed
-    /// but not sent yet (the end of the last engine block).
-    ul: Vec<f32>,
-    ur: Vec<f32>,
+    up: Vec<Upsampler>,
+    /// Channels the output takes at most: the stereo mix in the first two,
+    /// or one per microphone when the set-up asks for it and they fit.
+    channels: usize,
+    /// Upsampled output; its frames `held_at..held_at + held` of the first
+    /// `held_ch` channels are computed but not sent yet (the end of the
+    /// last engine block).
+    ub: Vec<Vec<f32>>,
     held_at: usize,
     held: usize,
+    held_ch: usize,
     /// The MIDI file and its transport.
     song: Option<SongPlayer>,
     clock: u64,
     queue: Option<rtrb::Consumer<Event>>,
     all: Vec<TimedEvent>,
     piece: Vec<TimedEvent>,
-    l: Vec<f32>,
-    r: Vec<f32>,
+    /// The engine's output at its rate, per channel.
+    buf: Vec<Vec<f32>>,
     stats: Arc<Stats>,
     blackbox: Option<Arc<crate::blackbox::BlackBox>>,
 }
@@ -109,27 +115,34 @@ impl Player {
         stats: Arc<Stats>,
     ) -> Self {
         let engine_rate = sample_rate / factor as f64;
-        let up = || Upsampler::new(engine_rate, factor, MAX_BLOCK);
         let size = if factor > 1 { MAX_BLOCK * factor } else { 0 };
         Self {
             engine,
             sample_rate,
             factor,
-            up: [up(), up()],
-            ul: vec![0.0; size],
-            ur: vec![0.0; size],
+            up: (0..MAX_CHANNELS).map(|_| Upsampler::new(engine_rate, factor, MAX_BLOCK)).collect(),
+            channels: 2,
+            ub: vec![vec![0.0; size]; MAX_CHANNELS],
             held_at: 0,
             held: 0,
+            held_ch: 2,
             song,
             clock: 0,
             queue,
             all: Vec::with_capacity(MAX_EVENTS),
             piece: Vec::with_capacity(MAX_EVENTS),
-            l: vec![0.0; MAX_BLOCK],
-            r: vec![0.0; MAX_BLOCK],
+            buf: vec![vec![0.0; MAX_BLOCK]; MAX_CHANNELS],
             stats,
             blackbox: None,
         }
+    }
+
+    /// The output takes up to `n` channels (2 to [`MAX_CHANNELS`]): one per
+    /// microphone when the set-up asks for it and they fit, else the
+    /// stereo mix.
+    pub fn with_channels(mut self, n: usize) -> Self {
+        self.channels = n.clamp(2, MAX_CHANNELS);
+        self
     }
 
     /// Records every engine block into the flight recorder.
@@ -141,12 +154,14 @@ impl Player {
     /// Renders `frames` samples. `input` are events at frames relative to
     /// the buffer, in order; queued events play at its start, file events at
     /// their exact frame. `mirror(frame, event)` sees every event played, in
-    /// order; `out(offset, left, right)` receives the audio in pieces.
+    /// order; `out(offset, channels)` receives the audio in pieces (the
+    /// stereo mix, or one channel per microphone; the output's other
+    /// channels are silent).
     pub fn render(
         &mut self,
         frames: usize,
         input: impl Iterator<Item = (u32, Event)>,
-        mut out: impl FnMut(usize, &[f32], &[f32]),
+        mut out: impl FnMut(usize, &[&[f32]]),
         mut mirror: impl FnMut(u32, Event),
     ) {
         let start = Instant::now();
@@ -195,7 +210,9 @@ impl Player {
         if self.held > 0 {
             let n = self.held.min(frames);
             let at = self.held_at;
-            out(0, &self.ul[at..at + n], &self.ur[at..at + n]);
+            let mut it = self.ub.iter();
+            let chans: [&[f32]; MAX_CHANNELS] = std::array::from_fn(|_| it.next().map_or(&[][..], |v| &v[at..at + n]));
+            out(0, &chans[..self.held_ch]);
             (self.held_at, self.held, done) = (at + n, self.held - n, n);
         }
         while done < frames {
@@ -208,20 +225,32 @@ impl Player {
                 self.piece.push(TimedEvent { frame: frame as u32, event: e.event });
                 i += 1;
             }
-            self.engine.process_stereo(&self.piece, &mut self.l[..n], &mut self.r[..n]);
+            // One channel per microphone when asked and they fit, else stereo.
+            let want = self.engine.channels();
+            let n_ch = if want > 2 && want <= self.channels { want } else { 2 };
+            {
+                let mut it = self.buf.iter_mut();
+                let mut o: [&mut [f32]; MAX_CHANNELS] = std::array::from_fn(|_| it.next().map_or(&mut [][..], |v| &mut v[..n]));
+                self.engine.process_channels(&self.piece, &mut o[..n_ch]);
+            }
             if let Some(b) = &self.blackbox {
                 let (swap, events) = self.engine.journal();
-                b.block(swap, events, &self.l[..n], &self.r[..n]);
+                b.block(swap, events, &self.buf[0][..n], &self.buf[1][..n]);
             }
             let sent = if k == 1 {
-                out(done, &self.l[..n], &self.r[..n]);
+                let mut it = self.buf.iter();
+                let chans: [&[f32]; MAX_CHANNELS] = std::array::from_fn(|_| it.next().map_or(&[][..], |v| &v[..n]));
+                out(done, &chans[..n_ch]);
                 n
             } else {
-                self.up[0].process(&self.l[..n], &mut self.ul[..n * k]);
-                self.up[1].process(&self.r[..n], &mut self.ur[..n * k]);
+                for c in 0..n_ch {
+                    self.up[c].process(&self.buf[c][..n], &mut self.ub[c][..n * k]);
+                }
                 let m = (n * k).min(frames - done);
-                out(done, &self.ul[..m], &self.ur[..m]);
-                (self.held_at, self.held) = (m, n * k - m);
+                let mut it = self.ub.iter();
+                let chans: [&[f32]; MAX_CHANNELS] = std::array::from_fn(|_| it.next().map_or(&[][..], |v| &v[..m]));
+                out(done, &chans[..n_ch]);
+                (self.held_at, self.held, self.held_ch) = (m, n * k - m, n_ch);
                 m
             };
             done += sent;
@@ -264,7 +293,7 @@ mod tests {
         let (mut control, engine) = piano_control::new(model, cfg);
         let mut player = Player::new(engine, 48_000.0, 1, None, None, Arc::default());
         let mut mirrored = Vec::new();
-        let render = |player: &mut Player, mirrored: &mut Vec<Event>| player.render(256, std::iter::empty(), |_, _, _| {}, |_, e| mirrored.push(e));
+        let render = |player: &mut Player, mirrored: &mut Vec<Event>| player.render(256, std::iter::empty(), |_, _| {}, |_, e| mirrored.push(e));
         control.play(60, 100);
         render(&mut player, &mut mirrored);
         let mut obs = piano_core::Observation::default();
@@ -316,7 +345,7 @@ mod tests {
         let mut done = 0;
         for &n in sizes.iter().cycle() {
             let n = n.min(total - done);
-            player.render(n, std::iter::empty(), |off, l, _| out[done + off..done + off + l.len()].copy_from_slice(l), |_, _| {});
+            player.render(n, std::iter::empty(), |off, c| out[done + off..done + off + c[0].len()].copy_from_slice(c[0]), |_, _| {});
             done += n;
             if done == total {
                 break;
@@ -398,7 +427,7 @@ mod tests {
                 rebuilt = true;
             }
             let n = n.min(total - done);
-            player.render(n, std::iter::empty(), |off, l, _| out[done + off..done + off + l.len()].copy_from_slice(l), |_, _| {});
+            player.render(n, std::iter::empty(), |off, c| out[done + off..done + off + c[0].len()].copy_from_slice(c[0]), |_, _| {});
             done += n;
             if done == total {
                 break;
