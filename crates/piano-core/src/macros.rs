@@ -163,6 +163,7 @@ impl PianoModel {
         m.noise.keybed *= k;
         m.noise.damper_mass *= k;
         m.noise.pedal *= k;
+        m.body.gain *= k;
 
         // Size: a longer bass scale (less inharmonic), a larger board and
         // frame, heavier hammers.

@@ -234,10 +234,13 @@ horizontal = 0.3
 wedges = true
 wedge_until = 35
 wedge_strength = 0.06
-# The last damper at G6, 71 dampers, the whole of the fourth section of strings, as the
-# D's photograph from above shows and as the commercial D has. E6 (68) from 2026-11-14
-# to 2026-11-15 was a miscount (docs/release.md, docs/string_sections.md).
-highest_note = 91
+# The last damper at D6 (86): the sound aimed at is the Splendid Grand's, whose
+# undamped strings ring from D#6 up under nearly every lower key (lines at D#6–B6 in
+# 10–17 of its 38 keys below C6; Plath's concert grand the same), where this preset had
+# them from G#6 (docs/body.md). G6 (91), the D's photograph from above and the
+# commercial D, until 2026-11-17; E6 (68) from 2026-11-14 to 2026-11-15 was a miscount
+# (docs/release.md, docs/string_sections.md).
+highest_note = 86
 # The 19th to 22nd dampers, either side of the break between the bass and the tenor,
 # rest 1.5 cm nearer the hammers than the line of the others, clear of the frame's
 # struts there (read off a photograph of a D, within 5 mm; docs/string_sections.md).
@@ -257,3 +260,19 @@ brake = true
 # The rear duplex: from B3 up no felt lies on the strings' rear lengths, which ring a
 # little with everything that is played (docs/capo_duplex.md).
 rear = true
+
+[nonlinear]
+# Phantom partials and longitudinal modes at the Splendid Grand's level: its bass lines
+# half-way between the partials (A1: 1.2–1.6 kHz) stand 10 dB over the default's 0.3;
+# 1.0 puts A1 within 2–3 dB of them from 20 ms to 0.4 s (docs/body.md).
+coupling = 1.0
+
+[body]
+# The body's halo after each strike, calibrated on the Splendid Grand: once the
+# partials are taken out, its median over 14 keys (A1–C7, ff) within 5 dB from 63 Hz
+# to 4 kHz and from 20 ms to 1 s (docs/body.md).
+enabled = true
+gain = 0.05
+slope = -3.0
+levels = [-7.0, 0.0, -4.0, -12.0, -23.0, -28.0, -40.0, -40.0]
+t60 = [1.6, 1.15, 0.9, 0.8, 0.8, 0.5, 0.3, 0.2]

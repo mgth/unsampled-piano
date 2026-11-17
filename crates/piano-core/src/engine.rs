@@ -326,6 +326,8 @@ pub struct Engine {
     /// The action's knock, heard directly, and the decay time it was set to.
     action: crate::action::ActionNoise,
     action_time: f64,
+    /// The body's halo after each strike (crate::body).
+    body: crate::body::BodyBank,
     room: Option<crate::room::Room>,
     /// Damper engagement below which a landing damper counts as an impact.
     sustain_prev: f64,
@@ -361,6 +363,7 @@ impl Engine {
         let shortcuts = cfg.quality.shortcuts();
         let capacity = inst.table.capacity();
         let action_time = inst.model.noise.action_time;
+        let body_law = inst.model.body;
         let voices = (0..cfg.polyphony)
             .map(|_| {
                 let mut v = Voice::with_capacity(cfg.sample_rate, cfg.max_block, capacity);
@@ -447,6 +450,7 @@ impl Engine {
             knocks: [Knock::default(); MAX_KNOCKS],
             action: crate::action::ActionNoise::new(cfg.sample_rate, action_time),
             action_time,
+            body: crate::body::BodyBank::new(cfg.sample_rate, &body_law),
             room,
             sustain_prev: 0.0,
             mic_last: [0.0; MICS],
@@ -816,6 +820,11 @@ impl Engine {
                     self.action.set_time(self.action_time);
                 }
                 self.action.render([&mut *left, &mut *right], out_gain * PRESSURE_GAIN);
+                if self.live.body != *self.body.law() {
+                    let law = self.live.body;
+                    self.body.set_law(&law);
+                }
+                self.body.render([&mut *left, &mut *right], out_gain * PRESSURE_GAIN);
                 if let Some(room) = self.room.as_mut() {
                     room.process(left, right);
                 }
@@ -1149,6 +1158,7 @@ impl Engine {
         self.knock(region_of(note), self.live.noise.keybed * vh);
         if self.board.is_some() {
             self.action.strike(note, self.live.noise.action * vh, self.live.noise.action_delay);
+            self.body.strike(note, thrown);
         }
     }
 

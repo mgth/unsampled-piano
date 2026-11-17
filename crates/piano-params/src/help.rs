@@ -1178,6 +1178,22 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("noise.action_time", "How long the action's clack rings.", "Decay time T60 (s) of the resonances at 500 Hz, shorter above as (500/f)^0.3."),
     ("noise.action_delay", "How long after the hammer meets the string the action's clack comes.", "Delay (s) of the knock after the strike: the key bottoms just after the hammer reaches the string."),
+    // Body
+    (
+        "body.enabled",
+        "The body's halo: after each strike the keybed, case, rim and the board's low modes ring \
+         for a fraction of a second, filling the space between the partials. Much of a real \
+         piano's character lies there.",
+        "A bank of 1024 damped resonances (40 Hz–10 kHz, one every 3.5–7 Hz below 2 kHz) \
+         shared by all keys, struck by each key with its own pattern, heard directly \
+         (docs/body.md).",
+    ),
+    ("body.gain", "How loud the body's halo is.", "Peak pressure (Pa) at the microphones per m/s of hammer speed, before the octave levels."),
+    ("body.slope", "Whether the halo grows or fades towards the treble.", "Level change (dB) per octave of the key above middle C."),
+    ("body.levels", "The colour of the halo, octave by octave.", "Level (dB) of the octave bands centred at 63, 125, 250, 500 Hz, 1, 2, 4 and 8 kHz, interpolated in between."),
+    ("body.t60", "How long the halo rings, octave by octave.", "Decay time T60 (s) of the resonances in the same octave bands."),
+    ("body.delay", "How long after the hammer meets the string the halo starts.", "Delay (s) of the strike on the bank after the hammer's contact."),
+    ("body.shared", "How much every key shakes the body the same way.", "Share (0–1) of each key's pattern of amplitudes common to all keys; the rest is the key's own."),
     // Room
     ("room.enabled", "The hall around the piano: wall reflections and reverberation.", "Image sources for the early reflections, a 16-line feedback delay network for the tail."),
     (

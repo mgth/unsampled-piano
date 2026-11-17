@@ -873,6 +873,53 @@ impl NoiseLaw {
     }
 }
 
+/// The body ringing after each strike: the keybed, keyframe, case, rim and
+/// the board's low modes, shaken through the action as the hammer meets the
+/// string, radiated as a dense, continuous halo between the partials. On real
+/// grands, once the partials are taken out, this halo is 30 dB louder than
+/// the model's own at 125 Hz–1 kHz from 60 ms on and dies within 0.6–1 s
+/// (docs/body.md); its level and decay set much of each piano's character.
+/// A shared bank of [`crate::body::MODES`] resonances, struck by each key with
+/// its own pattern, heard directly (crate::body).
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+pub struct BodyLaw {
+    pub enabled: bool,
+    /// Peak pressure (Pa) at the microphones per m/s of hammer speed, before
+    /// the octave levels.
+    pub gain: f64,
+    /// Level change (dB) per octave of the key above middle C.
+    pub slope: f64,
+    /// Level (dB) of each octave band, centred at 63, 125, 250, 500 Hz, 1, 2,
+    /// 4 and 8 kHz; interpolated between them.
+    pub levels: [f64; 8],
+    /// Decay time T60 (s) in the same octave bands.
+    pub t60: [f64; 8],
+    /// Delay (s) after the hammer meets the string.
+    pub delay: f64,
+    /// Share of each key's pattern of amplitudes common to every key (the
+    /// same body answers them all); the rest is the key's own.
+    pub shared: f64,
+}
+
+impl BodyLaw {
+    pub const DEFAULT: Self = Self {
+        enabled: false,
+        gain: 0.0,
+        slope: 0.0,
+        levels: [0.0; 8],
+        t60: [0.6, 0.6, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1],
+        delay: 0.002,
+        shared: 0.5,
+    };
+}
+
+impl Default for BodyLaw {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
 /// Geometric nonlinearity of the strings (Bank & Sujbert 2005): a string
 /// vibrating with a large amplitude stretches, which drives its
 /// longitudinal modes with the products of the transverse partials (sum and
@@ -1205,6 +1252,8 @@ pub struct PianoModel {
     /// Longitudinal modes driven by the transverse motion (phantom partials).
     pub nonlinear: StringNonlinearity,
     pub noise: NoiseLaw,
+    /// The body's halo after each strike (crate::body).
+    pub body: BodyLaw,
     /// The room around the piano (early reflections and reverberation).
     pub room: crate::room::RoomParams,
     /// The cast-iron frame (driven by the agraffes) and the rim (driven by
@@ -1329,6 +1378,7 @@ impl Default for PianoModel {
             sympathetic: SympatheticLaw::DEFAULT,
             nonlinear: StringNonlinearity::DEFAULT,
             noise: NoiseLaw::DEFAULT,
+            body: BodyLaw::DEFAULT,
             room: crate::room::RoomParams::CONCERT_HALL,
             frame: crate::structure::FrameParams::GRAND_2M,
             rim: crate::structure::RimParams::GRAND_2M,
