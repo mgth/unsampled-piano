@@ -357,6 +357,12 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("losses.b2_top_from", "Key from which the top strings have their own overtone losses.", "MIDI note where b2_top holds in full."),
     (
+        "losses.b2_high",
+        "Overtone losses of the top octaves, apart from the middle's: lower lets the highest strings ring on as real ones do.",
+        "Coefficient (s) of the frequency term from b2_high_from up, coming in over the octave below. 0: none.",
+    ),
+    ("losses.b2_high_from", "Key from which the top octaves have their own overtone losses.", "MIDI note where b2_high holds in full."),
+    (
         "scale.len_c8",
         "Speaking length of the highest string (C8), between its two bearing points.",
         "Lengths grow by `ratio_per_octave` per octave down to `break_note`. This generic 2 m \

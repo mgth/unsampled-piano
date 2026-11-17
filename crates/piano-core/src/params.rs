@@ -200,6 +200,12 @@ pub struct LossLaw {
     /// commercial D asks for (docs/bass_gaps.md).
     pub b2_top: f64,
     pub b2_top_from: u8,
+    /// A third `b2` for the top octaves: `b2_high` from `b2_high_from` up,
+    /// coming in linearly over the octave below it. 0: none. The middle
+    /// keeps `b2_top` (heard as strings that buzz with less), while the top
+    /// strings of a real grand ring on with less (docs/body.md).
+    pub b2_high: f64,
+    pub b2_high_from: u8,
 }
 
 
@@ -207,7 +213,7 @@ impl LossLaw {
     /// Early ("prompt") decay of single partials, Salamander survey. A single
     /// string per note cannot reproduce the two-stage decay (Phase 2).
     pub const SALAMANDER_EARLY: Self =
-        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108, winding: 0.0, winding_until: 40, b2_top: 0.0, b2_top_from: 84 };
+        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108, winding: 0.0, winding_until: 40, b2_top: 0.0, b2_top_from: 84, b2_high: 0.0, b2_high_from: 96 };
     /// Intrinsic string losses: law of the ESPRIT aftersound (no bridge
     /// losses), scaled down by the decay calibration of the full instrument
     /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. b1
@@ -228,16 +234,21 @@ impl LossLaw {
     /// darker than the others, left the bass's 1–8 kHz sustain bands under
     /// eight real grands (docs/bench.md, 2026-10-30).
     pub const SALAMANDER_STRING: Self =
-        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 1e-4, winding_until: 40, b2_top: 0.0, b2_top_from: 84 };
+        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 1e-4, winding_until: 40, b2_top: 0.0, b2_top_from: 84, b2_high: 0.0, b2_high_from: 96 };
 
-    /// The frequency term's coefficient on a key: `b2`, or on its way to
-    /// `b2_top` over the octave below `b2_top_from`.
+    /// The frequency term's coefficient on a key: `b2`, on its way to
+    /// `b2_top` over the octave below `b2_top_from`, then to `b2_high` over
+    /// the octave below `b2_high_from`.
     pub fn b2_at(&self, note: u8) -> f64 {
-        if self.b2_top <= 0.0 {
-            return self.b2;
+        let ramp = |from: u8| ((note as f64 - (from as f64 - 12.0)) / 12.0).clamp(0.0, 1.0);
+        let mut b2 = self.b2;
+        if self.b2_top > 0.0 {
+            b2 += (self.b2_top - self.b2) * ramp(self.b2_top_from);
         }
-        let t = ((note as f64 - (self.b2_top_from as f64 - 12.0)) / 12.0).clamp(0.0, 1.0);
-        self.b2 + (self.b2_top - self.b2) * t
+        if self.b2_high > 0.0 {
+            b2 += (self.b2_high - b2) * ramp(self.b2_high_from);
+        }
+        b2
     }
 
     pub fn sigma(&self, note: u8, freq: f64) -> f64 {

@@ -99,6 +99,12 @@ c = -1.402352
 # (docs/bass_unisons.md).
 b2 = 1.0e-7
 b2_top = 2.0e-7
+# The top octaves at the default's middle value again, from C7 (in over the octave
+# below): at 2.0e-7 the top strings died twice as fast as on the real grands of the
+# comparison tool (early decay F#7 −47 dB/s against −29, A7 −59 against −33); the
+# middle keeps 2.0e-7, the buzz heard with less (docs/body.md).
+b2_high = 1.0e-7
+b2_high_from = 96
 b2_top_from = 60
 # Wound strings on the bass bridge only, A0–E2.
 wound_until = 41
@@ -129,6 +135,10 @@ trichord_from = 34
 # every partial of F1-B2 above 300 Hz beat, where a real concert grand shows no null
 # in five seconds (docs/bass_unisons.md).
 width_bass = 0.1
+# 2 cents between the strings of a key at C8 (5 by default): at C7 their beat left a
+# 25 dB null between 0.6 and 1 s that the real grands do not have (C7 at 1 s −61 dB
+# against −29 to −44; docs/body.md).
+width_treble = 2.0
 
 [soundboard]
 # Each key drives the built board's modes at its own bridge point, up to their last.

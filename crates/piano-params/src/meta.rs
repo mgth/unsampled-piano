@@ -118,6 +118,7 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("polarization.hammer_tilt_bass", "Hammer tilt, bass", "", 0.0, 1.0, false),
     ("polarization.radiation_bass", "Sideways radiation, bass", "", 0.0, 2.0, false),
     ("polarization.cross_bass", "Cross coupling, bass", "", 0.0, 1.0, false),
+    ("losses.b2_high", "Overtone losses, top octaves (0: none)", "s", 0.0, 5e-7, false),
     ("hardness", "Felt hardness", "", 0.02, 2.0, true),
     ("hardness_slope", "Hardness slope (treble)", "/key", -0.05, 0.08, false),
     ("hardness_slope_bass", "Hardness slope (bass)", "/key", -0.05, 0.08, false),
