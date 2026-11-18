@@ -41,6 +41,9 @@ pub struct App {
     /// Pianos the band and the model's z are computed on (the real
     /// pianos by default), apart from those shown.
     in_band: Vec<bool>,
+    /// A second group, empty by default, to set against the first (pianos
+    /// sorted by ear, say). It has no part in the model's z.
+    in_band2: Vec<bool>,
     shown: Vec<bool>,
     band: Band,
     match_levels: bool,
@@ -183,6 +186,7 @@ impl App {
             layer: 8,
             visible: vec![true; n],
             in_band: Vec::new(),
+            in_band2: vec![false; n],
             shown: vec![true; DEFS.len()],
             band: Band::MinMax,
             match_levels: true,
@@ -228,6 +232,7 @@ impl App {
                 if st.band_out.contains(&s.key) {
                     self.in_band[i] = false;
                 }
+                self.in_band2[i] = st.band2.contains(&s.key);
             }
         }
         for (i, d) in DEFS.iter().enumerate() {
@@ -256,6 +261,7 @@ impl App {
             hidden: keys(&|i| !self.visible[i]),
             band_in: keys(&|i| self.in_band[i] && !default_in(i)),
             band_out: keys(&|i| !self.in_band[i] && default_in(i)),
+            band2: keys(&|i| self.in_band2[i]),
             hidden_measures: DEFS.iter().enumerate().filter(|(i, _)| !self.shown[*i]).map(|(_, d)| d.name.to_string()).collect(),
             band_mode: Some(match self.band {
                 Band::MinMax => "min_max",
@@ -378,23 +384,29 @@ impl App {
         self.results.get(&(si, midi, layer))?.get(id)
     }
 
-    /// Values of the pianos in the band at a key (transformed if log).
-    fn target_values(&self, midi: u8, id: Id) -> Vec<f64> {
+    /// Values of the pianos of a band at a key (transformed if log).
+    fn band_values(&self, band: &[bool], midi: u8, id: Id) -> Vec<f64> {
         let d = measure::def(id);
         (0..self.sources.len())
-            .filter(|&si| self.in_band[si])
+            .filter(|&si| band[si])
             .filter_map(|si| self.value(si, midi, self.layer, id))
             .map(|v| tf(v, d.log))
             .filter(|v| v.is_finite())
             .collect()
     }
 
-    /// Model's distance to the pianos in the band at a key, in their spread.
+    /// The two bands with their fill and edge, the first drawn first.
+    fn bands(&self, ui: &Ui) -> [(&[bool], Color32, Color32); 2] {
+        let edge = |n| band_ink(ui, n).gamma_multiply(0.75);
+        [(&self.in_band, band_color(ui, 0), edge(0)), (&self.in_band2, band_color(ui, 1), edge(1))]
+    }
+
+    /// Model's distance to the pianos of band 1 at a key, in their spread.
     fn z(&self, midi: u8, id: Id) -> Option<f64> {
         let mi = self.model?;
         let d = measure::def(id);
         let v = tf(self.value(mi, midi, self.layer, id)?, d.log);
-        let r = self.target_values(midi, id);
+        let r = self.band_values(&self.in_band, midi, id);
         if r.len() < 2 || !v.is_finite() {
             return None;
         }
@@ -529,7 +541,7 @@ impl App {
                     ui.selectable_value(&mut self.band, Band::Off, "off");
                 })
                 .response
-                .on_hover_text("Shaded spread of the pianos ticked \"band\" in the list of pianos");
+                .on_hover_text("Shaded spread of the pianos ticked \"band 1\" and \"band 2\" in the list of pianos");
             ui.menu_button("Measures", |ui| {
                 for (i, d) in DEFS.iter().enumerate() {
                     ui.checkbox(&mut self.shown[i], d.name);
@@ -627,7 +639,7 @@ impl App {
             painter.rect_filled(r, 1.0, self.median_z(m).map_or(Color32::from_gray(80).gamma_multiply(0.3), z_color));
         }
         let strip_resp = ui.interact(strip, ui.scope_id().with("z-strip"), Sense::hover());
-        strip_resp.on_hover_text("The model's median |z| over the measures shown, key by key: green within the band (<= 1), amber close (<= 2), red off");
+        strip_resp.on_hover_text("The model's median |z| over the measures shown, key by key: green within band 1 (<= 1), amber close (<= 2), red off");
         if let Some(m) = hover {
             let have_list: Vec<&str> = self.sources.iter().filter(|s| s.files.contains_key(&(m, self.layer))).map(|s| s.label.as_str()).collect();
             resp.clone().on_hover_text(format!("{} {}: {} piano(s)\n{}", note_name(m), layer_name(self.layer), have_list.len(), have_list.join("\n")));
@@ -687,7 +699,7 @@ impl App {
                             None => text,
                         });
                         if let Some(z) = z {
-                            r.on_hover_text(format!("z = {z:+.2} (in spreads of the pianos in the band)"));
+                            r.on_hover_text(format!("z = {z:+.2} (in spreads of the pianos in band 1)"));
                         }
                     } else {
                         ui.label(text);
@@ -695,23 +707,29 @@ impl App {
                 }
                 ui.end_row();
             }
-            ui.label("");
-            ui.label(RichText::new("Band").weak()).on_hover_text("Mean ± standard deviation of the pianos in the band (a log measure: geometric)");
-            for d in &shown {
-                let r = self.target_values(note, d.id);
-                if r.len() >= 2 {
-                    let (m, sd) = mean_sd(&r);
-                    let txt = if d.log {
-                        format!("{} ×/ {:.2}", fmt_value(10f64.powf(m), d), 10f64.powf(sd))
-                    } else {
-                        format!("{} ± {:.*}", fmt_value(m, d), d.decimals, sd)
-                    };
-                    ui.label(RichText::new(txt).monospace().weak());
-                } else {
-                    ui.label("");
+            for (n, band) in [&self.in_band, &self.in_band2].into_iter().enumerate() {
+                // The second band has its row once it holds a piano.
+                if n == 1 && !band.contains(&true) {
+                    continue;
                 }
+                ui.label("");
+                ui.label(RichText::new(format!("Band {}", n + 1)).color(band_label(ui, n))).on_hover_text("Mean ± standard deviation of the pianos in this band (a log measure: geometric)");
+                for d in &shown {
+                    let r = self.band_values(band, note, d.id);
+                    if r.len() >= 2 {
+                        let (m, sd) = mean_sd(&r);
+                        let txt = if d.log {
+                            format!("{} ×/ {:.2}", fmt_value(10f64.powf(m), d), 10f64.powf(sd))
+                        } else {
+                            format!("{} ± {:.*}", fmt_value(m, d), d.decimals, sd)
+                        };
+                        ui.label(RichText::new(txt).monospace().weak());
+                    } else {
+                        ui.label("");
+                    }
+                }
+                ui.end_row();
             }
-            ui.end_row();
         });
         if let Some(si) = clicked {
             self.current = si;
@@ -721,23 +739,14 @@ impl App {
 
     fn legend(&mut self, ui: &mut Ui) {
         ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Pianos").strong());
-                ui.label(RichText::new("band:").weak()).on_hover_text("Which pianos the band and the model's z are computed on");
-                if ui.small_button("real").on_hover_text("The real pianos (the bench's targets)").clicked() {
-                    self.in_band = self.sources.iter().map(|s| s.role == Role::Target).collect();
-                }
-                if ui.small_button("all").on_hover_text("Every piano but the model").clicked() {
-                    self.in_band = self.sources.iter().map(|s| s.role != Role::Model).collect();
-                }
-                if ui.small_button("none").clicked() {
-                    self.in_band.fill(false);
-                }
-            });
+            ui.label(RichText::new("Pianos").strong());
+            band_buttons(ui, 0, &mut self.in_band, &self.sources, "The pianos of the first band; the model's z is computed on them");
+            band_buttons(ui, 1, &mut self.in_band2, &self.sources, "A second group of pianos to set against the first; the model's z ignores it");
             egui::Grid::new("legend").spacing(Vec2::new(6.0, 0.0)).show(ui, |ui| {
                 ui.label("");
                 ui.label(RichText::new("show").small().weak()).on_hover_text("Drawn in the plots");
-                ui.label(RichText::new("band").small().weak()).on_hover_text("Counted in the band and in the model's z (at least two pianos at a key)");
+                ui.label(RichText::new("band 1").small().color(band_label(ui, 0))).on_hover_text("Counted in the first band and in the model's z (at least two pianos at a key)");
+                ui.label(RichText::new("band 2").small().color(band_label(ui, 1))).on_hover_text("Counted in the second band (at least two pianos at a key)");
                 ui.label("");
                 ui.end_row();
                 for si in 0..self.sources.len() {
@@ -760,8 +769,9 @@ impl App {
                     let model = s.role == Role::Model;
                     let label = format!("{}{kind}", s.label);
                     ui.checkbox(&mut self.visible[si], "");
-                    // The model is what the band judges: never in it.
+                    // The model is what the bands judge: never in them.
                     ui.add_enabled(!model, egui::Checkbox::without_text(&mut self.in_band[si]));
+                    ui.add_enabled(!model, egui::Checkbox::without_text(&mut self.in_band2[si]));
                     ui.label(label).on_hover_text(tip);
                     ui.end_row();
                 }
@@ -782,18 +792,20 @@ impl App {
                 ui.painter().text(f.px(k as f64, f.y.0) + Vec2::new(0.0, 3.0), Align2::CENTER_TOP, k.to_string(), FontId::proportional(10.0), text);
             }
             if self.band != Band::Off {
-                let mut band = Vec::new();
-                for k in 0..PARTIALS {
-                    let r: Vec<f64> = (0..self.sources.len())
-                        .filter(|&s| self.in_band[s])
-                        .filter_map(|s| self.results.get(&(s, note, layer))?.partials.get(k).copied().flatten())
-                        .map(|v| v as f64)
-                        .collect();
-                    if r.len() >= 2 {
-                        band.push(band_of(&r, self.band, (k + 1) as f64));
+                for (members, color, edge) in self.bands(ui) {
+                    let mut band = Vec::new();
+                    for k in 0..PARTIALS {
+                        let r: Vec<f64> = (0..self.sources.len())
+                            .filter(|&s| members[s])
+                            .filter_map(|s| self.results.get(&(s, note, layer))?.partials.get(k).copied().flatten())
+                            .map(|v| v as f64)
+                            .collect();
+                        if r.len() >= 2 {
+                            band.push(band_of(&r, self.band, (k + 1) as f64));
+                        }
                     }
+                    plot::band(ui, &f, &band, color, edge, 1.0);
                 }
-                plot::band(ui, &f, &band, band_color(ui), 1.0);
             }
             let series = self.sources_in_order().filter_map(|si| {
                 let a = self.results.get(&(si, note, layer))?;
@@ -844,8 +856,8 @@ impl App {
                 let off = zs.iter().filter(|z| z.abs() > 2.0).count();
                 let rms = (zs.iter().map(|z| z * z).sum::<f64>() / zs.len() as f64).sqrt();
                 let bias = zs.iter().sum::<f64>() / zs.len() as f64;
-                ui.label(RichText::new(format!("model: {:.0} % within the band, {off} keys off (|z| > 2), rms z {rms:.2}, mean z {bias:+.2} on {} keys", 100.0 * within, zs.len())).weak())
-                    .on_hover_text("z: the model's distance to the mean of the pianos in the band, in units of their spread (at least a floor per measure)");
+                ui.label(RichText::new(format!("model: {:.0} % within band 1, {off} keys off (|z| > 2), rms z {rms:.2}, mean z {bias:+.2} on {} keys", 100.0 * within, zs.len())).weak())
+                    .on_hover_text("z: the model's distance to the mean of the pianos in band 1, in units of their spread (at least a floor per measure)");
             }
         });
         let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, 170.0), Sense::click());
@@ -862,16 +874,20 @@ impl App {
                 self.series(si, pts, (inner.width() / 52.0 * 2.2) as f64)
             })
             .collect();
-        let mut band = Vec::new();
+        let mut bands = Vec::new();
         if self.band != Band::Off {
-            for m in LOW..=HIGH {
-                let r = self.target_values(m, d.id);
-                if r.len() >= 2 {
-                    band.push(band_of(&r, self.band, x_of(m)));
+            for (members, color, edge) in self.bands(ui) {
+                let mut band = Vec::new();
+                for m in LOW..=HIGH {
+                    let r = self.band_values(members, m, d.id);
+                    if r.len() >= 2 {
+                        band.push(band_of(&r, self.band, x_of(m)));
+                    }
                 }
+                bands.push((band, color, edge));
             }
         }
-        let mut all: Vec<f64> = series.iter().flat_map(|s| s.points.iter().map(|p| p.1)).chain(band.iter().flat_map(|b| [b.1, b.2])).collect();
+        let mut all: Vec<f64> = series.iter().flat_map(|s| s.points.iter().map(|p| p.1)).chain(bands.iter().flat_map(|(b, ..)| b.iter().flat_map(|b| [b.1, b.2]))).collect();
         let (y0, y1) = plot::y_range(&mut all);
         let f = Frame { rect: inner, x: (inner.left() as f64, inner.right() as f64), y: (y0, y1) };
         let (grid, text) = (ui.visuals().widgets.noninteractive.bg_stroke.color, ui.visuals().weak_text_color());
@@ -888,7 +904,9 @@ impl App {
             && y0 < 0.0 && y1 > 0.0 {
                 ui.painter().line_segment([f.px(f.x.0, 0.0), f.px(f.x.1, 0.0)], Stroke::new(1.0, text.gamma_multiply(0.6)));
             }
-        plot::band(ui, &f, &band, band_color(ui), (inner.width() / 52.0 * 2.2) as f64);
+        for (band, color, edge) in &bands {
+            plot::band(ui, &f, band, *color, *edge, (inner.width() / 52.0 * 2.2) as f64);
+        }
         for s in &series {
             plot::series(ui, &f, s);
         }
@@ -1007,8 +1025,45 @@ fn band_of(r: &[f64], band: Band, x: f64) -> (f64, f64, f64) {
     }
 }
 
-fn band_color(ui: &Ui) -> Color32 {
-    if ui.visuals().dark_mode { Color32::from_rgba_unmultiplied(160, 170, 190, 40) } else { Color32::from_rgba_unmultiplied(90, 110, 140, 45) }
+/// A band's hue: grey-blue for the first, amber for the second.
+fn band_ink(ui: &Ui, n: usize) -> Color32 {
+    match (n, ui.visuals().dark_mode) {
+        (0, true) => Color32::from_rgb(160, 170, 190),
+        (0, false) => Color32::from_rgb(90, 110, 140),
+        (_, true) => Color32::from_rgb(240, 170, 60),
+        (_, false) => Color32::from_rgb(200, 125, 20),
+    }
+}
+
+/// A band's name: the plots' amber is too pale for text on a light panel.
+fn band_label(ui: &Ui, n: usize) -> Color32 {
+    if n == 1 && !ui.visuals().dark_mode { Color32::from_rgb(155, 90, 10) } else { band_ink(ui, n) }
+}
+
+fn band_color(ui: &Ui, n: usize) -> Color32 {
+    let [r, g, b, _] = band_ink(ui, n).to_array();
+    let alpha = match (n, ui.visuals().dark_mode) {
+        (0, true) => 40,
+        (0, false) => 45,
+        _ => 60,
+    };
+    Color32::from_rgba_unmultiplied(r, g, b, alpha)
+}
+
+/// A band's name and its shortcuts for filling it.
+fn band_buttons(ui: &mut Ui, n: usize, band: &mut Vec<bool>, sources: &[Source], help: &str) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(format!("band {}:", n + 1)).color(band_label(ui, n))).on_hover_text(help);
+        if ui.small_button("real").on_hover_text("The real pianos (the bench's targets)").clicked() {
+            *band = sources.iter().map(|s| s.role == Role::Target).collect();
+        }
+        if ui.small_button("all").on_hover_text("Every piano but the model").clicked() {
+            *band = sources.iter().map(|s| s.role != Role::Model).collect();
+        }
+        if ui.small_button("none").clicked() {
+            band.fill(false);
+        }
+    });
 }
 
 fn z_color(z: f64) -> Color32 {
