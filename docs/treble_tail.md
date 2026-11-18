@@ -103,3 +103,65 @@ The late decay rises against references whose tail is mostly their noise floor. 
 Only C4 and C#4 were low, at 1.1 and 2.6 dB against 4.5–4.9. (A first reading of 0.2–0.4 dB averaged the two microphones, which cancel each other there.)
 
 `width_mid` 1.5 (trial) brought C4 to 2.7 dB and cut the treble's ripple measures off from 11 to 4, since it also widens the treble. But through the bass ramp it widens C3–B3, where the ripple rose to 5–8 dB on A3–B3 against about 1 dB. Over the whole tool, the middle's ripple measures off went from 27 to 30 and the total from 298 to 300. Not kept.
+
+## 2026-11-18: the fundamentals of C#5–G#5 under their upper partials
+
+**What was wrong.** From C#5 to G#5, the sustained sound (0.5–1 s) was far too rich. Its spectral centroid at mf was 2.05 times the fundamental on D#5, 2.88 on E5 and 2.35 on F5, against 1.02–1.05 on the real grands. The comparison tool does not flag it: this measure's tolerance is too wide.
+
+**Not the microphones.** The gap stays with the close, concert and player microphones, with and without the room.
+
+**Two causes.** Levels are re partial 1 at 0.03–0.13 s, model minus the real grands' median, C#5–G#5 at mf, close microphones:
+
+- Partial 1 is 8 to 11 dB too low from 0.33 to 2.4 s.
+- Partials 3 and 4 are 10 and 12 dB too strong from the attack on. C5 and A5–B5 show the same excess.
+
+At the bridge, against Plath's grand, the fundamentals of C#5, D#5, E5, F5 and G#5 decay at −29 to −42 dB/s, against −19 to −30. The board's conductance over C5–B5 is 4.1–9.7e-4 s/kg at the fundamentals, about 5e-4 on its third-octave mean, against 3.1e-4 for the fit of `tools/bridge_conductance.py`.
+
+**Levers tried.** C#5–G#5 at mf, median over the keys. Partial 1 is model minus real (dB); the real centroid is 1.03.
+
+| | Partial 1, 0.6–1 s | Partial 1, 1–1.6 s | Centroid, 0.5–1 s |
+|---|---|---|---|
+| As before | −11.4 | −9.2 | 2.06 |
+| `radiation` 0.3 | −7.5 | −9.5 | 1.81 |
+| **`radiation` 0.6** | **−3.9** | **−9.7** | **1.49** |
+| `h_coupling` 0.12, `cross` at its limit | −13.4 | −8.5 | 1.96 |
+| `detune_cents` 1 | −11.1 | −8.8 | 2.05 |
+| `hammer_tilt` 0.2 | −8.3 | −10.1 | 1.85 |
+| `hit_spread` 0.6 | −9.0 | −8.3 | 2.04 |
+| `width_curve` 0.7 | −9.3 | −8.8 | 2.02 |
+| `bridge_mass` 0.3 kg | −6.7 | −1.4 | 1.73 |
+
+`bridge_mass` lowers the conductance, so it mends partial 1, but more and more with frequency. The upper partials then last longer too. Over the whole keyboard the centroid of C5–A#5 rose from 1.64 to 1.90, and the between-partials measures off went from 9 to 34. Not kept.
+
+**Kept: `radiation` 0.6**, after listening. Sideways motion decays more slowly than vertical motion, so radiating more of it holds up the fundamental and leaves the upper partials alone.
+
+| Whole keyboard, measures off | Before | After |
+|---|---|---|
+| Partial 1 ripple | 73 | 61 |
+| Late decay | 68 | 59 |
+| Early decay | 47 | 46 |
+| Rise time | 39 | 38 |
+| T60 of partial 1 | 30 | 26 |
+| Spectral tilt | 21 | 23 |
+| Tuning | 10 | 11 |
+| Between partials | 9 | 9 |
+| Inharmonicity | 1 | 0 |
+| **Total** | **298** | **273** |
+
+The sustained centroid at mf:
+
+| Key | Before | After | Real grands |
+|---|---|---|---|
+| C#5 | 2.07 | 1.57 | 1.43 |
+| D#5 | 2.05 | 1.84 | 1.02 |
+| E5 | 2.88 | 2.66 | 1.05 |
+| F5 | 2.35 | 1.35 | 1.03 |
+| G#5 | 1.64 | 1.42 | 1.02 |
+| A5 | 1.27 | 1.10 | 1.04 |
+
+**Still open.**
+
+- D#5 and E5 stay too rich: their partials 2 to 4 are too strong from the attack.
+- D4, F4 and A4 get richer, and they already were. A4 at ff goes from 2.09 to 2.81, against 1.60.
+- C5–A#5 now decay too slowly over 0.1–1 s: −21.3 dB/s, against −26.3.
+- The late decay of B5–E6 eases from −14.8 to −11.5 dB/s, against −4.6.
