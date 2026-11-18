@@ -108,7 +108,9 @@ pub fn axes(ui: &Ui, f: &Frame, log: bool, grid: Color32, text: Color32) {
     }
 }
 
-pub fn band(ui: &Ui, f: &Frame, band: &[(f64, f64, f64)], color: Color32, join: f64) {
+/// A shaded band with thin edges, so that two overlapping bands both keep
+/// their limits.
+pub fn band(ui: &Ui, f: &Frame, band: &[(f64, f64, f64)], color: Color32, edge: Color32, join: f64) {
     let p = ui.painter().with_clip_rect(f.rect);
     for w in band.windows(2) {
         let ((x0, lo0, hi0), (x1, lo1, hi1)) = (w[0], w[1]);
@@ -117,6 +119,9 @@ pub fn band(ui: &Ui, f: &Frame, band: &[(f64, f64, f64)], color: Color32, join: 
         }
         let pts = vec![f.px(x0, lo0), f.px(x1, lo1), f.px(x1, hi1), f.px(x0, hi0)];
         p.add(Shape::convex_polygon(pts, color, Stroke::NONE));
+        let stroke = Stroke::new(1.0, edge);
+        p.line_segment([f.px(x0, lo0), f.px(x1, lo1)], stroke);
+        p.line_segment([f.px(x0, hi0), f.px(x1, hi1)], stroke);
     }
     for &(x, lo, hi) in band {
         // Isolated keys still show their spread.

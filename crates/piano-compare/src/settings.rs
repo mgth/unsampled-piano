@@ -1,6 +1,6 @@
 //! What the window remembers from one start to the next: the key, the
 //! layer, the piano played, which pianos are drawn and which make the
-//! band, the measures shown and the playback options. Pianos and measures
+//! two bands, the measures shown and the playback options. Pianos and measures
 //! are stored by name, so a set added later appears with its defaults.
 
 use serde::{Deserialize, Serialize};
@@ -19,6 +19,8 @@ pub struct Settings {
     /// (the real pianos in, the others out).
     pub band_in: Vec<String>,
     pub band_out: Vec<String>,
+    /// Pianos in the second band (empty by default).
+    pub band2: Vec<String>,
     /// Measures not shown, by name.
     pub hidden_measures: Vec<String>,
     pub band_mode: Option<String>,
