@@ -54,3 +54,52 @@ The honky-tonk preset keeps the quadratic curve (its unisons are meant to be far
 ## Also seen
 
 At the concert microphones (the user's set-up), a strong strike's attack carries 10 dB more at 2–4 kHz re its fundamental than Salamander's at C4 (−4.5 against −14.7 dB). With the close microphones it is −14.2, Salamander's. The board's radiation at that elevation and distance colours it; neither the lid, the room, a cardioid pattern nor the scattering layer changes it (the scattering raises it). Not changed here.
+
+## 2026-11-17: the aftersound too weak since the real board
+
+**What the comparison tool showed.** From C5 to C#6, partial 1's ripple (its RMS distance from a straight decay over 0.1–3 s) was 1.5–3 dB above the real grands' at pp and mf. The cause was not beats. Partial 1 fell in a fast prompt sound (E5–C6: −50 to −70 dB/s for the model's fast mode, against about −30 to −40 on Steinway D, Salamander and the commercial grand) into an aftersound 15–20 dB under theirs:
+
+| Key | Model | Real grands |
+|---|---|---|
+| F5 | −38.5 dB at 1 s | −19 to −27 |
+| A5 | −40 dB at 1 s | −23 to −38.5 |
+
+With the real board, the October trade-off (t⁴, `width_treble` 2) had gone too far the other way.
+
+**Levers tried.** E5–D6 at mf. The table gives the median gap to the real grands of the overall level at 1 s and at 2 s (dB), then of partial 1's ripple (dB):
+
+| | 1 s | 2 s | Ripple |
+|---|---|---|---|
+| As before | −7.4 | −11.7 | +0.7 |
+| `width_mid` 1.5 | −2.5 | −4.6 | +0.1 |
+| `width_mid` 2.0 | +0.7 | −9.8 (they beat) | −0.4 |
+| `hit_spread` 0.6 | −8.2 | −10.1 | +1.4 |
+| `hammer_tilt` 0.15 | −9.0 | −10.7 | +0.6 |
+| polarization `radiation` 0.3 | −7.8 | −13.5 | +0.5 |
+| **`width_curve` 1** | **−2.7** | **−5.7** | **+0.1** |
+
+Only the unisons' spread gives the aftersound its level. `width_mid` would also change the middle, whose tail at 2 s it makes 2.5 dB too loud. The linear curve (C5 1.25 cents, C6 1.5, C7 1.75) leaves the middle alone: C4–B4 −1.4 / −1.1, as before. It also brings E6–D7 at 1 s from −5.3 to −2.4.
+
+**Result in the tool.**
+
+| Treble (C5–B6) | Before | After |
+|---|---|---|
+| Ripple, measures off | 19 | 11 |
+| T60 of partial 1, measures off | 4 | 2 |
+| Early decay, median z | −0.9 | +0.1 |
+| Late decay (1–3 s), measures off | 23 | 33 |
+
+The late decay rises against references whose tail is mostly their noise floor. Against the clean recordings, B5–E6 decay at −12 to −17 dB/s, against −8 to −13 for Steinway D and the commercial grand and −6 to −10 for Helgesson; before the change the model decayed at −4 to −10. In all, 298 measures are off, against 294.
+
+**The middle, checked.** The comparison tool measures each microphone separately. On it, the middle's partial 1 was already in the real grands' range:
+
+| Key | Model | Real grands |
+|---|---|---|
+| E4 | 3.5 dB | 5.3 |
+| G4 | 4.4 dB | 4.1 |
+| A4 | 3.7 dB | 4.2 |
+| B4 | 3.2 dB | 4.5 |
+
+Only C4 and C#4 were low, at 1.1 and 2.6 dB against 4.5–4.9. (A first reading of 0.2–0.4 dB averaged the two microphones, which cancel each other there.)
+
+`width_mid` 1.5 (trial) brought C4 to 2.7 dB and cut the treble's ripple measures off from 11 to 4, since it also widens the treble. But through the bass ramp it widens C3–B3, where the ripple rose to 5–8 dB on A3–B3 against about 1 dB. Over the whole tool, the middle's ripple measures off went from 27 to 30 and the total from 298 to 300. Not kept.
