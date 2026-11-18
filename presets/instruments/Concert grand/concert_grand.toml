@@ -48,14 +48,19 @@ enabled = true
 h_coupling = 0.03
 cross = 0.1732
 detune_cents = 0.3
-# The sideways motion outlasts the vertical one: at 0.6 (0.1 until 2026-11-18) it holds
-# up the fundamentals of C#5-G#5, which fell under their upper partials, without
-# touching those (docs/treble_tail.md).
-radiation = 0.6
+# The sideways motion outlasts the vertical one: radiating more of it (0.1 until
+# 2026-11-18) holds up the fundamentals of C#5-G#5, which fell under their upper
+# partials, without touching those.
+radiation = 0.8
 hammer_tilt = 0.05
 smooth = 0.0
-slope = 0.0
-slope_from = 0.0
+# The sideways coupling grows as f^1.5 from C4 to 700 Hz, 0.03 to 0.13: more of the
+# fundamental goes into that motion at D#5-F5. Below, C3-B3's partial 1 would ring too
+# long; with no upper limit, F7 went out of tune and A#6-B6 decayed far too slowly
+# (docs/treble_tail.md).
+slope = 1.5
+slope_from = 261.63
+slope_to = 700.0
 # The bass's own sideways motion, to E2 and blended into the rest by C3: on the real
 # grands the bass's first partial falls fast for about a second, then slowly (a double
 # decay, single strings included); with the cross term at its passive limit the slow,

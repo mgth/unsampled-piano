@@ -480,6 +480,9 @@ pub struct PolarizationLaw {
     /// Below this frequency (Hz) ε_H keeps the slope's value there (0: the
     /// slope applies down to the lowest partial).
     pub slope_from: f64,
+    /// Above this frequency (Hz) ε_H keeps the slope's value there (0: the
+    /// slope applies up to the highest partial).
+    pub slope_to: f64,
     /// The bass's own sideways share: up to `bass_until` the hammer's tilt,
     /// the horizontal motion's radiation and the cross term take the `_bass`
     /// values, and blend into the others over the next `bass_fade` keys. On
@@ -510,6 +513,7 @@ impl PolarizationLaw {
         smooth: 0.0,
         slope: 0.0,
         slope_from: 0.0,
+        slope_to: 0.0,
         bass: false,
         bass_until: 40,
         bass_fade: 8,
@@ -534,6 +538,7 @@ impl PolarizationLaw {
             smooth: 0.0,
             slope: -1.0,
             slope_from: 130.81,
+            slope_to: 0.0,
             bass: false,
             bass_until: 40,
             bass_fade: 8,
@@ -576,7 +581,8 @@ impl PolarizationLaw {
             return (eps_v.scale(self.h_coupling), eps_v.scale(self.passive_cross()));
         }
         let s = self.smooth.clamp(0.0, 1.0);
-        let h = self.h_coupling * (f.max(self.slope_from).max(1.0) / POLARIZATION_SLOPE_REF).powf(self.slope);
+        let top = if self.slope_to > 0.0 { self.slope_to } else { f64::INFINITY };
+        let h = self.h_coupling * (f.min(top).max(self.slope_from).max(1.0) / POLARIZATION_SLOPE_REF).powf(self.slope);
         let eps_h = (eps_v.scale(1.0 - s) + eps_ref.scale(s)).scale(h);
         let share = if self.h_coupling > 0.0 { (self.cross / self.h_coupling.sqrt()).min(1.0) } else { 0.0 };
         let mut eps_x = (eps_v * eps_h).sqrt().scale(share);
@@ -1812,6 +1818,16 @@ impl Default for VelocityLaw {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_sideways_slope_stays_between_its_limits() {
+        let law = PolarizationLaw { h_coupling: 0.03, cross: 0.0, slope: 1.0, slope_from: 261.63, slope_to: 523.26, ..PolarizationLaw::OFF };
+        let v = crate::complex::C64::new(1.0, 0.0);
+        let h = |f| law.sideways(v, v, f).0.re;
+        assert!((h(100.0) - 0.03).abs() < 1e-12);
+        assert!((h(392.445) - 0.045).abs() < 1e-12);
+        assert!((h(2000.0) - 0.06).abs() < 1e-12);
+    }
+
     /// The low keys' spread: off, every key keeps its width to the bit;
     /// on, it holds up to its last key, meets `width_mid` at C4 and leaves
     /// the keys from C4 up alone.
