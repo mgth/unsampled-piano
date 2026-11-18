@@ -1,0 +1,26 @@
+[package]
+name = "piano-compare"
+description = "Visual comparison of the model against the recorded real pianos, note by note: a keyboard to pick and hear a note, its measures on every piano, and each measure across the keyboard."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "unsampled-piano-compare"
+path = "src/main.rs"
+
+[dependencies]
+piano-core.workspace = true
+piano-host.workspace = true
+piano-analysis.workspace = true
+eframe.workspace = true
+egui.workspace = true
+cpal = { workspace = true, features = ["pipewire", "jack"] }
+hound.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+libc = "0.2"

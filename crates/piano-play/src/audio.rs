@@ -564,15 +564,17 @@ fn cpal_play(
 }
 
 /// The cpal output stream in the device's sample format: the stereo pair on
-/// channels `first` and `first + 1`, silence on the others.
+/// channels `first` and `first + 1` (or, with one output per microphone and
+/// room for them, the microphones from `first` on), silence on the others.
 fn cpal_stream<T: cpal::SizedSample + cpal::FromSample<f32>>(
     device: &cpal::Device,
     config: cpal::StreamConfig,
-    mut player: Player,
+    player: Player,
     gain: f32,
     first: usize,
 ) -> Result<cpal::Stream, cpal::Error> {
     let channels = config.channels as usize;
+    let mut player = player.with_channels(channels - first);
     device.build_output_stream(
         config,
         move |data: &mut [T], _| {
@@ -580,12 +582,12 @@ fn cpal_stream<T: cpal::SizedSample + cpal::FromSample<f32>>(
             player.render(
                 frames,
                 std::iter::empty(),
-                |off, l, r| {
-                    for (i, f) in data[off * channels..(off + l.len()) * channels].chunks_mut(channels).enumerate() {
+                |off, chans| {
+                    let n = chans.first().map_or(0, |c| c.len());
+                    for (i, f) in data[off * channels..(off + n) * channels].chunks_mut(channels).enumerate() {
                         f.fill(T::EQUILIBRIUM);
-                        f[first] = T::from_sample(gain * l[i]);
-                        if let Some(x) = f.get_mut(first + 1) {
-                            *x = T::from_sample(gain * r[i]);
+                        for (x, c) in f[first..].iter_mut().zip(chans) {
+                            *x = T::from_sample(gain * c[i]);
                         }
                     }
                 },

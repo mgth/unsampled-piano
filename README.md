@@ -122,6 +122,7 @@ curl -L -o data/maestro/maestro-v3.0.0-midi.zip https://storage.googleapis.com/m
 | `piano-play` | real-time application (`unsampled-piano` binary): PipeWire/JACK node (audio, MIDI in, MIDI mirror), or cpal + midir |
 | `piano-render` | deterministic offline MIDI → WAV rendering (`unsampled-piano-render` binary) |
 | `piano-analysis` | analysis: partials, B, decays, ESPRIT, spectral distances |
+| `piano-compare` | window comparing the model with the bench's real pianos key by key (`unsampled-piano-compare` binary, [docs/compare_tool.md](docs/compare_tool.md)) |
 | `piano-eval` | comparison of the model with a reference bank |
 | `piano-bench` | modal kernel throughput, f32 precision |
 

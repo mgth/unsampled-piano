@@ -32,7 +32,7 @@ fn main() {
         let n = 2000;
         let t = Instant::now();
         for _ in 0..n {
-            bank.process(&inputs, len, [&mut a, &mut b], if disp { Some(&mut d) } else { None }, with_rim.then_some(&mut ex[..]));
+            bank.process(&inputs, len, &mut [&mut a[..], &mut b[..]], if disp { Some(&mut d) } else { None }, with_rim.then_some(&mut ex[..]));
         }
         let el = t.elapsed().as_secs_f64();
         let per = el * 1e9 / (n * len * modes.len()) as f64;

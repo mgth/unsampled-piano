@@ -22,7 +22,9 @@ use crate::simd;
 pub const REGIONS: usize = 16;
 /// Inputs of the bank that takes a force per key ([`LowDrive`]).
 pub const KEYS: usize = 88;
-pub const MICS: usize = 2;
+/// Mic output slots ([`crate::mics::MAX_MICS`]): a bank computes those of
+/// the set-up's microphones only.
+pub const MICS: usize = crate::mics::MAX_MICS;
 /// Points around the piano whose pressure feeds the room (after the mics).
 pub const PROBES: usize = 4;
 /// Index of the first bridge-velocity output (region r at `BRIDGE + r`).
@@ -129,6 +131,10 @@ pub struct BoardBank<const R: usize = REGIONS> {
     na: usize,
     no: usize,
     n_ex: usize,
+    /// Microphones the modes radiate to (the first `n_mics` slots), and the
+    /// outputs computed: those mics, then the probes and bridge velocities.
+    n_mics: usize,
+    outs: Vec<usize>,
     /// Inputs transposed per sample, only the active regions.
     xin: Vec<[f32; R]>,
     /// Direct feedthrough correcting impulse invariance (index output, region):
@@ -178,6 +184,8 @@ impl<const R: usize> BoardBank<R> {
         }
         let mut chunks = vec![Chunk::<R>::default(); modes.len().div_ceil(LANES)];
         let isa = Isa::detect();
+        // The mics the modes radiate to: up to the last slot with a weight.
+        let n_mics = (0..MICS).rev().find(|&o| modes.iter().any(|m| m.outputs[o] != (0.0, 0.0))).map_or(0, |o| o + 1);
         let mut direct = [[0.0f64; R]; OUTPUTS];
         for m in modes {
             for (o, row) in direct.iter_mut().enumerate() {
@@ -225,6 +233,8 @@ impl<const R: usize> BoardBank<R> {
             na: 0,
             no: 0,
             n_ex: 0,
+            n_mics,
+            outs: (0..n_mics).chain(MICS..OUTPUTS).collect(),
             xin: vec![[0.0; R]; max_block],
             direct: direct.map(|row| row.map(|d| d as f32)),
             n_extra,
@@ -335,7 +345,7 @@ impl<const R: usize> BoardBank<R> {
         &mut self,
         inputs: &[Vec<f32>],
         len: usize,
-        mics: [&mut [f32]; MICS],
+        mics: &mut [&mut [f32]],
         disp: Option<&mut [Vec<f32>]>,
         extra: Option<&mut [Vec<f32>]>,
     ) {
@@ -368,7 +378,7 @@ impl<const R: usize> BoardBank<R> {
         // Outputs computed: the mics, the probes and the bridge velocities
         // when asked for (then the extra outputs).
         self.block_len = len;
-        self.no = if disp { OUTPUTS } else { MICS };
+        self.no = if disp { self.outs.len() } else { self.n_mics };
         self.n_ex = if extra { self.n_extra } else { 0 };
     }
 
@@ -379,7 +389,7 @@ impl<const R: usize> BoardBank<R> {
             act: &self.active[..self.na],
             mb: self.max_block,
             len: self.block_len,
-            outs: &ALL_OUTPUTS[..self.no],
+            outs: &self.outs[..self.no],
             n_ex: self.n_ex,
             ex_w: &self.extra_w[..self.extra_chunks * self.n_ex],
             ex_chunks: self.extra_chunks,
@@ -388,9 +398,9 @@ impl<const R: usize> BoardBank<R> {
     }
 
     /// Adds the outputs of the parts, run since [`Self::prepare`].
-    pub fn finish(&mut self, mics: [&mut [f32]; MICS], disp: Option<&mut [Vec<f32>]>, extra: Option<&mut [Vec<f32>]>) {
+    pub fn finish(&mut self, mics: &mut [&mut [f32]], disp: Option<&mut [Vec<f32>]>, extra: Option<&mut [Vec<f32>]>) {
         let (mb, len) = (self.max_block, self.block_len);
-        let outs = ALL_OUTPUTS[..self.no].iter().chain(&EXTRA[..self.n_ex]);
+        let outs = self.outs[..self.no].iter().chain(&EXTRA[..self.n_ex]);
         // Lane by lane over the parts in order, then the lanes as a tree.
         for &o in outs {
             for t in 0..len {
@@ -404,7 +414,6 @@ impl<const R: usize> BoardBank<R> {
                 self.sums[o * mb + t] = hsum(&a);
             }
         }
-        let [m0, m1] = mics;
         let act = &self.active[..self.na];
         // Output plus direct feedthrough Σ_k direct·x_k (k in order, for
         // every sample at once: vectorises).
@@ -421,9 +430,10 @@ impl<const R: usize> BoardBank<R> {
                 *y += s + f;
             }
         };
-        add(0, m0);
-        add(1, m1);
-        let probes = self.no > MICS;
+        for (o, m) in mics.iter_mut().enumerate().take(self.n_mics) {
+            add(o, m);
+        }
+        let probes = self.no > self.n_mics;
         for (k, out) in self.probe_out.iter_mut().enumerate() {
             out[..len].fill(0.0);
             if probes {
@@ -463,17 +473,6 @@ impl<const R: usize> BoardPart<R> {
         }
     }
 }
-
-/// Indices of the outputs.
-const ALL_OUTPUTS: [usize; OUTPUTS] = {
-    let mut o = [0; OUTPUTS];
-    let mut i = 0;
-    while i < OUTPUTS {
-        o[i] = i;
-        i += 1;
-    }
-    o
-};
 
 type Hist = ([f32; LANES], [f32; LANES]);
 
@@ -848,17 +847,17 @@ pub fn board_modes_at(sb: &crate::soundboard::Soundboard, points: &[(f64, f64)],
 /// pressure at [`PROBE_DISTANCE`] such that times that distance it is the
 /// source at 1 m the room takes. Below [`PROBES_BELOW`], the radiation at
 /// the probes, levelled so that the modes' summed power matches the mics'
-/// estimate 0.5·(p₀·r₀ + p₁·r₁) (r: the mics' distances to the room's
+/// estimate, their mean Σ p_m·r_m/N (r: the mics' distances to the room's
 /// source point), each mode weighed by the energy a white force on the
 /// bridge puts into it (Σ_r φ_r²/σ) per octave (1/f), from 50 Hz: the room
 /// keeps the level it was set by ear with, only its colour follows the
 /// probes. Above, that estimate itself.
-fn probe_outputs(sb: &crate::soundboard::Soundboard, rad: &[[crate::complex::C64; 2]], shapes: &[Vec<f64>]) -> Vec<[crate::complex::C64; PROBES]> {
+fn probe_outputs(sb: &crate::soundboard::Soundboard, rad: &[Vec<crate::complex::C64>], shapes: &[Vec<f64>]) -> Vec<[crate::complex::C64; PROBES]> {
     use crate::complex::C64;
     let p = &sb.params;
-    let src = crate::room::source_point(p);
-    let r = p.mics.map(|m| ((m.0 - src.0).powi(2) + (m.1 - src.1).powi(2) + (m.2 - src.2).powi(2)).sqrt().max(0.3));
-    let estimate: Vec<C64> = rad.iter().map(|w| (w[0].scale(r[0]) + w[1].scale(r[1])).scale(0.5)).collect();
+    let r = crate::room::mic_distances(p);
+    let n_mics = r.len().max(1) as f64;
+    let estimate: Vec<C64> = rad.iter().map(|w| w.iter().zip(&r).fold(C64::ZERO, |s, (x, r)| s + x.scale(*r)).scale(1.0 / n_mics)).collect();
     let n = sb.modes.iter().take_while(|m| m.omega / std::f64::consts::TAU < PROBES_BELOW).count();
     let at = sb.radiation_points(&probe_points(p), n);
     let (mut mics, mut probes) = (0.0, 0.0);
@@ -895,8 +894,9 @@ fn board_modes_with(sb: &crate::soundboard::Soundboard, shapes: &[Vec<f64>], pro
         .filter(|(_, (md, _))| md.omega / std::f64::consts::TAU < nyq)
         .map(|(i, (md, w))| {
             let mut outputs = [(0.0, 0.0); OUTPUTS];
-            outputs[0] = (w[0].re, w[0].im);
-            outputs[1] = (w[1].re, w[1].im);
+            for (o, x) in outputs.iter_mut().zip(w.iter().take(MICS)) {
+                *o = (x.re, x.im);
+            }
             for (k, p) in at_probes.get(i).into_iter().flatten().enumerate() {
                 outputs[MICS + k] = (p.re, p.im);
             }
@@ -1038,7 +1038,7 @@ mod tests {
             for d in disp.iter_mut() {
                 d.fill(0.0);
             }
-            bank.process(&inputs, 256, [&mut m0, &mut m1], Some(&mut disp), None);
+            bank.process(&inputs, 256, &mut [&mut m0[..], &mut m1[..]], Some(&mut disp), None);
             if blk >= 380 {
                 for t in 0..256 {
                     let ph = std::f64::consts::TAU * f * (blk * 256 + t) as f64 / sr;
@@ -1069,7 +1069,7 @@ mod tests {
             for _ in 0..4 {
                 let (mut m0, mut m1) = (vec![0.0f32; 64], vec![0.0f32; 64]);
                 let mut disp = vec![vec![0.0f32; 64]; REGIONS];
-                bank.process(&inputs, 64, [&mut m0, &mut m1], Some(&mut disp), None);
+                bank.process(&inputs, 64, &mut [&mut m0[..], &mut m1[..]], Some(&mut disp), None);
                 out.extend(m0.into_iter().chain(m1).chain(disp.into_iter().flatten()));
             }
             match &reference {

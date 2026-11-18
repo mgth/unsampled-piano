@@ -1051,7 +1051,7 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
         p.text(pos, align, text, font.clone(), c);
     };
     let piano = rp.piano;
-    let mics: Vec<[f64; 3]> = sb.mics.iter().map(|m| crate::mics::in_room(model, &sb, piano, &[m.0, m.1, m.2])).collect();
+    let mics: Vec<[f64; 3]> = sb.mics.iter().map(|m| crate::mics::in_room(model, &sb, piano, &[m.at.0, m.at.1, m.at.2])).collect();
     // The board's extent in the room: flat, or standing on its foot.
     let (blo, bhi) = crate::mics::footprint(model, &sb, piano);
     let (src, rc) = crate::mics::source_and_critical_distance(model, &sb, piano);
@@ -1115,7 +1115,7 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
         let text = if rp.directivity > 0.0 { format!("Q = {q:.1}") } else { format!("Q = {q:.1} (from the piano)") };
         label(room.left_top() + Vec2::new(4.0, 4.0) * k, Align2::LEFT_TOP, &text, Some(Part::Directivity));
     }
-    for (m, c) in mics.iter().zip([Color32::from_rgb(127, 119, 221), Color32::from_rgb(29, 158, 117)]) {
+    for (m, c) in mics.iter().zip(crate::mics::MIC_COLORS) {
         p.circle_filled(pl(m[0], m[1]), 3.0 * k, c);
     }
     if lit(Part::PianoPlace) {
@@ -1141,7 +1141,7 @@ pub fn room(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Respon
             p.circle_filled(side(hit, mirror), 3.0 * k, HIGHLIGHT);
         }
     }
-    for (m, c) in mics.iter().zip([Color32::from_rgb(127, 119, 221), Color32::from_rgb(29, 158, 117)]) {
+    for (m, c) in mics.iter().zip(crate::mics::MIC_COLORS) {
         p.circle_filled(side(m[0], m[2]), 3.0 * k, c);
     }
 

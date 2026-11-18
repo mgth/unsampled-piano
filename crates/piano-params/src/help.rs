@@ -17,7 +17,7 @@ pub fn help(path: &str) -> Option<Help> {
     HELP.iter().find(|h| h.0 == key).map(|&(_, what, how)| Help { what, how })
 }
 
-/// "soundboard.mics[1][2]" → "soundboard.mics".
+/// "soundboard.mics[1].at[2]" → "soundboard.mics.at".
 fn strip_indices(path: &str) -> String {
     let mut out = String::with_capacity(path.len());
     let mut depth = 0;
@@ -888,23 +888,67 @@ const HELP: &[(&str, &str, &str)] = &[
          inside the outline only (Hz).",
     ),
     (
-        "soundboard.mics",
-        "Where the two microphones stand: the first gives the left channel, the second the \
-         right. Close to the board the sound is detailed and dry; further away the board blends \
-         and the room takes over.",
-        "[mic][x, y, z] in metres. Board coordinates: x along the strings, from the keyboard end \
-         of the board towards the tail; y across, from the treble side (0) to the bass side; z \
+        "soundboard.mics.at",
+        "Where this microphone stands. Close to the board the sound is detailed and dry; \
+         further away the board blends and the room takes over. A set-up holds 1 to 8 \
+         microphones, mixed to stereo by their gain and pan or each on its own output.",
+        "[x, y, z] in metres. Board coordinates: x along the strings, from the keyboard end of \
+         the board towards the tail; y across, from the treble side (0) to the bass side; z \
          above the board. Each mic hears every board mode by the Rayleigh integral (plus lid \
-         image, frame and rim), then the room's reflections. Changing them rebuilds the \
-         radiation weights.",
+         image, frame and rim) through its pattern, then the room's reflections. Changing it \
+         rebuilds the radiation weights.",
     ),
     (
-        "soundboard.mics_upright",
-        "Where the two microphones stand when the piano is an upright: in front of its \
-         soundboard. Each listening set-up places them for both kinds of piano.",
-        "Used instead of soundboard.mics on a vertical board: x down from the board's top, y \
-         across (bass at y = b, the listener's left), z in front of the board; fractions of a \
-         and b with mics_relative.",
+        "soundboard.mics.upright",
+        "Where this microphone stands when the piano is an upright: in front of its soundboard. \
+         Each listening set-up places its microphones for both kinds of piano.",
+        "Used instead of `at` on a vertical board: x down from the board's top, y across (bass \
+         at y = b, the listener's left), z in front of the board; fractions of a and b with \
+         mics_relative.",
+    ),
+    (
+        "soundboard.mics.pattern",
+        "Pick-up pattern: 1 hears all around (omni), 0.5 is a cardioid (it hears what it is \
+         aimed at and little from behind, and the room about 5 dB less), 0 a figure of eight.",
+        "Pattern a + (1 − a)·cos θ about the aim: every path of the direct sound (the board's \
+         two faces, the lid's image, the scattering layer) is weighed at its angle of arrival; \
+         the case's field, the room's reflections and its tail come from every direction and \
+         are heard with the random-incidence efficiency a² + (1 − a)²/3 (1/3 for a cardioid).",
+    ),
+    (
+        "soundboard.mics.aim",
+        "The point this microphone is aimed at; without one, the board's centre.",
+        "The same coordinates as `at` (shares of the board with mics_relative). Moving the \
+         microphone on the microphones' page moves its aim with it.",
+    ),
+    (
+        "soundboard.mics.aim_upright",
+        "The point this microphone is aimed at on an upright; without one, the board's centre.",
+        "The same coordinates as `upright`.",
+    ),
+    (
+        "soundboard.mics.gain_db",
+        "This microphone's level in the mix (or on its own output): how much of it the mix \
+         takes against the others.",
+        "Gain (dB) at the mixdown, after the room: it changes neither what the microphone hears \
+         nor the room's level.",
+    ),
+    (
+        "soundboard.mics.pan",
+        "Where this microphone sits in the stereo image, −1 left to 1 right.",
+        "Constant-power pan: left gain cos((1 + p)·π/4), right sin((1 + p)·π/4); hard left and \
+         right give the microphone to one channel alone. The action's knock and the body's \
+         halo, rendered on two sides, are shared the same way. Unused with one output per \
+         microphone.",
+    ),
+    (
+        "soundboard.outputs_per_mic",
+        "One output channel per microphone (with its gain, no pan), to mix in the host or the \
+         audio graph; off, the stereo mix by gain and pan.",
+        "The player puts microphone 1 and 2 on out_left and out_right and the others on \
+         out_3…out_8; the plugin's multi-out layout on its main pair and three auxiliary pairs; \
+         the renderer writes as many channels. A host with only two channels gets the stereo \
+         mix.",
     ),
     (
         "soundboard.mics_relative",
@@ -919,14 +963,6 @@ const HELP: &[(&str, &str, &str)] = &[
          microphones hear the piano louder, so a close set-up turns itself down.",
         "Gain (dB) applied to the radiated sound when the instrument is built, kept apart from \
          output_gain_db so that a listening preset and an instrument preset combine.",
-    ),
-    (
-        "soundboard.mic_pattern",
-        "Pick-up pattern of the microphones, aimed at the piano: 1 hears all around (omni), 0.5 is a \
-         cardioid, which hears the room about 5 dB less than the piano in front of it.",
-        "Pattern a + (1 − a)·cos θ. The direct sound arrives on axis; the room's reflections and tail \
-         come from every direction and are heard with the random-incidence efficiency \
-         a² + (1 − a)²/3 (1/3 for a cardioid).",
     ),
     (
         "soundboard.radiate",
@@ -1369,7 +1405,7 @@ mod tests {
 
     #[test]
     fn indices_are_ignored() {
-        assert_eq!(strip_indices("soundboard.mics[1][2]"), "soundboard.mics");
+        assert_eq!(strip_indices("soundboard.mics[1].at[2]"), "soundboard.mics.at");
         assert!(help("room.size[2]").is_some());
     }
 }

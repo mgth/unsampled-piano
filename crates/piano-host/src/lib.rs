@@ -68,7 +68,7 @@ pub fn save_preset(model: &PianoModel, path: &Path) -> Result<(), String> {
 /// Fields of a listening set-up (microphones, their gain, the lid opening,
 /// the room): what a listening preset sets, and what loading an instrument
 /// keeps.
-const LISTENING: &[(&str, &[&str])] = &[("soundboard", &["mics", "mics_upright", "mics_relative", "mic_gain_db", "mic_pattern", "lid_angle", "lid_removed"]), ("room", &[])];
+const LISTENING: &[(&str, &[&str])] = &[("soundboard", &["mics", "mics_relative", "mic_gain_db", "outputs_per_mic", "lid_angle", "lid_removed"]), ("room", &[])];
 
 fn to_table(model: &PianoModel) -> toml::Table {
     toml::Table::try_from(model).expect("model serialises")
@@ -241,7 +241,7 @@ mod tests {
         std::fs::write(&path, "hardness = 0.4\n[soundboard]\na = 2.0\nmics = [[1.0, 1.0, 2.0], [1.0, 1.0, 2.0]]\n").unwrap();
         let n = load_instrument(&path, &m).unwrap();
         let sb = n.soundboard.unwrap();
-        assert_eq!((n.hardness, sb.a, sb.mics[0].0, sb.mic_gain_db), (0.4, 2.0, 0.3, -9.0));
+        assert_eq!((n.hardness, sb.a, sb.mics[0].at.0, sb.mic_gain_db), (0.4, 2.0, 0.3, -9.0));
         assert!(!n.room.enabled);
         assert_eq!(n.scale.len_a0, PianoModel::default().scale.len_a0);
         std::fs::remove_dir_all(dir).ok();
@@ -365,7 +365,7 @@ mod tests {
         assert!(!is_overlay(Path::new("/home/listening/presets/instruments/Grand/a.toml")));
         let base = PianoModel { hardness: 0.77, ..Default::default() };
         let m = load_over(&root.join("listening/Microphones/close.toml"), &base).unwrap();
-        assert_eq!((m.hardness, m.soundboard.unwrap().mic_gain_db), (0.77, -9.6));
+        assert_eq!((m.hardness, m.soundboard.unwrap().mic_gain_db), (0.77, -7.4));
         let m = load_over(&root.join("default.toml"), &base).unwrap();
         assert_eq!(m.hardness, PianoModel::default().hardness);
     }

@@ -1,0 +1,40 @@
+# The close cardioids (close.toml) for the detail, and an omni pair 6 m out
+# in the room for the hall around it, 6 dB under the close pair at equal
+# loudness. Lid open at 35°, positions relative to the board (the room pair
+# 4.5 board widths out in front of the opening, 2.5 m high; on an upright,
+# 5 m in front of it).
+[soundboard]
+lid_removed = false
+lid_angle = 35.0
+mics_relative = true
+mic_gain_db = -8.4
+
+[[soundboard.mics]]
+at = [0.294118, 0.346154, 0.4]
+aim = [0.294118, 0.346154, 0.0]
+upright = [0.705882, 0.653846, 0.4]
+aim_upright = [0.705882, 0.653846, 0.0]
+pattern = 0.5
+pan = -1.0
+
+[[soundboard.mics]]
+at = [0.705882, 0.653846, 0.4]
+aim = [0.705882, 0.653846, 0.0]
+upright = [0.294118, 0.346154, 0.4]
+aim_upright = [0.294118, 0.346154, 0.0]
+pattern = 0.5
+pan = 1.0
+
+[[soundboard.mics]]
+at = [0.25, -4.5, 2.5]
+upright = [-0.2, 0.8, 5.0]
+pattern = 1.0
+gain_db = 2.6
+pan = -1.0
+
+[[soundboard.mics]]
+at = [0.8, -4.5, 2.5]
+upright = [-0.2, 0.2, 5.0]
+pattern = 1.0
+gain_db = 2.6
+pan = 1.0

@@ -12,6 +12,8 @@ use piano_params::midi::RouteTable;
 
 use crate::Shared;
 
+/// Channels a slot renders at most (one per microphone).
+pub const MAX_CHANNELS: usize = piano_core::mics::MAX_MICS;
 /// A replaced engine plays its notes for at most this long, then fades out.
 pub const RETIRE_AFTER_S: f64 = 2.0;
 const FADE_S: f64 = 0.1;
@@ -63,8 +65,9 @@ pub struct EngineSlot {
     /// from `ev_new[journal_from..]`, and whether an engine came in.
     journal_from: usize,
     swapped: bool,
-    /// Output of each replaced engine this block.
-    out: [[Vec<f32>; 2]; SLOTS],
+    /// Output of each replaced engine this block (as many channels as the
+    /// caller's).
+    out: [[Vec<f32>; MAX_CHANNELS]; SLOTS],
     /// Workers shared by the engines: lent to the current one when it plays
     /// alone, else running the engines side by side.
     pool: Option<Pool>,
@@ -117,7 +120,7 @@ impl EngineSlot {
             ev_old: Vec::with_capacity(MAX_EVENTS),
             journal_from: 0,
             swapped: false,
-            out: std::array::from_fn(|_| [vec![0.0; cfg.max_block], vec![0.0; cfg.max_block]]),
+            out: std::array::from_fn(|_| std::array::from_fn(|_| vec![0.0; cfg.max_block])),
             pool,
             sample_rate: cfg.sample_rate,
             shared,
@@ -178,10 +181,27 @@ impl EngineSlot {
     /// to every engine. Controllers are reported for MIDI learn, then those
     /// mapped to a live parameter become [`Event::Param`].
     pub fn process_stereo(&mut self, events: &[TimedEvent], left: &mut [f32], right: &mut [f32]) {
-        let len = left.len();
+        self.process_channels(events, &mut [left, right]);
+    }
+
+    /// Channels the current engine's set-up asks for: one per microphone
+    /// (`outputs_per_mic`), else 2.
+    pub fn channels(&self) -> usize {
+        self.current.channels()
+    }
+
+    /// [`Self::process_stereo`] into `out` (1 to [`MAX_CHANNELS`] channels
+    /// of the same length, overwritten): one per microphone when the
+    /// set-up asks for it and there are more than two, else the stereo mix
+    /// in the first two; the others silent.
+    pub fn process_channels(&mut self, events: &[TimedEvent], out: &mut [&mut [f32]]) {
+        let len = out.first().map_or(0, |o| o.len());
         // Checked here, on the caller's thread: the parallel path rebuilds the
         // output slices from raw pointers and `len`.
-        assert!(right.len() == len && len <= self.out[0][0].len(), "channels of different lengths or longer than the max block");
+        assert!(
+            !out.is_empty() && out.len() <= MAX_CHANNELS && out.iter().all(|o| o.len() == len) && len <= self.out[0][0].len(),
+            "channels of different lengths, too many, or longer than the max block"
+        );
         while let Ok(t) = self.route_updates.pop() {
             self.routes = t;
         }
@@ -235,29 +255,31 @@ impl EngineSlot {
             }
         }
 
-        self.render(left, right);
+        self.render(out);
+        let n_ch = out.len();
         let quiet_after = (QUIET_S * self.sample_rate) as usize;
         let retire_after = (RETIRE_AFTER_S * self.sample_rate) as usize;
         let fade_len = (FADE_S * self.sample_rate) as usize;
         for i in 0..SLOTS {
             let Some(r) = self.retiring[i].as_mut() else { continue };
-            let [l, rr] = &self.out[i];
-            let (l, rr) = (&l[..len], &rr[..len]);
-            let peak = l.iter().chain(rr.iter()).fold(0.0f32, |m, x| m.max(x.abs()));
+            let bufs = &self.out[i][..n_ch];
+            let peak = bufs.iter().flat_map(|b| &b[..len]).fold(0.0f32, |m, x| m.max(x.abs()));
             let done = match r.fade {
                 Some((left_n, total)) => {
-                    for (k, ((o_l, o_r), (x, y))) in left.iter_mut().zip(right.iter_mut()).zip(l.iter().zip(rr.iter())).enumerate() {
-                        let g = left_n.saturating_sub(k) as f32 / total as f32;
-                        *o_l += g * x;
-                        *o_r += g * y;
+                    for (o, b) in out.iter_mut().zip(bufs) {
+                        for (k, (y, x)) in o.iter_mut().zip(&b[..len]).enumerate() {
+                            *y += left_n.saturating_sub(k) as f32 / total as f32 * x;
+                        }
                     }
                     let left_n = left_n.saturating_sub(len);
                     r.fade = Some((left_n, total));
                     left_n == 0
                 }
                 None => {
-                    for (o, x) in left.iter_mut().zip(l.iter()).chain(right.iter_mut().zip(rr.iter())) {
-                        *o += x;
+                    for (o, b) in out.iter_mut().zip(bufs) {
+                        for (y, x) in o.iter_mut().zip(&b[..len]) {
+                            *y += x;
+                        }
                     }
                     r.age += len;
                     if peak < QUIET_LEVEL && r.engine.sounding_voices() == 0 {
@@ -275,7 +297,7 @@ impl EngineSlot {
                 self.send_back(r.engine);
             }
         }
-        self.output_stage(left, right);
+        self.output_stage(out);
         for i in 0..self.unsent.len() {
             if let Some(e) = self.unsent[i].take()
                 && let Err(rtrb::PushError::Full(e)) = self.reclaim.push(e)
@@ -296,7 +318,7 @@ impl EngineSlot {
             r.engine.observe(&mut self.observation);
         }
         self.held.hold(&self.observation);
-        self.since_observed += left.len();
+        self.since_observed += len;
         if self.since_observed as f64 >= self.sample_rate / OBSERVE_HZ {
             self.since_observed = 0;
             self.shared.observed.store(&self.held);
@@ -306,11 +328,11 @@ impl EngineSlot {
 
     /// The limiter (when on) on the engines' sum, then the meter: samples
     /// above full scale, the peak and the gain reduction, for the status.
-    fn output_stage(&mut self, left: &mut [f32], right: &mut [f32]) {
+    fn output_stage(&mut self, out: &mut [&mut [f32]]) {
         let live = self.current.live_model();
         if live.limiter >= 0.5 {
             let ceiling = 10f32.powf(live.limiter_ceiling_db.min(0.0) as f32 / 20.0);
-            let lowest = self.limiter.process(left, right, ceiling);
+            let lowest = self.limiter.process_channels(out, ceiling);
             if lowest < 1.0 {
                 self.shared.limiting.fetch_max((-2000.0 * lowest.log10()) as u32, Ordering::Relaxed);
             }
@@ -318,7 +340,7 @@ impl EngineSlot {
             self.limiter.reset();
         }
         let (mut over, mut peak) = (0u32, 0.0f32);
-        for x in left.iter().chain(right.iter()) {
+        for x in out.iter().flat_map(|o| o.iter()) {
             let a = x.abs();
             peak = peak.max(a);
             over += (a > 1.0) as u32;
@@ -333,8 +355,10 @@ impl EngineSlot {
     /// into its buffers: with the pool, the current one alone uses it; with
     /// replaced ones, the engines run side by side, one per thread. Each
     /// engine's output is the same either way.
-    fn render(&mut self, left: &mut [f32], right: &mut [f32]) {
-        let len = left.len();
+    fn render(&mut self, out: &mut [&mut [f32]]) {
+        let len = out[0].len();
+        let n_ch = out.len();
+        let per_mic = |e: &Engine| n_ch > 2 && e.per_mic();
         let mut busy = [0usize; SLOTS];
         let mut n = 0;
         for (i, r) in self.retiring.iter().enumerate() {
@@ -348,22 +372,26 @@ impl EngineSlot {
                 struct Ptr<T>(*mut T);
                 // SAFETY: each item touches its own engine and buffers.
                 unsafe impl<T> Sync for Ptr<T> {}
-                let (cur, ret, out) = (Ptr(&mut *self.current as *mut Engine), Ptr(self.retiring.as_mut_ptr()), Ptr(self.out.as_mut_ptr()));
-                let (lp, rp) = (Ptr(left.as_mut_ptr()), Ptr(right.as_mut_ptr()));
+                let (cur, ret, bufs) = (Ptr(&mut *self.current as *mut Engine), Ptr(self.retiring.as_mut_ptr()), Ptr(self.out.as_mut_ptr()));
+                let chans: [Ptr<f32>; MAX_CHANNELS] = std::array::from_fn(|c| Ptr(out.get_mut(c).map_or(std::ptr::null_mut(), |o| o.as_mut_ptr())));
                 let (ev_new, ev_old, busy) = (&self.ev_new, &self.ev_old, &busy);
                 pool.run(n + 1, &|k| {
-                    let _ = (&cur, &ret, &out, &lp, &rp);
+                    let _ = (&cur, &ret, &bufs, &chans);
                     // SAFETY: item 0 is the current engine and the slot's
                     // output; item k the k-th replaced engine and its buffers.
                     unsafe {
                         if k == 0 {
-                            let (l, r) = (std::slice::from_raw_parts_mut(lp.0, len), std::slice::from_raw_parts_mut(rp.0, len));
-                            (*cur.0).process_stereo(ev_new, l, r);
+                            let mut o: [&mut [f32]; MAX_CHANNELS] =
+                                std::array::from_fn(|c| if c < n_ch { std::slice::from_raw_parts_mut(chans[c].0, len) } else { &mut [] });
+                            let e = &mut *cur.0;
+                            e.process_into(ev_new, &mut o[..n_ch], per_mic(e));
                         } else {
                             let i = busy[k - 1];
-                            let [l, r] = &mut *out.0.add(i);
+                            let b = &mut *bufs.0.add(i);
+                            let mut o: [&mut [f32]; MAX_CHANNELS] = b.each_mut().map(|v| &mut v[..len]);
                             if let Some(e) = (*ret.0.add(i)).as_mut() {
-                                e.engine.process_stereo(ev_old, &mut l[..len], &mut r[..len]);
+                                let pm = per_mic(&e.engine);
+                                e.engine.process_into(ev_old, &mut o[..n_ch], pm);
                             }
                         }
                     }
@@ -372,12 +400,14 @@ impl EngineSlot {
             _ => {
                 let lent = self.pool.take();
                 let had = self.current.swap_pool(lent);
-                self.current.process_stereo(&self.ev_new, left, right);
+                let pm = per_mic(&self.current);
+                self.current.process_into(&self.ev_new, out, pm);
                 self.pool = self.current.swap_pool(had);
                 for &i in &busy[..n] {
-                    let [l, r] = &mut self.out[i];
+                    let mut o: [&mut [f32]; MAX_CHANNELS] = self.out[i].each_mut().map(|v| &mut v[..len]);
                     if let Some(e) = self.retiring[i].as_mut() {
-                        e.engine.process_stereo(&self.ev_old, &mut l[..len], &mut r[..len]);
+                        let pm = per_mic(&e.engine);
+                        e.engine.process_into(&self.ev_old, &mut o[..n_ch], pm);
                     }
                 }
             }
