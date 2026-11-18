@@ -713,7 +713,7 @@ impl App {
                     continue;
                 }
                 ui.label("");
-                ui.label(RichText::new(format!("Band {}", n + 1)).color(band_ink(ui, n))).on_hover_text("Mean ± standard deviation of the pianos in this band (a log measure: geometric)");
+                ui.label(RichText::new(format!("Band {}", n + 1)).color(band_label(ui, n))).on_hover_text("Mean ± standard deviation of the pianos in this band (a log measure: geometric)");
                 for d in &shown {
                     let r = self.band_values(band, note, d.id);
                     if r.len() >= 2 {
@@ -745,8 +745,8 @@ impl App {
             egui::Grid::new("legend").spacing(Vec2::new(6.0, 0.0)).show(ui, |ui| {
                 ui.label("");
                 ui.label(RichText::new("show").small().weak()).on_hover_text("Drawn in the plots");
-                ui.label(RichText::new("band 1").small().color(band_ink(ui, 0))).on_hover_text("Counted in the first band and in the model's z (at least two pianos at a key)");
-                ui.label(RichText::new("band 2").small().color(band_ink(ui, 1))).on_hover_text("Counted in the second band (at least two pianos at a key)");
+                ui.label(RichText::new("band 1").small().color(band_label(ui, 0))).on_hover_text("Counted in the first band and in the model's z (at least two pianos at a key)");
+                ui.label(RichText::new("band 2").small().color(band_label(ui, 1))).on_hover_text("Counted in the second band (at least two pianos at a key)");
                 ui.label("");
                 ui.end_row();
                 for si in 0..self.sources.len() {
@@ -1035,6 +1035,11 @@ fn band_ink(ui: &Ui, n: usize) -> Color32 {
     }
 }
 
+/// A band's name: the plots' amber is too pale for text on a light panel.
+fn band_label(ui: &Ui, n: usize) -> Color32 {
+    if n == 1 && !ui.visuals().dark_mode { Color32::from_rgb(155, 90, 10) } else { band_ink(ui, n) }
+}
+
 fn band_color(ui: &Ui, n: usize) -> Color32 {
     let [r, g, b, _] = band_ink(ui, n).to_array();
     let alpha = match (n, ui.visuals().dark_mode) {
@@ -1048,7 +1053,7 @@ fn band_color(ui: &Ui, n: usize) -> Color32 {
 /// A band's name and its shortcuts for filling it.
 fn band_buttons(ui: &mut Ui, n: usize, band: &mut Vec<bool>, sources: &[Source], help: &str) {
     ui.horizontal(|ui| {
-        ui.label(RichText::new(format!("band {}:", n + 1)).color(band_ink(ui, n))).on_hover_text(help);
+        ui.label(RichText::new(format!("band {}:", n + 1)).color(band_label(ui, n))).on_hover_text(help);
         if ui.small_button("real").on_hover_text("The real pianos (the bench's targets)").clicked() {
             *band = sources.iter().map(|s| s.role == Role::Target).collect();
         }
