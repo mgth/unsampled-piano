@@ -1,15 +1,30 @@
-# Close miking: lid open at 35°, two microphones 40 cm above the board, over
-# the bass and the treble parts of the bridge (closest to the references'
-# spectral balance, docs/presence.md). Positions relative to the board.
-# Cardioids aimed at the piano: they hear the room ≈ 5 dB less.
-# Level: close microphones hear the piano ≈ 13 dB louder.
+# Close miking: lid open at 35°, two cardioids 40 cm above the board, over
+# the bass and the treble parts of the bridge, aimed straight down (closest
+# to the references' spectral balance, docs/presence.md). Positions relative
+# to the board. Cardioids hear the room ≈ 5 dB less, and the lid's
+# reflection, from above, less too.
+# Level: close microphones hear the piano ≈ 11 dB louder (cardioids aimed
+# down: 2.2 dB less of the board than omnis there).
 [soundboard]
 lid_removed = false
 lid_angle = 35.0
 mics_relative = true
-mics = [[0.294118, 0.346154, 0.4], [0.705882, 0.653846, 0.4]]
+mic_gain_db = -7.4
+
+[[soundboard.mics]]
+at = [0.294118, 0.346154, 0.4]
+aim = [0.294118, 0.346154, 0.0]
 # On an upright, 40 cm in front of the board over the same parts of the
-# bridge, the left microphone on the bass side.
-mics_upright = [[0.705882, 0.653846, 0.4], [0.294118, 0.346154, 0.4]]
-mic_gain_db = -9.6
-mic_pattern = 0.5
+# bridge, the left one on the bass side.
+upright = [0.705882, 0.653846, 0.4]
+aim_upright = [0.705882, 0.653846, 0.0]
+pattern = 0.5
+pan = -1.0
+
+[[soundboard.mics]]
+at = [0.705882, 0.653846, 0.4]
+aim = [0.705882, 0.653846, 0.0]
+upright = [0.294118, 0.346154, 0.4]
+aim_upright = [0.294118, 0.346154, 0.0]
+pattern = 0.5
+pan = 1.0

@@ -1,7 +1,8 @@
 //! The microphones' page: the board from above and seen from the keyboard,
-//! the room from above, with the two microphones (and the piano in the
-//! room) dragged into place. Drawn from the model, to scale. A move is
-//! applied when the drag ends, since it rebuilds the instrument.
+//! the room from above, with the microphones (and the piano in the room)
+//! dragged into place, and a row per microphone (pattern, gain, pan).
+//! Drawn from the model, to scale. A move is applied when the drag ends,
+//! since it rebuilds the instrument.
 //!
 //! Board coordinates (m): x along the strings from the board's keyboard
 //! edge towards the tail, y across from the treble side, z up. Both views
@@ -10,12 +11,24 @@
 
 use crate::model::scene::{clip, signed_area, triangulate};
 use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Shape, Stroke, Ui, Vec2};
+use piano_core::mics::{Mic, Mics, MAX_MICS};
 use piano_core::params::PianoModel;
 use piano_core::soundboard::SoundboardParams;
 use piano_params::{PianoControl, Value};
 
-const MIC_COLORS: [Color32; 2] = [Color32::from_rgb(127, 119, 221), Color32::from_rgb(29, 158, 117)];
-const NAMES: [&str; 2] = ["Left", "Right"];
+/// One colour per microphone (shared with the 3D view).
+pub(crate) const MIC_COLORS: [Color32; MAX_MICS] = [
+    Color32::from_rgb(127, 119, 221),
+    Color32::from_rgb(29, 158, 117),
+    Color32::from_rgb(216, 90, 48),
+    Color32::from_rgb(55, 138, 221),
+    Color32::from_rgb(212, 83, 126),
+    Color32::from_rgb(99, 153, 34),
+    Color32::from_rgb(186, 117, 23),
+    Color32::from_rgb(136, 135, 128),
+];
+/// Patterns offered, a + (1 − a)·cos θ.
+const PATTERNS: [(&str, f64); 5] = [("Omni", 1.0), ("Wide cardioid", 0.7), ("Cardioid", 0.5), ("Supercardioid", 0.37), ("Figure of eight", 0.0)];
 const WOOD: Color32 = Color32::from_rgb(186, 117, 23);
 const BRIDGE: Color32 = Color32::from_rgb(205, 95, 50);
 const LID: Color32 = Color32::from_rgb(140, 140, 150);
@@ -23,93 +36,138 @@ const LID: Color32 = Color32::from_rgb(140, 140, 150);
 const KEYBOARD: f64 = 0.15;
 const HANDLE: f32 = 9.0;
 
-struct Setup {
-    name: &'static str,
+pub(crate) struct Setup {
+    pub(crate) name: &'static str,
     hint: &'static str,
     /// The listening preset it matches (archive/presets/listening/Microphones).
     preset: Option<&'static str>,
-    mics: [(f64, f64, f64); 2],
-    /// The positions for an upright (`mics_upright`).
-    upright: [(f64, f64, f64); 2],
-    /// `mics` x and y in shares of the board (they follow its size).
+    mics: Mics,
+    /// Positions in shares of the board (they follow its size).
     relative: bool,
     /// 0: the lid shut on the case.
     lid_angle: f64,
     lid_removed: bool,
     /// Level keeping the loudness of the other set-ups.
     gain_db: f64,
-    /// Pick-up pattern: 1 omni, 0.5 cardioid.
-    pattern: f64,
 }
 
-/// The listening presets' microphone set-ups (the first, Close, the
-/// model's default), and the calibrated one, for hosts without the preset
-/// folder.
-const SETUPS: [Setup; 4] = [
+const fn mic(at: (f64, f64, f64), upright: (f64, f64, f64), pattern: f64, pan: f64) -> Mic {
+    Mic { at, upright, pattern, aim: None, aim_upright: None, gain_db: 0.0, pan }
+}
+
+/// The listening presets' microphone set-ups (the first, Mixed, the model's
+/// default), and the calibrated one, for hosts without the preset folder.
+pub(crate) const SETUPS: [Setup; 8] = [
     Setup {
-        name: "Close",
-        hint: "Cardioids 40 cm above the bass and treble parts of the bridge, lid open at 35°",
-        preset: Some("close"),
-        mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
-        upright: [(0.705882, 0.653846, 0.4), (0.294118, 0.346154, 0.4)],
+        name: "Mixed",
+        hint: "The close cardioids and the spaced omni pair together, the pair 3 dB under the close one, lid open at 35°: \
+               how a piano recording is usually mixed",
+        preset: Some("mixed"),
+        mics: SoundboardParams::MIXED_MICS,
         relative: true,
         lid_angle: 35.0,
         lid_removed: false,
-        gain_db: -9.6,
-        pattern: 0.5,
+        gain_db: -9.8,
+    },
+    Setup {
+        name: "Close",
+        hint: "Cardioids 40 cm above the bass and treble parts of the bridge, aimed straight down, lid open at 35°",
+        preset: Some("close"),
+        mics: Mics::new(&SoundboardParams::CLOSE_MICS),
+        relative: true,
+        lid_angle: 35.0,
+        lid_removed: false,
+        gain_db: -7.4,
     },
     Setup {
         name: "Concert",
-        hint: "An omni pair in front of the opening, 2 m above the board, lid open at 35°",
+        hint: "A spaced omni pair (AB) in front of the opening, 2 m above the board, lid open at 35°",
         preset: Some("concert"),
-        mics: [(0.323529, -1.230769, 2.0), (0.735294, -1.230769, 2.0)],
-        upright: [(-0.2, 0.7, 2.0), (-0.2, 0.3, 2.0)],
+        mics: Mics::new(&SoundboardParams::AB_MICS),
         relative: true,
         lid_angle: 35.0,
         lid_removed: false,
         gain_db: 3.4,
-        pattern: 1.0,
+    },
+    Setup {
+        name: "Close + room",
+        hint: "The close cardioids, and an omni pair 6 m out in the room, 6 dB under them: the detail of the close pair, the hall around it",
+        preset: Some("close_room"),
+        mics: Mics::new(&[
+            SoundboardParams::CLOSE_MICS[0],
+            SoundboardParams::CLOSE_MICS[1],
+            Mic { gain_db: 2.6, ..mic((0.25, -4.5, 2.5), (-0.2, 0.8, 5.0), 1.0, -1.0) },
+            Mic { gain_db: 2.6, ..mic((0.8, -4.5, 2.5), (-0.2, 0.2, 5.0), 1.0, 1.0) },
+        ]),
+        relative: true,
+        lid_angle: 35.0,
+        lid_removed: false,
+        gain_db: -8.4,
+    },
+    Setup {
+        name: "Tree",
+        hint: "Three omnis in a T 2.5 m above the opening (left, right, the centre one forward and in the middle of the image), \
+               lid open at 35°",
+        preset: Some("tree"),
+        mics: Mics::new(&[
+            mic((0.25, -1.1, 2.5), (-0.2, 0.75, 2.2), 1.0, -1.0),
+            mic((0.85, -1.1, 2.5), (-0.2, 0.25, 2.2), 1.0, 1.0),
+            Mic { gain_db: -3.0, ..mic((0.55, -1.55, 2.5), (-0.4, 0.5, 2.2), 1.0, 0.0) },
+        ]),
+        relative: true,
+        lid_angle: 35.0,
+        lid_removed: false,
+        gain_db: 2.9,
     },
     Setup {
         name: "Audience",
         hint: "The concert pair 1 m above the board, lid shut",
         preset: Some("audience_lid_closed"),
-        mics: [(0.323529, -1.230769, 1.0), (0.735294, -1.230769, 1.0)],
-        upright: [(0.0, 0.7, 1.6), (0.0, 0.3, 1.6)],
+        mics: Mics::new(&[mic((0.323529, -1.230769, 1.0), (0.0, 0.7, 1.6), 1.0, -1.0), mic((0.735294, -1.230769, 1.0), (0.0, 0.3, 1.6), 1.0, 1.0)]),
         relative: true,
         lid_angle: 0.0,
         lid_removed: false,
         gain_db: 0.0,
-        pattern: 1.0,
+    },
+    Setup {
+        name: "Player",
+        hint: "The pianist's ears: two omnis 18 cm apart where a seated player's head is, 95 cm in front of the board, lid open at 35°",
+        preset: Some("player"),
+        mics: Mics::new(&[
+            mic((-0.558824, 0.569231, 0.45), (-0.05, 0.585714, 0.6), 1.0, -1.0),
+            mic((-0.558824, 0.430769, 0.45), (-0.05, 0.414286, 0.6), 1.0, 1.0),
+        ]),
+        relative: true,
+        lid_angle: 35.0,
+        lid_removed: false,
+        gain_db: -6.1,
     },
     Setup {
         name: "Above",
         hint: "1.5 m above the board, lid removed: the set-up the model was calibrated with",
         preset: None,
         mics: SoundboardParams::GRAND_2M.mics,
-        upright: SoundboardParams::GRAND_2M.mics_upright,
         relative: false,
         lid_angle: 0.0,
         lid_removed: true,
         gain_db: 0.0,
-        pattern: 1.0,
     },
 ];
 
 #[derive(Clone, Copy, PartialEq)]
 enum Grab {
-    /// The microphones under the pointer: one, or both when their handles
-    /// overlap in that view (a pair on one stand moves together).
-    Mics([bool; 2]),
+    /// The microphones under the pointer: one, or those whose handles
+    /// overlap it in that view (a pair on one stand moves together).
+    Mics([bool; MAX_MICS]),
     Piano,
 }
 
 /// A drag in progress: the positions shown, and the views frozen as they
 /// were when it started (refitted once it is applied).
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Drag {
     grab: Grab,
-    mics: [[f64; 3]; 2],
+    mics: Vec<[f64; 3]>,
     piano: [f64; 3],
     bounds: Bounds,
 }
@@ -118,7 +176,7 @@ struct Drag {
 pub struct MicView {
     drag: Option<Drag>,
     /// Where the handles were drawn ([plan, elevation][mic]), for tests.
-    handles: [[Pos2; 2]; 2],
+    handles: [Vec<Pos2>; 2],
 }
 
 /// Extent of the board views (m): y across, x along, z up.
@@ -132,7 +190,7 @@ struct Bounds {
 impl Bounds {
     /// The instrument, the lid, the floor and the microphones, with room
     /// around to drag further.
-    fn fit(model: &PianoModel, sb: &SoundboardParams, mics: &[[f64; 3]; 2]) -> Self {
+    fn fit(model: &PianoModel, sb: &SoundboardParams, mics: &[[f64; 3]]) -> Self {
         let (lid_reach, lid_top) = lid_extent(sb);
         let front = if sb.vertical { 0.0 } else { keyboard_front(model) };
         // Below a flat board, the floor; behind a standing one, its wall.
@@ -218,23 +276,32 @@ fn behind_lid(sb: &SoundboardParams, m: [f64; 3]) -> bool {
     t >= 0.0 && sb.lid_outline().contains(x[0], sb.b - t)
 }
 
-/// The pair of positions in use: the upright's own on a standing board.
-fn pair(raw: &SoundboardParams) -> (&'static str, [(f64, f64, f64); 2]) {
-    if raw.vertical { ("mics_upright", raw.mics_upright) } else { ("mics", raw.mics) }
+/// The positions in use, in metres: the upright's own on a standing board.
+fn positions(sb: &SoundboardParams) -> Vec<[f64; 3]> {
+    sb.resolved().mics.iter().map(|m| [m.at.0, m.at.1, m.at.2]).collect()
 }
 
 /// Edits putting the microphones at `moved` (m), in the model's units
 /// (shares of the board when its positions are relative), for the
-/// coordinates that changed, on the pair in use.
-fn mic_edits(raw: &SoundboardParams, moved: &[[f64; 3]; 2]) -> Vec<(String, f64)> {
-    let field = pair(raw).0;
+/// coordinates that changed, on the positions in use (`upright` on a
+/// standing board). A mic aimed at a point of its own keeps aiming the
+/// same way: the point moves with it.
+fn mic_edits(raw: &SoundboardParams, moved: &[[f64; 3]]) -> Vec<(String, f64)> {
+    let (field, aim) = if raw.vertical { ("upright", "aim_upright") } else { ("at", "aim") };
     let size = [raw.a, raw.b, 1.0];
-    let before = raw.resolved().mics.map(|(x, y, z)| [x, y, z]);
+    let before = positions(raw);
+    let unit = |k: usize, v: f64| if raw.mics_relative && k < 2 { (cm(v) / size[k] * 1e4).round() / 1e4 } else { cm(v) };
     let mut edits = Vec::new();
-    for (i, m) in moved.iter().enumerate() {
+    for (i, (m, mic)) in moved.iter().zip(raw.mics.iter()).enumerate() {
+        let target = if raw.vertical { mic.aim_upright } else { mic.aim };
         for k in (0..3).filter(|&k| cm(m[k]) != cm(before[i][k])) {
-            let v = if raw.mics_relative && k < 2 { (cm(m[k]) / size[k] * 1e4).round() / 1e4 } else { cm(m[k]) };
-            edits.push((format!("soundboard.{field}[{i}][{k}]"), v));
+            edits.push((format!("soundboard.mics[{i}].{field}[{k}]"), unit(k, m[k])));
+            if let Some(t) = target {
+                let t = [t.0, t.1, t.2];
+                let old = if raw.vertical { mic.upright } else { mic.at };
+                let shifted = t[k] + unit(k, m[k]) - [old.0, old.1, old.2][k];
+                edits.push((format!("soundboard.mics[{i}].{aim}[{k}]"), (shifted * 1e4).round() / 1e4));
+            }
         }
     }
     edits
@@ -247,6 +314,23 @@ fn commit(control: &mut dyn PianoControl, edits: &[(String, f64)]) {
         control.set(path, Value::Float(*v));
         control.end_edit(path);
     }
+}
+
+/// A microphone's gain field; the value to commit once the edit is over.
+/// The model only changes then, so the value being dragged is kept in the
+/// interface's memory from one frame to the next.
+fn gain_field(ui: &mut Ui, i: usize, gain_db: f64) -> (egui::Response, Option<f64>) {
+    let id = egui::Id::new(("piano-mic-gain-draft", i));
+    let mut g = ui.data(|d| d.get_temp::<f64>(id)).unwrap_or(gain_db);
+    let r = ui.add(egui::DragValue::new(&mut g).range(-40.0..=40.0).speed(0.1).suffix(" dB"));
+    if r.dragged() {
+        ui.data_mut(|d| d.insert_temp(id, g));
+    } else {
+        ui.data_mut(|d| d.remove::<f64>(id));
+    }
+    let done = r.drag_stopped() || (r.changed() && !r.dragged());
+    let value = done.then(|| (g * 10.0).round() / 10.0);
+    (r, value)
 }
 
 fn cm(v: f64) -> f64 {
@@ -312,11 +396,11 @@ impl MicView {
         };
         // Drawn in metres whatever the model's units.
         let sb = raw.resolved();
-        let committed = sb.mics.map(|(x, y, z)| [x, y, z]);
+        let committed = positions(&raw);
         self.setups(ui, control, model, &raw);
         ui.add_space(6.0);
 
-        let bounds = self.drag.map_or_else(|| Bounds::fit(model, &sb, &committed), |d| d.bounds);
+        let bounds = self.drag.as_ref().map_or_else(|| Bounds::fit(model, &sb, &committed), |d| d.bounds);
         let room_width = 200.0;
         let avail = ui.available_width();
         let side_by_side = avail >= 640.0;
@@ -337,6 +421,8 @@ impl MicView {
             self.room_view(ui, control, model, &sb, room_width.min(avail));
         }
         ui.add_space(8.0);
+        self.mic_table(ui, control, model, &raw);
+        ui.add_space(6.0);
         self.readout(ui, model, &sb);
     }
 
@@ -344,44 +430,98 @@ impl MicView {
         ui.horizontal_wrapped(|ui| {
             ui.label("Set-up:");
             for s in &SETUPS {
-                let on = (if raw.vertical { s.upright == raw.mics_upright } else { s.mics == raw.mics })
+                let on = s.mics == raw.mics
                     && s.relative == raw.mics_relative
                     && s.lid_angle == raw.lid_angle
                     && s.lid_removed == raw.lid_removed
-                    && s.gain_db == raw.mic_gain_db
-                    && s.pattern == raw.mic_pattern;
-                let mut hint = format!("{}. Also sets the microphone gain ({} dB) to keep a comparable loudness.", s.hint, s.gain_db);
+                    && s.gain_db == raw.mic_gain_db;
+                let mut hint = format!("{}. Also sets the set-up's gain ({} dB) to keep a comparable loudness.", s.hint, s.gain_db);
                 if let Some(p) = s.preset {
                     hint += &format!(" Same as the listening preset \u{201c}{p}\u{201d}.");
                 }
                 if ui.selectable_label(on, s.name).on_hover_text(hint).clicked() {
-                    let mut edits = vec![
-                        ("soundboard.lid_angle".to_string(), s.lid_angle),
-                        ("soundboard.lid_removed".to_string(), if s.lid_removed { 1.0 } else { 0.0 }),
-                        ("soundboard.mic_gain_db".to_string(), s.gain_db),
-                        ("soundboard.mic_pattern".to_string(), s.pattern),
-                        ("soundboard.mics_relative".to_string(), if s.relative { 1.0 } else { 0.0 }),
-                    ];
-                    for (field, mics) in [("mics", s.mics), ("mics_upright", s.upright)] {
-                        for (i, m) in mics.iter().enumerate() {
-                            for (j, v) in [m.0, m.1, m.2].into_iter().enumerate() {
-                                edits.push((format!("soundboard.{field}[{i}][{j}]"), v));
-                            }
-                        }
-                    }
-                    edits.retain(|(p, v)| piano_params::get(model, p).is_none_or(|old| old.as_f64() != *v));
-                    commit(control, &edits);
+                    control.load(with_setup(model, s));
                 }
             }
             ui.separator();
-            if ui.button("Swap left and right").on_hover_text("Exchange the two microphones (the stereo image turns round)").clicked() {
-                let (field, m) = pair(raw);
-                let m = m.map(|(x, y, z)| [x, y, z]);
-                let edits: Vec<(String, f64)> =
-                    (0..2).flat_map(|i| (0..3).map(move |j| (format!("soundboard.{field}[{i}][{j}]"), m[1 - i][j]))).collect();
-                commit(control, &edits);
+            if ui.button("Mirror").on_hover_text("Turn the stereo image round: every pan to the other side").clicked() {
+                let mut m = *model;
+                if let Some(sb) = m.soundboard.as_mut() {
+                    for mic in sb.mics.as_mut_slice() {
+                        mic.pan = -mic.pan;
+                    }
+                }
+                control.load(m);
             }
         });
+    }
+
+    /// A row per microphone: its pattern, gain and pan (or its own output),
+    /// to remove it; and one to add a microphone.
+    fn mic_table(&mut self, ui: &mut Ui, control: &mut dyn PianoControl, model: &PianoModel, raw: &SoundboardParams) {
+        let per_mic = raw.outputs_per_mic;
+        let mut load: Option<PianoModel> = None;
+        egui::Grid::new("piano-mic-table").num_columns(6).spacing([10.0, 4.0]).show(ui, |ui| {
+            ui.label("");
+            ui.label(RichText::new("Pattern").small());
+            ui.label(RichText::new("Gain").small());
+            ui.label(RichText::new(if per_mic { "Output" } else { "Pan" }).small());
+            ui.label("");
+            ui.end_row();
+            for (i, m) in raw.mics.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(Vec2::splat(12.0), Sense::hover());
+                    ui.painter().circle_filled(r.center(), 6.0, MIC_COLORS[i]);
+                    ui.label(mic_name(m, i));
+                });
+                let name = PATTERNS.iter().find(|p| (p.1 - m.pattern).abs() < 1e-9).map_or_else(|| format!("{:.2}", m.pattern), |p| p.0.to_string());
+                egui::ComboBox::from_id_salt(("piano-mic-pattern", i)).selected_text(name).show_ui(ui, |ui| {
+                    for (label, a) in PATTERNS {
+                        if ui.selectable_label((a - m.pattern).abs() < 1e-9, label).clicked() && a != m.pattern {
+                            commit(control, &[(format!("soundboard.mics[{i}].pattern"), a)]);
+                        }
+                    }
+                });
+                if let (_, Some(g)) = gain_field(ui, i, m.gain_db) {
+                    commit(control, &[(format!("soundboard.mics[{i}].gain_db"), g)]);
+                }
+                if per_mic {
+                    ui.label(format!("{}", i + 1));
+                } else {
+                    let mut p = m.pan;
+                    let r = ui.add(egui::Slider::new(&mut p, -1.0..=1.0).show_value(false)).on_hover_text("Left … right in the stereo mix");
+                    if r.drag_stopped() || (r.changed() && !r.dragged()) {
+                        commit(control, &[(format!("soundboard.mics[{i}].pan"), (p * 100.0).round() / 100.0)]);
+                    }
+                }
+                if ui.add_enabled(raw.mics.len() > 1, egui::Button::new("Remove").small()).clicked() {
+                    let mut mm = *model;
+                    if let Some(sb) = mm.soundboard.as_mut() {
+                        sb.mics.remove(i);
+                    }
+                    load = Some(mm);
+                }
+                ui.end_row();
+            }
+        });
+        ui.horizontal(|ui| {
+            let full = raw.mics.len() >= MAX_MICS;
+            if ui.add_enabled(!full, egui::Button::new("Add a microphone")).on_hover_text("An omni 1.5 m above the board's centre, centred in the mix").clicked() {
+                let mut mm = *model;
+                if let Some(sb) = mm.soundboard.as_mut() {
+                    let at = if sb.mics_relative { (0.5, 0.5, 1.5) } else { (0.5 * sb.a, 0.5 * sb.b, 1.5) };
+                    sb.mics.push(Mic::omni(at));
+                }
+                load = Some(mm);
+            }
+            let mut sep = per_mic;
+            if ui.checkbox(&mut sep, "One output per microphone").on_hover_text("Each microphone on its own channel with its gain, to mix in the host; off: the stereo mix by gain and pan").changed() {
+                commit(control, &[("soundboard.outputs_per_mic".to_string(), if sep { 1.0 } else { 0.0 })]);
+            }
+        });
+        if let Some(m) = load {
+            control.load(m);
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -409,34 +549,38 @@ impl MicView {
         };
 
         // Drags first, so that the drawing shows where the pointer is.
-        let committed = sb.mics.map(|(x, y, z)| [x, y, z]);
+        let committed = positions(raw);
         let shown = self.shown_mics(&committed);
+        let n = shown.len();
         for (v, view) in ["plan", "elev"].into_iter().enumerate() {
             let at = |m: &[f64; 3]| if view == "plan" { map.plan(m[0], m[1]) } else { map.elev(m[1], m[2]) };
-            self.handles[v] = [at(&shown[0]), at(&shown[1])];
-            let together = at(&shown[0]).distance(at(&shown[1])) < 1.5 * HANDLE;
-            // The right mic is drawn over the left one: its handle first.
-            for i in [1, 0] {
-                if together && i == 0 {
+            self.handles[v] = shown.iter().map(at).collect();
+            // The mics whose handles overlap mic i's in this view (it among them).
+            let group = |i: usize| -> [bool; MAX_MICS] { std::array::from_fn(|j| j < n && at(&shown[i]).distance(at(&shown[j])) < 1.5 * HANDLE) };
+            // The later mics are drawn over the earlier ones: their handles first;
+            // of a group seen as one, only the last is a handle.
+            for i in (0..n).rev() {
+                let g = group(i);
+                if (i + 1..n).any(|j| g[j]) {
                     continue;
                 }
+                let together = g.iter().filter(|&&b| b).count() > 1;
                 let id = ui.scope_id().with(("piano-mic", view, i));
                 let r = ui.interact(Rect::from_center_size(at(&shown[i]), Vec2::splat(2.5 * HANDLE)), id, Sense::drag());
                 let r = r.on_hover_cursor(egui::CursorIcon::Grab);
                 let r = if together {
-                    r.on_hover_text("Both microphones, seen one behind the other: they move together. Separate them from above, or set one below.")
+                    r.on_hover_text("Microphones seen one behind the other: they move together. Separate them from above, or set one below.")
                 } else {
                     r
                 };
                 if r.drag_started() {
-                    let which = if together { [true, true] } else { [i == 0, i == 1] };
-                    self.drag = Some(Drag { grab: Grab::Mics(which), mics: shown, piano: model.room.piano, bounds });
+                    self.drag = Some(Drag { grab: Grab::Mics(g), mics: shown.clone(), piano: model.room.piano, bounds });
                 }
                 let Some(d) = self.drag.as_mut().filter(|d| matches!(d.grab, Grab::Mics(_))) else { continue };
                 let Grab::Mics(which) = d.grab else { continue };
                 if let (true, Some(p)) = (r.dragged(), r.interact_pointer_pos()) {
-                    // The grabbed mic follows the pointer, the other one of a
-                    // pair keeps its offset.
+                    // The grabbed mic follows the pointer, the others of its
+                    // group keep their offsets.
                     let mut target = d.mics[i];
                     target[1] = map.y_at(p.x).clamp(bounds.y.0, bounds.y.1);
                     if view == "plan" {
@@ -445,7 +589,7 @@ impl MicView {
                         target[2] = map.z_at(p.y).clamp(0.05, bounds.z.1);
                     }
                     let delta = [target[0] - d.mics[i][0], target[1] - d.mics[i][1], target[2] - d.mics[i][2]];
-                    for j in (0..2).filter(|&j| which[j]) {
+                    for j in (0..n).filter(|&j| which[j]) {
                         for (c, dc) in d.mics[j].iter_mut().zip(delta) {
                             *c += dc;
                         }
@@ -454,7 +598,7 @@ impl MicView {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
                 }
                 if r.drag_stopped() {
-                    let moved = d.mics;
+                    let moved = d.mics.clone();
                     self.drag = None;
                     commit(control, &mic_edits(raw, &moved));
                 }
@@ -579,33 +723,54 @@ impl MicView {
         p.line_segment([Pos2::new(x0, y0), Pos2::new(x0 + s, y0)], Stroke::new(1.5, ink));
         p.text(Pos2::new(x0 + s + 4.0, y0), Align2::LEFT_CENTER, "1 m", font.clone(), ink);
 
-        // Microphones, with their stand in the elevation; a pair seen as one
-        // is drawn as one split handle.
+        // Microphones, with their stand in the elevation, their aim; those
+        // seen as one are drawn as one handle split in sectors.
         let shown = self.shown_mics(&committed);
-        for i in (0..2).filter(|_| !sb.vertical) {
+        let n = shown.len();
+        for i in (0..n).filter(|_| !sb.vertical) {
             let m = shown[i];
             p.line_segment([map.elev(m[1], m[2]), map.elev(m[1], floor)], Stroke::new(1.0, MIC_COLORS[i].gamma_multiply(0.6)));
         }
         for view in ["plan", "elev"] {
             let at = |m: &[f64; 3]| if view == "plan" { map.plan(m[0], m[1]) } else { map.elev(m[1], m[2]) };
-            let (a, b) = (at(&shown[0]), at(&shown[1]));
-            if a.distance(b) < 1.5 * HANDLE {
-                p.circle_filled(b, HANDLE + 2.0, MIC_COLORS[1]);
-                let half: Vec<Pos2> = (0..=12)
-                    .map(|k| std::f32::consts::FRAC_PI_2 + std::f32::consts::PI * k as f32 / 12.0)
-                    .map(|t| b + (HANDLE + 2.0) * Vec2::angled(t))
-                    .collect();
-                p.add(Shape::convex_polygon(half, MIC_COLORS[0], Stroke::NONE));
-                p.text(b, Align2::CENTER_CENTER, "L R", FontId::proportional(10.0), Color32::WHITE);
-            } else {
-                for (i, at) in [a, b].into_iter().enumerate() {
-                    p.circle_filled(at, HANDLE, MIC_COLORS[i]);
-                    p.text(at, Align2::CENTER_CENTER, &NAMES[i][..1], FontId::proportional(11.0), Color32::WHITE);
+            // Directional mics: a short stroke towards their aim.
+            for (i, mic) in sb.mics.iter().enumerate().filter(|(_, m)| m.pattern < 1.0) {
+                let (Some(aim), false) = (mic.aim, self.drag.is_some()) else { continue };
+                let (a, b) = (at(&shown[i]), at(&[aim.0, aim.1, aim.2]));
+                let d = b - a;
+                if d.length() > 1.0 {
+                    p.line_segment([a, a + d.normalized() * (HANDLE + 9.0)], Stroke::new(2.0, MIC_COLORS[i]));
+                }
+            }
+            let mut done = [false; MAX_MICS];
+            for i in 0..n {
+                if done[i] {
+                    continue;
+                }
+                let c = at(&shown[i]);
+                let group: Vec<usize> = (i..n).filter(|&j| !done[j] && c.distance(at(&shown[j])) < 1.5 * HANDLE).collect();
+                for &j in &group {
+                    done[j] = true;
+                }
+                if group.len() == 1 {
+                    p.circle_filled(c, HANDLE, MIC_COLORS[i]);
+                    p.text(c, Align2::CENTER_CENTER, format!("{}", i + 1), FontId::proportional(11.0), Color32::WHITE);
+                } else {
+                    let k = group.len() as f32;
+                    for (s, &j) in group.iter().enumerate() {
+                        let a0 = std::f32::consts::TAU * s as f32 / k;
+                        let pts: Vec<Pos2> = std::iter::once(c)
+                            .chain((0..=8).map(|q| c + (HANDLE + 2.0) * Vec2::angled(a0 + std::f32::consts::TAU / k * q as f32 / 8.0)))
+                            .collect();
+                        p.add(Shape::convex_polygon(pts, MIC_COLORS[j], Stroke::NONE));
+                    }
+                    let label: Vec<String> = group.iter().map(|j| format!("{}", j + 1)).collect();
+                    p.text(c, Align2::CENTER_CENTER, label.join(""), FontId::proportional(10.0), Color32::WHITE);
                 }
             }
         }
         if let Some(Drag { grab: Grab::Mics(which), .. }) = self.drag {
-            for i in (0..2).filter(|&i| which[i]) {
+            for i in (0..n).filter(|&i| which[i]) {
                 let m = shown[i];
                 let at = map.plan(m[0], m[1]) + Vec2::new(HANDLE + 4.0, 0.0);
                 p.text(at, Align2::LEFT_CENTER, format!("x {:.2}  y {:.2}  z {:.2} m", m[0], m[1], m[2]), font.clone(), ink);
@@ -630,13 +795,14 @@ impl MicView {
             Some(Drag { grab: Grab::Piano, piano, .. }) => piano,
             _ => room.piano,
         };
+        let committed: Vec<[f64; 3]> = sb.mics.iter().map(|m| [m.at.0, m.at.1, m.at.2]).collect();
         // The board's footprint (a standing board's is its thickness).
         let (lo, hi) = footprint(model, sb, piano);
         let board = Rect::from_two_pos(at(lo[0], lo[1]), at(hi[0], hi[1])).expand(1.5);
         let grab = ui.interact(board.expand(4.0), ui.scope_id().with("piano-in-room"), Sense::drag()).on_hover_cursor(egui::CursorIcon::Grab);
         if grab.drag_started() {
-            let mics = sb.mics.map(|(x, y, z)| [x, y, z]);
-            self.drag = Some(Drag { grab: Grab::Piano, mics, piano: room.piano, bounds: Bounds::fit(model, sb, &mics) });
+            let mics: Vec<[f64; 3]> = sb.mics.iter().map(|m| [m.at.0, m.at.1, m.at.2]).collect();
+            self.drag = Some(Drag { grab: Grab::Piano, bounds: Bounds::fit(model, sb, &mics), mics, piano: room.piano });
         }
         if let Some(d) = self.drag.as_mut().filter(|d| d.grab == Grab::Piano) {
             if grab.dragged() {
@@ -662,7 +828,7 @@ impl MicView {
         let (src, rc) = source_and_critical_distance(model, sb, piano);
         p.circle_stroke(at(src[0], src[1]), rc as f32 * r, Stroke::new(1.0, vis.weak_text_color()));
         p.rect_filled(board, 0.0, WOOD.gamma_multiply(0.6));
-        let shown = self.shown_mics(&sb.mics.map(|(x, y, z)| [x, y, z]));
+        let shown = self.shown_mics(&committed);
         for (m, c) in shown.iter().zip(MIC_COLORS) {
             let q = in_room(model, sb, piano, m);
             p.circle_filled(at(q[0], q[1]), 3.0, c);
@@ -675,13 +841,15 @@ impl MicView {
     }
 
     fn readout(&self, ui: &mut Ui, model: &PianoModel, sb: &SoundboardParams) {
-        let shown = self.shown_mics(&sb.mics.map(|(x, y, z)| [x, y, z]));
+        let committed: Vec<[f64; 3]> = sb.mics.iter().map(|m| [m.at.0, m.at.1, m.at.2]).collect();
+        let shown = self.shown_mics(&committed);
         let piano = model.room.piano;
-        let (src, rc) = source_and_critical_distance(model, sb, piano);
         for (i, &m) in shown.iter().enumerate() {
+            let mic = sb.mics[i];
+            let (src, rc) = source_and_critical_distance(model, &SoundboardParams { mics: Mics::new(&[mic]), ..*sb }, piano);
             let q = in_room(model, sb, piano, &m);
             let d = ((q[0] - src[0]).powi(2) + (q[1] - src[1]).powi(2) + (q[2] - src[2]).powi(2)).sqrt();
-            let mut text = format!("{}: {:.2} m from the board's centre", NAMES[i], d);
+            let mut text = format!("{}: {:.2} m from the board's centre", mic_name(&mic, i), d);
             if model.room.enabled {
                 let drr = 20.0 * (rc / d.max(0.3)).log10();
                 text += &if drr >= 0.0 {
@@ -701,13 +869,14 @@ impl MicView {
                 ui.label(text);
             });
         }
-        // Seen from the keyboard, the treble is on the right: a left mic
-        // further right than the right one gives the audience's image.
-        if shown[0][1] < shown[1][1] - 0.05 {
+        // Seen from the keyboard, the treble is on the right: mics panned
+        // left on the treble side give the audience's image.
+        let lean: f64 = sb.mics.iter().zip(&shown).map(|(m, p)| m.pan * (p[1] - 0.5 * sb.b)).sum();
+        if lean > 0.05 {
             ui.label(
                 RichText::new(
-                    "The left microphone is on the treble side: the stereo image is reversed from the pianist's \
-                     (as heard from the audience). Swap them for the pianist's.",
+                    "The microphones panned left are on the treble side: the stereo image is reversed from the pianist's \
+                     (as heard from the audience). Mirror it for the pianist's.",
                 )
                 .small()
                 .weak(),
@@ -717,12 +886,38 @@ impl MicView {
     }
 
     /// The microphones as shown: the model's, or where a drag holds them.
-    fn shown_mics(&self, committed: &[[f64; 3]; 2]) -> [[f64; 3]; 2] {
-        match self.drag {
-            Some(Drag { grab: Grab::Mics(_), mics, .. }) => mics,
-            _ => *committed,
+    fn shown_mics(&self, committed: &[[f64; 3]]) -> Vec<[f64; 3]> {
+        match &self.drag {
+            Some(Drag { grab: Grab::Mics(_), mics, .. }) if mics.len() == committed.len() => mics.clone(),
+            _ => committed.to_vec(),
         }
     }
+}
+
+/// A microphone's name: its number and side in the mix.
+fn mic_name(m: &Mic, i: usize) -> String {
+    let side = if m.pan < -0.3 {
+        "left"
+    } else if m.pan > 0.3 {
+        "right"
+    } else {
+        "centre"
+    };
+    let kind = PATTERNS.iter().find(|p| (p.1 - m.pattern).abs() < 1e-9).map_or("mic", |p| p.0);
+    format!("{} ({}, {side})", i + 1, kind.to_lowercase())
+}
+
+/// `model` with the set-up `s`: its microphones, gain, lid.
+pub(crate) fn with_setup(model: &PianoModel, s: &Setup) -> PianoModel {
+    let mut m = *model;
+    if let Some(sb) = m.soundboard.as_mut() {
+        sb.mics = s.mics;
+        sb.mics_relative = s.relative;
+        sb.mic_gain_db = s.gain_db;
+        sb.lid_angle = s.lid_angle;
+        sb.lid_removed = s.lid_removed;
+    }
+    m
 }
 
 /// The room's source point (board centre, room coordinates) and the
@@ -784,8 +979,31 @@ mod tests {
         ev
     }
 
-    fn mics(c: &MockControl) -> [(f64, f64, f64); 2] {
-        c.model().soundboard.unwrap().mics
+    fn mics(c: &MockControl) -> Vec<(f64, f64, f64)> {
+        c.model().soundboard.unwrap().mics.iter().map(|m| m.at).collect()
+    }
+
+    #[test]
+    fn dragging_a_gain_commits_it_on_release() {
+        let ctx = egui::Context::default();
+        let mut rect = None;
+        let mut done = None;
+        let mut run = |events: Vec<Event>, rect: &mut Option<Rect>, done: &mut Option<f64>| {
+            let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 200.0))), events, ..Default::default() };
+            // The model does not change during the drag: always 0 dB here.
+            ctx.run_ui(input, |root| {
+                let (r, v) = gain_field(root, 0, 0.0);
+                *rect = Some(r.rect);
+                *done = v.or(*done);
+            })
+            .drop_without_applying_deltas();
+        };
+        run(vec![], &mut rect, &mut done);
+        run(vec![], &mut rect, &mut done);
+        for ev in drag(rect.unwrap().center(), Vec2::new(35.0, 0.0)) {
+            run(ev, &mut rect, &mut done);
+        }
+        assert!(done.is_some_and(|g| g > 2.0 && g < 4.5), "{done:?}");
     }
 
     #[test]
@@ -797,20 +1015,25 @@ mod tests {
         frames(&mut ui, &mut control, &ctx, vec![vec![], vec![]]);
         let before = mics(&control);
 
-        // Left mic, in the plan, 40 px to the right: towards the treble (y
-        // down), same x and height; nothing else moves.
+        // First mic, in the plan, 40 px to the right: towards the treble (y
+        // down), same x and height; nothing else moves; its aim (straight
+        // down) moves with it.
+        let aim_before = control.model().soundboard.unwrap().mics[0].aim.unwrap();
         let from = ui.mics.handles[0][0];
         frames(&mut ui, &mut control, &ctx, drag(from, Vec2::new(40.0, 0.0)));
         let after = mics(&control);
-        assert!(after[0].1 < before[0].1 - 0.1, "{before:?} → {after:?}");
-        assert_eq!((after[0].0, after[0].2, after[1]), (before[0].0, before[0].2, before[1]));
+        assert!(after[0].1 < before[0].1 - 0.05, "{before:?} → {after:?}");
+        assert_eq!((after[0].0, after[0].2, &after[1..]), (before[0].0, before[0].2, &before[1..]));
+        let aim = control.model().soundboard.unwrap().mics[0].aim.unwrap();
+        assert!((aim.1 - after[0].1).abs() < 1e-3 && aim.0 == aim_before.0, "{aim:?} {after:?}");
         assert!(ui.mics.drag.is_none());
 
-        // Right mic raised in the elevation.
-        let from = ui.mics.handles[1][1];
+        // The AB pair, seen one behind the other from the keyboard, raised
+        // together in the elevation; the close pair stays.
+        let from = ui.mics.handles[1][3];
         frames(&mut ui, &mut control, &ctx, drag(from, Vec2::new(0.0, -30.0)));
         let raised = mics(&control);
-        assert!(raised[1].2 > after[1].2 + 0.1 && raised[1].1 == after[1].1 && raised[0] == after[0], "{after:?} → {raised:?}");
+        assert!(raised[3].2 > after[3].2 + 0.1 && raised[2].2 == raised[3].2 && raised[3].1 == after[3].1 && raised[..2] == after[..2], "{after:?} → {raised:?}");
     }
 
     #[test]
@@ -821,12 +1044,8 @@ mod tests {
         let mut control = MockControl::new(PianoModel::default());
         frames(&mut ui, &mut control, &ctx, vec![vec![]]);
         // The concert set-up: the pair overlaps when seen from the keyboard.
-        control.set("soundboard.mics_relative", Value::Bool(true));
-        for (i, m) in SETUPS[1].mics.iter().enumerate() {
-            for (j, v) in [m.0, m.1, m.2].into_iter().enumerate() {
-                control.set(&format!("soundboard.mics[{i}][{j}]"), Value::Float(v));
-            }
-        }
+        let concert = SETUPS.iter().find(|s| s.name == "Concert").unwrap();
+        control.load(with_setup(&control.model(), concert));
         frames(&mut ui, &mut control, &ctx, vec![vec![], vec![]]);
         let from = ui.mics.handles[1][1];
         frames(&mut ui, &mut control, &ctx, drag(from, Vec2::new(0.0, 30.0)));
@@ -873,8 +1092,8 @@ mod tests {
             let m = piano_host::load_listening(&dir.join(format!("{name}.toml")), &PianoModel::default()).unwrap();
             let sb = m.soundboard.unwrap();
             assert_eq!(
-                (sb.mics, sb.mics_upright, sb.mics_relative, sb.lid_angle, sb.lid_removed, sb.mic_gain_db, sb.mic_pattern),
-                (s.mics, s.upright, s.relative, s.lid_angle, s.lid_removed, s.gain_db, s.pattern),
+                (sb.mics, sb.mics_relative, sb.lid_angle, sb.lid_removed, sb.mic_gain_db),
+                (s.mics, s.relative, s.lid_angle, s.lid_removed, s.gain_db),
                 "{name}"
             );
         }
@@ -882,29 +1101,30 @@ mod tests {
 
     #[test]
     fn relative_positions_stay_relative() {
-        let raw = SoundboardParams { mics_relative: true, mics: [(0.25, 0.5, 1.0), (0.75, 0.5, 1.0)], ..SoundboardParams::GRAND_2M };
-        let mut moved = raw.resolved().mics.map(|(x, y, z)| [x, y, z]);
+        let raw = SoundboardParams { mics_relative: true, mics: Mics::pair((0.25, 0.5, 1.0), (0.75, 0.5, 1.0)), ..SoundboardParams::GRAND_2M };
+        let mut moved = positions(&raw);
         moved[1][1] -= 0.13;
-        assert_eq!(mic_edits(&raw, &moved), vec![("soundboard.mics[1][1]".to_string(), 0.4)]);
+        assert_eq!(mic_edits(&raw, &moved), vec![("soundboard.mics[1].at[1]".to_string(), 0.4)]);
     }
 
     #[test]
     fn an_upright_moves_its_own_pair() {
-        let raw = SoundboardParams { vertical: true, mics_relative: true, mics_upright: [(0.0, 0.7, 1.6), (0.0, 0.3, 1.6)], ..SoundboardParams::GRAND_2M };
-        let mut moved = raw.resolved().mics.map(|(x, y, z)| [x, y, z]);
+        let mics = Mics::new(&[Mic { upright: (0.0, 0.7, 1.6), ..Mic::DEFAULT }, Mic { upright: (0.0, 0.3, 1.6), ..Mic::DEFAULT }]);
+        let raw = SoundboardParams { vertical: true, mics_relative: true, mics, ..SoundboardParams::GRAND_2M };
+        let mut moved = positions(&raw);
         assert_eq!(moved[0], [0.0, 0.7 * raw.b, 1.6]);
         moved[0][2] = 1.2;
-        assert_eq!(mic_edits(&raw, &moved), vec![("soundboard.mics_upright[0][2]".to_string(), 1.2)]);
+        assert_eq!(mic_edits(&raw, &moved), vec![("soundboard.mics[0].upright[2]".to_string(), 1.2)]);
     }
 
     #[test]
     fn setups_fit_the_curated_ranges() {
         let reg = piano_params::Registry::new();
         for s in &SETUPS {
-            for (field, mics) in [("mics", s.mics), ("mics_upright", s.upright)] {
-                for (i, m) in mics.iter().enumerate() {
-                    for (j, v) in [m.0, m.1, m.2].into_iter().enumerate() {
-                        let meta = &reg.get(&format!("soundboard.{field}[{i}][{j}]")).unwrap().meta;
+            for (i, m) in s.mics.iter().enumerate() {
+                for (field, p) in [("at", m.at), ("upright", m.upright)] {
+                    for (j, v) in [p.0, p.1, p.2].into_iter().enumerate() {
+                        let meta = &reg.get(&format!("soundboard.mics[{i}].{field}[{j}]")).unwrap().meta;
                         assert!(meta.curated && (meta.min..=meta.max).contains(&v), "{} {field} {i}: {v}", s.name);
                     }
                 }
@@ -917,8 +1137,8 @@ mod tests {
         let sb = PianoModel::default().soundboard.unwrap();
         let s = &SETUPS[0];
         assert_eq!(
-            (s.mics, s.upright, s.relative, s.lid_angle, s.lid_removed, s.gain_db, s.pattern),
-            (sb.mics, sb.mics_upright, sb.mics_relative, sb.lid_angle, sb.lid_removed, sb.mic_gain_db, sb.mic_pattern)
+            (s.mics, s.relative, s.lid_angle, s.lid_removed, s.gain_db),
+            (sb.mics, sb.mics_relative, sb.lid_angle, sb.lid_removed, sb.mic_gain_db)
         );
     }
 
@@ -938,9 +1158,10 @@ mod tests {
     fn critical_distance_follows_directivity_and_pattern() {
         let m = PianoModel::default();
         let m = PianoModel { room: piano_core::room::RoomParams { directivity: 3.0, ..m.room }, ..m };
-        let sb = SoundboardParams { mic_pattern: 1.0, ..m.soundboard.unwrap() };
+        let sb = m.soundboard.unwrap();
+        let sb = SoundboardParams { mics: sb.mics.map(|x| Mic { pattern: 1.0, ..x }), ..sb };
         let (_, omni) = source_and_critical_distance(&m, &sb, m.room.piano);
-        let cardioid = SoundboardParams { mic_pattern: 0.5, ..sb };
+        let cardioid = SoundboardParams { mics: sb.mics.map(|x| Mic { pattern: 0.5, ..x }), ..sb };
         let (_, card) = source_and_critical_distance(&m, &cardioid, m.room.piano);
         // A cardioid hears the diffuse room 1/3 as much: r_c × √3.
         assert!((card / omni - 3f64.sqrt()).abs() < 1e-9, "{omni} {card}");

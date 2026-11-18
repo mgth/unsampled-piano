@@ -176,23 +176,18 @@ pub struct SoundboardParams {
     pub bridge_keys: [(f64, f64, f64); BRIDGE_KEYS],
     /// First note on the main bridge (lower notes are on the bass bridge).
     pub main_bridge_from: u8,
-    /// Microphones (m, plate coordinates, z above the board).
-    pub mics: [(f64, f64, f64); 2],
-    /// The microphones used instead of `mics` when the board is vertical
-    /// (an upright): a listening set-up places them for both kinds of
-    /// piano. The same coordinates: x down from the board's top, y across
-    /// (the bass at y = b, on the listener's left), z in front of the board.
-    pub mics_upright: [(f64, f64, f64); 2],
-    /// `mics` x and y are fractions of the board's a and b (z stays in
-    /// metres): a listening preset then fits every board size.
+    /// The microphones (1 to [`crate::mics::MAX_MICS`]): position on a
+    /// grand and on an upright, pattern, aim, gain, pan ([`crate::mics`]).
+    pub mics: crate::mics::Mics,
+    /// The microphones' x and y are fractions of the board's a and b (z
+    /// stays in metres): a listening preset then fits every board size.
     pub mics_relative: bool,
     /// Gain of the listening set-up (dB), on top of `output_gain_db` (the
     /// instrument's own level): closer microphones hear the piano louder.
     pub mic_gain_db: f64,
-    /// Microphone pattern a + (1 − a)·cos θ, aimed at the piano: 1 omni,
-    /// 0.5 cardioid. The direct sound arrives on axis; the room's sound from
-    /// every direction, which a cardioid hears with a third of the energy.
-    pub mic_pattern: f64,
+    /// One output channel per microphone (its gain, no pan) instead of
+    /// the stereo mix (gain and pan per microphone).
+    pub outputs_per_mic: bool,
     /// Render the radiated pressure (false: output the bridge force, the
     /// board only sets the string coupling — for analysis).
     pub radiate: bool,
@@ -356,10 +351,22 @@ pub fn deserialize_saved<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Optio
         p: SoundboardParams,
         lid_removed: Option<bool>,
         lid_shut: Option<f64>,
+        // Before 2026-11-17: the two microphones' upright places and one
+        // pattern for both (`mics` then held their positions only).
+        mics_upright: Option<Vec<(f64, f64, f64)>>,
+        mic_pattern: Option<f64>,
     }
     let saved: Option<Saved> = serde::Deserialize::deserialize(d)?;
     Ok(saved.map(|s| {
         let mut p = s.p;
+        for (m, u) in p.mics.as_mut_slice().iter_mut().zip(s.mics_upright.iter().flatten()) {
+            m.upright = *u;
+        }
+        if let Some(a) = s.mic_pattern {
+            for m in p.mics.as_mut_slice() {
+                m.pattern = a;
+            }
+        }
         match (s.lid_removed, s.lid_shut) {
             (Some(removed), _) => p.lid_removed = removed,
             (None, Some(shut)) if shut >= 0.5 => (p.lid_removed, p.lid_angle) = (false, 0.0),
@@ -485,12 +492,15 @@ impl SoundboardParams {
         main_string_slant: 8.0,
         string_sections: [(0.0, 0.0); STRING_SECTIONS],
         bridge_keys: [(0.0, 0.0, 0.0); BRIDGE_KEYS],
-        mics: [(0.45, 0.35, 1.5), (1.15, 0.85, 1.5)],
-        // 1.5 m in front of an upright's board, the left one on the bass side.
-        mics_upright: [(0.7, 1.0, 1.5), (0.3, 0.45, 1.5)],
+        // Two omnis 1.5 m above; 1.5 m in front of an upright's board, the
+        // left one on the bass side.
+        mics: crate::mics::Mics::new(&[
+            crate::mics::Mic { at: (0.45, 0.35, 1.5), upright: (0.7, 1.0, 1.5), pan: -1.0, ..crate::mics::Mic::DEFAULT },
+            crate::mics::Mic { at: (1.15, 0.85, 1.5), upright: (0.3, 0.45, 1.5), pan: 1.0, ..crate::mics::Mic::DEFAULT },
+        ]),
         mics_relative: false,
         mic_gain_db: 0.0,
-        mic_pattern: 1.0,
+        outputs_per_mic: false,
         radiate: true,
         grid_step: 0.015,
         // Calibrated on the spectral tilt of Salamander (low bands).
@@ -535,19 +545,54 @@ impl SoundboardParams {
         structure: crate::fem::BoardStructure::STEINWAY_D,
     };
 
-    /// The default instrument's board: [`Self::GRAND_2M`] heard by the
-    /// close pair under a lid open at 35°, as
-    /// archive/presets/listening/Microphones/close.toml sets them.
-    pub const DEFAULT: Self = Self {
-        mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
-        mics_upright: [(0.705882, 0.653846, 0.4), (0.294118, 0.346154, 0.4)],
-        mics_relative: true,
-        mic_gain_db: -9.6,
-        mic_pattern: 0.5,
-        lid_angle: 35.0,
-        lid_removed: false,
-        ..Self::GRAND_2M
-    };
+    /// The default instrument's board: [`Self::GRAND_2M`] under a lid open
+    /// at 35°, heard as a recording mixes it ([`Self::MIXED_MICS`]), as
+    /// archive/presets/listening/Microphones/mixed.toml sets them.
+    pub const DEFAULT: Self = Self { mics: Self::MIXED_MICS, mics_relative: true, mic_gain_db: -9.8, lid_angle: 35.0, lid_removed: false, ..Self::GRAND_2M };
+
+    /// The close pair: cardioids 40 cm above the board over the bass and
+    /// the treble parts of the bridge, aimed straight down (relative
+    /// positions, archive/presets/listening/Microphones/close.toml).
+    pub const CLOSE_MICS: [crate::mics::Mic; 2] = [
+        crate::mics::Mic {
+            at: (0.294118, 0.346154, 0.4),
+            upright: (0.705882, 0.653846, 0.4),
+            pattern: 0.5,
+            aim: Some((0.294118, 0.346154, 0.0)),
+            aim_upright: Some((0.705882, 0.653846, 0.0)),
+            gain_db: 0.0,
+            pan: -1.0,
+        },
+        crate::mics::Mic {
+            at: (0.705882, 0.653846, 0.4),
+            upright: (0.294118, 0.346154, 0.4),
+            pattern: 0.5,
+            aim: Some((0.705882, 0.653846, 0.0)),
+            aim_upright: Some((0.294118, 0.346154, 0.0)),
+            gain_db: 0.0,
+            pan: 1.0,
+        },
+    ];
+
+    /// A spaced (AB) pair of omnis 2 m high, 2.3 m out in the lid's
+    /// opening (relative positions, archive/presets/listening/Microphones/
+    /// concert.toml).
+    pub const AB_MICS: [crate::mics::Mic; 2] = [
+        crate::mics::Mic { at: (0.323529, -1.230769, 2.0), upright: (-0.2, 0.7, 2.0), pattern: 1.0, aim: None, aim_upright: None, gain_db: 0.0, pan: -1.0 },
+        crate::mics::Mic { at: (0.735294, -1.230769, 2.0), upright: (-0.2, 0.3, 2.0), pattern: 1.0, aim: None, aim_upright: None, gain_db: 0.0, pan: 1.0 },
+    ];
+
+    /// The mix a piano recording usually takes: the close pair for the
+    /// detail, the AB pair for the body and the room, 3 dB under the close
+    /// pair (each pair measured alone on C2, C4 and C6 at mf: the AB pair
+    /// needs 7.8 dB more); the set-up's gain, −9.8 dB, gives the sum the
+    /// concert set-up's loudness.
+    pub const MIXED_MICS: crate::mics::Mics = crate::mics::Mics::new(&[
+        Self::CLOSE_MICS[0],
+        Self::CLOSE_MICS[1],
+        crate::mics::Mic { gain_db: 7.8, ..Self::AB_MICS[0] },
+        crate::mics::Mic { gain_db: 7.8, ..Self::AB_MICS[1] },
+    ]);
 
     /// A grand's outline for the 2 m board: straight front edge (x = 0) and
     /// spine (the bass side, y = b); the bentside leaves the treble cheek
@@ -663,7 +708,7 @@ impl SoundboardParams {
     /// goes up. Inside the box p² = 4ρc·P/R; outside, what leaves through the
     /// openings spreads over a half-sphere from the board's centre. A
     /// microphone's pattern hears a diffuse field less.
-    fn case_field_gain(&self, room: (f64, f64, f64), omega: f64, rate: f64, m: [f64; 3]) -> f64 {
+    fn case_field_gain(&self, room: (f64, f64, f64), omega: f64, rate: f64, m: [f64; 3], ear: &Ear) -> f64 {
         let (r, leaving, schroeder) = room;
         let f2 = (omega / TAU).powi(2);
         let diffuse = f2 / (f2 + schroeder * schroeder);
@@ -675,32 +720,44 @@ impl SoundboardParams {
             let d2 = (m[0] - 0.5 * self.a).powi(2) + (m[1] - 0.5 * self.b).powi(2) + (m[2] - self.lid_hinge_height).powi(2);
             leaving / (TAU * d2.max(0.25))
         };
-        let q = self.mic_pattern.clamp(0.0, 1.0);
-        let pattern = q * q + (1.0 - q).powi(2) / 3.0;
+        let pattern = ear.diffuse();
         // Peak velocity: P = rate·v²/4 upwards, p peak² = 2·ρc·P·per_power.
         (0.5 * RHO0 * C0 * rate * per_power * pattern * diffuse).sqrt()
     }
 
-    /// Radiation paths from the board cell `c` to the point `m`.
-    fn path(&self, lid: Option<&Lid>, c: [f64; 3], m: [f64; 3]) -> Path {
+    /// Radiation paths from the board cell `c` to the point `m`, heard by
+    /// `ear` (each path weighed by the pattern at its angle of arrival).
+    fn path(&self, lid: Option<&Lid>, c: [f64; 3], m: [f64; 3], ear: &Ear) -> Path {
         let d2 = (c[0] - m[0]).powi(2) + (c[1] - m[1]).powi(2);
         let at = |z: f64| (d2 + z * z).sqrt();
+        let from = |z: f64| ear.gain([c[0], c[1], z], m);
         let z = m[2];
         if z < 0.0 {
             // Below (behind) the board: the back face directly, the front
             // one around the case.
-            return Path { front: (at(-z + self.back_depth), self.back_gain), back: (at(-z), 1.0), wall: (1.0, 0.0), image: (1.0, 0.0) };
+            return Path {
+                front: (at(-z + self.back_depth), self.back_gain * from(self.back_depth)),
+                back: (at(-z), from(0.0)),
+                wall: (1.0, 0.0),
+                image: (1.0, 0.0),
+            };
         }
         let (direct, image) = match lid {
             Some(l) => (l.direct_gain(c, m), l.image(c, m)),
             None => (1.0, None),
         };
         let wall = if self.wall_distance > 0.0 {
-            (at(z + self.back_depth + 2.0 * self.wall_distance), self.wall_reflection * self.back_gain)
+            let depth = self.back_depth + 2.0 * self.wall_distance;
+            (at(z + depth), self.wall_reflection * self.back_gain * from(-depth))
         } else {
             (1.0, 0.0)
         };
-        Path { front: (at(z), direct), back: (at(z + self.back_depth), self.back_gain), wall, image: image.unwrap_or((1.0, 0.0)) }
+        Path {
+            front: (at(z), direct * from(0.0)),
+            back: (at(z + self.back_depth), self.back_gain * from(-self.back_depth)),
+            wall,
+            image: image.map_or((1.0, 0.0), |(d, g, img)| (d, g * ear.gain(img, m))),
+        }
     }
 
     /// Mean (infinite-plate) mobility 1/(8√(D·ρh)) with D = H.
@@ -954,6 +1011,40 @@ struct Path {
     image: (f64, f64),
 }
 
+/// How a microphone hears: pattern a + (1 − a)·cos θ about its axis.
+#[derive(Clone, Copy, Debug)]
+struct Ear {
+    a: f64,
+    axis: [f64; 3],
+}
+
+impl Ear {
+    const OMNI: Self = Self { a: 1.0, axis: [0.0, 0.0, -1.0] };
+
+    /// A microphone at `at` aimed at `aim`, of pattern `a`.
+    fn new(a: f64, at: (f64, f64, f64), aim: (f64, f64, f64)) -> Self {
+        let d = [aim.0 - at.0, aim.1 - at.1, aim.2 - at.2];
+        let n = dot(d, d).sqrt();
+        Self { a: a.clamp(0.0, 1.0), axis: if n > 1e-9 { d.map(|x| x / n) } else { [0.0, 0.0, -1.0] } }
+    }
+
+    /// Its gain to a sound coming from `src` to the microphone at `m`.
+    fn gain(&self, src: [f64; 3], m: [f64; 3]) -> f64 {
+        if self.a >= 1.0 {
+            return 1.0;
+        }
+        let d = sub(src, m);
+        let n = dot(d, d).sqrt();
+        let cos = if n > 1e-9 { dot(d, self.axis) / n } else { 1.0 };
+        self.a + (1.0 - self.a) * cos
+    }
+
+    /// Share of a diffuse field's power it takes.
+    fn diffuse(&self) -> f64 {
+        self.a * self.a + (1.0 - self.a).powi(2) / 3.0
+    }
+}
+
 /// The open lid, a reflecting plate of the case's shape.
 struct Lid {
     p0: [f64; 3],
@@ -1034,7 +1125,7 @@ impl Lid {
 
     /// Mirror image of the cell in the lid, if the reflection hits the lid
     /// and the mic sees it: (path length, gain).
-    fn image(&self, c: [f64; 3], m: [f64; 3]) -> Option<(f64, f64)> {
+    fn image(&self, c: [f64; 3], m: [f64; 3]) -> Option<(f64, f64, [f64; 3])> {
         let (fc, fm) = (self.side(c), self.side(m));
         if fc <= 0.0 || fm <= 0.0 {
             return None;
@@ -1042,7 +1133,7 @@ impl Lid {
         let img = [c[0] - 2.0 * fc * self.n[0], c[1] - 2.0 * fc * self.n[1], c[2] - 2.0 * fc * self.n[2]];
         self.on_lid(lerp3(img, m, fc / (fc + fm))).then(|| {
             let d = sub(m, img);
-            (dot(d, d).sqrt(), self.reflection)
+            (dot(d, d).sqrt(), self.reflection, img)
         })
     }
 }
@@ -1227,9 +1318,14 @@ impl SoundboardParams {
     /// vertical board) in metres.
     /// Idempotent.
     pub fn resolved(self) -> Self {
-        let metres = |m: [(f64, f64, f64); 2]| if self.mics_relative { m.map(|(x, y, z)| (x * self.a, y * self.b, z)) } else { m };
-        let (grand, upright) = (metres(self.mics), metres(self.mics_upright));
-        Self { mics: if self.vertical { upright } else { grand }, mics_upright: upright, mics_relative: false, ..self }
+        let metres = |p: (f64, f64, f64)| if self.mics_relative { (p.0 * self.a, p.1 * self.b, p.2) } else { p };
+        let centre = (0.5 * self.a, 0.5 * self.b, 0.0);
+        let mics = self.mics.map(|m| {
+            let (upright, aim_upright) = (metres(m.upright), m.aim_upright.map(metres).unwrap_or(centre));
+            let (at, aim) = if self.vertical { (upright, aim_upright) } else { (metres(m.at), m.aim.map(metres).unwrap_or(centre)) };
+            crate::mics::Mic { at, aim: Some(aim), upright, aim_upright: Some(aim_upright), ..m }
+        });
+        Self { mics, mics_relative: false, ..self }
     }
 }
 
@@ -1700,39 +1796,41 @@ impl Soundboard {
 
     /// Complex radiation weight of each mode at each microphone: pressure
     /// (Pa) per unit modal velocity, by the Rayleigh integral at ω_n.
-    pub fn radiation(&self) -> Vec<[C64; 2]> {
-        let p = &self.params;
-        let mics = p.mics.map(|(x, y, z)| [x, y, z]);
-        self.field(&mics, p.grid_step, self.modes.len()).into_iter().map(|v| [v[0], v[1]]).collect()
+    /// `[mode][mic]`; the microphones as [`SoundboardParams::resolved`]
+    /// places them, each heard through its pattern.
+    pub fn radiation(&self) -> Vec<Vec<C64>> {
+        let (mics, ears) = self.mic_points();
+        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), None)
+    }
+
+    /// The microphones' points and patterns.
+    fn mic_points(&self) -> (Vec<[f64; 3]>, Vec<Ear>) {
+        let centre = (0.5 * self.params.a, 0.5 * self.params.b, 0.0);
+        self.params.mics.iter().map(|m| ([m.at.0, m.at.1, m.at.2], Ear::new(m.pattern, m.at, m.aim.unwrap_or(centre)))).unzip()
     }
 
     /// Complex radiation weight of the first `n_modes` modes at each of
     /// `points` (board coordinates, m): pressure (Pa) per unit modal
     /// velocity, `[mode][point]`.
     pub fn radiation_points(&self, points: &[[f64; 3]], n_modes: usize) -> Vec<Vec<C64>> {
-        self.field(points, self.params.grid_step, n_modes.min(self.modes.len()))
+        self.field_with(points, &vec![Ear::OMNI; points.len()], self.params.grid_step, n_modes.min(self.modes.len()), None)
     }
 
     /// The radiation weights of every mode evaluated at one driving
     /// frequency `omega` instead of each mode's own: what the modes' sum
     /// radiates when driven there (the direct field of a point force is a
     /// sum of modes off resonance). Diagnostics.
-    pub fn radiation_at(&self, omega: f64) -> Vec<[C64; 2]> {
-        let p = &self.params;
-        let mics = p.mics.map(|(x, y, z)| [x, y, z]);
-        self.field_with(&mics, p.grid_step, self.modes.len(), Some(omega)).into_iter().map(|v| [v[0], v[1]]).collect()
+    pub fn radiation_at(&self, omega: f64) -> Vec<Vec<C64>> {
+        let (mics, ears) = self.mic_points();
+        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), Some(omega))
     }
 
     /// Pressure per unit modal velocity of the first `n_modes` modes at
-    /// `points` (board coordinates, z < 0 below or behind the board), on
-    /// a radiation grid of `step` m.
-    fn field(&self, points: &[[f64; 3]], step: f64, n_modes: usize) -> Vec<Vec<C64>> {
-        self.field_with(points, step, n_modes, None)
-    }
-
-    /// [`Self::field`] with the Rayleigh integral taken at `omega` for
-    /// every mode when given, else at each mode's own frequency.
-    fn field_with(&self, points: &[[f64; 3]], step: f64, n_modes: usize, omega: Option<f64>) -> Vec<Vec<C64>> {
+    /// `points` (board coordinates, z < 0 below or behind the board), heard
+    /// through `ears`, on a radiation grid of `step` m; the Rayleigh
+    /// integral taken at `omega` for every mode when given, else at each
+    /// mode's own frequency.
+    fn field_with(&self, points: &[[f64; 3]], ears: &[Ear], step: f64, n_modes: usize, omega: Option<f64>) -> Vec<Vec<C64>> {
         let p = &self.params;
         let nx = (p.a / step).ceil() as usize;
         let ny = (p.b / step).ceil() as usize;
@@ -1744,7 +1842,7 @@ impl Soundboard {
         for i in 0..nx {
             for j in 0..ny {
                 let c = [(i as f64 + 0.5) * dx, (j as f64 + 0.5) * dy, 0.0];
-                geo.extend(points.iter().map(|&m| p.path(lid.as_ref(), c, m)));
+                geo.extend(points.iter().zip(ears).map(|(&m, e)| p.path(lid.as_ref(), c, m, e)));
             }
         }
         let ds = dx * dy;
@@ -1795,7 +1893,7 @@ impl Soundboard {
         // long at 3 kHz and 3.4 cm at 8 kHz.
         let nodes: Option<(Vec<Path>, f64)> = self.fem.as_ref().filter(|f| f.hx.max(f.hy) < 0.99 * dx.min(dy)).map(|f| {
             let (at, lid) = (f.nodes(), lid.as_ref());
-            (at.iter().flat_map(|&(x, y)| points.iter().map(move |&m| p.path(lid, [x, y, 0.0], m))).collect(), f.hx * f.hy)
+            (at.iter().flat_map(|&(x, y)| points.iter().zip(ears).map(move |(&m, e)| p.path(lid, [x, y, 0.0], m, e))).collect(), f.hx * f.hy)
         });
         crate::par::map(n_modes, |i| {
             let md = &self.modes[i];
@@ -1895,12 +1993,12 @@ impl Soundboard {
                 let sigma = p.scatter * r / (1.0 + r) * (wc / w);
                 for &(x, y, z, area, phase) in &scat {
                     let phi = self.shape(md, x, y) * area * sigma;
-                    for (a, m) in acc.iter_mut().zip(points) {
+                    for ((a, m), e) in acc.iter_mut().zip(points).zip(ears) {
                         if m[2] < 0.0 {
                             continue;
                         }
                         let d = ((m[0] - x).powi(2) + (m[1] - y).powi(2) + (m[2] - z).powi(2)).sqrt().max(0.05);
-                        *a += C64::polar(phi / d, phase - k * d);
+                        *a += C64::polar(phi * e.gain([x, y, z], *m) / d, phase - k * d);
                     }
                 }
             }
@@ -1908,10 +2006,10 @@ impl Soundboard {
             if let Some(room) = case_room.filter(|_| md.air > 0.0) {
                 // In power: a phase of its own for each mode at each point.
                 let velocity = if md.fem.is_some() { 1.0 } else { self.above_radiation };
-                for (q, (a, m)) in out.iter_mut().zip(points).enumerate().filter(|(_, (_, m))| m[2] >= 0.0) {
+                for (q, ((a, m), e)) in out.iter_mut().zip(points).zip(ears).enumerate().filter(|(_, ((_, m), _))| m[2] >= 0.0) {
                     let seed = (i as u32).wrapping_mul(2_654_435_761).wrapping_add(q as u32).wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
                     let phase = TAU * (seed >> 8) as f64 / (1u32 << 24) as f64;
-                    *a += C64::polar(velocity * p.case_field_gain(room, md.omega, md.air * md.omega, *m), phase);
+                    *a += C64::polar(velocity * p.case_field_gain(room, md.omega, md.air * md.omega, *m, e), phase);
                 }
             }
             out
@@ -1977,7 +2075,7 @@ mod tests {
         let flat = SoundboardParams { lid_hinge_height: 0.0, ..p };
         let room = flat.case_room_constant();
         assert_eq!(room.1, 0.0);
-        assert_eq!(flat.case_field_gain(room, TAU * 4000.0, 100.0, [1.0, 0.7, 0.0]), 0.0);
+        assert_eq!(flat.case_field_gain(room, TAU * 4000.0, 100.0, [1.0, 0.7, 0.0], &Ear::OMNI), 0.0);
         // A lid leaves the room as it was.
         let lid = SoundboardParams { lid_removed: false, lid_angle: 35.0, ..p };
         let open = (2.124 + 1.46) * 1.46 * 35f64.to_radians().sin();
@@ -1987,22 +2085,23 @@ mod tests {
 
     #[test]
     fn the_case_field_follows_the_power_radiated() {
-        let p = SoundboardParams { a: 2.0, b: 1.4, lid_angle: 35.0, lid_removed: false, mic_pattern: 1.0, ..SoundboardParams::GRAND_2M };
+        let p = SoundboardParams { a: 2.0, b: 1.4, lid_angle: 35.0, lid_removed: false, ..SoundboardParams::GRAND_2M };
         let room = p.case_room_constant();
         let w = TAU * 8000.0;
         let inside = [1.0, 0.7, 0.4];
-        let g = p.case_field_gain(room, w, 100.0, inside);
+        let omni = Ear::OMNI;
+        let g = p.case_field_gain(room, w, 100.0, inside, &omni);
         let diffuse = 1.0 / (1.0 + (room.2 / 8000f64).powi(2));
         // p² peak = 2ρc·(rate·v²/4)·4/R, per unit peak velocity.
         let want = (2.0 * RHO0 * C0 * 100.0 * diffuse / room.0).sqrt();
         assert!((g / want - 1.0).abs() < 1e-9, "{g} {want}");
-        assert!((p.case_field_gain(room, w, 400.0, inside) / g - 2.0).abs() < 1e-9);
+        assert!((p.case_field_gain(room, w, 400.0, inside, &omni) / g - 2.0).abs() < 1e-9);
         // A cardioid hears a third of the energy of a diffuse field.
-        let cardioid = SoundboardParams { mic_pattern: 0.5, ..p };
-        assert!((cardioid.case_field_gain(room, w, 100.0, inside) / g - (1f64 / 3.0).sqrt()).abs() < 1e-9);
+        let cardioid = Ear::new(0.5, (1.0, 0.7, 0.4), (1.0, 0.7, 0.0));
+        assert!((p.case_field_gain(room, w, 100.0, inside, &cardioid) / g - (1f64 / 3.0).sqrt()).abs() < 1e-9);
         // Below the box's Schroeder frequency it fades; away from the case, too.
-        assert!(p.case_field_gain(room, TAU * 100.0, 100.0, inside) < 0.3 * g);
-        let (near, far) = (p.case_field_gain(room, w, 100.0, [1.0, -2.0, 1.0]), p.case_field_gain(room, w, 100.0, [1.0, -4.0, 1.0]));
+        assert!(p.case_field_gain(room, TAU * 100.0, 100.0, inside, &omni) < 0.3 * g);
+        let (near, far) = (p.case_field_gain(room, w, 100.0, [1.0, -2.0, 1.0], &omni), p.case_field_gain(room, w, 100.0, [1.0, -4.0, 1.0], &omni));
         assert!(far < near && near < g, "{near} {far} {g}");
     }
 
@@ -2193,10 +2292,15 @@ mod tests {
 
     #[test]
     fn an_upright_uses_its_own_microphones() {
-        let p = SoundboardParams { mics_relative: true, mics: [(0.5, -1.0, 2.0); 2], mics_upright: [(-0.2, 0.7, 2.0), (-0.2, 0.3, 2.0)], ..SoundboardParams::GRAND_2M };
-        assert_eq!(p.resolved().mics[0], (0.5 * p.a, -p.b, 2.0));
+        use crate::mics::{Mic, Mics};
+        let m = |up| Mic { at: (0.5, -1.0, 2.0), upright: up, ..Mic::DEFAULT };
+        let p = SoundboardParams { mics_relative: true, mics: Mics::new(&[m((-0.2, 0.7, 2.0)), m((-0.2, 0.3, 2.0))]), ..SoundboardParams::GRAND_2M };
+        let grand = p.resolved();
+        assert_eq!(grand.mics[0].at, (0.5 * p.a, -p.b, 2.0));
+        // Aimed at the board's centre unless told otherwise.
+        assert_eq!(grand.mics[0].aim, Some((0.5 * p.a, 0.5 * p.b, 0.0)));
         let up = SoundboardParams { vertical: true, ..p }.resolved();
-        assert_eq!(up.mics[0], (-0.2 * p.a, 0.7 * p.b, 2.0));
+        assert_eq!(up.mics[0].at, (-0.2 * p.a, 0.7 * p.b, 2.0));
         assert_eq!(up.resolved().mics, up.mics, "resolving twice changes nothing");
     }
 
@@ -2243,11 +2347,11 @@ mod tests {
             lid_angle: 35.0,
             lid_removed: false,
             mics_relative: true,
-            mics: [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)],
+            mics: crate::mics::Mics::pair((0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)),
             ..SoundboardParams::GRAND_2M
         }
         .resolved();
-        let audience = SoundboardParams { lid_angle: 0.0, mics: [(0.55, -1.6, 1.0), (1.25, -1.6, 1.0)], ..close };
+        let audience = SoundboardParams { lid_angle: 0.0, mics: crate::mics::Mics::pair((0.55, -1.6, 1.0), (1.25, -1.6, 1.0)).map(|m| crate::mics::Mic { aim: Some((1.0, 0.7, 0.0)), ..m }), ..close };
         let gap = |a: SoundboardParams, b: SoundboardParams| {
             let (a, b) = (Soundboard::new(a).radiation(), Soundboard::new(b).radiation());
             let d: f64 = a.iter().zip(&b).flat_map(|(x, y)| (0..2).map(move |m| (x[m] - y[m]).norm_sqr())).sum();

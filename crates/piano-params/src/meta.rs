@@ -157,21 +157,9 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("soundboard.impedance_slope_bass", "Board impedance slope (bass)", "/key", -0.1, 0.1, false),
     ("hammer_mass_scale", "Hammer mass", "", 0.25, 2.0, true),
     ("strike_ratio", "Strike point", "", 0.06, 0.2, false),
-    ("soundboard.mics[0][0]", "Left mic x (along)", "", -3.0, 5.0, false),
-    ("soundboard.mics[0][1]", "Left mic y (across)", "", -5.0, 5.0, false),
-    ("soundboard.mics[0][2]", "Left mic height", "m", 0.05, 4.0, false),
-    ("soundboard.mics[1][0]", "Right mic x (along)", "", -3.0, 5.0, false),
-    ("soundboard.mics[1][1]", "Right mic y (across)", "", -5.0, 5.0, false),
-    ("soundboard.mics[1][2]", "Right mic height", "m", 0.05, 4.0, false),
-    ("soundboard.mics_upright[0][0]", "Upright: left mic x (down)", "", -3.0, 5.0, false),
-    ("soundboard.mics_upright[0][1]", "Upright: left mic y (across)", "", -5.0, 5.0, false),
-    ("soundboard.mics_upright[0][2]", "Upright: left mic in front", "m", 0.05, 4.0, false),
-    ("soundboard.mics_upright[1][0]", "Upright: right mic x (down)", "", -3.0, 5.0, false),
-    ("soundboard.mics_upright[1][1]", "Upright: right mic y (across)", "", -5.0, 5.0, false),
-    ("soundboard.mics_upright[1][2]", "Upright: right mic in front", "m", 0.05, 4.0, false),
     ("soundboard.mics_relative", "Positions relative to the board", "", 0.0, 1.0, false),
-    ("soundboard.mic_gain_db", "Microphone gain", "dB", -30.0, 20.0, false),
-    ("soundboard.mic_pattern", "Mic pattern (1 omni, 0.5 cardioid)", "", 0.0, 1.0, false),
+    ("soundboard.mic_gain_db", "Microphone set-up gain", "dB", -30.0, 20.0, false),
+    ("soundboard.outputs_per_mic", "One output per microphone", "", 0.0, 1.0, false),
     ("room.directivity", "Piano directivity Q (0: from the piano)", "", 0.0, 8.0, false),
     ("room.size[0]", "Room length (x)", "m", 2.0, 60.0, false),
     ("room.size[1]", "Room width (y)", "m", 2.0, 60.0, false),
@@ -213,7 +201,7 @@ impl Meta {
         if let Some(&(_, label, unit, min, max, log)) = CURATED.iter().find(|c| c.0 == path) {
             return Self { label: label.into(), unit, min, max, log, curated: true };
         }
-        if let Some(m) = bridge_key(path) {
+        if let Some(m) = bridge_key(path).or_else(|| mic(path)) {
             return m;
         }
         let name = path.rsplit('.').next().unwrap_or(path);
@@ -244,6 +232,31 @@ fn bridge_key(path: &str) -> Option<Meta> {
         _ => return None,
     };
     Some(Meta { label, unit: "", min: 0.0, max, log: false, curated: true })
+}
+
+/// A microphone's fields (`soundboard.mics[i].field` or `.field[j]`).
+fn mic(path: &str) -> Option<Meta> {
+    let (i, rest) = path.strip_prefix("soundboard.mics[")?.split_once("].")?;
+    let n = i.parse::<usize>().ok()? + 1;
+    let (field, j) = match rest.split_once('[') {
+        Some((f, j)) => (f, j.strip_suffix(']')?.parse::<usize>().ok()),
+        None => (rest, None),
+    };
+    let axis = |grand: [&'static str; 3], upright: bool| -> Option<&'static str> {
+        let names = if upright { ["down", "across", "in front"] } else { grand };
+        names.get(j?).copied()
+    };
+    let (label, unit, min, max) = match (field, j) {
+        ("at" | "aim", Some(2)) => (format!("Mic {n} {}", if field == "at" { "height" } else { "aim: height" }), "m", -2.0, 8.0),
+        ("at" | "aim", Some(_)) => (format!("Mic {n} {}{}", if field == "aim" { "aim: " } else { "" }, axis(["along", "across", ""], false)?), "", -8.0, 8.0),
+        ("upright" | "aim_upright", Some(2)) => (format!("Upright: mic {n} in front"), "m", -1.0, 8.0),
+        ("upright" | "aim_upright", Some(_)) => (format!("Upright: mic {n} {}", axis(["", "", ""], true)?), "", -8.0, 8.0),
+        ("pattern", None) => (format!("Mic {n} pattern (1 omni, 0.5 cardioid, 0 figure of eight)"), "", 0.0, 1.0),
+        ("gain_db", None) => (format!("Mic {n} gain"), "dB", -40.0, 40.0),
+        ("pan", None) => (format!("Mic {n} pan (left – right)"), "", -1.0, 1.0),
+        _ => return None,
+    };
+    Some(Meta { label, unit, min, max, log: false, curated: true })
 }
 
 /// "soundboard.treble_bridge[2][1]" → "Treble bridge [2][1]".

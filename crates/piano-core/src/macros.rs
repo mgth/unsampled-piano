@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn the_case_field_follows_the_lid_fading_in() {
         use crate::soundboard::{Soundboard, SoundboardParams};
-        let sb = SoundboardParams { a: 2.124, b: 1.46, lid_hinge_height: 0.16, case_field: true, mics: [(-1.19, 0.83, 0.45), (-1.19, 0.63, 0.45)], ..SoundboardParams::GRAND_2M };
+        let sb = SoundboardParams { a: 2.124, b: 1.46, lid_hinge_height: 0.16, case_field: true, mics: crate::mics::Mics::pair((-1.19, 0.83, 0.45), (-1.19, 0.63, 0.45)), ..SoundboardParams::GRAND_2M };
         let removed = PianoModel { soundboard: Some(sb), ..PianoModel::default() };
         let at = |l: f64| {
             let mut m = removed;

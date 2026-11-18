@@ -458,7 +458,7 @@ const FELT: Color32 = Color32::from_rgb(122, 28, 36);
 const UNDER_FELT: Color32 = Color32::from_rgb(176, 48, 36);
 const DAMPER_WOOD: Color32 = Color32::from_rgb(24, 22, 23);
 const DAMPER_FELT: Color32 = Color32::from_rgb(226, 222, 212);
-const MIC: [Color32; 2] = [Color32::from_rgb(70, 140, 220), Color32::from_rgb(220, 80, 90)];
+const MIC: [Color32; piano_core::mics::MAX_MICS] = crate::mics::MIC_COLORS;
 const LYRE_ROD: Color32 = Color32::from_rgb(64, 64, 70);
 
 /// The material each of the scene's own colours stands for.
@@ -2841,7 +2841,7 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
 
     // The microphones and their stands.
     if o.mics {
-        for (i, &(x, y, z)) in sb.mics.iter().enumerate() {
+        for (i, &piano_core::mics::Mic { at: (x, y, z), .. }) in sb.mics.iter().enumerate() {
             let c = MIC[i];
             let p = place.at(x, y, z);
             let r = 0.025f32;
@@ -3283,7 +3283,7 @@ mod tests {
             let mut colours: Vec<_> = s.tris.iter().filter(|v| v.mat == paint).map(|v| v.color.map(|c| (c * 255.0).round() as u8)).collect();
             colours.sort();
             colours.dedup();
-            let allowed = [rgba(MIC[0], 1.0), rgba(MIC[1], 1.0), rgba(Color32::from_rgb(40, 32, 20), 1.0)].map(|c| c.map(|c| (c * 255.0).round() as u8));
+            let allowed: Vec<_> = MIC.iter().copied().chain([Color32::from_rgb(40, 32, 20)]).map(|c| rgba(c, 1.0).map(|c| (c * 255.0).round() as u8)).collect();
             assert!(colours.iter().all(|c| allowed.contains(c)), "unmade colours {colours:?} (case {case}, upright {vertical})");
             let strings = s.lines.iter().filter(|v| [Material::Steel, Material::Copper].map(|m| m as u8 as f32).contains(&v.mat));
             assert!(strings.clone().count() > 400 && strings.clone().all(|v| v.width > 0.0005 && v.width < 0.007));

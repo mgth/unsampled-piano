@@ -15,12 +15,12 @@ fn main() {
     match set.as_str() {
         "close" => {
             p.mics_relative = true;
-            p.mics = [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)];
+            p.mics = piano_core::mics::Mics::pair((0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4));
             (p.lid_angle, p.lid_removed) = (35.0, false);
         }
         "player" => {
             p.mics_relative = true;
-            p.mics = [(-0.38, 0.55, 0.5), (-0.38, 0.45, 0.5)];
+            p.mics = piano_core::mics::Mics::pair((-0.38, 0.55, 0.5), (-0.38, 0.45, 0.5));
             (p.lid_angle, p.lid_removed) = (35.0, false);
         }
         _ => {}
@@ -83,9 +83,9 @@ fn main() {
         }
         for &(i, j, a) in &rot {
             let (c, s) = (a.cos(), a.sin());
-            let (ri, rj) = (rad[i], rad[j]);
-            rad[i] = [0, 1].map(|k| ri[k].scale(c) - rj[k].scale(s));
-            rad[j] = [0, 1].map(|k| ri[k].scale(s) + rj[k].scale(c));
+            let (ri, rj) = (rad[i].clone(), rad[j].clone());
+            rad[i] = (0..ri.len()).map(|k| ri[k].scale(c) - rj[k].scale(s)).collect();
+            rad[j] = (0..ri.len()).map(|k| ri[k].scale(s) + rj[k].scale(c)).collect();
         }
     }
     let rotate = |mut sh: Vec<f64>| {
