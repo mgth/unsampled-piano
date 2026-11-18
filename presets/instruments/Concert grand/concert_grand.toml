@@ -48,7 +48,10 @@ enabled = true
 h_coupling = 0.03
 cross = 0.1732
 detune_cents = 0.3
-radiation = 0.1
+# The sideways motion outlasts the vertical one: at 0.6 (0.1 until 2026-11-18) it holds
+# up the fundamentals of C#5-G#5, which fell under their upper partials, without
+# touching those (docs/treble_tail.md).
+radiation = 0.6
 hammer_tilt = 0.05
 smooth = 0.0
 slope = 0.0
