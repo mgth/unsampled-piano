@@ -137,9 +137,9 @@ impl Player {
         }
     }
 
-    /// The output takes up to `n` channels (2 to [`MAX_CHANNELS`]): one per
-    /// microphone when the set-up asks for it and they fit, else the
-    /// stereo mix.
+    /// The output has `n` channels (2 to [`MAX_CHANNELS`]). With more than
+    /// two, a set-up asking for one output per microphone gets them if they
+    /// fit, the channels left over silent; otherwise the stereo mix.
     pub fn with_channels(mut self, n: usize) -> Self {
         self.channels = n.clamp(2, MAX_CHANNELS);
         self
@@ -225,9 +225,11 @@ impl Player {
                 self.piece.push(TimedEvent { frame: frame as u32, event: e.event });
                 i += 1;
             }
-            // One channel per microphone when asked and they fit, else stereo.
-            let want = self.engine.channels();
-            let n_ch = if want > 2 && want <= self.channels { want } else { 2 };
+            // One channel per microphone when asked and the output has more
+            // than a stereo pair for them (the engine tells a stereo host by
+            // its two channels, whatever the number of microphones).
+            let separate = self.engine.current().per_mic() && self.channels > 2 && self.engine.channels() <= self.channels;
+            let n_ch = if separate { self.channels } else { 2 };
             {
                 let mut it = self.buf.iter_mut();
                 let mut o: [&mut [f32]; MAX_CHANNELS] = std::array::from_fn(|_| it.next().map_or(&mut [][..], |v| &mut v[..n]));
@@ -283,6 +285,43 @@ pub fn encode(e: Event) -> Option<[u8; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn one_or_two_microphones_keep_their_own_outputs() {
+        use piano_core::mics::Mics;
+        use piano_core::{EngineConfig, Quality};
+        use piano_params::PianoControl;
+        for n in [1, 2] {
+            let mut model = piano_core::params::PianoModel::default();
+            let sb = model.soundboard.as_mut().unwrap();
+            // Panned left: a stereo mix would leave the second channel silent.
+            let mut mics = Mics::new(&sb.mics.as_slice()[..n]);
+            for m in mics.as_mut_slice() {
+                m.pan = -1.0;
+            }
+            sb.mics = mics;
+            sb.outputs_per_mic = true;
+            let cfg = EngineConfig { sample_rate: 48_000.0, max_block: MAX_BLOCK, model, quality: Quality::Light, ..Default::default() };
+            let (mut control, engine) = piano_control::new(model, cfg);
+            let mut player = Player::new(engine, 48_000.0, 1, None, None, Arc::default()).with_channels(MAX_CHANNELS);
+            control.play(60, 100);
+            let mut peak = [0.0f32; MAX_CHANNELS];
+            for _ in 0..40 {
+                player.render(
+                    256,
+                    std::iter::empty(),
+                    |_, chans| {
+                        assert_eq!(chans.len(), MAX_CHANNELS);
+                        for (p, c) in peak.iter_mut().zip(chans) {
+                            *p = c.iter().fold(*p, |m, x| m.max(x.abs()));
+                        }
+                    },
+                    |_, _| {},
+                );
+            }
+            assert!(peak[..n].iter().all(|p| *p > 0.0) && peak[n..].iter().all(|p| *p == 0.0), "{n} mics: {peak:?}");
+        }
+    }
 
     #[test]
     fn notes_played_from_the_interface_are_mirrored() {

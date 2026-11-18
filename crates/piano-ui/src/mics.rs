@@ -316,6 +316,23 @@ fn commit(control: &mut dyn PianoControl, edits: &[(String, f64)]) {
     }
 }
 
+/// A microphone's gain field; the value to commit once the edit is over.
+/// The model only changes then, so the value being dragged is kept in the
+/// interface's memory from one frame to the next.
+fn gain_field(ui: &mut Ui, i: usize, gain_db: f64) -> (egui::Response, Option<f64>) {
+    let id = egui::Id::new(("piano-mic-gain-draft", i));
+    let mut g = ui.data(|d| d.get_temp::<f64>(id)).unwrap_or(gain_db);
+    let r = ui.add(egui::DragValue::new(&mut g).range(-40.0..=40.0).speed(0.1).suffix(" dB"));
+    if r.dragged() {
+        ui.data_mut(|d| d.insert_temp(id, g));
+    } else {
+        ui.data_mut(|d| d.remove::<f64>(id));
+    }
+    let done = r.drag_stopped() || (r.changed() && !r.dragged());
+    let value = done.then(|| (g * 10.0).round() / 10.0);
+    (r, value)
+}
+
 fn cm(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
 }
@@ -465,10 +482,8 @@ impl MicView {
                         }
                     }
                 });
-                let mut g = m.gain_db;
-                let r = ui.add(egui::DragValue::new(&mut g).range(-40.0..=40.0).speed(0.1).suffix(" dB"));
-                if r.drag_stopped() || (r.changed() && !r.dragged()) {
-                    commit(control, &[(format!("soundboard.mics[{i}].gain_db"), (g * 10.0).round() / 10.0)]);
+                if let (_, Some(g)) = gain_field(ui, i, m.gain_db) {
+                    commit(control, &[(format!("soundboard.mics[{i}].gain_db"), g)]);
                 }
                 if per_mic {
                     ui.label(format!("{}", i + 1));
@@ -966,6 +981,29 @@ mod tests {
 
     fn mics(c: &MockControl) -> Vec<(f64, f64, f64)> {
         c.model().soundboard.unwrap().mics.iter().map(|m| m.at).collect()
+    }
+
+    #[test]
+    fn dragging_a_gain_commits_it_on_release() {
+        let ctx = egui::Context::default();
+        let mut rect = None;
+        let mut done = None;
+        let mut run = |events: Vec<Event>, rect: &mut Option<Rect>, done: &mut Option<f64>| {
+            let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 200.0))), events, ..Default::default() };
+            // The model does not change during the drag: always 0 dB here.
+            ctx.run_ui(input, |root| {
+                let (r, v) = gain_field(root, 0, 0.0);
+                *rect = Some(r.rect);
+                *done = v.or(*done);
+            })
+            .drop_without_applying_deltas();
+        };
+        run(vec![], &mut rect, &mut done);
+        run(vec![], &mut rect, &mut done);
+        for ev in drag(rect.unwrap().center(), Vec2::new(35.0, 0.0)) {
+            run(ev, &mut rect, &mut done);
+        }
+        assert!(done.is_some_and(|g| g > 2.0 && g < 4.5), "{done:?}");
     }
 
     #[test]
