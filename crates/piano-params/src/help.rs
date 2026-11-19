@@ -17,7 +17,7 @@ pub fn help(path: &str) -> Option<Help> {
     HELP.iter().find(|h| h.0 == key).map(|&(_, what, how)| Help { what, how })
 }
 
-/// "soundboard.mics[1][2]" → "soundboard.mics".
+/// "soundboard.mics[1].at[2]" → "soundboard.mics.at".
 fn strip_indices(path: &str) -> String {
     let mut out = String::with_capacity(path.len());
     let mut depth = 0;
@@ -366,6 +366,12 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("losses.b2_top_from", "Key from which the top strings have their own overtone losses.", "MIDI note where b2_top holds in full."),
     (
+        "losses.b2_high",
+        "Overtone losses of the top octaves, apart from the middle's: lower lets the highest strings ring on as real ones do.",
+        "Coefficient (s) of the frequency term from b2_high_from up, coming in over the octave below. 0: none.",
+    ),
+    ("losses.b2_high_from", "Key from which the top octaves have their own overtone losses.", "MIDI note where b2_high holds in full."),
+    (
         "scale.len_c8",
         "Speaking length of the highest string (C8), between its two bearing points.",
         "Lengths grow by `ratio_per_octave` per octave down to `break_note`. This generic 2 m \
@@ -540,6 +546,21 @@ const HELP: &[(&str, &str, &str)] = &[
         "Lowest pitch the sideways slope follows; below it the bridge's sideways give stays as there.",
         "Hz; ε_H uses max(f, slope_from) in its slope. 0: none.",
     ),
+    (
+        "polarization.slope_to",
+        "Highest pitch the sideways slope follows; above it the bridge's sideways give stays as there.",
+        "Hz; ε_H uses min(f, slope_to) in its slope. 0: none.",
+    ),
+    (
+        "polarization.bass",
+        "The bass's own sideways motion: lets the low strings' first partial fall fast, then slowly, as on real grands.",
+        "Up to bass_until the hammer's tilt, the horizontal radiation and the cross term take their _bass values, blended into the others over bass_fade keys (docs/body.md).",
+    ),
+    ("polarization.bass_until", "Last key with the bass's own sideways values.", "MIDI note."),
+    ("polarization.bass_fade", "Over how many keys the bass's sideways values blend into the others.", "Keys above bass_until."),
+    ("polarization.hammer_tilt_bass", "Share of the hammer's blow acting sideways, in the bass.", "As hammer_tilt, up to bass_until."),
+    ("polarization.radiation_bass", "How much of the sideways motion is heard, in the bass.", "As radiation, up to bass_until."),
+    ("polarization.cross_bass", "How much the two motions exchange at the bridge, in the bass.", "As cross, up to bass_until; clamped to the passive limit √h_coupling."),
     // Soundboard
     (
         "soundboard.a",
@@ -889,23 +910,67 @@ const HELP: &[(&str, &str, &str)] = &[
          inside the outline only (Hz).",
     ),
     (
-        "soundboard.mics",
-        "Where the two microphones stand: the first gives the left channel, the second the \
-         right. Close to the board the sound is detailed and dry; further away the board blends \
-         and the room takes over.",
-        "[mic][x, y, z] in metres. Board coordinates: x along the strings, from the keyboard end \
-         of the board towards the tail; y across, from the treble side (0) to the bass side; z \
+        "soundboard.mics.at",
+        "Where this microphone stands. Close to the board the sound is detailed and dry; \
+         further away the board blends and the room takes over. A set-up holds 1 to 8 \
+         microphones, mixed to stereo by their gain and pan or each on its own output.",
+        "[x, y, z] in metres. Board coordinates: x along the strings, from the keyboard end of \
+         the board towards the tail; y across, from the treble side (0) to the bass side; z \
          above the board. Each mic hears every board mode by the Rayleigh integral (plus lid \
-         image, frame and rim), then the room's reflections. Changing them rebuilds the \
-         radiation weights.",
+         image, frame and rim) through its pattern, then the room's reflections. Changing it \
+         rebuilds the radiation weights.",
     ),
     (
-        "soundboard.mics_upright",
-        "Where the two microphones stand when the piano is an upright: in front of its \
-         soundboard. Each listening set-up places them for both kinds of piano.",
-        "Used instead of soundboard.mics on a vertical board: x down from the board's top, y \
-         across (bass at y = b, the listener's left), z in front of the board; fractions of a \
-         and b with mics_relative.",
+        "soundboard.mics.upright",
+        "Where this microphone stands when the piano is an upright: in front of its soundboard. \
+         Each listening set-up places its microphones for both kinds of piano.",
+        "Used instead of `at` on a vertical board: x down from the board's top, y across (bass \
+         at y = b, the listener's left), z in front of the board; fractions of a and b with \
+         mics_relative.",
+    ),
+    (
+        "soundboard.mics.pattern",
+        "Pick-up pattern: 1 hears all around (omni), 0.5 is a cardioid (it hears what it is \
+         aimed at and little from behind, and the room about 5 dB less), 0 a figure of eight.",
+        "Pattern a + (1 − a)·cos θ about the aim: every path of the direct sound (the board's \
+         two faces, the lid's image, the scattering layer) is weighed at its angle of arrival; \
+         the case's field, the room's reflections and its tail come from every direction and \
+         are heard with the random-incidence efficiency a² + (1 − a)²/3 (1/3 for a cardioid).",
+    ),
+    (
+        "soundboard.mics.aim",
+        "The point this microphone is aimed at; without one, the board's centre.",
+        "The same coordinates as `at` (shares of the board with mics_relative). Moving the \
+         microphone on the microphones' page moves its aim with it.",
+    ),
+    (
+        "soundboard.mics.aim_upright",
+        "The point this microphone is aimed at on an upright; without one, the board's centre.",
+        "The same coordinates as `upright`.",
+    ),
+    (
+        "soundboard.mics.gain_db",
+        "This microphone's level in the mix (or on its own output): how much of it the mix \
+         takes against the others.",
+        "Gain (dB) at the mixdown, after the room: it changes neither what the microphone hears \
+         nor the room's level.",
+    ),
+    (
+        "soundboard.mics.pan",
+        "Where this microphone sits in the stereo image, −1 left to 1 right.",
+        "Constant-power pan: left gain cos((1 + p)·π/4), right sin((1 + p)·π/4); hard left and \
+         right give the microphone to one channel alone. The action's knock and the body's \
+         halo, rendered on two sides, are shared the same way. Unused with one output per \
+         microphone.",
+    ),
+    (
+        "soundboard.outputs_per_mic",
+        "One output channel per microphone (with its gain, no pan), to mix in the host or the \
+         audio graph; off, the stereo mix by gain and pan.",
+        "The player puts microphone 1 and 2 on out_left and out_right and the others on \
+         out_3…out_8; the plugin's multi-out layout on its main pair and three auxiliary pairs; \
+         the renderer writes as many channels. A host with only two channels gets the stereo \
+         mix.",
     ),
     (
         "soundboard.mics_relative",
@@ -920,14 +985,6 @@ const HELP: &[(&str, &str, &str)] = &[
          microphones hear the piano louder, so a close set-up turns itself down.",
         "Gain (dB) applied to the radiated sound when the instrument is built, kept apart from \
          output_gain_db so that a listening preset and an instrument preset combine.",
-    ),
-    (
-        "soundboard.mic_pattern",
-        "Pick-up pattern of the microphones, aimed at the piano: 1 hears all around (omni), 0.5 is a \
-         cardioid, which hears the room about 5 dB less than the piano in front of it.",
-        "Pattern a + (1 − a)·cos θ. The direct sound arrives on axis; the room's reflections and tail \
-         come from every direction and are heard with the random-incidence efficiency \
-         a² + (1 − a)²/3 (1/3 for a cardioid).",
     ),
     (
         "soundboard.radiate",
@@ -1200,6 +1257,27 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("noise.action_time", "How long the action's clack rings.", "Decay time T60 (s) of the resonances at 500 Hz, shorter above as (500/f)^0.3."),
     ("noise.action_delay", "How long after the hammer meets the string the action's clack comes.", "Delay (s) of the knock after the strike: the key bottoms just after the hammer reaches the string."),
+    // Body
+    (
+        "body.enabled",
+        "The body's halo: after each strike the keybed, case, rim and the board's low modes ring \
+         for a fraction of a second, filling the space between the partials. Much of a real \
+         piano's character lies there.",
+        "A bank of 1024 damped resonances (40 Hz–10 kHz, one every 3.5–7 Hz below 2 kHz) \
+         shared by all keys, struck by each key with its own pattern, heard directly \
+         (docs/body.md).",
+    ),
+    ("body.gain", "How loud the body's halo is.", "Peak pressure (Pa) at the microphones per m/s of hammer speed, before the octave levels."),
+    ("body.slope", "Whether the halo grows or fades towards the treble.", "Level change (dB) per octave of the key above middle C."),
+    ("body.levels", "The colour of the halo, octave by octave.", "Level (dB) of the octave bands centred at 63, 125, 250, 500 Hz, 1, 2, 4 and 8 kHz, interpolated in between."),
+    ("body.t60", "How long the halo rings, octave by octave.", "Decay time T60 (s) of the resonances in the same octave bands."),
+    ("body.delay", "How long after the hammer meets the string the halo starts.", "Delay (s) of the strike on the bank after the hammer's contact."),
+    ("body.shared", "How much every key shakes the body the same way.", "Share (0–1) of each key's pattern of amplitudes common to all keys; the rest is the key's own."),
+    ("body.speed_ref", "The hammer speed the halo's levels are set for.", "Hammer speed (m/s) at which the octave levels hold; 0: the halo only follows the speed. Away from it the halo grows faster than the speed, by the two growths below (docs/body.md)."),
+    ("body.speed_halo", "How much of that growth the halo takes, beside the knock.", "Share (0–1) of the speed law the halo takes, at A0, C3, C5 and C7; the action's knock takes it whole."),
+    ("body.speed_corner", "Where the halo's top starts growing faster.", "Corner frequency (Hz) above which the top growth takes over."),
+    ("body.speed_low", "How much faster than the hammer the halo grows.", "Exponent γ: each resonance takes (speed/speed_ref)^γ more, below the corner, at A0, C3, C5 and C7 (linear in between)."),
+    ("body.speed_high", "How much faster still the halo's top grows.", "Added to the exponent above the corner, at A0, C3, C5 and C7: a soft blow darkens the halo, most in the bass."),
     // Room
     ("room.enabled", "The hall around the piano: wall reflections and reverberation.", "Image sources for the early reflections, a 16-line feedback delay network for the tail."),
     (
@@ -1349,7 +1427,7 @@ mod tests {
 
     #[test]
     fn indices_are_ignored() {
-        assert_eq!(strip_indices("soundboard.mics[1][2]"), "soundboard.mics");
+        assert_eq!(strip_indices("soundboard.mics[1].at[2]"), "soundboard.mics.at");
         assert!(help("room.size[2]").is_some());
     }
 }

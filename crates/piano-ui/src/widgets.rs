@@ -128,7 +128,11 @@ pub(crate) fn applies(path: &str, model: &PianoModel) -> bool {
     match path {
         "temperament.key" => (1..=8).contains(&kind),
         p if p.starts_with("temperament.cents") => kind == 8,
-        _ => true,
+        p => p.strip_prefix("soundboard.mics[").and_then(|r| r.split_once("].")).is_none_or(|(i, field)| {
+            // The registry holds every slot: only this set-up's are shown.
+            let mic = i.parse::<usize>().ok().and_then(|i| model.soundboard.as_ref()?.mics.as_slice().get(i).copied());
+            mic.is_some_and(|m| (!field.starts_with("aim[") || m.aim.is_some()) && (!field.starts_with("aim_upright[") || m.aim_upright.is_some()))
+        }),
     }
 }
 

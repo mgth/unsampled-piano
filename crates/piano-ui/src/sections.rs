@@ -56,7 +56,7 @@ pub const SECTIONS: &[Section] = &[
     },
     Section {
         title: "Microphones",
-        prefixes: &["soundboard.mics[", "soundboard.mics_upright[", "soundboard.mics_relative", "soundboard.mic_gain_db", "soundboard.mic_pattern", "soundboard.lid_"],
+        prefixes: &["soundboard.mics[", "soundboard.mics_relative", "soundboard.mic_gain_db", "soundboard.outputs_per_mic", "soundboard.lid_"],
         curves: &[],
         view: View::Mics,
     },
@@ -112,7 +112,7 @@ pub const SECTIONS: &[Section] = &[
         view: View::Sketches(&[Sketch::String]),
     },
     Section { title: "Dampers", prefixes: &["damper.", "sympathetic."], curves: &[], view: View::Sketches(&[Sketch::Action, Sketch::String]) },
-    Section { title: "Noises", prefixes: &["noise."], curves: &[], view: View::Sketches(&[Sketch::Action]) },
+    Section { title: "Noises", prefixes: &["noise.", "body."], curves: &[], view: View::Sketches(&[Sketch::Action]) },
     Section { title: "Soundboard", prefixes: &["soundboard.", "bridge."], curves: &[], view: View::Sketches(&[Sketch::Plan]) },
     Section { title: "Frame & rim", prefixes: &["frame.", "rim."], curves: &[], view: View::Sketches(&[Sketch::Plan]) },
     Section { title: "Room", prefixes: &["room."], curves: &[], view: View::Sketches(&[Sketch::Room]) },

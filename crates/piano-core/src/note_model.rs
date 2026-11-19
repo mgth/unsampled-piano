@@ -3,7 +3,7 @@
 //! allocates and diagonalises up to 6×6 matrices per partial); voices only
 //! read it.
 
-use crate::board::{self, BoardMode, MICS};
+use crate::board::{self, BoardMode};
 use crate::complex::C64;
 use crate::modal::{ModeSpec, ModeTable};
 use crate::params::{self, NoteParams, PianoModel};
@@ -173,7 +173,7 @@ impl NoteModel {
         let mut n_listen = 0;
         let bridge_shapes = board.map(|b| b.bridge_shapes(note));
         let ns = np.strings;
-        let pol = model.polarization;
+        let pol = model.polarization.at(note);
         let n_osc = if pol.enabled { 2 * ns } else { ns };
         let nyq = 0.45 * sample_rate;
         let tau = std::f64::consts::TAU;
@@ -278,15 +278,15 @@ impl NoteModel {
                         // The low modes from the key itself, the others
                         // from its region.
                         Some((n, g)) => {
-                            board::transfer_with(&bm[..*n], |i, _| g[i], MICS + region, w, sample_rate)
-                                + board::transfer(&bm[*n..], region, MICS + region, w, sample_rate)
+                            board::transfer_with(&bm[..*n], |i, _| g[i], board::BRIDGE + region, w, sample_rate)
+                                + board::transfer(&bm[*n..], region, board::BRIDGE + region, w, sample_rate)
                         }
                         // Its low band reaches the board through two regions,
                         // the rest through its own (Voice::mix).
                         None => {
                             let lp = crate::voice::share_lowpass(w, sample_rate);
-                            let low = region_mix.iter().fold(C64::ZERO, |h, &(r, wr)| h + board::transfer(bm, r, MICS + region, w, sample_rate).scale(wr as f64));
-                            let own = board::transfer(bm, region, MICS + region, w, sample_rate);
+                            let low = region_mix.iter().fold(C64::ZERO, |h, &(r, wr)| h + board::transfer(bm, r, board::BRIDGE + region, w, sample_rate).scale(wr as f64));
+                            let own = board::transfer(bm, region, board::BRIDGE + region, w, sample_rate);
                             lp * low + (C64::ONE - lp) * own
                         }
                     };
@@ -550,7 +550,7 @@ pub fn sym_brakes(notes: &[NoteModel], board_modes: &[BoardMode], free: impl Fn(
                 }
                 let diff = (C64::ONE - C64::polar(1.0, -omega / sample_rate)).scale(sample_rate);
                 let s = acc.iter().enumerate().filter(|(_, h)| h.norm_sqr() > 0.0).fold(C64::ZERO, |s, (r, &h)| {
-                    s + board::transfer(board_modes, r, MICS + nm.region, omega, sample_rate) * diff * h
+                    s + board::transfer(board_modes, r, board::BRIDGE + nm.region, omega, sample_rate) * diff * h
                 });
                 let b = C64::ONE / (C64::ONE - s);
                 if b.norm() > 1.0 { b.scale(1.0 / b.norm()) } else { b }

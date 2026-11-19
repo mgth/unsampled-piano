@@ -477,14 +477,16 @@ fn handles(model: &PianoModel) -> Vec<Handle> {
         h.push(Handle { name: "Agraffes", at: (scene::agraffe_x(model), sb.b * 0.08), x: Some(("frame.agraffe_x".into(), 1.0, f.offset_x)), y: None, slant: 0.0 });
         h.push(Handle { name: "Frame end", at: (f.offset_x + f.a, f.b * 0.75), x: Some(("frame.a".into(), 1.0, f.offset_x)), y: None, slant: 0.0 });
     }
-    let (list, field) = if sb.vertical { (sb.mics_upright, "mics_upright") } else { (sb.mics, "mics") };
-    for (i, &(x, y, _)) in list.iter().enumerate() {
+    let field = if sb.vertical { "upright" } else { "at" };
+    const NAMES: [&str; piano_core::mics::MAX_MICS] = ["Mic 1", "Mic 2", "Mic 3", "Mic 4", "Mic 5", "Mic 6", "Mic 7", "Mic 8"];
+    for (i, m) in sb.mics.iter().enumerate() {
+        let (x, y, _) = if sb.vertical { m.upright } else { m.at };
         let (sa, sbb) = if sb.mics_relative { (sb.a, sb.b) } else { (1.0, 1.0) };
         h.push(Handle {
-            name: if i == 0 { "Mic L" } else { "Mic R" },
+            name: NAMES[i],
             at: (x * sa, y * sbb),
-            x: Some((format!("soundboard.{field}[{i}][0]"), sa, 0.0)),
-            y: Some((format!("soundboard.{field}[{i}][1]"), sbb, 0.0)),
+            x: Some((format!("soundboard.mics[{i}].{field}[0]"), sa, 0.0)),
+            y: Some((format!("soundboard.mics[{i}].{field}[1]"), sbb, 0.0)),
             slant: 0.0,
         });
     }
@@ -1132,8 +1134,9 @@ fn numbers(ui: &mut Ui, model: &PianoModel, counts: &mut Later<BoardCounts>) {
                     };
                     row("Lid", lid);
                 }
-                for (i, (x, y, z)) in sb.mics.iter().enumerate() {
-                    row(if i == 0 { "Mic L" } else { "Mic R" }, format!("{x:.2}, {y:.2}, {z:.2} m"));
+                for (i, m) in sb.mics.iter().enumerate() {
+                    let (x, y, z) = m.at;
+                    row(&format!("Mic {}", i + 1), format!("{x:.2}, {y:.2}, {z:.2} m"));
                 }
             }
             None => row("Soundboard", "none (bridge force only)".into()),

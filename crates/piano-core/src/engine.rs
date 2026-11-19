@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use crate::board::{BoardBank, PARTS};
+use crate::board::{BoardBank, PARTS, PROBES};
 use crate::denormal::DenormalGuard;
 use crate::instrument::{region_of, Instrument, MICS, REGIONS};
 use crate::live::LiveParam;
@@ -321,16 +321,37 @@ pub struct Engine {
     disp_in: Vec<Vec<f32>>,
     /// Absolute sample index of the next sub-block.
     clock: u64,
-    stereo: [Vec<f32>; MICS],
+    /// The microphones' pressure over the sub-block (the first `n_mics`),
+    /// the action's and the body's two sides, and the stereo mix for
+    /// [`Self::process`].
+    mic_buf: [Vec<f32>; MICS],
+    noise_buf: [Vec<f32>; 2],
+    stereo: [Vec<f32>; 2],
+    /// Microphones of the set-up; per mic: its (left, right) gains in the
+    /// stereo mix, its gain on its own channel, and its share of the
+    /// action's and the body's two sides (by its pan).
+    n_mics: usize,
+    mix: [(f32, f32); MICS],
+    own_gain: [f32; MICS],
+    noise_w: [(f32, f32); MICS],
+    per_mic: bool,
     knocks: [Knock; MAX_KNOCKS],
     /// The action's knock, heard directly, and the decay time it was set to.
     action: crate::action::ActionNoise,
     action_time: f64,
+    /// The body's halo after each strike (crate::body).
+    body: crate::body::BodyBank,
     room: Option<crate::room::Room>,
     /// Damper engagement below which a landing damper counts as an impact.
     sustain_prev: f64,
     /// Last summed mic outputs, for the differentiator.
     mic_last: [f32; MICS],
+    /// The board's own part of the mics and its pressure at the probes,
+    /// for the room (acceleration sums, then pressure), and their
+    /// differentiators' last values.
+    board_mics: [Vec<f32>; MICS],
+    probes: [Vec<f32>; PROBES],
+    board_last: [f32; MICS + PROBES],
     pool: Option<crate::par::Pool>,
     /// Mic outputs of the frame and of the sympathetic board when they run
     /// on the pool, summed after the board's.
@@ -361,6 +382,7 @@ impl Engine {
         let shortcuts = cfg.quality.shortcuts();
         let capacity = inst.table.capacity();
         let action_time = inst.model.noise.action_time;
+        let body_law = inst.model.body;
         let voices = (0..cfg.polyphony)
             .map(|_| {
                 let mut v = Voice::with_capacity(cfg.sample_rate, cfg.max_block, capacity);
@@ -401,6 +423,11 @@ impl Engine {
             }
             _ => None,
         };
+        // The listening set-up's microphones (without a board: the bridge
+        // force on a pair).
+        let mics = inst.model.soundboard.map_or(crate::mics::Mics::pair((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), |s| s.mics);
+        let mics = if mics.is_empty() { crate::mics::Mics::pair((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)) } else { mics };
+        let per_mic = inst.model.soundboard.is_some_and(|s| s.outputs_per_mic);
         let live = inst.model;
         let base = inst.source;
         let mut e = Self {
@@ -444,12 +471,29 @@ impl Engine {
             disp_in: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             clock: 0,
             stereo: std::array::from_fn(|_| vec![0.0; cfg.max_block]),
+            mic_buf: std::array::from_fn(|_| vec![0.0; SUB_BLOCK]),
+            noise_buf: std::array::from_fn(|_| vec![0.0; SUB_BLOCK]),
+            n_mics: mics.len(),
+            mix: std::array::from_fn(|m| mics.as_slice().get(m).map_or((0.0, 0.0), |mic| {
+                let (g, (l, r)) = (10f64.powf(mic.gain_db / 20.0), mic.pan_gains());
+                ((g * l) as f32, (g * r) as f32)
+            })),
+            own_gain: std::array::from_fn(|m| mics.as_slice().get(m).map_or(0.0, |mic| 10f64.powf(mic.gain_db / 20.0) as f32)),
+            noise_w: std::array::from_fn(|m| mics.as_slice().get(m).map_or((0.0, 0.0), |mic| {
+                let p = mic.pan.clamp(-1.0, 1.0) as f32;
+                (0.5 * (1.0 - p), 0.5 * (1.0 + p))
+            })),
+            per_mic,
             knocks: [Knock::default(); MAX_KNOCKS],
             action: crate::action::ActionNoise::new(cfg.sample_rate, action_time),
             action_time,
+            body: crate::body::BodyBank::new(cfg.sample_rate, &body_law),
             room,
             sustain_prev: 0.0,
             mic_last: [0.0; MICS],
+            board_mics: std::array::from_fn(|_| vec![0.0; SUB_BLOCK]),
+            probes: std::array::from_fn(|_| vec![0.0; SUB_BLOCK]),
+            board_last: [0.0; MICS + PROBES],
             pool: Self::pool_for(&cfg),
             side_out: std::array::from_fn(|_| std::array::from_fn(|_| vec![0.0; SUB_BLOCK])),
             busy: Vec::with_capacity(cfg.polyphony),
@@ -624,7 +668,7 @@ impl Engine {
         self.board.is_some() && self.inst.model.sympathetic.enabled
     }
 
-    /// Mono render: mean of the microphones (overwrites `out`).
+    /// Mono render: mean of the stereo mix (overwrites `out`).
     pub fn process(&mut self, events: &[TimedEvent], out: &mut [f32]) {
         let mut st = std::mem::take(&mut self.stereo);
         {
@@ -637,28 +681,101 @@ impl Engine {
         self.stereo = st;
     }
 
-    /// Renders one block into `left`/`right` (overwritten). `events` must be
-    /// sorted by frame and lie inside the block. Real-time safe: no
-    /// allocation, no lock.
+    /// Microphones of the listening set-up.
+    pub fn mics(&self) -> usize {
+        self.n_mics
+    }
+
+    /// Channels [`Self::process_channels`] writes: one per microphone when
+    /// the set-up asks for it (`outputs_per_mic`), else 2 (the stereo mix).
+    pub fn channels(&self) -> usize {
+        if self.per_mic { self.n_mics } else { 2 }
+    }
+
+    /// Renders one block into `left`/`right` (overwritten): the stereo mix
+    /// of the microphones, each by its gain and pan, whatever
+    /// `outputs_per_mic` says. `events` must be sorted by frame and lie
+    /// inside the block. Real-time safe: no allocation, no lock.
     pub fn process_stereo(&mut self, events: &[TimedEvent], left: &mut [f32], right: &mut [f32]) {
         let len = left.len();
-        assert!(len <= self.cfg.max_block && right.len() == len);
+        assert!(right.len() == len);
+        let mut out = [left, right];
+        self.process_into(events, &mut out, false);
+    }
+
+    /// Renders one block into `out` (overwritten, the same length): the
+    /// set-up's channels ([`Self::channels`]), the others silent.
+    /// Real-time safe.
+    pub fn process_channels(&mut self, events: &[TimedEvent], out: &mut [&mut [f32]]) {
+        let per_mic = self.per_mic;
+        self.process_into(events, out, per_mic);
+    }
+
+    /// Whether the set-up asks for one output per microphone.
+    pub fn per_mic(&self) -> bool {
+        self.per_mic
+    }
+
+    /// Renders one block into `out` (overwritten, the same length): one
+    /// channel per microphone with its gain when `per_mic` (as many as
+    /// there are channels), else the stereo mix in the first two; the
+    /// other channels silent. Real-time safe.
+    pub fn process_into(&mut self, events: &[TimedEvent], out: &mut [&mut [f32]], per_mic: bool) {
+        let len = out.first().map_or(0, |o| o.len());
+        assert!(len <= self.cfg.max_block && out.iter().all(|o| o.len() == len));
         let _ftz = DenormalGuard::new();
         let mut ev = 0;
         let mut s0 = 0;
         while s0 < len {
             let s1 = (s0 + SUB_BLOCK).min(len);
             let n_ev = events[ev..].iter().take_while(|e| (e.frame as usize) < s1 || s1 == len).count();
-            self.sub_block(&events[ev..ev + n_ev], s0, &mut left[s0..s1], &mut right[s0..s1]);
+            self.sub_block(&events[ev..ev + n_ev], s0, s1 - s0);
+            let mics = &self.mic_buf[..self.n_mics];
+            let written = if per_mic {
+                for ((o, m), g) in out.iter_mut().zip(mics).zip(&self.own_gain) {
+                    for (y, x) in o[s0..s1].iter_mut().zip(&m[..s1 - s0]) {
+                        *y = g * x;
+                    }
+                }
+                mics.len()
+            } else if let [l, r, ..] = out {
+                l[s0..s1].fill(0.0);
+                r[s0..s1].fill(0.0);
+                for (m, &(gl, gr)) in mics.iter().zip(&self.mix) {
+                    for ((yl, yr), x) in l[s0..s1].iter_mut().zip(r[s0..s1].iter_mut()).zip(&m[..s1 - s0]) {
+                        *yl += gl * x;
+                        *yr += gr * x;
+                    }
+                }
+                2
+            } else {
+                // One channel: the mix's mean.
+                if let Some(o) = out.first_mut() {
+                    o[s0..s1].fill(0.0);
+                    for (m, &(gl, gr)) in mics.iter().zip(&self.mix) {
+                        for (y, x) in o[s0..s1].iter_mut().zip(&m[..s1 - s0]) {
+                            *y += 0.5 * (gl + gr) * x;
+                        }
+                    }
+                }
+                1
+            };
+            for o in out.iter_mut().skip(written) {
+                o[s0..s1].fill(0.0);
+            }
             ev += n_ev;
             s0 = s1;
         }
     }
 
-    /// One sub-block (≤ SUB_BLOCK samples); event frames are relative to the
-    /// host block, which starts `offset` samples before this sub-block.
-    fn sub_block(&mut self, events: &[TimedEvent], offset: usize, left: &mut [f32], right: &mut [f32]) {
-        let len = left.len();
+    /// One sub-block (≤ SUB_BLOCK samples) into the microphone buffers;
+    /// event frames are relative to the host block, which starts `offset`
+    /// samples before this sub-block.
+    fn sub_block(&mut self, events: &[TimedEvent], offset: usize, len: usize) {
+        let mut mic_buf = std::mem::take(&mut self.mic_buf);
+        let mut chans: [&mut [f32]; MICS] = mic_buf.each_mut().map(|v| &mut v[..len]);
+        let nm = self.n_mics;
+        let chans = &mut chans[..nm];
         let out_gain = self.smooth_gain(len);
         self.update_dampers(len);
         self.add_listeners();
@@ -695,17 +812,19 @@ impl Engine {
         }
 
         self.render_knocks(len);
-        left.fill(0.0);
-        right.fill(0.0);
+        for c in chans.iter_mut() {
+            c.fill(0.0);
+        }
         for d in &mut self.disp {
             d[..len].fill(0.0);
         }
         match self.board.as_mut() {
             None => {
                 for r in &self.region {
-                    for ((l, rr), x) in left.iter_mut().zip(right.iter_mut()).zip(&r[..len]) {
-                        *l += out_gain * FORCE_GAIN * x;
-                        *rr += out_gain * FORCE_GAIN * x;
+                    for c in chans.iter_mut() {
+                        for (y, x) in c.iter_mut().zip(&r[..len]) {
+                            *y += out_gain * FORCE_GAIN * x;
+                        }
                     }
                 }
             }
@@ -745,51 +864,58 @@ impl Engine {
                                 _ => {
                                     let (bank, run, input) = if i == PARTS { (frame.0, run_frame, region_agraffe) } else { (sym.0, run_sym, region_sym) };
                                     if run {
-                                        let [l, r] = &mut *side.0.add(i - PARTS);
-                                        (*bank).process(input, len, [&mut l[..len], &mut r[..len]], None, None);
+                                        let mut out: [&mut [f32]; MICS] = (*side.0.add(i - PARTS)).each_mut().map(|v| &mut v[..len]);
+                                        (*bank).process(input, len, &mut out[..nm], None, None);
                                     }
                                 }
                             }
                         }
                     });
                     let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
-                    board.finish([&mut *left, &mut *right], Some(&mut self.disp), rim_force);
+                    board.finish(chans, Some(&mut self.disp), rim_force);
                     if let Some(low) = self.board_low.as_mut() {
                         let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
-                        low.process(&self.basis, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
+                        low.process(&self.basis, len, chans, Some(&mut self.disp), rim_force);
                     }
+                    Self::board_feed(board, self.board_low.as_ref(), chans, &mut self.board_mics, &mut self.probes, len);
                     self.board_awake = has_input || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr);
                     if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
-                        rim.process(&self.rim_force, len, [&mut *left, &mut *right]);
+                        rim.process(&self.rim_force, len, chans);
                         self.rim_awake = self.board_awake || rim.energy() > self.shortcuts.board_silence;
                     }
                     for (k, run) in [run_frame, run_sym].into_iter().enumerate() {
                         if run {
-                            let [l, r] = &self.side_out[k];
-                            for (o, x) in left.iter_mut().zip(&l[..len]).chain(right.iter_mut().zip(&r[..len])) {
-                                *o += x;
+                            for (c, s) in chans.iter_mut().zip(&self.side_out[k]) {
+                                for (o, x) in c.iter_mut().zip(&s[..len]) {
+                                    *o += x;
+                                }
                             }
                         }
                     }
                 } else {
                     if run_board {
                         let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
-                        board.process(&self.region, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
+                        board.process(&self.region, len, chans, Some(&mut self.disp), rim_force);
                         if let Some(low) = self.board_low.as_mut() {
                             let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
-                            low.process(&self.basis, len, [&mut *left, &mut *right], Some(&mut self.disp), rim_force);
+                            low.process(&self.basis, len, chans, Some(&mut self.disp), rim_force);
                         }
+                        Self::board_feed(board, self.board_low.as_ref(), chans, &mut self.board_mics, &mut self.probes, len);
                         self.board_awake = has_input || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr);
+                    } else {
+                        for b in self.board_mics.iter_mut().chain(self.probes.iter_mut()) {
+                            b[..len].fill(0.0);
+                        }
                     }
                     if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
-                        rim.process(&self.rim_force, len, [&mut *left, &mut *right]);
+                        rim.process(&self.rim_force, len, chans);
                         self.rim_awake = self.board_awake || rim.energy() > self.shortcuts.board_silence;
                     }
                     if let Some(frame) = self.frame.as_mut().filter(|_| run_frame) {
-                        frame.process(&self.region_agraffe, len, [&mut *left, &mut *right], None, None);
+                        frame.process(&self.region_agraffe, len, chans, None, None);
                     }
                     if let Some(bs) = self.board_sym.as_mut().filter(|_| run_sym) {
-                        bs.process(&self.region_sym, len, [&mut *left, &mut *right], None, None);
+                        bs.process(&self.region_sym, len, chans, None, None);
                     }
                 }
                 if let Some(frame) = self.frame.as_ref().filter(|_| run_frame) {
@@ -801,23 +927,47 @@ impl Engine {
                 // The banks carry acceleration weights: the pressure is the
                 // derivative of their sum (board::to_acceleration_weights).
                 let fs = self.cfg.sample_rate as f32;
-                for (ch, last) in [&mut *left, &mut *right].into_iter().zip(self.mic_last.iter_mut()) {
+                for (ch, last) in chans.iter_mut().zip(self.mic_last.iter_mut()) {
                     for x in ch.iter_mut() {
                         let v = *x;
-                        *x = (v - *last) * fs;
+                        *x = (v - *last) * fs * out_gain * PRESSURE_GAIN;
                         *last = v;
                     }
                 }
-                for x in left.iter_mut().chain(right.iter_mut()) {
-                    *x *= out_gain * PRESSURE_GAIN;
+                for (b, last) in self.board_mics.iter_mut().chain(self.probes.iter_mut()).zip(self.board_last.iter_mut()) {
+                    for x in b[..len].iter_mut() {
+                        let v = *x;
+                        *x = (v - *last) * fs * out_gain * PRESSURE_GAIN;
+                        *last = v;
+                    }
                 }
                 if self.live.noise.action_time != self.action_time {
                     self.action_time = self.live.noise.action_time;
                     self.action.set_time(self.action_time);
                 }
-                self.action.render([&mut *left, &mut *right], out_gain * PRESSURE_GAIN);
+                // The action's and the body's two sides, shared among the
+                // mics by their pan.
+                let [nl, nr] = &mut self.noise_buf;
+                let (nl, nr) = (&mut nl[..len], &mut nr[..len]);
+                nl.fill(0.0);
+                nr.fill(0.0);
+                self.action.render([&mut *nl, &mut *nr], out_gain * PRESSURE_GAIN);
+                if self.live.body != *self.body.law() {
+                    let law = self.live.body;
+                    self.body.set_law(&law);
+                }
+                self.body.render([&mut *nl, &mut *nr], out_gain * PRESSURE_GAIN);
+                for (c, &(wl, wr)) in chans.iter_mut().zip(&self.noise_w) {
+                    for ((y, a), b) in c.iter_mut().zip(nl.iter()).zip(nr.iter()) {
+                        *y += wl * a + wr * b;
+                    }
+                }
                 if let Some(room) = self.room.as_mut() {
-                    room.process(left, right);
+                    let feed = crate::room::BoardFeed {
+                        mics: std::array::from_fn(|m| &self.board_mics[m][..len]),
+                        probes: std::array::from_fn(|k| &self.probes[k][..len]),
+                    };
+                    room.process_with(chans, Some(feed));
                 }
             }
         }
@@ -844,6 +994,7 @@ impl Engine {
                 v.active = false;
             }
         }
+        self.mic_buf = mic_buf;
     }
 
     fn render(&mut self, from: usize, to: usize) {
@@ -884,6 +1035,30 @@ impl Engine {
             v.compute(nm, with_frame, t0, from, to, bridge);
             let basis = Some(&mut self.basis[..]);
             v.mix(nm, &mut self.region, &mut self.region_sym, with_frame.then_some(&mut self.region_agraffe[..]), basis, from, to);
+        }
+    }
+
+    /// The board's part of the mics (the mics hold only the board's banks so
+    /// far) and its probes summed over the banks, for the room.
+    fn board_feed(
+        board: &BoardBank,
+        low: Option<&BoardBank<{ crate::board::KEYS }>>,
+        mics: &[&mut [f32]],
+        board_mics: &mut [Vec<f32>; MICS],
+        probes: &mut [Vec<f32>; PROBES],
+        len: usize,
+    ) {
+        for (b, m) in board_mics.iter_mut().zip(mics) {
+            b[..len].copy_from_slice(&m[..len]);
+        }
+        let low = low.map(|l| l.probes());
+        for (k, (p, b)) in probes.iter_mut().zip(board.probes()).enumerate() {
+            p[..len].copy_from_slice(&b[..len]);
+            if let Some(l) = &low {
+                for (x, y) in p[..len].iter_mut().zip(l[k]) {
+                    *x += y;
+                }
+            }
         }
     }
 
@@ -1148,7 +1323,18 @@ impl Engine {
         // The key bottoms on the keybed as the hammer reaches the string.
         self.knock(region_of(note), self.live.noise.keybed * vh);
         if self.board.is_some() {
-            self.action.strike(note, self.live.noise.action * vh, self.live.noise.action_delay);
+            // Both banks render from the start of the sub-block: the strike
+            // waits for the note's own frame within it, then its delay.
+            let within = self.now.saturating_sub(self.clock) as f64 / self.cfg.sample_rate;
+            let tilt = crate::body::SpeedTilt::of(&self.live.body, note, vh);
+            self.action.strike(note, self.live.noise.action * vh, within + self.live.noise.action_delay, tilt);
+            // A live change of the body's law earlier in this sub-block
+            // takes effect for this strike, not only at the next one.
+            if self.live.body != *self.body.law() {
+                let law = self.live.body;
+                self.body.set_law(&law);
+            }
+            self.body.strike(note, thrown, within);
         }
     }
 

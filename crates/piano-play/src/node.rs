@@ -1,5 +1,7 @@
 //! The piano as a node of the audio graph, through the JACK API (served by
-//! PipeWire's libjack): stereo audio out, a MIDI input the piano plays from
+//! PipeWire's libjack): stereo audio out (`out_left`, `out_right`; with one
+//! output per microphone, microphone 1 and 2 there and the others on
+//! `out_3`…`out_8`), a MIDI input the piano plays from
 //! with sample-accurate timing, and a MIDI output mirroring every event the
 //! piano plays (keyboard, graph input, files).
 
@@ -15,6 +17,8 @@ pub struct Node {
 struct Ports {
     left: Port<AudioOut>,
     right: Port<AudioOut>,
+    /// Channels 3…8 (one output per microphone).
+    more: Vec<Port<AudioOut>>,
     midi_in: Port<MidiIn>,
     midi_out: Port<MidiOut>,
 }
@@ -37,21 +41,27 @@ struct Process {
 impl jack::ProcessHandler for Process {
     fn process(&mut self, _: &Client, ps: &ProcessScope) -> Control {
         let frames = ps.n_frames() as usize;
-        let Ports { left, right, midi_in, midi_out } = &mut self.ports;
+        let Ports { left, right, more, midi_in, midi_out } = &mut self.ports;
         let keyboard = &self.keyboard;
         let input = midi_in.iter(ps).filter_map(|m| keyboard.decode(m.bytes).map(|e| (m.time, e)));
-        let (ol, or) = (left.as_mut_slice(ps), right.as_mut_slice(ps));
+        let mut ports = [left, right].into_iter().chain(more.iter_mut()).map(|p| p.as_mut_slice(ps));
+        let mut outs: [&mut [f32]; piano_control::slot::MAX_CHANNELS] = std::array::from_fn(|_| ports.next().unwrap_or(&mut []));
         let mut writer = midi_out.writer(ps);
         let gain = self.gain;
         self.player.render(
             frames,
             input,
-            |off, l, r| {
-                for (o, x) in ol[off..off + l.len()].iter_mut().zip(l) {
-                    *o = gain * x;
-                }
-                for (o, x) in or[off..off + r.len()].iter_mut().zip(r) {
-                    *o = gain * x;
+            |off, chans| {
+                for (c, o) in outs.iter_mut().enumerate().filter(|(_, o)| o.len() >= off) {
+                    let end = (off + chans.first().map_or(0, |x| x.len())).min(o.len());
+                    match chans.get(c) {
+                        Some(x) => {
+                            for (o, x) in o[off..end].iter_mut().zip(x.iter()) {
+                                *o = gain * x;
+                            }
+                        }
+                        None => o[off..end].fill(0.0),
+                    }
                 }
             },
             |time, e| {
@@ -76,6 +86,7 @@ impl Node {
         let ports = Ports {
             left: client.register_port("out_left", AudioOut::default())?,
             right: client.register_port("out_right", AudioOut::default())?,
+            more: (3..=piano_control::slot::MAX_CHANNELS).map(|c| client.register_port(&format!("out_{c}"), AudioOut::default())).collect::<Result<_, _>>()?,
             midi_in: client.register_port("midi_in", MidiIn::default())?,
             midi_out: client.register_port("midi_out", MidiOut::default())?,
         };
@@ -109,6 +120,7 @@ impl Node {
             midi_in: self.ports.midi_in.name()?,
             midi_out: self.ports.midi_out.name()?,
         };
+        let player = player.with_channels(piano_control::slot::MAX_CHANNELS);
         let active = self.client.activate_async((), Process { player, ports: self.ports, gain, keyboard })?;
         Ok((Running(active), names))
     }

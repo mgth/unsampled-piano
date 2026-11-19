@@ -3,6 +3,7 @@
 
 pub mod action;
 pub mod board;
+pub mod body;
 pub mod complex;
 pub mod denormal;
 pub mod duplex;
@@ -14,6 +15,7 @@ pub mod instrument;
 pub mod limiter;
 pub mod live;
 pub mod macros;
+pub mod mics;
 pub mod modal;
 pub mod note_model;
 pub mod observe;

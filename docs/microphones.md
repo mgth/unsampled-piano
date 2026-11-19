@@ -1,0 +1,81 @@
+# Microphones: up to eight, mixed or one output each
+
+State as of 2026-11-17.
+
+## Request
+
+"The model must take more than two microphones, and by default use the mixed set-up, with at least four microphones." Output either a stereo mix (gain and pan per microphone) or one channel per microphone (gain only, the mix left to the host).
+
+## Model
+
+A listening set-up holds 1 to 8 microphones (`soundboard.mics`, `piano_core::mics`). A fixed array of 8 slots plus a count keeps the model `Copy`. Each microphone has:
+
+| Field | Role |
+|---|---|
+| `at`, `upright` | Position on a grand and on an upright (shares of the board with `mics_relative`, height in metres) |
+| `pattern` | a + (1 − a)·cos θ: 1 omni, 0.5 cardioid, 0 figure of eight |
+| `aim`, `aim_upright` | Point the microphone is aimed at (default: the board's centre) |
+| `gain_db` | Level in the mix, or on its own output |
+| `pan` | −1 left … 1 right, constant power |
+
+Set-up-wide fields:
+- **`mic_gain_db`** is the set-up's level.
+- **`outputs_per_mic`** (switch) chooses one output per microphone instead of the stereo mix.
+
+In a preset, `[[soundboard.mics]]` tables replace `mics = [[x, y, z], [x, y, z]]`. Older presets still load: their two positions, `mics_upright` and single `mic_pattern` become two microphones panned hard left and right, with no aim (the board's centre). An omni pair renders as before, −132 dB from the previous engine.
+
+## What each microphone hears
+
+The pattern now weighs the direct sound too, not only the room. Every path of the Rayleigh integral is weighed at its angle of arrival from the microphone's aim:
+- the board's two faces;
+- the lid's image;
+- the wall behind an upright;
+- the scattering layer.
+
+The case's field, the room's reflections and its tail arrive from every direction. Each microphone hears them with its pattern's diffuse efficiency, a² + (1 − a)²/3.
+
+Per microphone:
+- **Banks:** one output of the board's and the frame's banks, and one of the rim's.
+- **Room:**
+  - its own early reflections;
+  - its own tail output, decorrelated from the others above the corner set by its distance to the nearest other microphone.
+- **Action and body:** the action's knock and the body's halo are rendered on two sides and shared among the microphones by their pan.
+
+The room's source estimate from the microphones is now their mean.
+
+## Mixdown and outputs
+
+- **Stereo:** each microphone goes to left and right by its gain and constant-power pan. A pair panned hard left and right gives the previous engine's output.
+- **One per microphone:** each channel carries its microphone times its gain. A host with only two channels gets the stereo mix.
+
+| Host | Stereo | One per microphone |
+|---|---|---|
+| Player (JACK) | `out_left`, `out_right` | mics 1–2 on `out_left`/`out_right`, the others on `out_3`…`out_8` |
+| Player (sound card) | channels `first`, `first + 1` | from `first` on, if the device has room for them |
+| Plugin | main pair | "Multi-out" layout: mics 1–2 on the main pair, 3–8 on three auxiliary pairs |
+| Renderer | 2-channel WAV | one WAV channel per microphone |
+
+The limiter is linked over all the channels.
+
+## Set-ups
+
+The listening presets are in archive/presets/listening/Microphones. The microphones' page offers the same set-ups (Player was missing there):
+
+| Set-up | Microphones | Gain |
+|---|---|---|
+| **mixed** (default) | Close cardioid pair aimed straight down + AB omni pair 2 m high in front of the opening, the AB pair 3 dB under the close one | −9.8 dB (AB +7.8 dB) |
+| close | Cardioids 40 cm above the bass and treble parts of the bridge, aimed straight down | −7.4 dB |
+| concert | AB omni pair 2 m high in front of the opening | +3.4 dB |
+| close_room | Close pair + omni pair 6 m out in the room, 6 dB under | −8.4 dB (room pair +2.6 dB) |
+| tree | Three omnis 2.5 m high: left, right, the centre one 45 cm further out and 3 dB under | +2.9 dB |
+| audience_lid_closed | The concert pair 1 m high, lid shut | 0 dB |
+| player | The pianist's ears | −6.1 dB |
+
+The gains were measured on C2, C4 and C6 at mf in the small hall, as the power summed over channels. The new set-ups match the concert set-up's loudness to within 0.1 dB.
+- **close:** the cardioids now hear the board through their pattern, so the set-up lost 2.2 dB. Its gain went from −9.6 to −7.4 dB.
+- **mixed:** each pair was first measured alone, then the sum was levelled.
+
+## Result
+
+- **Bench** (close mics, studio): 1.07 → 1.03, 10 measures off instead of 13. The close cardioids now weigh the lid's reflection, which reaches them from above and behind.
+- **Cost, on one core** (machine loaded, so noisy): with two microphones, the same as before. The mixed set-up with four microphones adds about 2.4 s to the instrument build (radiation at two more points, on ~9.5 s) and 5–25 % to the rendering.

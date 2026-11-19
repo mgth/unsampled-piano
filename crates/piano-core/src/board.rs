@@ -1,8 +1,9 @@
 //! The soundboard as one multi-input, multi-output modal bank.
 //!
 //! Inputs: the bridge force of each of the [`REGIONS`] bridge regions.
-//! Outputs: the pressure at the two microphones, and the bridge velocity at
-//! each region point (its time derivative drives the strings
+//! Outputs: the pressure at the two microphones, at [`PROBES`] points around
+//! the piano (what the room takes, [`probe_points`]), and the bridge velocity
+//! at each region point (its time derivative drives the strings
 //! sympathetically: a moving end forces string mode k with −(μL/kπ)·ü).
 //! Each board mode n is a complex one-pole driven by Σ_r Φ_n(x_r)·T·F_r and
 //! read through complex weights: radiation for the mics, Φ_n(x_p) for the
@@ -21,9 +22,42 @@ use crate::simd;
 pub const REGIONS: usize = 16;
 /// Inputs of the bank that takes a force per key ([`LowDrive`]).
 pub const KEYS: usize = 88;
-pub const MICS: usize = 2;
-/// Outputs: the mics, then the bridge velocity at each region point.
-pub const OUTPUTS: usize = MICS + REGIONS;
+/// Mic output slots ([`crate::mics::MAX_MICS`]): a bank computes those of
+/// the set-up's microphones only.
+pub const MICS: usize = crate::mics::MAX_MICS;
+/// Points around the piano whose pressure feeds the room (after the mics).
+pub const PROBES: usize = 4;
+/// Index of the first bridge-velocity output (region r at `BRIDGE + r`).
+pub const BRIDGE: usize = MICS + PROBES;
+/// Outputs: the mics, the probes, then the bridge velocity at each region
+/// point.
+pub const OUTPUTS: usize = BRIDGE + REGIONS;
+
+/// Distance (m) of the probes from the board's centre.
+pub const PROBE_DISTANCE: f64 = 3.0;
+
+/// The probes hear the board's modes below this frequency (Hz); above,
+/// each takes the mics' estimate of the source as before (the room's
+/// walls absorb those more, and the probes' radiation integral is the
+/// costliest part of the instrument's build: 263 of 2104 modes on a 2 m
+/// grand).
+pub const PROBES_BELOW: f64 = 3000.0;
+
+/// The probes, in board coordinates (m): [`PROBE_DISTANCE`] from the board's
+/// centre in four directions. A grand: up through the lid's opening, up on
+/// the spine's side (under the lid), towards the tail, and below. An upright
+/// against its wall: in front, up and down, to either side (nothing behind).
+/// The room hears the piano in every direction: their powers add in its
+/// diffuse field, where two microphones close to the board would bring the
+/// interference of their own few points (docs/room_feed.md).
+pub fn probe_points(p: &crate::soundboard::SoundboardParams) -> [[f64; 3]; PROBES] {
+    let dirs: [[f64; 3]; PROBES] = if p.vertical && p.wall_distance > 0.0 {
+        [[0.8, 0.0, 0.6], [-0.8, 0.0, 0.6], [0.0, 0.6, 0.8], [0.0, -0.6, 0.8]]
+    } else {
+        [[0.0, -0.6, 0.8], [0.0, 0.6, 0.8], [0.8, 0.0, 0.6], [0.0, 0.0, -1.0]]
+    };
+    dirs.map(|d| [0.5 * p.a + PROBE_DISTANCE * d[0], 0.5 * p.b + PROBE_DISTANCE * d[1], PROBE_DISTANCE * d[2]])
+}
 
 /// One board mode, in physical units.
 #[derive(Clone, Copy, Debug)]
@@ -97,6 +131,10 @@ pub struct BoardBank<const R: usize = REGIONS> {
     na: usize,
     no: usize,
     n_ex: usize,
+    /// Microphones the modes radiate to (the first `n_mics` slots), and the
+    /// outputs computed: those mics, then the probes and bridge velocities.
+    n_mics: usize,
+    outs: Vec<usize>,
     /// Inputs transposed per sample, only the active regions.
     xin: Vec<[f32; R]>,
     /// Direct feedthrough correcting impulse invariance (index output, region):
@@ -119,6 +157,8 @@ pub struct BoardBank<const R: usize = REGIONS> {
     poles: Vec<(f64, f64, f64, f64)>,
     t: f64,
     load_scale: f64,
+    /// The probes' sums of the last block (with the bridge velocities).
+    probe_out: [Vec<f32>; PROBES],
 }
 
 impl<const R: usize> BoardBank<R> {
@@ -144,6 +184,8 @@ impl<const R: usize> BoardBank<R> {
         }
         let mut chunks = vec![Chunk::<R>::default(); modes.len().div_ceil(LANES)];
         let isa = Isa::detect();
+        // The mics the modes radiate to: up to the last slot with a weight.
+        let n_mics = (0..MICS).rev().find(|&o| modes.iter().any(|m| m.outputs[o] != (0.0, 0.0))).map_or(0, |o| o + 1);
         let mut direct = [[0.0f64; R]; OUTPUTS];
         for m in modes {
             for (o, row) in direct.iter_mut().enumerate() {
@@ -191,6 +233,8 @@ impl<const R: usize> BoardBank<R> {
             na: 0,
             no: 0,
             n_ex: 0,
+            n_mics,
+            outs: (0..n_mics).chain(MICS..OUTPUTS).collect(),
             xin: vec![[0.0; R]; max_block],
             direct: direct.map(|row| row.map(|d| d as f32)),
             n_extra,
@@ -207,7 +251,15 @@ impl<const R: usize> BoardBank<R> {
                 .collect(),
             t,
             load_scale: 1.0,
+            probe_out: std::array::from_fn(|_| vec![0.0; max_block]),
         }
+    }
+
+    /// The pressure (acceleration weights, like the mics) at the
+    /// [`probe_points`] over the last block, when it computed the bridge
+    /// velocities; zeros otherwise.
+    pub fn probes(&self) -> [&[f32]; PROBES] {
+        std::array::from_fn(|k| &self.probe_out[k][..self.block_len])
     }
 
     /// Scales the damped strings' load on every mode: 1 with every damper
@@ -293,7 +345,7 @@ impl<const R: usize> BoardBank<R> {
         &mut self,
         inputs: &[Vec<f32>],
         len: usize,
-        mics: [&mut [f32]; MICS],
+        mics: &mut [&mut [f32]],
         disp: Option<&mut [Vec<f32>]>,
         extra: Option<&mut [Vec<f32>]>,
     ) {
@@ -323,10 +375,10 @@ impl<const R: usize> BoardBank<R> {
                 xi[a] = inputs[r][t];
             }
         }
-        // Outputs computed: the mics, the bridge velocities when asked for
-        // (then the extra outputs).
+        // Outputs computed: the mics, the probes and the bridge velocities
+        // when asked for (then the extra outputs).
         self.block_len = len;
-        self.no = if disp { OUTPUTS } else { MICS };
+        self.no = if disp { self.outs.len() } else { self.n_mics };
         self.n_ex = if extra { self.n_extra } else { 0 };
     }
 
@@ -337,7 +389,7 @@ impl<const R: usize> BoardBank<R> {
             act: &self.active[..self.na],
             mb: self.max_block,
             len: self.block_len,
-            outs: &ALL_OUTPUTS[..self.no],
+            outs: &self.outs[..self.no],
             n_ex: self.n_ex,
             ex_w: &self.extra_w[..self.extra_chunks * self.n_ex],
             ex_chunks: self.extra_chunks,
@@ -346,9 +398,9 @@ impl<const R: usize> BoardBank<R> {
     }
 
     /// Adds the outputs of the parts, run since [`Self::prepare`].
-    pub fn finish(&mut self, mics: [&mut [f32]; MICS], disp: Option<&mut [Vec<f32>]>, extra: Option<&mut [Vec<f32>]>) {
+    pub fn finish(&mut self, mics: &mut [&mut [f32]], disp: Option<&mut [Vec<f32>]>, extra: Option<&mut [Vec<f32>]>) {
         let (mb, len) = (self.max_block, self.block_len);
-        let outs = ALL_OUTPUTS[..self.no].iter().chain(&EXTRA[..self.n_ex]);
+        let outs = self.outs[..self.no].iter().chain(&EXTRA[..self.n_ex]);
         // Lane by lane over the parts in order, then the lanes as a tree.
         for &o in outs {
             for t in 0..len {
@@ -362,7 +414,6 @@ impl<const R: usize> BoardBank<R> {
                 self.sums[o * mb + t] = hsum(&a);
             }
         }
-        let [m0, m1] = mics;
         let act = &self.active[..self.na];
         // Output plus direct feedthrough Σ_k direct·x_k (k in order, for
         // every sample at once: vectorises).
@@ -379,11 +430,19 @@ impl<const R: usize> BoardBank<R> {
                 *y += s + f;
             }
         };
-        add(0, m0);
-        add(1, m1);
+        for (o, m) in mics.iter_mut().enumerate().take(self.n_mics) {
+            add(o, m);
+        }
+        let probes = self.no > self.n_mics;
+        for (k, out) in self.probe_out.iter_mut().enumerate() {
+            out[..len].fill(0.0);
+            if probes {
+                add(MICS + k, out);
+            }
+        }
         if let Some(disp) = disp {
             for (r, d) in disp.iter_mut().enumerate() {
-                add(MICS + r, d);
+                add(BRIDGE + r, d);
             }
         }
         if let Some(extra) = extra {
@@ -414,17 +473,6 @@ impl<const R: usize> BoardPart<R> {
         }
     }
 }
-
-/// Indices of the outputs.
-const ALL_OUTPUTS: [usize; OUTPUTS] = {
-    let mut o = [0; OUTPUTS];
-    let mut i = 0;
-    while i < OUTPUTS {
-        o[i] = i;
-        i += 1;
-    }
-    o
-};
 
 type Hist = ([f32; LANES], [f32; LANES]);
 
@@ -768,7 +816,7 @@ pub fn mic_differentiator(omega: f64, sample_rate: f64) -> crate::complex::C64 {
 pub fn to_acceleration_weights(modes: &mut [BoardMode], sample_rate: f64) {
     for m in modes {
         let d = mic_differentiator(std::f64::consts::TAU * m.freq_hz, sample_rate);
-        for o in &mut m.outputs[..MICS] {
+        for o in &mut m.outputs[..BRIDGE] {
             let w = crate::complex::C64::new(o.0, o.1) / d;
             *o = (w.re, w.im);
         }
@@ -785,20 +833,58 @@ pub fn mic_transfer(modes: &[BoardMode], r: usize, mic: usize, omega: f64, sampl
 /// keys, outputs at the two mics (Rayleigh) and bridge velocity there.
 pub fn board_modes(sb: &crate::soundboard::Soundboard, sample_rate: f64) -> Vec<BoardMode> {
     let shapes: Vec<Vec<f64>> = (0..REGIONS).map(|r| sb.bridge_shapes(region_center_note(r))).collect();
-    board_modes_with(sb, &shapes, sample_rate)
+    board_modes_with(sb, &shapes, true, sample_rate)
 }
 
 /// Same as [`board_modes`] with point inputs at `points` (m).
 pub fn board_modes_at(sb: &crate::soundboard::Soundboard, points: &[(f64, f64)], sample_rate: f64) -> Vec<BoardMode> {
     let shapes: Vec<Vec<f64>> =
         points.iter().map(|&(x, y)| sb.modes.iter().map(|md| sb.shape(md, x, y)).collect()).collect();
-    board_modes_with(sb, &shapes, sample_rate)
+    board_modes_with(sb, &shapes, false, sample_rate)
 }
 
-/// Board modes with per-region input shapes `shapes[r][mode]`.
-fn board_modes_with(sb: &crate::soundboard::Soundboard, shapes: &[Vec<f64>], sample_rate: f64) -> Vec<BoardMode> {
+/// The probes' outputs of every mode (before the impulse-shape factor):
+/// pressure at [`PROBE_DISTANCE`] such that times that distance it is the
+/// source at 1 m the room takes. Below [`PROBES_BELOW`], the radiation at
+/// the probes, levelled so that the modes' summed power matches the mics'
+/// estimate, their mean Σ p_m·r_m/N (r: the mics' distances to the room's
+/// source point), each mode weighed by the energy a white force on the
+/// bridge puts into it (Σ_r φ_r²/σ) per octave (1/f), from 50 Hz: the room
+/// keeps the level it was set by ear with, only its colour follows the
+/// probes. Above, that estimate itself.
+fn probe_outputs(sb: &crate::soundboard::Soundboard, rad: &[Vec<crate::complex::C64>], shapes: &[Vec<f64>]) -> Vec<[crate::complex::C64; PROBES]> {
+    use crate::complex::C64;
+    let p = &sb.params;
+    let r = crate::room::mic_distances(p);
+    let n_mics = r.len().max(1) as f64;
+    let estimate: Vec<C64> = rad.iter().map(|w| w.iter().zip(&r).fold(C64::ZERO, |s, (x, r)| s + x.scale(*r)).scale(1.0 / n_mics)).collect();
+    let n = sb.modes.iter().take_while(|m| m.omega / std::f64::consts::TAU < PROBES_BELOW).count();
+    let at = sb.radiation_points(&probe_points(p), n);
+    let (mut mics, mut probes) = (0.0, 0.0);
+    for (i, a) in at.iter().enumerate() {
+        let f = sb.modes[i].omega / std::f64::consts::TAU;
+        if f < 50.0 {
+            continue;
+        }
+        let w = shapes.iter().map(|s| s[i] * s[i]).sum::<f64>() / (sb.sigma(&sb.modes[i]).max(1e-3) * f);
+        mics += w * estimate[i].norm_sqr();
+        probes += w * a.iter().map(|x| x.scale(PROBE_DISTANCE).norm_sqr()).sum::<f64>() / PROBES as f64;
+    }
+    let level = if probes > 0.0 { (mics / probes).sqrt() } else { 1.0 };
+    (0..sb.modes.len())
+        .map(|i| match at.get(i) {
+            Some(a) => std::array::from_fn(|k| a[k].scale(level)),
+            None => [estimate[i].scale(1.0 / PROBE_DISTANCE); PROBES],
+        })
+        .collect()
+}
+
+/// Board modes with per-region input shapes `shapes[r][mode]`, and the
+/// probes' radiation when `probes` (else none).
+fn board_modes_with(sb: &crate::soundboard::Soundboard, shapes: &[Vec<f64>], probes: bool, sample_rate: f64) -> Vec<BoardMode> {
     use crate::complex::C64;
     let rad = sb.radiation();
+    let at_probes = if probes { probe_outputs(sb, &rad, shapes) } else { Vec::new() };
     let nyq = 0.45 * sample_rate;
     let t = 1.0 / sample_rate;
     sb.modes
@@ -808,10 +894,14 @@ fn board_modes_with(sb: &crate::soundboard::Soundboard, shapes: &[Vec<f64>], sam
         .filter(|(_, (md, _))| md.omega / std::f64::consts::TAU < nyq)
         .map(|(i, (md, w))| {
             let mut outputs = [(0.0, 0.0); OUTPUTS];
-            outputs[0] = (w[0].re, w[0].im);
-            outputs[1] = (w[1].re, w[1].im);
+            for (o, x) in outputs.iter_mut().zip(w.iter().take(MICS)) {
+                *o = (x.re, x.im);
+            }
+            for (k, p) in at_probes.get(i).into_iter().flatten().enumerate() {
+                outputs[MICS + k] = (p.re, p.im);
+            }
             for (r, sh) in shapes.iter().enumerate() {
-                outputs[MICS + r] = (sh[i], 0.0);
+                outputs[BRIDGE + r] = (sh[i], 0.0);
             }
             // Exact velocity impulse response of a damped mode,
             // e^{−σt}(cos ω_d t − σ/ω_d·sin ω_d t) = Re((1 + iσ/ω_d)·e^{(−σ+iω_d)t}):
@@ -923,7 +1013,7 @@ mod tests {
         let shapes = sb.bridge_shapes(region_center_note(r));
         for f in [80.0, 440.0, 2500.0] {
             let w = std::f64::consts::TAU * f;
-            let h = transfer(&modes, r, MICS + r, w, sr);
+            let h = transfer(&modes, r, BRIDGE + r, w, sr);
             let want = sb.mobility(&shapes, w);
             // Impulse invariance departs from the continuous mobility for the
             // strongly damped high modes (η up to ≈ 0.6): in the 80 Hz
@@ -938,7 +1028,7 @@ mod tests {
         let mut inputs = vec![vec![0.0f32; 256]; REGIONS];
         let mut disp = vec![vec![0.0f32; 256]; REGIONS];
         let (mut m0, mut m1) = (vec![0.0f32; 256], vec![0.0f32; 256]);
-        let h = transfer(&modes, r, MICS + r, std::f64::consts::TAU * f, sr);
+        let h = transfer(&modes, r, BRIDGE + r, std::f64::consts::TAU * f, sr);
         let mut err = 0.0f64;
         let mut refp = 0.0f64;
         for blk in 0..400 {
@@ -948,7 +1038,7 @@ mod tests {
             for d in disp.iter_mut() {
                 d.fill(0.0);
             }
-            bank.process(&inputs, 256, [&mut m0, &mut m1], Some(&mut disp), None);
+            bank.process(&inputs, 256, &mut [&mut m0[..], &mut m1[..]], Some(&mut disp), None);
             if blk >= 380 {
                 for t in 0..256 {
                     let ph = std::f64::consts::TAU * f * (blk * 256 + t) as f64 / sr;
@@ -979,7 +1069,7 @@ mod tests {
             for _ in 0..4 {
                 let (mut m0, mut m1) = (vec![0.0f32; 64], vec![0.0f32; 64]);
                 let mut disp = vec![vec![0.0f32; 64]; REGIONS];
-                bank.process(&inputs, 64, [&mut m0, &mut m1], Some(&mut disp), None);
+                bank.process(&inputs, 64, &mut [&mut m0[..], &mut m1[..]], Some(&mut disp), None);
                 out.extend(m0.into_iter().chain(m1).chain(disp.into_iter().flatten()));
             }
             match &reference {

@@ -239,7 +239,10 @@ impl FrameParams {
             bridge_beam: 0.0,
             series_stiffness: f64::INFINITY,
             f_max: self.f_max,
-            mics: board.mics.map(|(x, y, z)| (x - self.offset_x, y, z - self.height)),
+            mics: board.mics.map(|m| {
+                let shift = |(x, y, z): (f64, f64, f64)| (x - self.offset_x, y, z - self.height);
+                crate::mics::Mic { at: shift(m.at), aim: m.aim.map(shift), ..m }
+            }),
             radiate: true,
             grid_step: 0.02,
             back_depth: self.back_depth,
@@ -735,8 +738,8 @@ impl RimModel {
             let k = omega / C0;
             let pre = C64::new(0.0, omega * RHO0 / TAU);
             let shape = C64::new(1.0, m.sigma / omega);
-            for (mic, out) in m.mics.iter_mut().enumerate() {
-                let (mx, my, mz) = bp.mics[mic];
+            for (out, mic) in m.mics.iter_mut().zip(bp.mics.iter()) {
+                let (mx, my, mz) = mic.at;
                 let mut acc = C64::ZERO;
                 for e in &elems {
                     let d = [mx - e.pos[0], my - e.pos[1], mz - e.pos[2]];
@@ -761,6 +764,8 @@ pub struct RimBank {
     b: Vec<f32>,
     proj: Vec<usize>,
     w: Vec<[(f32, f32); MICS]>,
+    /// Microphones in use (the first of each `w`).
+    n_mics: usize,
     zr: Vec<f32>,
     zi: Vec<f32>,
     fs2: f32,
@@ -777,6 +782,7 @@ impl RimBank {
             b: model.modes.iter().map(|m| (m.drive * t) as f32).collect(),
             proj: model.modes.iter().map(|m| m.proj).collect(),
             w: model.modes.iter().map(|m| m.mics.map(|(re, im)| (re as f32, im as f32))).collect(),
+            n_mics: (0..MICS).rev().find(|&o| model.modes.iter().any(|m| m.mics[o] != (0.0, 0.0))).map_or(0, |o| o + 1),
             zr: vec![0.0; n],
             zi: vec![0.0; n],
             fs2: (sample_rate * sample_rate) as f32,
@@ -797,19 +803,20 @@ impl RimBank {
 
     /// Advances by `len` samples driven by the edge-force projections
     /// `forces[p][..len]`, adding the pressure to the mics.
-    pub fn process(&mut self, forces: &[Vec<f32>], len: usize, mics: [&mut [f32]; MICS]) {
-        let [m0, m1] = mics;
+    pub fn process(&mut self, forces: &[Vec<f32>], len: usize, mics: &mut [&mut [f32]]) {
+        let n = self.n_mics.min(mics.len());
         for j in 0..self.pr.len() {
             let (pr, pi, b) = (self.pr[j], self.pi[j], self.b[j]);
             let (mut zr, mut zi) = (self.zr[j], self.zi[j]);
-            let [(w0r, w0i), (w1r, w1i)] = self.w[j];
+            let w = &self.w[j];
             let f = &forces[self.proj[j]][..len];
             for t in 0..len {
                 let r = pr * zr - pi * zi + b * f[t];
                 zi = pr * zi + pi * zr;
                 zr = r;
-                m0[t] += w0r * zr - w0i * zi;
-                m1[t] += w1r * zr - w1i * zi;
+                for (m, &(wr, wi)) in mics[..n].iter_mut().zip(w) {
+                    m[t] += wr * zr - wi * zi;
+                }
             }
             self.zr[j] = zr;
             self.zi[j] = zi;

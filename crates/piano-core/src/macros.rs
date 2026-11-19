@@ -127,6 +127,7 @@ impl PianoModel {
         m.losses.b1_floor *= s;
         m.losses.b2 *= s;
         m.losses.b2_top *= s;
+        m.losses.b2_high *= s;
         if let Some(sb) = m.soundboard.as_mut() {
             sb.edge_loss *= s;
         }
@@ -163,6 +164,7 @@ impl PianoModel {
         m.noise.keybed *= k;
         m.noise.damper_mass *= k;
         m.noise.pedal *= k;
+        m.body.gain *= k;
 
         // Size: a longer bass scale (less inharmonic), a larger board and
         // frame, heavier hammers.
@@ -277,19 +279,22 @@ mod tests {
     }
 
     /// Sustain scales the frequency term on every key, the top strings' own
-    /// coefficient included, and leaves it off where it is off.
+    /// coefficients included (b2_top, b2_high), and leaves them off where
+    /// they are off.
     #[test]
     fn sustain_reaches_the_top_strings_own_loss() {
         let mut m = PianoModel::default();
         m.losses.b2 = 6.0e-8;
         m.losses.b2_top = 2.0e-7;
         m.losses.b2_top_from = 84;
+        m.losses.b2_high = 1.0e-7;
+        m.losses.b2_high_from = 96;
         let at = |sustain: f64, note: u8| {
             let mut c = m;
             c.macros.sustain = sustain;
             c.with_macros().losses.b2_at(note)
         };
-        for note in [60u8, 78, 84, 96] {
+        for note in [60u8, 78, 84, 90, 96, 108] {
             let (short, mid, long) = (at(-1.0, note), at(0.0, note), at(1.0, note));
             assert_eq!(mid, m.losses.b2_at(note));
             assert!(short > mid && mid > long, "key {note}: {short} {mid} {long}");
@@ -300,6 +305,7 @@ mod tests {
         let mut off = PianoModel::default();
         off.macros.sustain = 1.0;
         assert_eq!(off.with_macros().losses.b2_top, 0.0);
+        assert_eq!(off.with_macros().losses.b2_high, 0.0);
     }
 
     /// From a removed lid the lid control moves the sound
@@ -344,7 +350,7 @@ mod tests {
     #[test]
     fn the_case_field_follows_the_lid_fading_in() {
         use crate::soundboard::{Soundboard, SoundboardParams};
-        let sb = SoundboardParams { a: 2.124, b: 1.46, lid_hinge_height: 0.16, case_field: true, mics: [(-1.19, 0.83, 0.45), (-1.19, 0.63, 0.45)], ..SoundboardParams::GRAND_2M };
+        let sb = SoundboardParams { a: 2.124, b: 1.46, lid_hinge_height: 0.16, case_field: true, mics: crate::mics::Mics::pair((-1.19, 0.83, 0.45), (-1.19, 0.63, 0.45)), ..SoundboardParams::GRAND_2M };
         let removed = PianoModel { soundboard: Some(sb), ..PianoModel::default() };
         let at = |l: f64| {
             let mut m = removed;

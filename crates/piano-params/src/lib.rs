@@ -14,6 +14,7 @@ pub mod midi;
 
 use std::collections::HashMap;
 
+use piano_core::mics::{Mic, Mics, MAX_MICS};
 use piano_core::params::PianoModel;
 pub use piano_core::LiveParam;
 pub use control::{PianoControl, Status};
@@ -80,7 +81,7 @@ pub struct Registry {
 impl Registry {
     pub fn new() -> Self {
         let mut leaves = Vec::new();
-        flatten(&to_toml(&PianoModel::default()), String::new(), &mut leaves);
+        flatten(&to_toml(&schema()), String::new(), &mut leaves);
         let params: Vec<Param> = leaves
             .into_iter()
             .map(|(path, default)| Param {
@@ -121,6 +122,21 @@ impl Registry {
         }
         values
     }
+}
+
+/// The default model with every optional field present: all the microphone
+/// slots, each with its aims, though a preset only writes those it uses.
+/// Slots and aims a model does not have read as absent ([`Registry::read`]).
+fn schema() -> PianoModel {
+    let mut model = PianoModel::default();
+    if let Some(sb) = model.soundboard.as_mut() {
+        let slots: [Mic; MAX_MICS] = std::array::from_fn(|i| {
+            let m = sb.mics.as_slice().get(i).copied().unwrap_or(Mic::DEFAULT);
+            Mic { aim: m.aim.or(Some(m.at)), aim_upright: m.aim_upright.or(Some(m.upright)), ..m }
+        });
+        sb.mics = Mics::new(&slots);
+    }
+    model
 }
 
 impl Default for Registry {
@@ -242,7 +258,7 @@ mod tests {
     #[test]
     fn every_parameter_reads_and_writes() {
         let reg = Registry::new();
-        let model = PianoModel::default();
+        let model = schema();
         assert!(reg.params().len() > 100, "{} parameters", reg.params().len());
         for p in reg.params() {
             assert_eq!(get(&model, &p.path), Some(p.default), "{}", p.path);
@@ -279,6 +295,26 @@ mod tests {
         for &l in LiveParam::ALL {
             assert_eq!(reg.get(l.path()).map(|p| p.kind), Some(Kind::Live(l)), "{}", l.path());
         }
+    }
+
+    #[test]
+    fn every_microphone_slot_is_registered() {
+        let reg = Registry::new();
+        for i in 0..MAX_MICS {
+            for field in ["at[2]", "upright[0]", "pattern", "aim[0]", "aim_upright[1]", "gain_db", "pan"] {
+                let path = format!("soundboard.mics[{i}].{field}");
+                assert!(reg.get(&path).is_some_and(|p| p.meta.curated), "{path}");
+            }
+        }
+        // A slot the set-up does not use reads as absent; added, it is there.
+        let mut model = PianoModel::default();
+        let at = |r: &Registry, m: &PianoModel| r.params().iter().position(|p| p.path == "soundboard.mics[4].gain_db").and_then(|i| r.read(m)[i]);
+        assert_eq!(at(&reg, &model), None);
+        assert!(set(&model, "soundboard.mics[4].gain_db", Value::Float(1.0)).is_err());
+        model.soundboard.as_mut().unwrap().mics.push(Mic::DEFAULT);
+        assert_eq!(at(&reg, &model), Some(Value::Float(0.0)));
+        let m = set(&model, "soundboard.mics[4].gain_db", Value::Float(1.0)).unwrap();
+        assert_eq!(get(&m, "soundboard.mics[4].gain_db"), Some(Value::Float(1.0)));
     }
 
     #[test]

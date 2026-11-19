@@ -67,12 +67,13 @@ impl Instrument {
         // the acceleration): every radiating bank gets acceleration weights.
         let mut modes = modes;
         let mut frame = frame;
-        // The listening set-up's gain scales every mic weight.
+        // The listening set-up's gain scales every mic weight (and the
+        // probes', levelled with the mics).
         let mic_gain = 10f64.powf(model.soundboard.map_or(0.0, |s| s.mic_gain_db) / 20.0);
         for m in modes.iter_mut().chain(frame.iter_mut()) {
             board::to_acceleration_weights(m, sample_rate);
             for bm in m.iter_mut() {
-                for o in &mut bm.outputs[..board::MICS] {
+                for o in &mut bm.outputs[..board::BRIDGE] {
                     *o = (o.0 * mic_gain, o.1 * mic_gain);
                 }
             }

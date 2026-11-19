@@ -230,8 +230,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             sb.series_stiffness = k;
         }
         if let Some(h) = a.mic_height {
-            for mic in &mut sb.mics {
-                mic.2 = h;
+            for mic in sb.mics.as_mut_slice() {
+                mic.at.2 = h;
             }
         }
         if let Some(l) = a.board_loss {

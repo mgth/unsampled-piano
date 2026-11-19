@@ -84,6 +84,56 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("noise.action", "Action knock", "Pa·s/m", 0.0, 0.2, false),
     ("noise.action_time", "Action knock T60", "s", 0.02, 1.0, true),
     ("noise.action_delay", "Action knock delay", "s", 0.0, 0.03, false),
+    ("body.gain", "Body halo level", "Pa·s/m", 0.0, 0.5, false),
+    ("body.slope", "Body halo slope", "dB/oct", -12.0, 12.0, false),
+    ("body.delay", "Body halo delay", "s", 0.0, 0.03, false),
+    ("body.shared", "Body pattern shared by all keys", "", 0.0, 1.0, false),
+    ("body.levels[0]", "Body halo level, 63 Hz", "dB", -40.0, 20.0, false),
+    ("body.levels[1]", "Body halo level, 125 Hz", "dB", -40.0, 20.0, false),
+    ("body.levels[2]", "Body halo level, 250 Hz", "dB", -40.0, 20.0, false),
+    ("body.levels[3]", "Body halo level, 500 Hz", "dB", -40.0, 20.0, false),
+    ("body.levels[4]", "Body halo level, 1 kHz", "dB", -40.0, 20.0, false),
+    ("body.levels[5]", "Body halo level, 2 kHz", "dB", -40.0, 20.0, false),
+    ("body.levels[6]", "Body halo level, 4 kHz", "dB", -40.0, 20.0, false),
+    ("body.levels[7]", "Body halo level, 8 kHz", "dB", -40.0, 20.0, false),
+    ("body.t60[0]", "Body halo T60, 63 Hz", "s", 0.02, 3.0, true),
+    ("body.t60[1]", "Body halo T60, 125 Hz", "s", 0.02, 3.0, true),
+    ("body.t60[2]", "Body halo T60, 250 Hz", "s", 0.02, 3.0, true),
+    ("body.t60[3]", "Body halo T60, 500 Hz", "s", 0.02, 3.0, true),
+    ("body.t60[4]", "Body halo T60, 1 kHz", "s", 0.02, 3.0, true),
+    ("body.t60[5]", "Body halo T60, 2 kHz", "s", 0.02, 3.0, true),
+    ("body.t60[6]", "Body halo T60, 4 kHz", "s", 0.02, 3.0, true),
+    ("body.t60[7]", "Body halo T60, 8 kHz", "s", 0.02, 3.0, true),
+    ("body.speed_ref", "Body halo reference speed", "m/s", 0.0, 6.0, false),
+    ("body.speed_corner", "Body halo speed corner", "Hz", 200.0, 8000.0, true),
+    ("body.speed_halo[0]", "Share of the speed law in the halo, A0", "", 0.0, 1.0, false),
+    ("body.speed_halo[1]", "Share of the speed law in the halo, C3", "", 0.0, 1.0, false),
+    ("body.speed_halo[2]", "Share of the speed law in the halo, C5", "", 0.0, 1.0, false),
+    ("body.speed_halo[3]", "Share of the speed law in the halo, C7", "", 0.0, 1.0, false),
+    ("body.speed_low[0]", "Body halo growth with speed, A0", "", -1.0, 4.0, false),
+    ("body.speed_low[1]", "Body halo growth with speed, C3", "", -1.0, 4.0, false),
+    ("body.speed_low[2]", "Body halo growth with speed, C5", "", -1.0, 4.0, false),
+    ("body.speed_low[3]", "Body halo growth with speed, C7", "", -1.0, 4.0, false),
+    ("body.speed_high[0]", "Body halo top growth with speed, A0", "", -1.0, 4.0, false),
+    ("body.speed_high[1]", "Body halo top growth with speed, C3", "", -1.0, 4.0, false),
+    ("body.speed_high[2]", "Body halo top growth with speed, C5", "", -1.0, 4.0, false),
+    ("body.speed_high[3]", "Body halo top growth with speed, C7", "", -1.0, 4.0, false),
+    // Sideways motion: the cross term and the bass's own values reach 0 and
+    // the presets' settings (the inferred ranges, ×0.1–×10 the default's,
+    // did not: the Concert grand's 0.6 tilt and 0.02 cross in the bass).
+    ("polarization.h_coupling", "Sideways coupling", "", 0.0, 1.0, false),
+    ("polarization.cross", "Cross coupling of the motions", "", 0.0, 1.0, false),
+    ("polarization.radiation", "Sideways radiation", "", 0.0, 2.0, false),
+    ("polarization.hammer_tilt", "Hammer tilt", "", 0.0, 1.0, false),
+    ("polarization.smooth", "Sideways admittance smoothing", "", 0.0, 1.0, false),
+    ("polarization.slope_from", "Sideways slope from (0: all partials)", "Hz", 0.0, 1000.0, false),
+    ("polarization.slope_to", "Sideways slope up to (0: all partials)", "Hz", 0.0, 8000.0, false),
+    ("polarization.bass_until", "Last key with the bass's sideways values", "", 21.0, 108.0, false),
+    ("polarization.bass_fade", "Keys over which they blend", "", 1.0, 24.0, false),
+    ("polarization.hammer_tilt_bass", "Hammer tilt, bass", "", 0.0, 1.0, false),
+    ("polarization.radiation_bass", "Sideways radiation, bass", "", 0.0, 2.0, false),
+    ("polarization.cross_bass", "Cross coupling, bass", "", 0.0, 1.0, false),
+    ("losses.b2_high", "Overtone losses, top octaves (0: none)", "s", 0.0, 5e-7, false),
     ("hardness", "Felt hardness", "", 0.02, 2.0, true),
     ("hardness_slope", "Hardness slope (treble)", "/key", -0.05, 0.08, false),
     ("hardness_slope_bass", "Hardness slope (bass)", "/key", -0.05, 0.08, false),
@@ -110,21 +160,9 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("hammer_mass_scale", "Hammer mass", "", 0.25, 2.0, true),
     ("strike_ratio", "Strike point", "", 0.06, 0.2, false),
     ("strike_ratio_spread", "Strike point spread", "", 0.0, 0.003, false),
-    ("soundboard.mics[0][0]", "Left mic x (along)", "", -3.0, 5.0, false),
-    ("soundboard.mics[0][1]", "Left mic y (across)", "", -5.0, 5.0, false),
-    ("soundboard.mics[0][2]", "Left mic height", "m", 0.05, 4.0, false),
-    ("soundboard.mics[1][0]", "Right mic x (along)", "", -3.0, 5.0, false),
-    ("soundboard.mics[1][1]", "Right mic y (across)", "", -5.0, 5.0, false),
-    ("soundboard.mics[1][2]", "Right mic height", "m", 0.05, 4.0, false),
-    ("soundboard.mics_upright[0][0]", "Upright: left mic x (down)", "", -3.0, 5.0, false),
-    ("soundboard.mics_upright[0][1]", "Upright: left mic y (across)", "", -5.0, 5.0, false),
-    ("soundboard.mics_upright[0][2]", "Upright: left mic in front", "m", 0.05, 4.0, false),
-    ("soundboard.mics_upright[1][0]", "Upright: right mic x (down)", "", -3.0, 5.0, false),
-    ("soundboard.mics_upright[1][1]", "Upright: right mic y (across)", "", -5.0, 5.0, false),
-    ("soundboard.mics_upright[1][2]", "Upright: right mic in front", "m", 0.05, 4.0, false),
     ("soundboard.mics_relative", "Positions relative to the board", "", 0.0, 1.0, false),
-    ("soundboard.mic_gain_db", "Microphone gain", "dB", -30.0, 20.0, false),
-    ("soundboard.mic_pattern", "Mic pattern (1 omni, 0.5 cardioid)", "", 0.0, 1.0, false),
+    ("soundboard.mic_gain_db", "Microphone set-up gain", "dB", -30.0, 20.0, false),
+    ("soundboard.outputs_per_mic", "One output per microphone", "", 0.0, 1.0, false),
     ("room.directivity", "Piano directivity Q (0: from the piano)", "", 0.0, 8.0, false),
     ("room.size[0]", "Room length (x)", "m", 2.0, 60.0, false),
     ("room.size[1]", "Room width (y)", "m", 2.0, 60.0, false),
@@ -166,7 +204,7 @@ impl Meta {
         if let Some(&(_, label, unit, min, max, log)) = CURATED.iter().find(|c| c.0 == path) {
             return Self { label: label.into(), unit, min, max, log, curated: true };
         }
-        if let Some(m) = bridge_key(path) {
+        if let Some(m) = bridge_key(path).or_else(|| mic(path)) {
             return m;
         }
         let name = path.rsplit('.').next().unwrap_or(path);
@@ -197,6 +235,31 @@ fn bridge_key(path: &str) -> Option<Meta> {
         _ => return None,
     };
     Some(Meta { label, unit: "", min: 0.0, max, log: false, curated: true })
+}
+
+/// A microphone's fields (`soundboard.mics[i].field` or `.field[j]`).
+fn mic(path: &str) -> Option<Meta> {
+    let (i, rest) = path.strip_prefix("soundboard.mics[")?.split_once("].")?;
+    let n = i.parse::<usize>().ok()? + 1;
+    let (field, j) = match rest.split_once('[') {
+        Some((f, j)) => (f, j.strip_suffix(']')?.parse::<usize>().ok()),
+        None => (rest, None),
+    };
+    let axis = |grand: [&'static str; 3], upright: bool| -> Option<&'static str> {
+        let names = if upright { ["down", "across", "in front"] } else { grand };
+        names.get(j?).copied()
+    };
+    let (label, unit, min, max) = match (field, j) {
+        ("at" | "aim", Some(2)) => (format!("Mic {n} {}", if field == "at" { "height" } else { "aim: height" }), "m", -2.0, 8.0),
+        ("at" | "aim", Some(_)) => (format!("Mic {n} {}{}", if field == "aim" { "aim: " } else { "" }, axis(["along", "across", ""], false)?), "", -8.0, 8.0),
+        ("upright" | "aim_upright", Some(2)) => (format!("Upright: mic {n} in front"), "m", -1.0, 8.0),
+        ("upright" | "aim_upright", Some(_)) => (format!("Upright: mic {n} {}", axis(["", "", ""], true)?), "", -8.0, 8.0),
+        ("pattern", None) => (format!("Mic {n} pattern (1 omni, 0.5 cardioid, 0 figure of eight)"), "", 0.0, 1.0),
+        ("gain_db", None) => (format!("Mic {n} gain"), "dB", -40.0, 40.0),
+        ("pan", None) => (format!("Mic {n} pan (left – right)"), "", -1.0, 1.0),
+        _ => return None,
+    };
+    Some(Meta { label, unit, min, max, log: false, curated: true })
 }
 
 /// "soundboard.treble_bridge[2][1]" → "Treble bridge [2][1]".
@@ -238,6 +301,35 @@ fn guess_unit(name: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The shipped instruments' own settings are reachable with the sliders
+    /// and a learned MIDI control.
+    #[test]
+    fn shipped_presets_lie_within_the_ranges() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/instruments");
+        let reg = crate::Registry::new();
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+            for file in std::fs::read_dir(entry.path()).unwrap().flatten() {
+                let path = file.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+                    continue;
+                }
+                let model: piano_core::params::PianoModel = toml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+                for (p, v) in reg.params().iter().zip(reg.read(&model)) {
+                    let x = match v {
+                        Some(crate::Value::Float(x)) => x,
+                        Some(crate::Value::Int(i)) => i as f64,
+                        _ => continue,
+                    };
+                    if p.path.starts_with("polarization.") && (x < p.meta.min || x > p.meta.max) {
+                        out.push(format!("{}: {} = {x} outside {}–{}", path.display(), p.path, p.meta.min, p.meta.max));
+                    }
+                }
+            }
+        }
+        assert!(out.is_empty(), "{out:#?}");
+    }
 
     #[test]
     fn curated_paths_exist() {

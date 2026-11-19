@@ -20,6 +20,7 @@ use std::time::Instant;
 use nice_plug::midi::Key;
 use nice_plug::prelude::*;
 use nice_plug_egui::{EguiEditor, EguiEditorState, RepaintNotifier};
+use piano_control::slot::MAX_CHANNELS;
 use piano_control::{Controller, EngineSlot};
 use piano_core::{EngineConfig, Event, TimedEvent};
 
@@ -88,11 +89,19 @@ impl Plugin for Piano {
     const EMAIL: &'static str = "";
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-    const AUDIO_IO_LAYOUTS: &'static [AudioIOLayout] = &[AudioIOLayout {
-        main_input_channels: None,
-        main_output_channels: NonZeroU32::new(2),
-        ..AudioIOLayout::const_default()
-    }];
+    // Stereo; or, for one output per microphone (the listening set-up's
+    // `outputs_per_mic`), microphones 1–2 on the main output and 3–8 on
+    // three auxiliary pairs (the stereo mix on the main output otherwise).
+    const AUDIO_IO_LAYOUTS: &'static [AudioIOLayout] = &[
+        AudioIOLayout { main_input_channels: None, main_output_channels: NonZeroU32::new(2), ..AudioIOLayout::const_default() },
+        AudioIOLayout {
+            main_input_channels: None,
+            main_output_channels: NonZeroU32::new(2),
+            aux_output_ports: &[new_nonzero_u32(2); 3],
+            names: PortNames { layout: Some("Multi-out (one per microphone)"), main_input: None, main_output: Some("Mics 1-2"), aux_inputs: &[], aux_outputs: &["Mics 3-4", "Mics 5-6", "Mics 7-8"] },
+            ..AudioIOLayout::const_default()
+        },
+    ];
     // Notes, and the pedals as controllers.
     const MIDI_INPUT: MidiConfig = MidiConfig::MidiCCs;
     const INPUT_EVENT_CAPACITY: usize = MAX_EVENTS;
@@ -138,7 +147,7 @@ impl Plugin for Piano {
     fn process(
         &mut self,
         buffer: &mut Buffer,
-        _aux: &mut AuxiliaryBuffers,
+        aux: &mut AuxiliaryBuffers,
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
         let start = Instant::now();
@@ -177,7 +186,14 @@ impl Plugin for Piano {
                 self.events.push(TimedEvent { frame: timing.min(frames.saturating_sub(1) as u32), event });
             }
         }
-        let [left, right, ..] = buffer.as_slice() else { return ProcessStatus::Normal };
+        // The main pair, then the auxiliary outputs' channels (multi-out).
+        let main = buffer.as_slice().iter_mut().take(2).map(|c| &mut **c);
+        let mut chans = main.chain(aux.outputs.iter_mut().flat_map(|b| b.as_slice().iter_mut().map(|c| &mut **c)));
+        let mut outs: [&mut [f32]; MAX_CHANNELS] = std::array::from_fn(|_| chans.next().unwrap_or(&mut []));
+        let n_out = outs.iter().take_while(|c| c.len() >= frames).count();
+        if n_out < 2 {
+            return ProcessStatus::Normal;
+        }
         let (mut done, mut i) = (0, 0);
         while done < frames {
             let n = (frames - done).min(MAX_BLOCK);
@@ -187,7 +203,9 @@ impl Plugin for Piano {
                 self.piece.push(TimedEvent { frame: e.frame - done as u32, event: e.event });
                 i += 1;
             }
-            slot.process_stereo(&self.piece, &mut left[done..done + n], &mut right[done..done + n]);
+            let mut it = outs[..n_out].iter_mut();
+            let mut piece: [&mut [f32]; MAX_CHANNELS] = std::array::from_fn(|_| it.next().map_or(&mut [][..], |c| &mut c[done..done + n]));
+            slot.process_channels(&self.piece, &mut piece[..n_out]);
             done += n;
         }
         slot.report_load((start.elapsed().as_secs_f64() * self.sample_rate / frames.max(1) as f64) as f32);
