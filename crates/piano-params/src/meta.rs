@@ -127,6 +127,7 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("polarization.hammer_tilt", "Hammer tilt", "", 0.0, 1.0, false),
     ("polarization.smooth", "Sideways admittance smoothing", "", 0.0, 1.0, false),
     ("polarization.slope_from", "Sideways slope from (0: all partials)", "Hz", 0.0, 1000.0, false),
+    ("polarization.slope_to", "Sideways slope up to (0: all partials)", "Hz", 0.0, 8000.0, false),
     ("polarization.bass_until", "Last key with the bass's sideways values", "", 21.0, 108.0, false),
     ("polarization.bass_fade", "Keys over which they blend", "", 1.0, 24.0, false),
     ("polarization.hammer_tilt_bass", "Hammer tilt, bass", "", 0.0, 1.0, false),

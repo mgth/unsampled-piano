@@ -531,6 +531,11 @@ const HELP: &[(&str, &str, &str)] = &[
         "Hz; ε_H uses max(f, slope_from) in its slope. 0: none.",
     ),
     (
+        "polarization.slope_to",
+        "Highest pitch the sideways slope follows; above it the bridge's sideways give stays as there.",
+        "Hz; ε_H uses min(f, slope_to) in its slope. 0: none.",
+    ),
+    (
         "polarization.bass",
         "The bass's own sideways motion: lets the low strings' first partial fall fast, then slowly, as on real grands.",
         "Up to bass_until the hammer's tilt, the horizontal radiation and the cross term take their _bass values, blended into the others over bass_fade keys (docs/body.md).",

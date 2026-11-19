@@ -165,3 +165,47 @@ The sustained centroid at mf:
 - D4, F4 and A4 get richer, and they already were. A4 at ff goes from 2.09 to 2.81, against 1.60.
 - C5–A#5 now decay too slowly over 0.1–1 s: −21.3 dB/s, against −26.3.
 - The late decay of B5–E6 eases from −14.8 to −11.5 dB/s, against −4.6.
+
+## 2026-11-18: D#5 and E5, the sideways coupling up to 700 Hz
+
+**What was left.** With `radiation` 0.6, D#5 and E5 stayed the richest keys: a sustained centroid at mf of 1.84 and 2.66, against 1.02 and 1.05. At the attack (0.03–0.13 s, re partial 1, mf), D#5's partials 2 and 4 stood at −6.3 and −16.0 dB, against −17.6 to −30.7 and −27.5 to −50.5 on the real grands. E5's partial 3 stood at −8.7 dB, against −30.5 to −36.1.
+
+**The transfer.** Ear pressure per bridge acceleration at the player's seat, model minus Plath's grand, keys C4–B6, median per third octave (dB):
+
+| Hz | 500 | 630 | 800 | 1000 | 1250 | 1600 | 2000 | 2500 | 3150 | 4000 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Preset | +3.2 | +1.8 | +1.5 | −1.7 | +2.0 | +5.1 | +7.7 | +10.7 | +0.9 | −2.8 |
+| No case field | +2.0 | +3.0 | +0.9 | −3.4 | +1.8 | +3.0 | +6.6 | +6.3 | −1.6 | −6.4 |
+
+The fundamentals of C5–B5 are within about 5 dB of Plath's, and D#5's and E5's within 2.4. The excess lies at 1.6–2.5 kHz, where those keys' partials 3 and 4 fall. It is not settled: at the bridge, the same partials are below Plath's, so the two stages may partly make up for each other (the transfer's method is in `docs/case_radiation.md`). Nothing here corrects the transfer.
+
+A softer felt does not reach these keys. With `hardness_slope` −0.12, D#5's partials 2 and 4 go from +18.3 and +20.6 dB over the real grands' median to +16.9 and +18.6, and E5's partial 3 from +22.8 to +21.9.
+
+**What was done instead: more fundamental in the sideways motion.** The whole keyboard, three steps:
+
+| | Measures off | D#5 | E5 | Why not, or why |
+|---|---|---|---|---|
+| `radiation` 0.6 | 273 | 1.84 | 2.66 | the start |
+| `radiation` 1, `h_coupling` 0.12, `cross` at its limit | 312 | 1.38 | 2.04 | T60 of partial 1 off 7 → 35 in the middle: C3–B3 at 13.8 s, against 6.3 |
+| `radiation` 0.8, `slope` 1.5 from C4 | 273 | 1.49 | 1.86 | F7 out of tune, A#6–B6's early decay 7 z too slow |
+| **The same, `slope_to` 700 Hz** | **277** | **1.54** | **2.27** | **kept after listening** |
+
+`polarization.slope_to` is new: above it, the sideways coupling keeps its value there (0: no limit). The coupling goes from 0.03 at C4 to 0.13 at 700 Hz.
+
+| Measures off | Before | After |
+|---|---|---|
+| Partial 1 ripple | 61 | 57 |
+| Late decay | 59 | 58 |
+| Early decay | 46 | 47 |
+| Rise time | 38 | 38 |
+| T60 of partial 1 | 26 | 31 |
+| Spectral tilt | 23 | 26 |
+| Between partials | 9 | 11 |
+| Tuning | 11 | 9 |
+
+**Still open.**
+
+- E5 at 2.27 and D#5 at 1.54 remain far from 1.05 and 1.02.
+- C5–A#5 decay too slowly over 0.1–1 s: −17.5 dB/s, against −21.3 before and −26.3 on the real grands.
+- C3–B3's partial 1 lasts 8.5 s, against 7.3 before and 6.3 on the real grands.
+- F4 gets richer: 1.92 at mf, against 1.77 before and 1.10.

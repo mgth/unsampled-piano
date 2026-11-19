@@ -7,6 +7,7 @@ mod jobs;
 mod measure;
 mod model;
 mod plot;
+mod score;
 mod settings;
 mod sources;
 
@@ -48,6 +49,16 @@ struct Cli {
     /// Layer shown first: pp, mf or ff (default: the last one).
     #[arg(long)]
     layer: Option<String>,
+    /// No window: render and measure the model, write its z over all the
+    /// measures to this JSON file.
+    #[arg(long, value_name = "FILE", conflicts_with = "no_model")]
+    score: Option<PathBuf>,
+    /// With --score: real pianos left out of the band (their keys, comma separated).
+    #[arg(long, value_delimiter = ',', requires = "score")]
+    band_without: Vec<String>,
+    /// With --score: threads rendering and measuring.
+    #[arg(long, default_value_t = 5, requires = "score")]
+    score_threads: usize,
 }
 
 /// The repository: the folder holding bench/references.json, from the
@@ -106,6 +117,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("nothing to compare: no note set found and --no-model".into());
     }
     let cache_file = cache.join(format!("measures-v{}.json", measure::VERSION));
+    if let Some(out) = &cli.score {
+        let spec = spec.as_ref().ok_or("--score needs the model")?;
+        return score::run(srcs, spec, cache_file, &cli.band_without, cli.score_threads, out);
+    }
     let viewport = egui::ViewportBuilder::default()
         .with_inner_size([1500.0, 950.0])
         .with_min_inner_size([900.0, 500.0])
