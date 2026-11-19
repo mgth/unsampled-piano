@@ -1005,11 +1005,11 @@ impl Drop for App {
     }
 }
 
-fn tf(v: f64, log: bool) -> f64 {
+pub(crate) fn tf(v: f64, log: bool) -> f64 {
     if log { v.log10() } else { v }
 }
 
-fn mean_sd(v: &[f64]) -> (f64, f64) {
+pub(crate) fn mean_sd(v: &[f64]) -> (f64, f64) {
     let n = v.len() as f64;
     let m = v.iter().sum::<f64>() / n;
     (m, (v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / n).sqrt())

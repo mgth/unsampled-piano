@@ -51,4 +51,6 @@ z = (model − mean of the pianos in band 1) / max(their sd, floor), on log10 fo
 
 The measures are cached by file (size and date) in `out/compare-tool/measures-v<N>.json`. Change `measure::VERSION` when a measure changes. The first launch measures the 1,850 recordings in about 20 s on four low-priority threads.
 
+`--score out.json` opens no window: it renders the model's 264 notes in memory, measures them and writes, overall, per measure and per register, how many z exceed 2 (`off`) and the mean |z| with each z clipped at 3 (`mean`). `--band-without iowa,liang` leaves real pianos out of the band, and `--score-threads` sets the threads. A script can judge a preset this way without touching the renders' cache. `tools/compare_search.py` uses it to tune a preset (docs/compare_search.md).
+
 `PIANO_COMPARE_SHOT=file.ppm` captures the window once the queues are empty (or after `PIANO_COMPARE_SHOT_AFTER` seconds), scrolled by `PIANO_COMPARE_SCROLL` pixels, then closes it. No audio is opened in that mode.
