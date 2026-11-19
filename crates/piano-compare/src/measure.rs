@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// Bump when a measure changes: cached analyses of another version are
 /// measured again.
-pub const VERSION: u32 = 3;
+pub const VERSION: u32 = 4;
 
 /// Partials kept for the note's partial profile.
 pub const PARTIALS: usize = 32;
@@ -24,6 +24,7 @@ pub enum Id {
     Rise,
     CentroidAttack,
     CentroidSustain,
+    UpperSustain,
     Tilt,
     Between,
     DecayEarly,
@@ -53,10 +54,12 @@ pub const DEFS: &[Def] = &[
           help: "B of f_k = k f0 sqrt(1 + B k^2), fitted on every partial found 20 dB above its neighbourhood (0.05 to 1.05 s). Plotted on a log scale." },
     Def { id: Id::Rise, name: "Rise time", unit: "ms", floor: 3.0, log: false, decimals: 1,
           help: "Time from 10 % to 90 % of the peak amplitude (all channels' power, windows of 5 ms or one period, whichever is longer)." },
-    Def { id: Id::CentroidAttack, name: "Brightness, attack", unit: "x f1", floor: 0.5, log: true, decimals: 2,
+    Def { id: Id::CentroidAttack, name: "Brightness, attack", unit: "x f1", floor: 0.08, log: true, decimals: 2,
           help: "Spectral centroid of the first 60 ms, from half the first partial to 12 kHz, as a multiple of the first partial's frequency." },
-    Def { id: Id::CentroidSustain, name: "Brightness, sustain", unit: "x f1", floor: 0.5, log: true, decimals: 2,
+    Def { id: Id::CentroidSustain, name: "Brightness, sustain", unit: "x f1", floor: 0.08, log: true, decimals: 2,
           help: "Spectral centroid from 0.5 to 1.0 s, from half the first partial to 12 kHz, as a multiple of the first partial's frequency." },
+    Def { id: Id::UpperSustain, name: "Partials 2-4, sustain", unit: "dB re p1", floor: 3.0, log: false, decimals: 1,
+          help: "Mean power of partials 2 to 4 against partial 1, 0.5 to 1.0 s: how far the overtones outweigh the fundamental as the note sounds on." },
     Def { id: Id::Tilt, name: "Spectral tilt", unit: "dB/oct", floor: 2.0, log: false, decimals: 1,
           help: "Slope of the partials' levels against log2 of their rank (partials 1 to 16 below 8 kHz, 0.02 to 0.32 s): how fast the partials fall off." },
     Def { id: Id::Between, name: "Between partials", unit: "dB", floor: 3.0, log: false, decimals: 1,
@@ -179,6 +182,16 @@ pub fn analyse(channels: &[Vec<f32>], sr: f64, midi: u8, held: Option<f64>) -> A
     };
     set(Id::CentroidAttack, centroid(on, at(0.06)));
     set(Id::CentroidSustain, centroid(on + at(0.5), at(0.5)));
+
+    // Partials 2-4 against partial 1 in the sustain.
+    if on + at(1.0) <= chs[0].len() && fk(4) < fmax {
+        let s = Spectrum::channel_power(&chs, sr, on + at(0.5), at(0.5), 4);
+        let half = 0.25 * f1;
+        let power = |k: usize| s.peak_in(fk(k) - half, fk(k) + half).map(|p| 10f64.powf(p.1 / 10.0));
+        if let (Some(p1), Some(p2), Some(p3), Some(p4)) = (power(1), power(2), power(3), power(4)) {
+            set(Id::UpperSustain, (p1 > 0.0).then(|| 10.0 * ((p2 + p3 + p4) / 3.0 / p1).log10()));
+        }
+    }
 
     // Partials, tilt and the level between them.
     if on + at(0.32) <= chs[0].len() {
@@ -306,6 +319,9 @@ mod tests {
         let t60 = a.get(Id::T60H1).unwrap();
         assert!((t60 / 8.0 - 1.0).abs() < 0.1, "T60 {t60}");
         // 1/k amplitudes: −6 dB per octave of rank.
+        // 1/k amplitudes: partials 2-4 at (1/4 + 1/9 + 1/16)/3 of partial 1's power.
+        let upper = a.get(Id::UpperSustain).unwrap();
+        assert!((upper + 8.50).abs() < 0.5, "partials 2-4 {upper}");
         let tilt = a.get(Id::Tilt).unwrap();
         assert!((tilt + 6.0).abs() < 1.0, "tilt {tilt}");
         assert!(a.get(Id::Ripple).unwrap() < 0.5);
