@@ -74,3 +74,24 @@ At D#4 the model leaves the group of pianos heard to buzz (about −23 dB).
 - Nothing here was listened to. The search undoes part of two choices made by ear: `width_curve` (1.0) and `slope_to` (700 Hz).
 - A lower count on one tool's measures is not a better piano. It has to be checked at the keyboard.
 - The mean gap of the late decay rises slightly (1.221 to 1.244 on the band of 5).
+
+## Second run, with the sustain's overtones (2026-11-19)
+
+The tool now counts partials 2–4 in the sustain, and its brightness floor is a factor of 1.2 instead of 3.2 (docs/compare_tool.md). From the preset above, measured again with them: 335 measures off on the band of 5. Partials 2–4 alone have 65 off of 211.
+
+The search took 526 trials over four passes and kept three steps, all on the body's halo:
+
+| Parameter | Before | After |
+|---|---|---|
+| `body.levels` at 1 kHz | −18 dB | −21 dB |
+| `body.levels` at 4 kHz | −20 dB | −18.5 dB |
+
+| | Band of 5, before | After | All 8, before | After |
+|---|---|---|---|---|
+| Between partials | 22 | 19 | 13 | 9 |
+| Partials 2–4, sustain | 65 | 64 | 58 | 57 |
+| Rise time | 33 | 33 | 31 | 30 |
+| **Total** | **335** | **331** | **320** | **314** |
+| Mean gap | 0.956 | 0.954 | 0.907 | 0.908 |
+
+None of the 66 parameters moves the overtones of the sustain. Their excess sits on single keys (D#3 +18 dB, D#5 +19, D6 +20 against the band's median; G1 −27): it takes a lever that acts key by key, such as the board's modes at each bridge point, not the instrument-wide values searched here.
