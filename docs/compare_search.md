@@ -77,7 +77,7 @@ At D#4 the model leaves the group of pianos heard to buzz (about −23 dB).
 
 ## Second run, with the sustain's overtones (2026-11-19)
 
-The tool now counts partials 2–4 in the sustain, and its brightness floor is a factor of 1.2 instead of 3.2 (docs/compare_tool.md). From the preset above, measured again with them: 335 measures off on the band of 5. Partials 2–4 alone have 65 off of 211.
+The tool now counts partials 2–4 in the sustain, and its brightness floor is a factor of 1.2 instead of 3.2 (docs/compare_tool.md). From the preset above, measured again with them: 338 measures off on the band of 5. Partials 2–4 alone have 68 off of 212.
 
 The search took 526 trials over four passes and kept three steps, all on the body's halo:
 
@@ -86,12 +86,16 @@ The search took 526 trials over four passes and kept three steps, all on the bod
 | `body.levels` at 1 kHz | −18 dB | −21 dB |
 | `body.levels` at 4 kHz | −20 dB | −18.5 dB |
 
+It read each partial at its strongest line, which made a unison's split partial look weaker. That reading was then corrected to the power summed over each partial's band (measure version 5). Everything below was scored again with the corrected measure:
+
 | | Band of 5, before | After | All 8, before | After |
 |---|---|---|---|---|
 | Between partials | 22 | 19 | 13 | 9 |
-| Partials 2–4, sustain | 65 | 64 | 58 | 57 |
+| Partials 2–4, sustain | 68 | 68 | 59 | 59 |
 | Rise time | 33 | 33 | 31 | 30 |
-| **Total** | **335** | **331** | **320** | **314** |
-| Mean gap | 0.956 | 0.954 | 0.907 | 0.908 |
+| **Total** | **338** | **335** | **321** | **316** |
+| Mean gap | 0.956 | 0.955 | 0.907 | 0.909 |
 
-None of the 66 parameters moves the overtones of the sustain. Their excess sits on single keys (D#3 +18 dB, D#5 +19, D6 +20 against the band's median; G1 −27): it takes a lever that acts key by key, such as the board's modes at each bridge point, not the instrument-wide values searched here.
+None of the 66 parameters moves the overtones of the sustain. Their excess sits on single keys (against the band's median: D#3 +18 dB, D#5 +19, D6 +19, G1 −24, D7 −27). It takes a lever that acts key by key, such as the board's modes at each bridge point, not the instrument-wide values searched here.
+
+A checkpoint of `tools/compare_search.py` now records the measure version, the band and the starting preset. If any of them differs, the search starts again from a freshly scored baseline.

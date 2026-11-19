@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// Bump when a measure changes: cached analyses of another version are
 /// measured again.
-pub const VERSION: u32 = 4;
+pub const VERSION: u32 = 5;
 
 /// Partials kept for the note's partial profile.
 pub const PARTIALS: usize = 32;
@@ -186,8 +186,13 @@ pub fn analyse(channels: &[Vec<f32>], sr: f64, midi: u8, held: Option<f64>) -> A
     // Partials 2-4 against partial 1 in the sustain.
     if on + at(1.0) <= chs[0].len() && fk(4) < fmax {
         let s = Spectrum::channel_power(&chs, sr, on + at(0.5), at(0.5), 4);
+        // The power summed over each partial's band: a unison's partial split
+        // into several lines counts whole, as one line would.
         let half = 0.25 * f1;
-        let power = |k: usize| s.peak_in(fk(k) - half, fk(k) + half).map(|p| 10f64.powf(p.1 / 10.0));
+        let power = |k: usize| {
+            let (lo, hi) = (((fk(k) - half) / s.bin_hz).ceil() as usize, ((fk(k) + half) / s.bin_hz) as usize);
+            (lo >= 1 && hi < s.db.len() && lo < hi).then(|| s.db[lo..=hi].iter().map(|d| 10f64.powf(d / 10.0)).sum::<f64>())
+        };
         if let (Some(p1), Some(p2), Some(p3), Some(p4)) = (power(1), power(2), power(3), power(4)) {
             set(Id::UpperSustain, (p1 > 0.0).then(|| 10.0 * ((p2 + p3 + p4) / 3.0 / p1).log10()));
         }
@@ -301,6 +306,38 @@ mod tests {
         let mut x = vec![0.0f32; (0.1 * sr) as usize];
         x.extend(render(&partials, sr, 3.5, 0.0, 1));
         x
+    }
+
+    /// Partial 1 alone, then partials 2-4 at 1/k, each as one line or split
+    /// into three lines 8 Hz apart carrying the same power.
+    fn split_note(f0: f64, split: bool, sr: f64) -> Vec<f32> {
+        let sigma = 3.0 * std::f64::consts::LN_10 / 8.0;
+        let mut partials = vec![Partial { freq: f0, amp: 0.1, sigma, slow: None, phase: 0.0 }];
+        for k in 2..=4 {
+            let (kf, amp) = (k as f64 * f0, 0.1 / k as f64);
+            if split {
+                for d in [-8.0, 0.0, 8.0] {
+                    partials.push(Partial { freq: kf + d, amp: amp / 3f64.sqrt(), sigma, slow: None, phase: 0.7 * d });
+                }
+            } else {
+                partials.push(Partial { freq: kf, amp, sigma, slow: None, phase: 0.0 });
+            }
+        }
+        let mut x = vec![0.0f32; (0.1 * sr) as usize];
+        x.extend(render(&partials, sr, 3.5, 0.0, 1));
+        x
+    }
+
+    #[test]
+    fn a_split_unison_partial_counts_whole() {
+        let sr = 48_000.0;
+        let read = |split| {
+            let x = split_note(f_et(81), split, sr);
+            analyse(&[x.clone(), x], sr, 81, None).get(Id::UpperSustain).unwrap()
+        };
+        let (one, three) = (read(false), read(true));
+        assert!((one + 8.50).abs() < 0.5, "one line {one}");
+        assert!((three - one).abs() < 0.5, "split {three} against {one}");
     }
 
     #[test]
