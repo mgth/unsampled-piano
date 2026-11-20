@@ -1250,6 +1250,7 @@ const HELP: &[(&str, &str, &str)] = &[
     ("body.levels", "The colour of the halo, octave by octave.", "Level (dB) of the octave bands centred at 63, 125, 250, 500 Hz, 1, 2, 4 and 8 kHz, interpolated in between."),
     ("body.t60", "How long the halo rings, octave by octave.", "Decay time T60 (s) of the resonances in the same octave bands."),
     ("body.delay", "How long after the hammer meets the string the halo starts.", "Delay (s) of the strike on the bank after the hammer's contact."),
+    ("body.rise", "How gently the halo comes in: at once, it clacks over the attack.", "Time (s) over which the halo settles in along a raised-cosine ramp, its spectrum and tail unchanged; 0: struck at once."),
     ("body.shared", "How much every key shakes the body the same way.", "Share (0–1) of each key's pattern of amplitudes common to all keys; the rest is the key's own."),
     ("body.speed_ref", "The hammer speed the halo's levels are set for.", "Hammer speed (m/s) at which the octave levels hold; 0: the halo only follows the speed. Away from it the halo grows faster than the speed, by the two growths below (docs/body.md)."),
     ("body.speed_halo", "How much of that growth the halo takes, beside the knock.", "Share (0–1) of the speed law the halo takes, at A0, C3, C5 and C7; the action's knock takes it whole."),

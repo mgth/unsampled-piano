@@ -15,6 +15,14 @@
 //! and part its own. Level and decay are set per octave band
 //! ([`crate::params::BodyLaw`]); the two microphones hear each resonance
 //! with their own weight and sign.
+//!
+//! The halo can settle in over [`BodyLaw::rise`] instead of starting at once:
+//! on real grands the first 20–40 ms between the partials are the strings'
+//! own attack, already right in the model, and a halo struck at full level
+//! there doubled it into a "chtac" of its own; the body's share comes after
+//! (docs/body.md, the halo's entry). Each resonance then takes its strike in
+//! steps of [`SUB`] samples along a raised-cosine ramp, in phase with its own
+//! ringing, so its spectrum and its tail stay those of the struck halo.
 
 use crate::params::BodyLaw;
 
@@ -22,8 +30,12 @@ use crate::params::BodyLaw;
 pub const MODES: usize = 1024;
 const LANES: usize = 16;
 const KEYS: usize = 88;
-/// Strikes waiting for their delay or under way.
-const PENDING: usize = 16;
+/// Strikes waiting for their delay or under way (a strike that settles in
+/// over 0.1 s stays here that long).
+const PENDING: usize = 32;
+/// Samples between two steps of a settling strike: the resonances' amplitude
+/// grows as a staircase of steps of at most 0.7 % at 0.1 s, too fine to hear.
+const SUB: u32 = 16;
 /// Length (s) of a strike: a short Hann pulse, so that the halo starts
 /// without a step; its spectrum stays flat well past the bank's top.
 const PULSE: f64 = 2.5e-4;
@@ -64,6 +76,20 @@ pub struct BodyBank {
     pulse: Vec<f32>,
     /// Excitation of the current sample, per resonance (scratch).
     exc: Vec<f32>,
+    /// The short pulse's spectrum at each resonance (real and imaginary
+    /// parts): a settling strike takes it too, so that once settled the
+    /// halo is the struck one, sample for sample.
+    pulse_hr: Vec<f32>,
+    pulse_hi: Vec<f32>,
+    /// Per resonance, its rotation over [`SUB`] samples.
+    step_r: Vec<f32>,
+    step_i: Vec<f32>,
+    /// Per pending strike and resonance: the resonance's rotation since the
+    /// strike began, so that each step adds in phase with what rings.
+    ph_r: Vec<f32>,
+    ph_i: Vec<f32>,
+    /// Length of the rise in samples; 0: struck at once by the pulse.
+    rise: u32,
     awake: bool,
     sample_rate: f64,
     law: BodyLaw,
@@ -170,10 +196,25 @@ impl BodyBank {
             speed_w: vec![1.0; PENDING * MODES],
             pulse: w.iter().map(|x| (x / sum) as f32).collect(),
             exc: vec![0.0; MODES],
+            pulse_hr: Vec::new(),
+            pulse_hi: Vec::new(),
+            step_r: vec![1.0; MODES],
+            step_i: vec![0.0; MODES],
+            ph_r: vec![1.0; PENDING * MODES],
+            ph_i: vec![0.0; PENDING * MODES],
+            rise: 0,
             awake: false,
             sample_rate,
             law: *law,
         };
+        // The pulse added sample by sample to a turning resonance amounts to
+        // one kick of Σ_k w_k·e^(−iωk) (its decay over 0.25 ms neglected).
+        for &f in &s.freq {
+            let wv = std::f64::consts::TAU * f / sample_rate;
+            let (re, im) = w.iter().enumerate().fold((0.0, 0.0), |(re, im), (k, &x)| (re + x * (wv * k as f64).cos(), im - x * (wv * k as f64).sin()));
+            s.pulse_hr.push((re / sum) as f32);
+            s.pulse_hi.push((im / sum) as f32);
+        }
         s.fill_pattern(&mut pattern, law.shared);
         s.pattern = pattern;
         s.set_law(law);
@@ -202,6 +243,7 @@ impl BodyBank {
             self.pattern = p;
         }
         self.law = *law;
+        self.rise = (law.rise.max(0.0) * self.sample_rate).round() as u32;
         // Unit peak for MODES resonances of random sign and unit rms.
         let norm = 1.0 / (MODES as f64).sqrt();
         for i in 0..MODES {
@@ -211,6 +253,9 @@ impl BodyBank {
             let wv = std::f64::consts::TAU * f / self.sample_rate;
             self.pr[i] = (r * wv.cos()) as f32;
             self.pi[i] = (r * wv.sin()) as f32;
+            let rs = r.powi(SUB as i32);
+            self.step_r[i] = (rs * (wv * SUB as f64).cos()) as f32;
+            self.step_i[i] = (rs * (wv * SUB as f64).sin()) as f32;
             let level = 10f64.powf(band_value(&law.levels, f) / 20.0) * norm;
             for (ch, w) in self.w.iter_mut().enumerate() {
                 let h = hash(i as f64 + 0.5, ch as f64 + 41.0);
@@ -233,11 +278,14 @@ impl BodyBank {
         }
         let amp = law.gain * speed * 10f64.powf(law.slope * (note as f64 - 60.0) / 12.0 / 20.0);
         let wait = ((offset + law.delay) * self.sample_rate).round().max(0.0) as u32;
+        // No room: the strike furthest along gives up what it had left.
         let j = match self.pending.iter().position(|p| p.amp == 0.0) {
             Some(j) => j,
-            None => (0..PENDING).min_by_key(|&j| self.pending[j].wait).unwrap(),
+            None => (0..PENDING).max_by_key(|&j| (self.pending[j].wait == 0, self.pending[j].age)).unwrap(),
         };
         self.pending[j] = Pending { key: note - 21, amp: amp as f32, wait, age: 0 };
+        self.ph_r[j * MODES..(j + 1) * MODES].fill(1.0);
+        self.ph_i[j * MODES..(j + 1) * MODES].fill(0.0);
         let tilt = SpeedTilt::of(&law, note, speed).scaled(at_key(&law.speed_halo, note));
         for (w, &f) in self.speed_w[j * MODES..(j + 1) * MODES].iter_mut().zip(&self.freq) {
             *w = tilt.gain(f) as f32;
@@ -263,9 +311,37 @@ impl BodyBank {
                     self.pending[j].wait -= 1;
                     continue;
                 }
-                let a = p.amp * self.pulse[p.age as usize];
                 let pat = &self.pattern[p.key as usize * MODES..(p.key as usize + 1) * MODES];
                 let sw = &self.speed_w[j * MODES..(j + 1) * MODES];
+                if self.rise > 0 {
+                    // Settling in: every SUB samples the next step of the
+                    // ramp, turned as the resonance has since the strike.
+                    if p.age.is_multiple_of(SUB) {
+                        let ramp = |a: u32| {
+                            let x = (a as f64 / self.rise as f64).min(1.0);
+                            x - (std::f64::consts::TAU * x).sin() / std::f64::consts::TAU
+                        };
+                        let d = (p.amp as f64 * (ramp(p.age + SUB) - ramp(p.age))) as f32;
+                        let phr = &mut self.ph_r[j * MODES..(j + 1) * MODES];
+                        let phi = &mut self.ph_i[j * MODES..(j + 1) * MODES];
+                        for i in 0..MODES {
+                            let v = d * pat[i] * sw[i];
+                            let (a, b) = (phr[i], phi[i]);
+                            let (hr, hi) = (self.pulse_hr[i], self.pulse_hi[i]);
+                            self.zr[i] += v * (a * hr - b * hi);
+                            self.zi[i] += v * (a * hi + b * hr);
+                            phr[i] = a * self.step_r[i] - b * self.step_i[i];
+                            phi[i] = a * self.step_i[i] + b * self.step_r[i];
+                        }
+                        self.awake = true;
+                        if p.age + SUB >= self.rise {
+                            self.pending[j].amp = 0.0;
+                        }
+                    }
+                    self.pending[j].age += 1;
+                    continue;
+                }
+                let a = p.amp * self.pulse[p.age as usize];
                 if !struck {
                     self.exc.iter_mut().for_each(|e| *e = 0.0);
                     struck = true;
@@ -396,6 +472,36 @@ mod tests {
         assert!((q.0 / p.0 - 1.0).abs() < 0.12, "{p:?} {q:?}");
         let drop = 10.0 * (q.1 / p.1).log10();
         assert!((-17.0..-11.0).contains(&drop), "top {drop:.1} dB");
+    }
+
+    #[test]
+    fn a_rise_keeps_the_tail_and_spares_the_attack() {
+        let sr = 48_000.0;
+        let render = |rise: f64| {
+            let law = BodyLaw { t60: [1.0; 8], rise, ..law() };
+            let mut b = BodyBank::new(sr, &law);
+            b.strike(45, 1.0, 0.0);
+            let n = (sr * 0.6) as usize;
+            let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+            b.render([&mut l, &mut r], 1.0);
+            l
+        };
+        let (struck, settled) = (render(0.0), render(0.1));
+        let db = |x: &[f32], a: f64, b: f64| {
+            let s = &x[(a * sr) as usize..(b * sr) as usize];
+            10.0 * (s.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / s.len() as f64).log10()
+        };
+        // Over the attack the settling halo is far under the struck one…
+        let early = db(&settled, 0.0, 0.01) - db(&struck, 0.0, 0.01);
+        assert!(early < -25.0, "{early:.1} dB");
+        // …and once settled it is the same halo, sample for sample.
+        let tail = (db(&settled, 0.15, 0.6) - db(&struck, 0.15, 0.6)).abs();
+        let diff: Vec<f32> = struck.iter().zip(&settled).map(|(a, b)| a - b).collect();
+        assert!(tail < 0.1, "{tail:.2} dB");
+        assert!(db(&diff, 0.15, 0.6) - db(&struck, 0.15, 0.6) < -30.0);
+        // No step at its start: the first samples are tiny.
+        let peak = struck.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+        assert!(settled[..48].iter().all(|v| v.abs() < 1e-3 * peak));
     }
 
     #[test]

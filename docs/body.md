@@ -148,6 +148,36 @@ The bass stays the furthest: its halo would need more than the between-partials 
 
 In the comparison tool, 294 measures are off against 288 before. The new ones are threshold crossings: between partials +2, rise time +3, top early decay +1.
 
+## The halo's entry: settling in, not struck
+
+**Listening report (2026-11-20).** The halo raises the whole note, but every key's attack carries a marked "chtac" that no real piano has; without the halo it is gone from most keys (a lighter one stays on a few).
+
+**What it was not.** Each candidate was heard on its own, the halo otherwise unchanged (listening pages `out/ab_chtac*` of the worktree):
+
+- *Its timing.* The halo was struck 2 ms after the hammer meets the string, while the string's wave reaches the bridge after 4–12 ms in the bass (B0 ~10 ms): at B0 the halo sounds alone for 10 ms before the note. Struck when the wave arrives instead: no difference heard.
+- *Its band.* Only its part below 1 kHz, or only above: the chtac is in both. Only the resonances that fall between the note's partials, or only those within a quarter of the spacing from them (half of its energy each): in both, with a slightly different colour.
+- *Its step.* Each resonance started at its peak, so the halo's first sample was a step in the waveform: a burst at 4–8 kHz (0–3 ms against 10–30 ms after the start, B0–D2 mf: +3 / +12 dB at 4 / 8 kHz against −3 / −2 on the real grands). Started from zero, the burst is gone but the chtac stays, a little duller.
+- *The halo itself.* Heard alone, partials taken out, the model's between-partials sound is of the same kind as the real grands', attack included.
+
+**What it is.** Between the partials, the model *without* the halo already has the real grands' level over the attack, and only falls short afterwards (mean over the octave bands 125 Hz–8 kHz, model minus the five real grands, mf):
+
+| | 0–20 ms | 20–40 | 40–80 | 80–150 | 150–300 |
+|---|---|---|---|---|---|
+| B0–D2, no halo | −1 | −5 | −6 | −9 | −14 |
+| B0–D2, halo struck | +1 | −1 | 0 | −2 | −4 |
+| A2–C4, no halo | −2 | −3 | −4 | −8 | −15 |
+| A2–C4, halo struck | −1 | +1 | +2 | +2 | 0 |
+
+The first tens of milliseconds between the partials are the strings' own attack, whose fast-starting partials spill over the whole spectrum, in the model as on a real grand. The body's halo belongs to what comes after; struck at full level with the strings, it added a second attack noise on top of one that was already right. Letting it settle in over 30, 60 and 100 ms: the chtac fades with the length, gone at 100 ms (by ear), while the note keeps its body.
+
+**Change: `body.rise`.** Each strike settles in along a raised-cosine ramp of that length. Every 16 samples (`SUB`) each resonance takes the next share of its strike, turned as the resonance has turned since the strike began and multiplied by the short pulse's own spectrum (magnitude and phase): once the ramp is over, the halo is the struck one sample for sample, and it never starts with a step. 0 keeps the struck halo. The Concert grand takes 0.1 s.
+
+Between the partials (same table), with `rise` 0.1: B0–D2 mf −0.8 / −3.3 / −2.5 / −2.0 / −4.0, A2–C4 mf −2.4 / −2.8 / +0.2 / +1.6 / −0.2; from 80 ms on the same as the struck halo at mf and ff.
+
+**Cost.** A settling strike stays pending for the ramp (32 slots, from 16) and costs one complex multiply per resonance every 16 samples. Two pieces rendered alternately with and without it, `rise` 0.1: Chopin's nocturne op. 9 no. 2 +1.1 % and +3.2 %, Rachmaninoff's prelude in C♯ minor +1.6 % and +1.2 %.
+
+**Left.** The strings' own attack rises 2–5 times faster than the real grands' at 1–2 kHz (−20 to −3 dB of the octave band: B0–D2 mf 2.5 / 1.5 ms without the halo against 8.9 / 7.6 ms; A2–C4 1.8 / 1.5 against 8.7 / 3.7): probably the lighter chtac that stays on some keys without the halo.
+
 ## Making other pianos
 
 The same steps fit any recorded piano: `tools/between_partials.py table` on its note set against the model's, the body law fitted per octave as above, the last damper read from the lines at the top strings' fundamentals, the phantom coupling from the bass lines between the partials.

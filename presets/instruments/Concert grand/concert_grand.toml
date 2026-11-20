@@ -345,6 +345,11 @@ t60 = [1.6, 1.15, 0.9, 0.8, 0.8, 0.5, 0.3, 0.2]
 # in the bass: from ff to pp, 0–60 ms, 2–4 kHz 20–25 dB lower re the note in the bass,
 # 10–13 dB in the middle (commercial and Splendid layers). The model's fell by 4 dB at
 # most: a pp attack as sharp as ff (docs/body.md, the blow).
+# Settles in over 0.1 s instead of starting at once: without the halo the model
+# already has the real grands' level between the partials over the first 20–40 ms
+# (the strings' own attack); struck at full level there, it doubled it into a
+# "chtac" heard at every key. The tail from 80 ms on is unchanged (docs/body.md).
+rise = 0.1
 speed_ref = 2.76
 speed_corner = 1300.0
 speed_low = [0.0, 0.0, 0.45, 1.05]
