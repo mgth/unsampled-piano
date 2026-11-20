@@ -155,16 +155,27 @@ def main():
     os.makedirs(args.work, exist_ok=True)
     BEST, STATE, LOG = (os.path.join(args.work, n) for n in ("best.toml", "state.json", "log.txt"))
     TRIAL, OUT = os.path.join(args.work, "trial.toml"), os.path.join(args.work, "trial.json")
+    st = None
     if os.path.exists(STATE) and os.path.exists(BEST):
         st = json.load(open(STATE))
         text = open(BEST).read()
-        log(f"RESUME pass {st['pass']} at {st['next']}: off {st['off']} mean {st['mean']:.4f}")
-    else:
+        # A checkpoint holds only for the scoring it was made with: the same
+        # measures (the tool's measure version), the same band, the same start.
+        s = evaluate(text)
+        made = (st.get("version"), st.get("band"), st.get("preset"))
+        now = (s.get("measure_version"), s["band"], PRESET)
+        if made != now:
+            log(f"RESTART: checkpoint made with version, band, preset {made}, now {now}")
+            st = None
+        else:
+            log(f"RESUME pass {st['pass']} at {st['next']}: off {st['off']} mean {st['mean']:.4f}")
+    if st is None:
         text = open(PRESET).read()
         s = evaluate(text)
         log("BASE " + brief(s) + " band " + ",".join(s["band"]))
         st = {"off": s["off"], "mean": s["mean"], "base_off": s["off"], "base_mean": s["mean"], "pass": 1, "next": 0,
-              "scale": 1.0, "kept": [], "kept_this_pass": 0, "trials": 0}
+              "scale": 1.0, "kept": [], "kept_this_pass": 0, "trials": 0,
+              "version": s.get("measure_version"), "band": s["band"], "preset": PRESET}
         save(st, text)
     while st["pass"] <= MAX_PASSES:
         for i in range(st["next"], len(P)):

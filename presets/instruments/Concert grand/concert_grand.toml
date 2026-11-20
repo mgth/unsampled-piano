@@ -337,8 +337,9 @@ slope = -3.0
 # the residual's octave energy, where the model's slightly strong partials filled the
 # octaves, the halo in the middle of the gaps stood 7–20 dB under the real grands' from
 # 1.5 kHz (the comparison tool's between measure: C3–C5 12–15 dB low, now 4–6).
-# 125 and 250 Hz 3 dB up in the comparison tool's search (docs/compare_search.md).
-levels = [-7.0, 3.0, -1.0, -12.0, -18.0, -13.0, -20.0, -32.0]
+# 125 and 250 Hz 3 dB up in the comparison tool's search, then 1 kHz 3 dB down and 4 kHz
+# 1.5 dB up in the second, with partials 2-4 counted (docs/compare_search.md).
+levels = [-7.0, 3.0, -1.0, -12.0, -21.0, -13.0, -18.5, -32.0]
 t60 = [1.6, 1.15, 0.9, 0.8, 0.8, 0.5, 0.3, 0.2]
 # Levels set at ff (velocity 100 on the playback scale, 2.76 m/s). On the real grands
 # the attack's knock grows faster than the note with the hammer speed, its top fastest

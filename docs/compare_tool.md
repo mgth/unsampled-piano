@@ -36,6 +36,7 @@ Every measure averages the channels' powers. It never sums their pressures, as o
 | Inharmonicity B | B of f_k = k f0 √(1 + B k²) over the partials found 20 dB above their neighbourhood (0.05–1.05 s) |
 | Rise time | 10 % to 90 % of the peak amplitude, windows of 5 ms or one period |
 | Brightness, attack / sustain | spectral centroid from f1/2 to 12 kHz over 0–60 ms / 0.5–1 s, as a multiple of f1 |
+| Partials 2–4, sustain | mean power of partials 2–4 against partial 1, 0.5–1 s, dB, each partial's power summed over its band (±f1/4), so that a unison's partial split into several lines counts whole: the overtones against the fundamental as the note sounds on |
 | Spectral tilt | slope of the partial levels (1–16, below 8 kHz) against log2 of their rank, 0.02–0.32 s |
 | Between partials | median level between neighbouring partials relative to their level, below 5 kHz, 0.02–0.32 s |
 | Early / late decay | slope of the overall level, 0.1–1 s / 1–3 s, above the noise floor + 6 dB |
@@ -47,7 +48,7 @@ The noise floor of the decay fits (+6 dB) is the quietest level within 12 s of t
 
 The model's rise time reads 0–1 ms, against 4–12 ms on the real pianos. This is not a measurement artefact: a recording starts 6–8 dB below its peak and climbs to it over a few milliseconds (key noise, then the hammer), while the render starts at its peak.
 
-z = (model − mean of the pianos in band 1) / max(their sd, floor), on log10 for B, the brightness and T60. It needs at least two pianos of band 1 at that key and layer. As on the bench, a gap as large as the one between two real pianos is not a fault.
+z = (model − mean of the pianos in band 1) / max(their sd, floor), on log10 for B, the brightness and T60. The floor is 0.08 on log10 for the brightness (a factor of 1.2; the real pianos differ by a factor of 1.12 at the median), 3 dB for partials 2–4. Until 2026-11-19 the brightness's floor was 0.5, a factor of 3.2: a sustain three times too bright, as E5 and D#5 were, never showed. It needs at least two pianos of band 1 at that key and layer. As on the bench, a gap as large as the one between two real pianos is not a fault.
 
 The measures are cached by file (size and date) in `out/compare-tool/measures-v<N>.json`. Change `measure::VERSION` when a measure changes. The first launch measures the 1,850 recordings in about 20 s on four low-priority threads.
 
