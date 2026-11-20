@@ -151,13 +151,18 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("hysteresis", "Felt hysteresis", "", 0.0, 3.0, false),
     ("contact_width_scale", "Felt contact width", "", 0.25, 4.0, true),
     ("unison.height_spread", "String height spread", "m", 0.0, 0.0005, false),
+    ("unison.strike_spread", "Strike point spread across a unison", "", 0.0, 0.002, false),
     ("unison.load_ramp", "Unison tension ramp", "keys", 0.0, 36.0, false),
     ("losses.b1_floor", "Wound-string loss floor", "1/s", 0.0, 1.0, false),
     ("losses.b2_top", "Top strings' overtone loss", "s", 0.0, 6.0e-7, false),
     ("soundboard.impedance_slope", "Board impedance slope (treble)", "/key", -0.05, 0.1, false),
     ("soundboard.impedance_slope_bass", "Board impedance slope (bass)", "/key", -0.1, 0.1, false),
+    // The rim's glued ledge: 0 lets the edge turn freely, the Concert grand's 1500
+    // is fitted on a real D's board, 10000 is all but clamped.
+    ("soundboard.structure.edge_spring", "Rim ledge stiffness", "N·m/rad/m", 0.0, 10000.0, false),
     ("hammer_mass_scale", "Hammer mass", "", 0.25, 2.0, true),
     ("strike_ratio", "Strike point", "", 0.06, 0.2, false),
+    ("strike_ratio_spread", "Strike point spread", "", 0.0, 0.003, false),
     ("soundboard.mics_relative", "Positions relative to the board", "", 0.0, 1.0, false),
     ("soundboard.mic_gain_db", "Microphone set-up gain", "dB", -30.0, 20.0, false),
     ("soundboard.outputs_per_mic", "One output per microphone", "", 0.0, 1.0, false),
@@ -320,7 +325,8 @@ mod tests {
                         Some(crate::Value::Int(i)) => i as f64,
                         _ => continue,
                     };
-                    if p.path.starts_with("polarization.") && (x < p.meta.min || x > p.meta.max) {
+                    let checked = p.path.starts_with("polarization.") || p.path == "soundboard.structure.edge_spring";
+                    if checked && (x < p.meta.min || x > p.meta.max) {
                         out.push(format!("{}: {} = {x} outside {}–{}", path.display(), p.path, p.meta.min, p.meta.max));
                     }
                 }

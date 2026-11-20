@@ -338,10 +338,12 @@ impl ContactSolver {
             // weighted within its string. The bridge is at x = 0 and the
             // hammer strikes `strike_pos`·L from the *agraffe* (x = L):
             // striking near the bridge would push it quasi-statically with
-            // most of the hammer force (a thump).
+            // most of the hammer force (a thump). Each string of the unison
+            // takes its own point (`strike_offset`); a duplex string's shape
+            // keeps the key's.
             let (nu, at_strike, at_bridge) = match m.shape {
                 Some(sh) => (sh.nu, sh.strike, sh.bridge),
-                None => (k, (k * std::f64::consts::PI * (1.0 - note.strike_pos)).sin(), k),
+                None => (k, (k * std::f64::consts::PI * (1.0 - note.strike_pos - note.strike_offset[s])).sin(), k),
             };
             let x = nu * half_w;
             let phi = if sigma[s] > 0.0 {
