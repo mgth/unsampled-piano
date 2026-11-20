@@ -35,7 +35,9 @@ const KEYS: usize = 88;
 const PENDING: usize = 32;
 /// Samples between two steps of a settling strike: the resonances' amplitude
 /// grows as a staircase of steps of at most 0.7 % at 0.1 s, too fine to hear.
+/// A rise shorter than [`SUB_FROM`] samples takes a step every sample.
 const SUB: u32 = 16;
+const SUB_FROM: u32 = 8 * SUB;
 /// Length (s) of a strike: a short Hann pulse, so that the halo starts
 /// without a step; its spectrum stays flat well past the bank's top.
 const PULSE: f64 = 2.5e-4;
@@ -58,6 +60,11 @@ struct Pending {
     amp: f32,
     wait: u32,
     age: u32,
+    /// Its rise (samples) and step, latched when struck: a live change of
+    /// [`BodyLaw::rise`] applies to the next strikes, never to one under
+    /// way. A rise of 0 is the short pulse.
+    rise: u32,
+    sub: u32,
 }
 
 pub struct BodyBank {
@@ -88,7 +95,8 @@ pub struct BodyBank {
     /// strike began, so that each step adds in phase with what rings.
     ph_r: Vec<f32>,
     ph_i: Vec<f32>,
-    /// Length of the rise in samples; 0: struck at once by the pulse.
+    /// Length of the rise in samples for the next strikes; 0: struck at
+    /// once by the pulse, as is any rise no longer than the pulse itself.
     rise: u32,
     awake: bool,
     sample_rate: f64,
@@ -243,7 +251,8 @@ impl BodyBank {
             self.pattern = p;
         }
         self.law = *law;
-        self.rise = (law.rise.max(0.0) * self.sample_rate).round() as u32;
+        let rise = (law.rise.max(0.0) * self.sample_rate).round() as u32;
+        self.rise = if rise as usize <= self.pulse.len() { 0 } else { rise };
         // Unit peak for MODES resonances of random sign and unit rms.
         let norm = 1.0 / (MODES as f64).sqrt();
         for i in 0..MODES {
@@ -283,7 +292,8 @@ impl BodyBank {
             Some(j) => j,
             None => (0..PENDING).max_by_key(|&j| (self.pending[j].wait == 0, self.pending[j].age)).unwrap(),
         };
-        self.pending[j] = Pending { key: note - 21, amp: amp as f32, wait, age: 0 };
+        let sub = if self.rise >= SUB_FROM { SUB } else { 1 };
+        self.pending[j] = Pending { key: note - 21, amp: amp as f32, wait, age: 0, rise: self.rise, sub };
         self.ph_r[j * MODES..(j + 1) * MODES].fill(1.0);
         self.ph_i[j * MODES..(j + 1) * MODES].fill(0.0);
         let tilt = SpeedTilt::of(&law, note, speed).scaled(at_key(&law.speed_halo, note));
@@ -313,15 +323,16 @@ impl BodyBank {
                 }
                 let pat = &self.pattern[p.key as usize * MODES..(p.key as usize + 1) * MODES];
                 let sw = &self.speed_w[j * MODES..(j + 1) * MODES];
-                if self.rise > 0 {
-                    // Settling in: every SUB samples the next step of the
+                if p.rise > 0 {
+                    // Settling in: every `sub` samples the next step of the
                     // ramp, turned as the resonance has since the strike.
-                    if p.age.is_multiple_of(SUB) {
+                    if p.age.is_multiple_of(p.sub) {
                         let ramp = |a: u32| {
-                            let x = (a as f64 / self.rise as f64).min(1.0);
+                            let x = (a as f64 / p.rise as f64).min(1.0);
                             x - (std::f64::consts::TAU * x).sin() / std::f64::consts::TAU
                         };
-                        let d = (p.amp as f64 * (ramp(p.age + SUB) - ramp(p.age))) as f32;
+                        let d = (p.amp as f64 * (ramp(p.age + p.sub) - ramp(p.age))) as f32;
+                        let (sr, si) = if p.sub == SUB { (&self.step_r, &self.step_i) } else { (&self.pr, &self.pi) };
                         let phr = &mut self.ph_r[j * MODES..(j + 1) * MODES];
                         let phi = &mut self.ph_i[j * MODES..(j + 1) * MODES];
                         for i in 0..MODES {
@@ -330,11 +341,11 @@ impl BodyBank {
                             let (hr, hi) = (self.pulse_hr[i], self.pulse_hi[i]);
                             self.zr[i] += v * (a * hr - b * hi);
                             self.zi[i] += v * (a * hi + b * hr);
-                            phr[i] = a * self.step_r[i] - b * self.step_i[i];
-                            phi[i] = a * self.step_i[i] + b * self.step_r[i];
+                            phr[i] = a * sr[i] - b * si[i];
+                            phi[i] = a * si[i] + b * sr[i];
                         }
                         self.awake = true;
-                        if p.age + SUB >= self.rise {
+                        if p.age + p.sub >= p.rise {
                             self.pending[j].amp = 0.0;
                         }
                     }
@@ -502,6 +513,27 @@ mod tests {
         // No step at its start: the first samples are tiny.
         let peak = struck.iter().fold(0.0f32, |m, v| m.max(v.abs()));
         assert!(settled[..48].iter().all(|v| v.abs() < 1e-3 * peak));
+    }
+
+    #[test]
+    fn a_short_rise_starts_as_gently_as_the_pulse() {
+        // Below one step of 16 samples, and below the pulse itself, the
+        // halo still starts from nothing.
+        let sr = 48_000.0;
+        let first = |rise: f64| {
+            let mut b = BodyBank::new(sr, &BodyLaw { rise, ..law() });
+            b.strike(60, 1.0, 0.0);
+            let n = 4800;
+            let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+            b.render([&mut l, &mut r], 1.0);
+            let peak = l.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+            l[0].abs() / peak
+        };
+        let pulse = first(0.0);
+        for rise in [0.0001, 0.00025, 0.0003, 0.0005, 0.002] {
+            let x = first(rise);
+            assert!(x < 0.01 && x <= 4.0 * pulse.max(1e-4), "rise {rise}: first sample {x:.4} of the peak (pulse {pulse:.4})");
+        }
     }
 
     #[test]
