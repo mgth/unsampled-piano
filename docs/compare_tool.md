@@ -36,7 +36,7 @@ Every measure averages the channels' powers. It never sums their pressures, as o
 | Inharmonicity B | B of f_k = k f0 √(1 + B k²) over the partials found 20 dB above their neighbourhood (0.05–1.05 s) |
 | Rise time | 10 % to 90 % of the peak amplitude, windows of 5 ms or one period |
 | Brightness, attack / sustain | spectral centroid from f1/2 to 12 kHz over 0–60 ms / 0.5–1 s, as a multiple of f1 |
-| Partials 2–4, sustain | mean power of partials 2–4 against partial 1, 0.5–1 s, dB, each partial's power summed over its band (±f1/4), so that a unison's partial split into several lines counts whole: the overtones against the fundamental as the note sounds on |
+| Partials 2–4, sustain | mean power of partials 2–4 against partial 1, 0.5–1 s, dB, each partial's power summed over its band (±f1/4), so that a unison's partial split into several lines counts whole: the overtones against the fundamental as the note sounds on. A window gone silent (under −100 dB re the first second) reads nothing, in mono as in stereo |
 | Spectral tilt | slope of the partial levels (1–16, below 8 kHz) against log2 of their rank, 0.02–0.32 s |
 | Between partials | median level between neighbouring partials relative to their level, below 5 kHz, 0.02–0.32 s |
 | Early / late decay | slope of the overall level, 0.1–1 s / 1–3 s, above the noise floor + 6 dB |

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// Bump when a measure changes: cached analyses of another version are
 /// measured again.
-pub const VERSION: u32 = 5;
+pub const VERSION: u32 = 6;
 
 /// Partials kept for the note's partial profile.
 pub const PARTIALS: usize = 32;
@@ -184,7 +184,13 @@ pub fn analyse(channels: &[Vec<f32>], sr: f64, midi: u8, held: Option<f64>) -> A
     set(Id::CentroidSustain, centroid(on + at(0.5), at(0.5)));
 
     // Partials 2-4 against partial 1 in the sustain.
-    if on + at(1.0) <= chs[0].len() && fk(4) < fmax {
+    // A window gone silent reads nothing: the spectrum of several channels
+    // floors its empty bins at a small positive power, which would pass for
+    // a note. Its signal power has to be above -100 dB re the first second's.
+    let mean = |p: &[f64]| p.iter().sum::<f64>() / p.len().max(1) as f64;
+    let window = &power[at(0.5).min(power.len())..at(1.0).min(power.len())];
+    let sounding = !window.is_empty() && mean(window) > 1e-10 * mean(first);
+    if sounding && on + at(1.0) <= chs[0].len() && fk(4) < fmax {
         let s = Spectrum::channel_power(&chs, sr, on + at(0.5), at(0.5), 4);
         // The power summed over each partial's band: a unison's partial split
         // into several lines counts whole, as one line would.
@@ -338,6 +344,20 @@ mod tests {
         let (one, three) = (read(false), read(true));
         assert!((one + 8.50).abs() < 0.5, "one line {one}");
         assert!((three - one).abs() < 0.5, "split {three} against {one}");
+    }
+
+    #[test]
+    fn a_silent_sustain_reads_nothing_in_mono_or_stereo() {
+        let sr = 48_000.0;
+        let mut x = split_note(f_et(81), false, sr);
+        // The note stops 0.4 s after its onset (0.1 s of silence before it).
+        for v in &mut x[(0.5 * sr) as usize..] {
+            *v = 0.0;
+        }
+        let mono = analyse(&[x.clone()], sr, 81, None);
+        let stereo = analyse(&[x.clone(), x], sr, 81, None);
+        assert_eq!(mono.get(Id::UpperSustain), None);
+        assert_eq!(stereo.get(Id::UpperSustain), None);
     }
 
     #[test]
