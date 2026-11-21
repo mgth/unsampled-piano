@@ -71,7 +71,10 @@ struct Arrival {
     tilt: SpeedTilt,
 }
 
-/// Strikes on their way within one render.
+/// Strikes due later within one render (an offset). A strike due at once
+/// (offset 0, as the engine gives them, rendering the bank up to each
+/// event) takes its slot straight away and never waits here; beyond this
+/// many later ones, a strike is lost.
 const ARRIVALS: usize = 64;
 
 #[derive(Clone, Copy, Default)]
@@ -345,12 +348,32 @@ impl BodyBank {
         let sub = if self.rise >= STEPS { (1u32 << (self.rise / STEPS).ilog2()).min(SUB) } else { 1 };
         let next = Pending { key: note - 21, amp: amp as f32, wait, age: 0, rise: self.rise, sub };
         let tilt = SpeedTilt::of(&law, note, speed).scaled(at_key(&law.speed_halo, note));
-        if self.arrived == ARRIVALS {
-            return;
-        }
         let at = (offset * self.sample_rate).round().max(0.0) as u32;
-        self.arrivals[self.arrived] = Arrival { at, next: Pending { wait: wait.saturating_sub(at), ..next }, tilt };
-        self.arrived += 1;
+        let a = Arrival { at, next: Pending { wait: wait.saturating_sub(at), ..next }, tilt };
+        if at == 0 {
+            // Due now: it takes its slot at once, after those already due.
+            self.arrive_due();
+            self.arrive(a);
+        } else if self.arrived < ARRIVALS {
+            self.arrivals[self.arrived] = a;
+            self.arrived += 1;
+        }
+    }
+
+    /// The queued strikes due at this frame take their slots, in the order
+    /// they came; the others count down one sample.
+    fn arrive_due(&mut self) {
+        let mut kept = 0;
+        for i in 0..self.arrived {
+            let a = self.arrivals[i];
+            if a.at == 0 {
+                self.arrive(a);
+            } else {
+                self.arrivals[kept] = a;
+                kept += 1;
+            }
+        }
+        self.arrived = kept;
     }
 
     /// A strike reaching its frame takes a free slot, or else the slot of
@@ -444,20 +467,12 @@ impl BodyBank {
         let [l, r] = out;
         for n in 0..l.len() {
             // Strikes reaching their frame take their slots, in the order
-            // they came.
+            // they came; the others come one sample nearer.
             if self.arrived > 0 {
-                let mut kept = 0;
-                for i in 0..self.arrived {
-                    let mut a = self.arrivals[i];
-                    if a.at == 0 {
-                        self.arrive(a);
-                    } else {
-                        a.at -= 1;
-                        self.arrivals[kept] = a;
-                        kept += 1;
-                    }
+                self.arrive_due();
+                for a in &mut self.arrivals[..self.arrived] {
+                    a.at -= 1;
                 }
-                self.arrived = kept;
             }
             // Strikes under way this sample.
             let mut struck = false;
