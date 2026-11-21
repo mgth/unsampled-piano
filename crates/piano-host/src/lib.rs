@@ -354,6 +354,19 @@ mod tests {
         assert_eq!(lid(load_listening(&root.join("listening/Microphones/concert.toml"), &removed).unwrap()), (false, 35.0));
     }
 
+    /// The noises heard directly are set at the close set-up
+    /// (crate::mics::noise_paths): its pair and its gain are the reference.
+    #[test]
+    fn the_noises_reference_is_the_close_set_up() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets");
+        let m = load_over(&root.join("listening/Microphones/close.toml"), &PianoModel::default()).unwrap();
+        let sb = m.soundboard.unwrap();
+        assert!(sb.mics_relative);
+        assert_eq!(sb.mic_gain_db, piano_core::mics::NOISE_REFERENCE_GAIN_DB);
+        let at: Vec<_> = sb.mics.iter().map(|m| m.at).collect();
+        assert_eq!(at, piano_core::mics::NOISE_REFERENCE.to_vec());
+    }
+
     #[test]
     fn listening_and_touch_presets_are_laid_over_the_sound() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets");

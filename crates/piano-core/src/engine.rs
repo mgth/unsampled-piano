@@ -339,6 +339,12 @@ pub struct Engine {
     mix: [(f32, f32); MICS],
     own_gain: [f32; MICS],
     noise_w: [(f32, f32); MICS],
+    /// How far each microphone hears the noises (crate::mics::noise_paths):
+    /// gain and delay (samples), through a history of the two sides.
+    noise_gain: [f32; MICS],
+    noise_delay: [usize; MICS],
+    noise_hist: [Vec<f32>; 2],
+    noise_pos: usize,
     per_mic: bool,
     knocks: [Knock; MAX_KNOCKS],
     /// The action's knock, heard directly, and the decay time it was set to.
@@ -445,6 +451,9 @@ impl Engine {
         let mics = inst.model.soundboard.map_or(crate::mics::Mics::pair((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), |s| s.mics);
         let mics = if mics.is_empty() { crate::mics::Mics::pair((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)) } else { mics };
         let per_mic = inst.model.soundboard.is_some_and(|s| s.outputs_per_mic);
+        let noise_paths = inst.noise_paths.clone();
+        let noise_path = |m: usize| noise_paths.get(m).copied().unwrap_or((1.0, 0));
+        let noise_span = (0..MICS).map(|m| noise_path(m).1).max().unwrap_or(0);
         let zones = inst.zones.filter(|z| z.mics == mics.len());
         let live = inst.model;
         let base = inst.source;
@@ -504,6 +513,10 @@ impl Engine {
                 let p = mic.pan.clamp(-1.0, 1.0) as f32;
                 (0.5 * (1.0 - p), 0.5 * (1.0 + p))
             })),
+            noise_gain: std::array::from_fn(|m| noise_path(m).0 as f32),
+            noise_delay: std::array::from_fn(|m| noise_path(m).1),
+            noise_hist: std::array::from_fn(|_| vec![0.0; (noise_span + SUB_BLOCK).next_power_of_two()]),
+            noise_pos: 0,
             per_mic,
             knocks: [Knock::default(); MAX_KNOCKS],
             action: crate::action::ActionNoise::new(cfg.sample_rate, action_time),
@@ -991,9 +1004,28 @@ impl Engine {
                 let (nl, nr) = (&mut nl[..len], &mut nr[..len]);
                 // The body's halo is already in (render_body).
                 self.action.render([&mut *nl, &mut *nr], out_gain * PRESSURE_GAIN);
-                for (c, &(wl, wr)) in chans.iter_mut().zip(&self.noise_w) {
-                    for ((y, a), b) in c.iter_mut().zip(nl.iter()).zip(nr.iter()) {
-                        *y += wl * a + wr * b;
+                // Each microphone hears them from its distance: a far pair
+                // later and weaker (crate::mics::noise_paths).
+                let mask = self.noise_hist[0].len() - 1;
+                let p0 = self.noise_pos;
+                for (h, x) in self.noise_hist.iter_mut().zip([&*nl, &*nr]) {
+                    for (t, v) in x.iter().enumerate() {
+                        h[(p0 + t) & mask] = *v;
+                    }
+                }
+                self.noise_pos = (p0 + len) & mask;
+                let [hl, hr] = &self.noise_hist;
+                for (m, (c, &(wl, wr))) in chans.iter_mut().zip(&self.noise_w).enumerate() {
+                    let (g, d) = (self.noise_gain[m], self.noise_delay[m]);
+                    if d == 0 && g == 1.0 {
+                        for ((y, a), b) in c.iter_mut().zip(nl.iter()).zip(nr.iter()) {
+                            *y += wl * a + wr * b;
+                        }
+                    } else {
+                        for (t, y) in c.iter_mut().take(len).enumerate() {
+                            let i = (p0 + t).wrapping_sub(d) & mask;
+                            *y += g * (wl * hl[i] + wr * hr[i]);
+                        }
                     }
                 }
                 if let Some(room) = self.room.as_mut() {

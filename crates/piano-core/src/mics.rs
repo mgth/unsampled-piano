@@ -201,6 +201,89 @@ impl<'de> serde::Deserialize<'de> for Mics {
     }
 }
 
+/// Where the noises heard directly were set (the action's knock,
+/// [`crate::action`]; the body's halo, [`crate::body`]): at the close pair of
+/// `close.toml` (x and y as fractions of the board), the bench's
+/// microphones, through that set-up's gain.
+pub const NOISE_REFERENCE: [(f64, f64, f64); 2] = [(0.294118, 0.346154, 0.4), (0.705882, 0.653846, 0.4)];
+pub const NOISE_REFERENCE_GAIN_DB: f64 = -7.4;
+
+/// Per microphone of a set-up: the gain and the delay (samples) with which
+/// it hears the noises heard directly, against [`NOISE_REFERENCE`].
+///
+/// Those noises are rendered once, on two sides, and were given to every
+/// microphone alike: a pair 2 m away heard them as loud and as early as the
+/// close pair, and a set-up mixing both (`mixed.toml`, the default) summed
+/// two identical copies in phase, the far one raised by its own gain: on
+/// E1 the action and the halo stood 13 dB higher against the strings than
+/// through either pair alone.
+///
+/// The halo is the board and the case ringing, and the action stands
+/// against them: each microphone hears them as it hears the board. Gain:
+/// the board's radiation at the microphone against at the reference pair
+/// (the built modes below 4 kHz, omni, mean |p|² per octave averaged in dB
+/// over 125 Hz–4 kHz), times the set-up's gain against the reference's
+/// (the board's weights carry `mic_gain_db`, the noises did not), both as
+/// the listening set-ups give them, before the musician's controls move
+/// them alike (`setup_gain_db`). Delay:
+/// the mean path from the board and the action along the keys, against
+/// the reference's. A set-up at the reference hears them as before, bit for
+/// bit. Patterns and the lid are not counted.
+pub fn noise_paths(sb: &crate::soundboard::Soundboard, setup_gain_db: f64, sample_rate: f64) -> Vec<(f64, usize)> {
+    let p = &sb.params;
+    let (a, b) = (p.a, p.b);
+    let refs: Vec<[f64; 3]> = NOISE_REFERENCE.iter().map(|&(u, v, z)| [u * a, v * b, z]).collect();
+    let mics: Vec<[f64; 3]> = p.mics.iter().map(|m| [m.at.0, m.at.1, m.at.2]).collect();
+    let points: Vec<[f64; 3]> = mics.iter().chain(&refs).copied().collect();
+    // The board's level at each point.
+    let n = sb.modes.iter().take_while(|m| m.omega < std::f64::consts::TAU * 4000.0).count();
+    let w = sb.radiation_points(&points, n);
+    let bands: Vec<f64> = (0..6).map(|k| 125.0 * 2f64.powi(k)).collect();
+    let level = |pt: usize| {
+        let mut db = Vec::new();
+        for &c in &bands {
+            let (mut e, mut k) = (0.0, 0);
+            for (md, row) in sb.modes[..n].iter().zip(&w) {
+                let f = md.omega / std::f64::consts::TAU;
+                if f >= c / 2f64.sqrt() && f < c * 2f64.sqrt() {
+                    e += row[pt].norm_sqr();
+                    k += 1;
+                }
+            }
+            if k > 0 && e > 0.0 {
+                db.push(10.0 * (e / k as f64).log10());
+            }
+        }
+        if db.is_empty() { 0.0 } else { db.iter().sum::<f64>() / db.len() as f64 }
+    };
+    let nm = mics.len();
+    let ref_db = 10.0 * (0.5 * (10f64.powf(level(nm) / 10.0) + 10f64.powf(level(nm + 1) / 10.0))).log10();
+    // The mean path from the sources: the board and the action in front of it.
+    let mut sources = Vec::new();
+    for i in 0..8 {
+        for j in 0..6 {
+            sources.push([(i as f64 + 0.5) / 8.0 * a, (j as f64 + 0.5) / 6.0 * b, 0.0]);
+        }
+    }
+    for j in 0..9 {
+        sources.push([crate::soundboard::KEY_LINE_X - 0.12, (0.1 + 0.8 * j as f64 / 8.0) * b, 0.0]);
+    }
+    let path = |m: &[f64; 3]| sources.iter().map(|s| ((m[0] - s[0]).powi(2) + (m[1] - s[1]).powi(2) + (m[2] - s[2]).powi(2)).sqrt()).sum::<f64>() / sources.len() as f64;
+    let ref_path = 0.5 * (path(&refs[0]) + path(&refs[1]));
+    let setup = setup_gain_db - NOISE_REFERENCE_GAIN_DB;
+    mics.iter()
+        .enumerate()
+        .map(|(i, m)| {
+            // A reference microphone hears them as it did.
+            if refs.contains(m) {
+                return (if setup == 0.0 { 1.0 } else { 10f64.powf(setup / 20.0) }, 0);
+            }
+            let gain = 10f64.powf((level(i) - ref_db + setup) / 20.0);
+            (gain, ((path(m) - ref_path).max(0.0) / crate::soundboard::C0 * sample_rate).round() as usize)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

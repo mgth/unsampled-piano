@@ -31,6 +31,10 @@ pub struct Instrument {
     pub rear: Option<Vec<Vec<crate::modal::ModeSpec>>>,
     /// The radiation's delay zones in the board's mic slots, if any.
     pub zones: Option<board::Zones>,
+    /// How each microphone hears the noises heard directly, gain and delay
+    /// (samples, [`crate::mics::noise_paths`]); empty: all as at the
+    /// reference.
+    pub noise_paths: Vec<(f64, usize)>,
 }
 
 impl Instrument {
@@ -91,6 +95,10 @@ impl Instrument {
         }
         let rear = modes.as_ref().and_then(|_| crate::note_model::rear_modes(&model, sb.as_ref(), sample_rate));
         let zones = modes.as_ref().and(sb.as_ref()).and_then(|s| board::zones_for(s, sample_rate)).map(|z| z.0);
-        Self { model, source, sample_rate, table, board: modes, low, frame, rim, rear, zones }
+        // (The set-up's gain as the listening preset gives it: the controls
+        // move the noises' reference alike.)
+        let setup_gain = source.soundboard.map_or(crate::mics::NOISE_REFERENCE_GAIN_DB, |s| s.mic_gain_db);
+        let noise_paths = sb.as_ref().filter(|s| s.params.radiate).map_or_else(Vec::new, |s| crate::mics::noise_paths(s, setup_gain, sample_rate));
+        Self { model, source, sample_rate, table, board: modes, low, frame, rim, rear, zones, noise_paths }
     }
 }
