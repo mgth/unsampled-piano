@@ -5,7 +5,7 @@
 //! microphones on an FFT grid.
 //!
 //!   cargo run --release -p piano-render --example bridge_signal -- <preset.toml> <out prefix>
-//!       --note N [--velocity V] [--hold S] [--tail S] [--listening L.toml …] [--transfer LEN]
+//!       --note N [--velocity V] [--hold S] [--tail S] [--listening L.toml …] [--transfer LEN] [--zones N | W:N]
 //!
 //! Writes raw little-endian f32 files: `<prefix>_bridge.f32` (the velocity,
 //! m/s, 48 kHz), `<prefix>_mics.f32` (left and right interleaved, Pa) and,
@@ -14,9 +14,11 @@
 //! (the physical microphones mixed by their gains and pans, as in
 //! `_mics.f32`), in Pa per m/s², the acceleration being the backward
 //! difference of the velocity as the engine makes it for the strings.
-use piano_core::board::{board_modes, heard_mics, mic_differentiator, mic_transfer, region_of, stereo_transfer, to_acceleration_weights, transfer, zones_for};
+//! `--zones N` (over the mics' path range) or `--zones W:N` (W m each, from
+//! 0) also writes `<prefix>_transfer_zoned.f32`, the same layout with the
+//! radiation split in N zones each heard after its travel time.
+use piano_core::board::{board_modes, heard_mics, mic_differentiator, region_of, stereo_mix, stereo_transfer, to_acceleration_weights, transfer, zoned_mic_transfers, zones_for};
 use piano_core::engine::SUB_BLOCK;
-use piano_core::instrument::MICS;
 use piano_core::params::PianoModel;
 use piano_core::{Engine, EngineConfig, Event, TimedEvent};
 
@@ -122,10 +124,9 @@ fn main() {
         write_f32(&format!("{prefix}_transfer.f32"), &out);
         eprintln!("transfer: {bins} bins, {} modes", modes.len());
 
-        // The same transfer with the radiation split in delay zones
-        // (Soundboard::radiation_zoned), each zone delayed by its centre.
+        // The same with the radiation split in delay zones
+        // (board::zoned_mic_transfers), mixed to left and right as above.
         if let Some((from, width, nz)) = zones {
-            use piano_core::complex::C64;
             let (from, width) = if from < 0.0 {
                 (0.0, width)
             } else {
@@ -133,30 +134,18 @@ fn main() {
                 eprintln!("paths {lo:.2}–{hi:.2} m");
                 (lo, (hi - lo) / nz as f64)
             };
-            let rad = sb.radiation_zoned(from, width, nz, false);
-            let n_mics = sb.params.mics.as_slice().len().min(MICS);
-            let mut h = vec![C64::ZERO; bins * n_mics];
-            for z in 0..nz {
-                let mut mz = board_modes(&sb, SR);
-                for (i, m) in mz.iter_mut().enumerate() {
-                    let md = &sb.modes[i];
-                    let shape = C64::new(1.0, sb.sigma(md) / md.omega);
-                    for mic in 0..n_mics {
-                        let w = rad[i][mic * nz + z] * shape;
-                        m.outputs[mic] = (w.re, w.im);
-                    }
-                }
-                to_acceleration_weights(&mut mz, SR);
-                let delay = z as f64 * width / 343.0;
-                for j in 1..bins {
-                    let w = std::f64::consts::TAU * j as f64 * SR / len as f64;
-                    let acc = transfer(&modes, r, piano_core::board::BRIDGE + r, w, SR) * mic_differentiator(w, SR);
-                    for mic in 0..n_mics {
-                        h[j * n_mics + mic] += mic_transfer(&mz, r, mic, w, SR) / acc * C64::polar(1.0, -w * delay);
-                    }
+            let omegas: Vec<f64> = (1..bins).map(|j| std::f64::consts::TAU * j as f64 * SR / len as f64).collect();
+            let h = zoned_mic_transfers(&sb, from, width, nz, r, &omegas, SR);
+            let mut out = vec![0.0f32; 4];
+            for (hw, &w) in h.iter().zip(&omegas) {
+                let acc = transfer(&modes, r, piano_core::board::BRIDGE + r, w, SR) * mic_differentiator(w, SR);
+                for c in stereo_mix(mics.as_slice(), |m| hw[m]) {
+                    let c = c / acc;
+                    out.push(c.re as f32);
+                    out.push(c.im as f32);
                 }
             }
-            let out: Vec<f32> = h.iter().flat_map(|c| [c.re as f32, c.im as f32]).collect();
+            assert_eq!(out.len(), bins * 4, "two complex values a bin");
             write_f32(&format!("{prefix}_transfer_zoned.f32"), &out);
             eprintln!("zoned transfer: {nz} zones of {width} m");
         }

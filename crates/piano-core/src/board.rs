@@ -1006,8 +1006,11 @@ pub fn mic_transfer_folded(modes: &[BoardMode], zones: Option<&Zones>, r: usize,
 /// Board modes for a soundboard: inputs through the bridge at the region
 /// keys, outputs at the two mics (Rayleigh) and bridge velocity there.
 pub fn board_modes(sb: &crate::soundboard::Soundboard, sample_rate: f64) -> Vec<BoardMode> {
-    let shapes: Vec<Vec<f64>> = (0..REGIONS).map(|r| sb.bridge_shapes(region_center_note(r))).collect();
-    board_modes_with(sb, &shapes, true, true, sample_rate)
+    board_modes_with(sb, &region_shapes(sb), true, true, sample_rate)
+}
+
+fn region_shapes(sb: &crate::soundboard::Soundboard) -> Vec<Vec<f64>> {
+    (0..REGIONS).map(|r| sb.bridge_shapes(region_center_note(r))).collect()
 }
 
 /// Same as [`board_modes`] with point inputs at `points` (m), no probes,
@@ -1041,17 +1044,55 @@ pub fn heard_power(modes: &[BoardMode], zones: Option<&Zones>, n_mics: usize, r:
 }
 
 /// The stereo pair the engine mixes from the physical microphones (each by
-/// its gain and pan, `Engine::process`), region `r`, as
-/// [`mic_transfer_folded`] hears each.
-pub fn stereo_transfer(modes: &[BoardMode], zones: Option<&Zones>, mics: &[crate::mics::Mic], r: usize, omega: f64, sample_rate: f64) -> [crate::complex::C64; 2] {
+/// its gain and pan, `Engine::process`), microphone `m` heard as `heard(m)`.
+pub fn stereo_mix(mics: &[crate::mics::Mic], heard: impl Fn(usize) -> crate::complex::C64) -> [crate::complex::C64; 2] {
     let mut out = [crate::complex::C64::ZERO; 2];
     for (m, mic) in mics.iter().enumerate().take(MICS) {
-        let (g, (l, rr)) = (10f64.powf(mic.gain_db / 20.0), mic.pan_gains());
-        let h = mic_transfer_folded(modes, zones, r, m, omega, sample_rate);
+        let (g, (l, r)) = (10f64.powf(mic.gain_db / 20.0), mic.pan_gains());
+        let h = heard(m);
         out[0] += h.scale(g * l);
-        out[1] += h.scale(g * rr);
+        out[1] += h.scale(g * r);
     }
     out
+}
+
+/// [`stereo_mix`] of each physical microphone's [`mic_transfer_folded`],
+/// region `r`.
+pub fn stereo_transfer(modes: &[BoardMode], zones: Option<&Zones>, mics: &[crate::mics::Mic], r: usize, omega: f64, sample_rate: f64) -> [crate::complex::C64; 2] {
+    stereo_mix(mics, |m| mic_transfer_folded(modes, zones, r, m, omega, sample_rate))
+}
+
+/// The physical microphones' transfers from region `r` (acceleration
+/// weights, [`to_acceleration_weights`]) with the radiation split into `nz`
+/// zones of `width` m from `from` ([`Soundboard::radiation_zoned`](crate::soundboard::Soundboard::radiation_zoned)),
+/// zone z heard z·width/c later, whatever the switches: `[ω][mic]`. One
+/// zone is the plain radiation.
+pub fn zoned_mic_transfers(sb: &crate::soundboard::Soundboard, from: f64, width: f64, nz: usize, r: usize, omegas: &[f64], sample_rate: f64) -> Vec<Vec<crate::complex::C64>> {
+    use crate::complex::C64;
+    let nz = nz.max(1);
+    let rad = sb.radiation_zoned(from, width, nz, false);
+    let n_mics = heard_mics(sb).len().min(MICS);
+    let mut h = vec![vec![C64::ZERO; n_mics]; omegas.len()];
+    let base = board_modes_with(sb, &region_shapes(sb), true, false, sample_rate);
+    for z in 0..nz {
+        let mut mz = base.clone();
+        // The modes kept (under Nyquist) are the first ones, sorted.
+        for (i, (m, md)) in mz.iter_mut().zip(&sb.modes).enumerate() {
+            let shape = C64::new(1.0, sb.sigma(md) / md.omega);
+            for mic in 0..n_mics {
+                let w = rad[i][mic * nz + z] * shape;
+                m.outputs[mic] = (w.re, w.im);
+            }
+        }
+        to_acceleration_weights(&mut mz, sample_rate);
+        let delay = z as f64 * width / crate::soundboard::C0;
+        for (hw, &w) in h.iter_mut().zip(omegas) {
+            for (mic, x) in hw.iter_mut().enumerate() {
+                *x += mic_transfer(&mz, r, mic, w, sample_rate) * C64::polar(1.0, -w * delay);
+            }
+        }
+    }
+    h
 }
 
 /// The probes' outputs of every mode (before the impulse-shape factor):
@@ -1491,6 +1532,56 @@ mod tests {
             let hr = mic_transfer_folded(&modes, z.as_ref(), 3, 1, w, sr);
             assert!((l - hl).norm() <= 1e-12 * hl.norm() && (r - hr).norm() <= 1e-12 * hr.norm());
         }
+    }
+
+    /// One zone is the plain radiation: the zoned comparison, mixed like
+    /// the render, matches the reference (one mic hard left at −12 dB).
+    #[test]
+    fn one_zone_is_the_plain_transfer() {
+        let sr = 48_000.0;
+        let mut mic = crate::mics::Mic::omni((0.8, 0.6, 0.4));
+        mic.pan = -1.0;
+        mic.gain_db = -12.0;
+        let sb = switched_board(false, false, crate::mics::Mics::new(&[mic]));
+        let mics = heard_mics(&sb);
+        let mut modes = board_modes(&sb, sr);
+        to_acceleration_weights(&mut modes, sr);
+        let omegas: Vec<f64> = [150.0, 700.0, 3000.0].iter().map(|f| std::f64::consts::TAU * f).collect();
+        let r = 4;
+        let zoned = zoned_mic_transfers(&sb, 0.0, 10.0, 1, r, &omegas, sr);
+        for (hw, &w) in zoned.iter().zip(&omegas) {
+            assert_eq!(hw.len(), 1);
+            let [a, b] = stereo_mix(mics.as_slice(), |m| hw[m]);
+            let [pa, pb] = stereo_transfer(&modes, None, mics.as_slice(), r, w, sr);
+            assert!((a - pa).norm() <= 1e-9 * pa.norm(), "{a:?} {pa:?}");
+            assert!(b.norm() == 0.0 && pb.norm() == 0.0);
+            let plain = mic_transfer(&modes, r, 0, w, sr).scale(10f64.powf(-12.0 / 20.0));
+            assert!((pa - plain).norm() <= 1e-12 * plain.norm());
+        }
+    }
+
+    /// A mic given relative to the board or in metres, once resolved, is
+    /// the same mic: same zones, same transfer.
+    #[test]
+    fn relative_and_absolute_mics_hear_alike() {
+        let sr = 48_000.0;
+        let mut p = crate::params::PianoModel::default().soundboard.unwrap();
+        p.radiation_delays = true;
+        let (a, b) = (p.a, p.b);
+        let at = |rel: bool, m: (f64, f64, f64)| {
+            let mut q = p;
+            q.mics_relative = rel;
+            q.mics = crate::mics::Mics::new(&[crate::mics::Mic::omni(m)]);
+            crate::soundboard::Soundboard::new(q.resolved())
+        };
+        let rel = at(true, (0.4, 0.4, 0.4));
+        let abs = at(false, (0.4 * a, 0.4 * b, 0.4));
+        let (zr, za) = (zones_for(&rel, sr).map(|z| z.0), zones_for(&abs, sr).map(|z| z.0));
+        assert_eq!(zr.map(|z| (z.count, z.step)), za.map(|z| (z.count, z.step)));
+        assert!(zr.is_some_and(|z| z.count > 1));
+        let (mr, ma) = (board_modes(&rel, sr), board_modes(&abs, sr));
+        let (hr, ha) = (band_db(&mr, zr.as_ref(), 1, sr), band_db(&ma, za.as_ref(), 1, sr));
+        assert!((hr - ha).abs() < 1e-9, "{hr} against {ha}");
     }
 
     /// Microphones under a grand hear the back face directly: the zones

@@ -10,7 +10,7 @@ fn main() {
     let model = piano_host::load_preset(std::path::Path::new(&args[1])).unwrap();
     let notes: Vec<u8> = if args.len() > 2 { args[2..].iter().map(|s| s.parse().unwrap()).collect() } else { vec![33, 48, 60, 72, 84] };
     let sr = 48_000.0;
-    let sb = Soundboard::new(model.soundboard.unwrap());
+    let sb = Soundboard::new(model.soundboard.unwrap().resolved());
     let zones = zones_for(&sb, sr).map(|z| z.0);
     let n_mics = heard_mics(&sb).len();
     let mut modes = board_modes(&sb, sr);

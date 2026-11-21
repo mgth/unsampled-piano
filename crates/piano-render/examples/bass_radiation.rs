@@ -7,7 +7,8 @@ use piano_core::soundboard::{Soundboard, SoundboardParams};
 
 fn bands(p: SoundboardParams, note: u8) -> Vec<f64> {
     let sr = 48_000.0;
-    let sb = Soundboard::new(p);
+    // The mics in metres, as the engine places them.
+    let sb = Soundboard::new(p.resolved());
     let zones = zones_for(&sb, sr).map(|z| z.0);
     let n_mics = heard_mics(&sb).len();
     let mut modes = board_modes(&sb, sr);
