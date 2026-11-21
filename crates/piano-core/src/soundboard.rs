@@ -39,7 +39,7 @@ const RHO0: f64 = 1.2;
 /// Mean absorption of the case's wood, iron and felts; its openings count for
 /// far more ([`SoundboardParams::case_room_constant`]).
 const CASE_ABSORPTION: f64 = 0.1;
-const C0: f64 = 343.0;
+pub const C0: f64 = 343.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
@@ -315,6 +315,22 @@ pub struct SoundboardParams {
     /// ([`Self::case_room_constant`]). The energy is already the mode's own
     /// radiation loss: nothing is added to its damping.
     pub case_field: bool,
+    /// Sound takes time to reach the microphones from each part of the board:
+    /// 4 ms more from the far end of a concert grand than from its near end
+    /// at the player's seat. The radiation weights of the modes, taken at
+    /// each mode's own frequency, hold that time only as a phase: the whole
+    /// board was heard at once, and the attack rose in 1–2 ms at the
+    /// microphones where a real grand's rises in 3–10 (docs/attack_rise.md).
+    /// On: the board split by distance into delay zones, each heard after
+    /// its own delay, as many as the microphones' slots allow (4 for a
+    /// pair); a mode's steady sound is the same.
+    pub radiation_delays: bool,
+    /// The case's reverberant field (`case_field`) builds up as the box of
+    /// the case and the lid fills: its energy settles in with the box's
+    /// time constant 4V/(cA), ≈ 6 ms with the lid at 35°, instead of being
+    /// there from the strike's first sample (docs/attack_rise.md). Through
+    /// an all-pass: every partial keeps its level.
+    pub case_field_builds: bool,
     /// The board as it is built: its modes below `structure.below` come from
     /// a plate, ribs and bridges by finite elements ([`crate::fem`]). Above
     /// that, the rectangle's modes remain, set on `rho_h`, `dx` and `dy` and
@@ -542,6 +558,8 @@ impl SoundboardParams {
         scatter_height: 0.05,
         scatter_shadow: 0.0,
         case_field: false,
+        radiation_delays: false,
+        case_field_builds: false,
         structure: crate::fem::BoardStructure::STEINWAY_D,
     };
 
@@ -701,6 +719,43 @@ impl SoundboardParams {
         let bare = without();
         let mix = |a: f64, b: f64| a + (b - a) * through;
         (1.0 / mix(1.0 / with.0, 1.0 / bare.0), mix(with.1, bare.1), mix(with.2, bare.2))
+    }
+
+    /// Energy time constant (s) of the box of the case and the lid as a
+    /// small room, 4V/(cA): V under the lid (or up to the rim without one),
+    /// A its openings and what its walls absorb ([`Self::case_room_constant`]).
+    pub fn case_fill_time(&self) -> f64 {
+        let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let relative: &[(f64, f64)] = if self.outline.iter().all(|&q| q == (0.0, 0.0)) { &corners } else { &self.outline };
+        let pts: Vec<(f64, f64)> = relative.iter().map(|&(u, v)| (u * self.a, v * self.b)).collect();
+        let (mut twice_area, mut perimeter, mut gap, mut ay) = (0.0, 0.0, 0.0, 0.0);
+        let sin = self.lid_angle.to_radians().sin();
+        for (i, &(x0, y0)) in pts.iter().enumerate() {
+            let (x1, y1) = pts[(i + 1) % pts.len()];
+            let cross = x0 * y1 - x1 * y0;
+            twice_area += cross;
+            ay += (y0 + y1) * cross;
+            let len = (x1 - x0).hypot(y1 - y0);
+            perimeter += len;
+            gap += len * 0.5 * ((self.b - y0).max(0.0) + (self.b - y1).max(0.0)) * sin;
+        }
+        let area = 0.5 * twice_area.abs();
+        if area <= 0.0 {
+            return 0.0;
+        }
+        let centroid_y = ay / (3.0 * twice_area);
+        let wall = perimeter * self.lid_hinge_height;
+        let fill = |volume: f64, absorbing: f64| 4.0 * volume / (C0 * absorbing.max(1e-6));
+        let without = fill(area * self.lid_hinge_height, area + CASE_ABSORPTION * (area + wall));
+        if self.lid_removed {
+            return without;
+        }
+        let height = self.lid_hinge_height + (self.b - centroid_y).max(0.0) * self.lid_angle.to_radians().tan();
+        let with = fill(area * height, gap + CASE_ABSORPTION * (2.0 * area + wall));
+        // A lid that lets the sound through fills as much less of a box, as
+        // in case_room_constant: a lid being put back starts from none.
+        let through = ((self.lid_transmission.powi(2) - CASE_ABSORPTION) / (1.0 - CASE_ABSORPTION)).clamp(0.0, 1.0);
+        with + (without - with) * through
     }
 
     /// The case's reverberant pressure at the point `m` per unit modal
@@ -1800,7 +1855,48 @@ impl Soundboard {
     /// places them, each heard through its pattern.
     pub fn radiation(&self) -> Vec<Vec<C64>> {
         let (mics, ears) = self.mic_points();
-        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), None)
+        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), None, None)
+    }
+
+    /// [`Self::radiation`] split by path length into `nz` zones of `width`
+    /// m from `from` m (the first and last take everything before and
+    /// beyond): `[mic·nz + z]` per mode, each path's phase taken re its
+    /// zone's delay z·width. Delaying zone z by z·width/c and summing gives
+    /// back [`Self::radiation`] at each mode's own frequency exactly, while
+    /// the attack reaches the microphone as late as the board's parts are
+    /// far from it.
+    /// With `case_apart`, the case's field (`case_field`) takes one more
+    /// slot after each microphone's zones, undelayed: `[mic·(nz + 1) + nz]`.
+    pub fn radiation_zoned(&self, from: f64, width: f64, nz: usize, case_apart: bool) -> Vec<Vec<C64>> {
+        let (mics, ears) = self.mic_points();
+        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), None, Some((from, width, nz.max(1), case_apart)))
+    }
+
+
+    /// Shortest and longest direct path (m) from the board's radiating
+    /// cells to its microphones: the front face's for one above the board,
+    /// the back face's for one below it (the same length, [`Self::path`]).
+    pub fn mic_path_range(&self) -> (f64, f64) {
+        let p = &self.params;
+        let step = p.grid_step;
+        let (nx, ny) = ((p.a / step).ceil() as usize, (p.b / step).ceil() as usize);
+        let (dx, dy) = (p.a / nx as f64, p.b / ny as f64);
+        let (mics, _) = self.mic_points();
+        let (mut lo, mut hi) = (f64::INFINITY, 0.0f64);
+        for i in 0..nx {
+            for j in 0..ny {
+                let (x, y) = ((i as f64 + 0.5) * dx, (j as f64 + 0.5) * dy);
+                if self.outline.as_ref().is_some_and(|o| o.coverage(x, y, dx, dy) <= 0.0) {
+                    continue;
+                }
+                for m in &mics {
+                    let d = ((m[0] - x).powi(2) + (m[1] - y).powi(2) + m[2].powi(2)).sqrt();
+                    lo = lo.min(d);
+                    hi = hi.max(d);
+                }
+            }
+        }
+        if lo > hi { (0.0, 0.0) } else { (lo, hi) }
     }
 
     /// The microphones' points and patterns.
@@ -1813,7 +1909,7 @@ impl Soundboard {
     /// `points` (board coordinates, m): pressure (Pa) per unit modal
     /// velocity, `[mode][point]`.
     pub fn radiation_points(&self, points: &[[f64; 3]], n_modes: usize) -> Vec<Vec<C64>> {
-        self.field_with(points, &vec![Ear::OMNI; points.len()], self.params.grid_step, n_modes.min(self.modes.len()), None)
+        self.field_with(points, &vec![Ear::OMNI; points.len()], self.params.grid_step, n_modes.min(self.modes.len()), None, None)
     }
 
     /// The radiation weights of every mode evaluated at one driving
@@ -1822,7 +1918,7 @@ impl Soundboard {
     /// sum of modes off resonance). Diagnostics.
     pub fn radiation_at(&self, omega: f64) -> Vec<Vec<C64>> {
         let (mics, ears) = self.mic_points();
-        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), Some(omega))
+        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), Some(omega), None)
     }
 
     /// Pressure per unit modal velocity of the first `n_modes` modes at
@@ -1830,7 +1926,18 @@ impl Soundboard {
     /// through `ears`, on a radiation grid of `step` m; the Rayleigh
     /// integral taken at `omega` for every mode when given, else at each
     /// mode's own frequency.
-    fn field_with(&self, points: &[[f64; 3]], ears: &[Ear], step: f64, n_modes: usize, omega: Option<f64>) -> Vec<Vec<C64>> {
+    fn field_with(&self, points: &[[f64; 3]], ears: &[Ear], step: f64, n_modes: usize, omega: Option<f64>, zone: Option<(f64, f64, usize, bool)>) -> Vec<Vec<C64>> {
+        let nz = zone.map_or(1, |z| z.2);
+        // Slots per point: the zones, then the case's field apart if asked.
+        let case_apart = zone.is_some_and(|z| z.3);
+        let per = nz + case_apart as usize;
+        // Zone of a path of length d and its centre.
+        let zone_of = move |d: f64| -> (usize, f64) {
+            zone.map_or((0, 0.0), |(from, w, n, _)| {
+                let z = (((d - from) / w).max(0.0) as usize).min(n - 1);
+                (z, z as f64 * w)
+            })
+        };
         let p = &self.params;
         let nx = (p.a / step).ceil() as usize;
         let ny = (p.b / step).ceil() as usize;
@@ -1944,6 +2051,69 @@ impl Soundboard {
             } else {
                 1.0
             };
+            if zone.is_some() {
+                // The same sum, each path into the zone of its length.
+                let put = |acc: &mut [C64], q: usize, amp: f64, d: f64, ph: f64| {
+                    let (z, c) = zone_of(d);
+                    acc[q * per + z] += C64::polar(amp, ph - k * (d - c));
+                };
+                let path = |acc: &mut [C64], q: usize, pt: &Path, m: &[f64; 3], phi: f64| {
+                    let front = if m[2] >= 0.0 { shade } else { 1.0 };
+                    put(acc, q, front * case * pt.front.1 * phi / pt.front.0, pt.front.0, 0.0);
+                    put(acc, q, -pt.back.1 * phi / pt.back.0, pt.back.0, 0.0);
+                    if pt.wall.1 != 0.0 {
+                        put(acc, q, -pt.wall.1 * phi / pt.wall.0, pt.wall.0, 0.0);
+                    }
+                    if pt.image.1 != 0.0 {
+                        put(acc, q, front * case * pt.image.1 * phi / pt.image.0, pt.image.0, 0.0);
+                    }
+                };
+                let mut acc = vec![C64::ZERO; np * per];
+                if let Some(((i, fem), (geo, ds))) = from_nodes {
+                    let scale = self.fem_scale[i as usize] * ds;
+                    for (v, g) in fem.at_nodes(i as usize).zip(geo.chunks(np)) {
+                        for (q, (pt, m)) in g.iter().zip(points).enumerate() {
+                            path(&mut acc, q, pt, m, scale * v);
+                        }
+                    }
+                } else {
+                    for (c, g) in geo.chunks(np).enumerate() {
+                        let mut phi = own.as_ref().map_or_else(|| norm * sx[c / ny] * sy[c % ny], |o| norm * o[c]) * ds;
+                        if let Some(w) = &cover {
+                            phi *= w[c];
+                        }
+                        for (q, (pt, m)) in g.iter().zip(points).enumerate() {
+                            path(&mut acc, q, pt, m, phi);
+                        }
+                    }
+                }
+                if !scat.is_empty() {
+                    let wc = TAU * p.scatter_corner.max(1.0);
+                    let r = (w / wc).powi(2);
+                    let sigma = p.scatter * r / (1.0 + r) * (wc / w);
+                    for &(x, y, z, area, phase) in &scat {
+                        let phi = self.shape(md, x, y) * area * sigma;
+                        for (q, (m, e)) in points.iter().zip(ears).enumerate().filter(|(_, (m, _))| m[2] >= 0.0) {
+                            let d = ((m[0] - x).powi(2) + (m[1] - y).powi(2) + (m[2] - z).powi(2)).sqrt().max(0.05);
+                            put(&mut acc, q, phi * e.gain([x, y, z], *m) / d, d, phase);
+                        }
+                    }
+                }
+                let mut out: Vec<C64> = acc.into_iter().map(|a| pre * a).collect();
+                if let Some(room) = case_room.filter(|_| md.air > 0.0) {
+                    // The case's diffuse field: from the board's middle.
+                    let velocity = if md.fem.is_some() { 1.0 } else { self.above_radiation };
+                    for (q, (m, e)) in points.iter().zip(ears).enumerate().filter(|(_, (m, _))| m[2] >= 0.0) {
+                        let seed = (i as u32).wrapping_mul(2_654_435_761).wrapping_add(q as u32).wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                        let phase = TAU * (seed >> 8) as f64 / (1u32 << 24) as f64;
+                        let d = ((m[0] - 0.5 * p.a).powi(2) + (m[1] - 0.5 * p.b).powi(2) + m[2].powi(2)).sqrt();
+                        // Its own phase once delayed: the same sum as unzoned.
+                        let (z, c) = if case_apart { (nz, 0.0) } else { zone_of(d) };
+                        out[q * per + z] += C64::polar(velocity * p.case_field_gain(room, md.omega, md.air * md.omega, *m, e), phase + k * c);
+                    }
+                }
+                return out;
+            }
             let mut acc = vec![C64::ZERO; np];
             if let Some(((i, fem), (geo, ds))) = from_nodes {
                 let scale = self.fem_scale[i as usize] * ds;

@@ -5,17 +5,20 @@
 //! microphones on an FFT grid.
 //!
 //!   cargo run --release -p piano-render --example bridge_signal -- <preset.toml> <out prefix>
-//!       --note N [--velocity V] [--hold S] [--tail S] [--listening L.toml …] [--transfer LEN]
+//!       --note N [--velocity V] [--hold S] [--tail S] [--listening L.toml …] [--transfer LEN] [--zones N | W:N]
 //!
 //! Writes raw little-endian f32 files: `<prefix>_bridge.f32` (the velocity,
 //! m/s, 48 kHz), `<prefix>_mics.f32` (left and right interleaved, Pa) and,
 //! with `--transfer`, `<prefix>_transfer.f32`: LEN/2 + 1 bins of the rfft
-//! grid at 48 kHz, each as (re, im) for the left then the right microphone,
-//! in Pa per m/s², the acceleration being the backward difference of the
-//! velocity as the engine makes it for the strings.
-use piano_core::board::{board_modes, mic_differentiator, mic_transfer, region_of, to_acceleration_weights, transfer};
+//! grid at 48 kHz, each as (re, im) for the left then the right channel
+//! (the physical microphones mixed by their gains and pans, as in
+//! `_mics.f32`), in Pa per m/s², the acceleration being the backward
+//! difference of the velocity as the engine makes it for the strings.
+//! `--zones N` (over the mics' path range) or `--zones W:N` (W m each, from
+//! 0) also writes `<prefix>_transfer_zoned.f32`, the same layout with the
+//! radiation split in N zones each heard after its travel time.
+use piano_core::board::{board_modes, heard_mics, mic_differentiator, region_of, stereo_mix, stereo_transfer, to_acceleration_weights, transfer, zoned_mic_transfers, zones_for};
 use piano_core::engine::SUB_BLOCK;
-use piano_core::instrument::MICS;
 use piano_core::params::PianoModel;
 use piano_core::{Engine, EngineConfig, Event, TimedEvent};
 
@@ -26,6 +29,7 @@ fn main() {
     let preset = std::path::Path::new(&args[1]);
     let prefix = args[2].clone();
     let (mut note, mut velocity, mut hold, mut tail, mut len) = (33u8, 100u8, 4.8f64, 0.4f64, 0usize);
+    let mut zones: Option<(f64, f64, usize)> = None;
     let mut listening = Vec::new();
     let mut i = 3;
     while i < args.len() {
@@ -37,6 +41,13 @@ fn main() {
             "--tail" => tail = v.parse().unwrap(),
             "--transfer" => len = v.parse().unwrap(),
             "--listening" => listening.push(v.clone()),
+            "--zones" => {
+                // "N": N zones over the board's path range; "W:N": from 0 m.
+                zones = Some(match v.split_once(':') {
+                    Some((w, n)) => (-1.0, w.parse().unwrap(), n.parse().unwrap()),
+                    None => (0.0, 0.0, v.parse().unwrap()),
+                });
+            }
             a => panic!("unknown argument {a}"),
         }
         i += 2;
@@ -89,6 +100,11 @@ fn main() {
         let sb = model.board().expect("a preset with a soundboard");
         let mut modes = board_modes(&sb, SR);
         to_acceleration_weights(&mut modes, SR);
+        // The left and right of the render: each physical microphone as
+        // heard (its delay zones and case's slot folded in, the preset's
+        // switches), mixed by its gain and pan. Four floats a bin, DC too.
+        let split = zones_for(&sb, SR).map(|z| z.0);
+        let mics = heard_mics(&sb);
         let bins = len / 2 + 1;
         let mut out = Vec::with_capacity(bins * 4);
         for j in 0..bins {
@@ -98,14 +114,41 @@ fn main() {
             }
             let w = std::f64::consts::TAU * j as f64 * SR / len as f64;
             let acc = transfer(&modes, r, piano_core::board::BRIDGE + r, w, SR) * mic_differentiator(w, SR);
-            for mic in 0..MICS {
-                let h = mic_transfer(&modes, r, mic, w, SR) / acc;
+            for h in stereo_transfer(&modes, split.as_ref(), mics.as_slice(), r, w, SR) {
+                let h = h / acc;
                 out.push(h.re as f32);
                 out.push(h.im as f32);
             }
         }
+        assert_eq!(out.len(), bins * 4, "two complex values a bin");
         write_f32(&format!("{prefix}_transfer.f32"), &out);
         eprintln!("transfer: {bins} bins, {} modes", modes.len());
+
+        // The same with the radiation split in delay zones
+        // (board::zoned_mic_transfers), mixed to left and right as above.
+        if let Some((from, width, nz)) = zones {
+            let (from, width) = if from < 0.0 {
+                (0.0, width)
+            } else {
+                let (lo, hi) = sb.mic_path_range();
+                eprintln!("paths {lo:.2}–{hi:.2} m");
+                (lo, (hi - lo) / nz as f64)
+            };
+            let omegas: Vec<f64> = (1..bins).map(|j| std::f64::consts::TAU * j as f64 * SR / len as f64).collect();
+            let h = zoned_mic_transfers(&sb, from, width, nz, r, &omegas, SR);
+            let mut out = vec![0.0f32; 4];
+            for (hw, &w) in h.iter().zip(&omegas) {
+                let acc = transfer(&modes, r, piano_core::board::BRIDGE + r, w, SR) * mic_differentiator(w, SR);
+                for c in stereo_mix(mics.as_slice(), |m| hw[m]) {
+                    let c = c / acc;
+                    out.push(c.re as f32);
+                    out.push(c.im as f32);
+                }
+            }
+            assert_eq!(out.len(), bins * 4, "two complex values a bin");
+            write_f32(&format!("{prefix}_transfer_zoned.f32"), &out);
+            eprintln!("zoned transfer: {nz} zones of {width} m");
+        }
     }
 }
 

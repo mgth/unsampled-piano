@@ -487,18 +487,29 @@ impl ContactSolver {
     /// `out` (and the agraffe force to `agraffe` when given). Returns how
     /// many samples were rendered: fewer than requested when the episode
     /// ends, after which the state must be handed back.
-    pub fn run(&mut self, out: &mut [f32], mut agraffe: Option<&mut [f32]>) -> usize {
+    pub fn run(&mut self, out: &mut [f32], agraffe: Option<&mut [f32]>) -> usize {
+        self.run_with(out, agraffe, None)
+    }
+
+    /// [`Self::run`], also writing to `stretch` (when given) the strings'
+    /// Σ F_s² (N², the mean over the step's oversampling) of each sample.
+    pub fn run_with(&mut self, out: &mut [f32], mut agraffe: Option<&mut [f32]>, mut stretch: Option<&mut [f32]>) -> usize {
         for (i, o) in out.iter_mut().enumerate() {
             if !self.active {
                 return i;
             }
             let mut y = (0.0, 0.0);
+            let mut f2 = 0.0;
             for _ in 0..self.oversample {
                 y = self.step();
+                f2 += self.f0.iter().map(|f| f * f).sum::<f64>();
             }
             *o += y.0 as f32;
             if let Some(a) = agraffe.as_deref_mut() {
                 a[i] += y.1 as f32;
+            }
+            if let Some(s) = stretch.as_deref_mut() {
+                s[i] = (f2 / self.oversample as f64) as f32;
             }
         }
         out.len()

@@ -219,6 +219,11 @@ rho_h = 14.7
 crown_freq = 40.0
 # What the board radiates comes back off the rim, the frame and the lid.
 case_field = true
+# That field fills the box of the case and the lid as it would a small room, over
+# its own time constant (4.6 ms with the lid at 35°), instead of being there from the
+# strike's first sample: the texture of the attack closer to the Splendid Grand's,
+# kept at the keyboard (docs/attack_rise.md).
+case_field_builds = true
 # The low modes' extra loss at the measured boards' level, 4.7 % at 83 Hz
 # (docs/real_board.md); the rim, made two-way, takes almost nothing, so no edge loss.
 loss_low_corner = 80.0
@@ -357,6 +362,12 @@ rear = true
 # half-way between the partials (A1: 1.2–1.6 kHz) stand 10 dB over the default's 0.3;
 # 1.0 puts A1 within 2–3 dB of them from 20 ms to 0.4 s (docs/body.md).
 coupling = 1.0
+# The strike's own stretching sets the longitudinal modes ringing during the contact:
+# the precursor a real bass's bridge carries ahead of the transverse wave. As computed
+# it stood 10–20 dB over Plath's below D2, with a harsh 4–5 kHz ring at B0; 12 dB down
+# it meets Plath's at D#1 and A1, and the ring is no longer heard (docs/attack_rise.md).
+strike_stretch = true
+strike_scale = 0.25
 
 [body]
 # The body's halo after each strike, calibrated on the Splendid Grand: once the

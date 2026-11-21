@@ -1075,6 +1075,15 @@ pub struct StringNonlinearity {
     /// (quasi-static) tension changes hardly reach it. First-order high-pass
     /// at this corner (Hz).
     pub coupling_corner: f64,
+    /// The strike's own stretching: while the hammer pushes, the string is
+    /// stretched where the two pulses leave the strike point, and that
+    /// strain sets the longitudinal modes ringing at once (the precursor a
+    /// real bass's bridge carries 5–10 ms ahead of the transverse wave,
+    /// docs/attack_rise.md). Off, the longitudinal modes start with the
+    /// partials, after the contact.
+    pub strike_stretch: bool,
+    /// Scale on the strike's stretching force (1: as computed).
+    pub strike_scale: f64,
 }
 
 impl Default for StringNonlinearity {
@@ -1097,6 +1106,8 @@ impl StringNonlinearity {
         // the transverse partials in the bass at ff, tools/phantom_levels.py).
         coupling: 0.3,
         coupling_corner: 1000.0,
+        strike_stretch: false,
+        strike_scale: 1.0,
     };
 }
 

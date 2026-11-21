@@ -2,12 +2,16 @@
 //! from the bridge region of a bass key, for a preset and variants of the
 //! board's low-frequency radiation. Shows the shape the board gives to the
 //! bass partials.  cargo run --example bass_radiation -- <preset.toml> [note]
-use piano_core::board::{board_modes, mic_transfer, region_of, to_acceleration_weights};
+use piano_core::board::{board_modes, heard_mics, heard_power, region_of, to_acceleration_weights, zones_for};
 use piano_core::soundboard::{Soundboard, SoundboardParams};
 
 fn bands(p: SoundboardParams, note: u8) -> Vec<f64> {
     let sr = 48_000.0;
-    let mut modes = board_modes(&Soundboard::new(p), sr);
+    // The mics in metres, as the engine places them.
+    let sb = Soundboard::new(p.resolved());
+    let zones = zones_for(&sb, sr).map(|z| z.0);
+    let n_mics = heard_mics(&sb).len();
+    let mut modes = board_modes(&sb, sr);
     to_acceleration_weights(&mut modes, sr);
     let r = region_of(note);
     let mut out = Vec::new();
@@ -17,7 +21,7 @@ fn bands(p: SoundboardParams, note: u8) -> Vec<f64> {
         let mut s = 0.0;
         for i in 0..n {
             let w = std::f64::consts::TAU * f0 * 2f64.powf((i as f64 / n as f64 - 0.5) / 3.0);
-            s += mic_transfer(&modes, r, 0, w, sr).norm_sqr() + mic_transfer(&modes, r, 1, w, sr).norm_sqr();
+            s += heard_power(&modes, zones.as_ref(), n_mics, r, w, sr);
         }
         out.push(10.0 * (s / n as f64).log10());
         f0 *= 2f64.powf(1.0 / 3.0);

@@ -331,6 +331,11 @@ pub struct Engine {
     /// stereo mix, its gain on its own channel, and its share of the
     /// action's and the body's two sides (by its pan).
     n_mics: usize,
+    /// Mic slots the board's banks fill: the mics, or their delay zones
+    /// ([`crate::board::Zones`]) folded into them before the pressure.
+    n_slots: usize,
+    fold_all: Option<crate::board::ZoneFold>,
+    fold_board: Option<crate::board::ZoneFold>,
     mix: [(f32, f32); MICS],
     own_gain: [f32; MICS],
     noise_w: [(f32, f32); MICS],
@@ -407,6 +412,13 @@ impl Engine {
             .as_ref()
             .filter(|_| inst.model.sympathetic.enabled)
             .map(|m| BoardBank::new(cfg.sample_rate, m, SUB_BLOCK));
+        // The radiation's zones: each bank lets the board sleep only once
+        // all the first microphone's slots are quiet.
+        let (mut board, mut board_low, mut board_sym) = (board, board_low, board_sym);
+        if let Some(z) = &inst.zones {
+            board.iter_mut().chain(board_sym.iter_mut()).for_each(|b| b.set_zones(z));
+            board_low.iter_mut().for_each(|b| b.set_zones(z));
+        }
         let rear: Vec<ModalBank> = inst
             .rear
             .iter()
@@ -428,6 +440,7 @@ impl Engine {
         let mics = inst.model.soundboard.map_or(crate::mics::Mics::pair((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), |s| s.mics);
         let mics = if mics.is_empty() { crate::mics::Mics::pair((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)) } else { mics };
         let per_mic = inst.model.soundboard.is_some_and(|s| s.outputs_per_mic);
+        let zones = inst.zones.filter(|z| z.mics == mics.len());
         let live = inst.model;
         let base = inst.source;
         let mut e = Self {
@@ -474,6 +487,9 @@ impl Engine {
             mic_buf: std::array::from_fn(|_| vec![0.0; SUB_BLOCK]),
             noise_buf: std::array::from_fn(|_| vec![0.0; SUB_BLOCK]),
             n_mics: mics.len(),
+            n_slots: zones.map_or(mics.len(), |z| z.slots()),
+            fold_all: zones.map(|z| crate::board::ZoneFold::new(z, SUB_BLOCK)),
+            fold_board: zones.map(|z| crate::board::ZoneFold::new(z, SUB_BLOCK)),
             mix: std::array::from_fn(|m| mics.as_slice().get(m).map_or((0.0, 0.0), |mic| {
                 let (g, (l, r)) = (10f64.powf(mic.gain_db / 20.0), mic.pan_gains());
                 ((g * l) as f32, (g * r) as f32)
@@ -774,7 +790,7 @@ impl Engine {
     fn sub_block(&mut self, events: &[TimedEvent], offset: usize, len: usize) {
         let mut mic_buf = std::mem::take(&mut self.mic_buf);
         let mut chans: [&mut [f32]; MICS] = mic_buf.each_mut().map(|v| &mut v[..len]);
-        let nm = self.n_mics;
+        let nm = self.n_slots;
         let chans = &mut chans[..nm];
         let out_gain = self.smooth_gain(len);
         self.update_dampers(len);
@@ -933,6 +949,16 @@ impl Engine {
                 if let Some(bs) = self.board_sym.as_ref().filter(|_| run_sym) {
                     self.board_sym_awake = has_sym || bs.energy() > thr;
                 }
+                // The radiation's delay zones, each after its delay, into
+                // their microphones (the board's own part as well, for the
+                // room).
+                if let Some(f) = self.fold_all.as_mut() {
+                    f.fold(chans, len);
+                }
+                if let Some(f) = self.fold_board.as_mut() {
+                    f.fold(&mut self.board_mics, len);
+                }
+                let chans = &mut chans[..self.n_mics];
                 // The banks carry acceleration weights: the pressure is the
                 // derivative of their sum (board::to_acceleration_weights).
                 let fs = self.cfg.sample_rate as f32;
