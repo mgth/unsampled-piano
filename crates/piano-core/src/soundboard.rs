@@ -917,6 +917,16 @@ impl SoundboardParams {
         a.clamp(0.0, side.min(front))
     }
 
+    /// The direction (unit, plate x and y) a key's strings run in at its
+    /// bridge point: along x, turned by the main strings' slant
+    /// ([`Self::string_slant`], as [`Self::bridge_curve_at`] turns them).
+    pub fn string_direction(&self, note: u8) -> (f64, f64) {
+        let main = note >= self.main_bridge_from;
+        let a = if main { self.string_slant(self.bridge_place(note as f64, true)) } else { 0.0 };
+        let (s, c) = a.sin_cos();
+        (c, s)
+    }
+
     /// Where a key's strings cross the keys' line ([`KEY_LINE_X`]), across
     /// the board (m): the main bridge's strings come from there whatever
     /// their slant. The bass strings are taken as running along x from
@@ -1761,17 +1771,17 @@ impl Soundboard {
     /// Per mode, the drive of a unit sideways force at the strings' height
     /// on the key's bridge point (`bridge_rocking`): its moment h·F rocks
     /// the bridge about the strings' line, and drives the mode by its slope
-    /// across it, h·∂φ/∂y (the strings run along x). Central difference
-    /// over ±1 cm, the built board's element size. The built board's modes
-    /// only; 0 for the others.
+    /// across that line, h·∂φ/∂n, n square to the key's strings
+    /// ([`SoundboardParams::string_direction`]: ∂φ/∂y for straight
+    /// strings). Central difference over ±1 cm, the built board's element
+    /// size.
     pub fn bridge_slopes(&self, note: u8) -> Vec<f64> {
         const D: f64 = 0.01;
         let (x, y) = self.params.bridge_point(note);
+        let (ux, uy) = self.params.string_direction(note);
+        let (nx, ny) = (-uy * D, ux * D);
         let h = self.params.bridge_height;
-        self.modes
-            .iter()
-            .map(|md| if md.fem.is_some() { h * (self.shape(md, x, y + D) - self.shape(md, x, y - D)) / (2.0 * D) } else { 0.0 })
-            .collect()
+        self.modes.iter().map(|md| h * (self.shape(md, x + nx, y + ny) - self.shape(md, x - nx, y - ny)) / (2.0 * D)).collect()
     }
 
     pub fn bridge_shapes(&self, note: u8) -> Vec<f64> {
@@ -2468,6 +2478,39 @@ mod tests {
             let (g0, g1) = (gap(n as f64), gap(n as f64 + 1.0));
             assert!((g1 - g0).abs() < 4e-3, "key {n}: {g0} → {g1}");
         }
+    }
+
+    /// The rocking drives each mode by its slope square to the key's
+    /// strings, which slant on the main bridge: across the slanted string,
+    /// not across the board's y.
+    #[test]
+    fn the_rocking_takes_the_slope_across_the_slanted_strings() {
+        let sb = Soundboard::new(rectangle());
+        let p = sb.params;
+        let note = 60;
+        let a = p.string_slant(p.bridge_place(note as f64, true));
+        assert!(a > 0.05, "slant {a}");
+        let (x, y) = p.bridge_point(note);
+        let (nx, ny) = (-a.sin(), a.cos());
+        let slopes = sb.bridge_slopes(note);
+        let (mut checked, mut apart) = (0, 0);
+        for (md, s) in sb.modes.iter().zip(&slopes) {
+            if md.m == 0 || md.ritz.is_some() || md.fem.is_some() || md.m > 6 || md.n > 6 {
+                continue;
+            }
+            let (km, kn) = (md.m as f64 * PI / p.a, md.n as f64 * PI / p.b);
+            let amp = 2.0 / (p.rho_h * p.a * p.b).sqrt();
+            let (dx, dy) = (amp * km * (km * x).cos() * (kn * y).sin(), amp * kn * (km * x).sin() * (kn * y).cos());
+            let want = p.bridge_height * (nx * dx + ny * dy);
+            let across_y = p.bridge_height * dy;
+            let scale = p.bridge_height * dx.hypot(dy);
+            assert!((s - want).abs() <= 0.02 * scale + 1e-12, "mode ({}, {}): {s} against {want}", md.m, md.n);
+            checked += 1;
+            if (across_y - want).abs() > 0.1 * scale {
+                apart += 1;
+            }
+        }
+        assert!(checked >= 10 && apart >= 3, "{checked} modes checked, {apart} where the slant matters");
     }
 
     #[test]

@@ -469,7 +469,8 @@ fn sym_specs(modes: &[ModeSpec], brake: Option<&[C64]>, sample_rate: f64) -> Vec
             let adv = C64::polar(1.0, std::f64::consts::TAU * m.freq_hz * delay) * brake.and_then(|b| b.get(i)).copied().unwrap_or(C64::ONE);
             let g1 = C64::new(m.gain_re, m.gain_im) * adv;
             let g2 = C64::new(m.gain2_re, m.gain2_im) * adv;
-            ModeSpec { gain_re: g1.re, gain_im: g1.im, gain2_re: g2.re, gain2_im: g2.im, ..*m }
+            // (A listening bank is heard by its first output only: no rocking.)
+            ModeSpec { gain_re: g1.re, gain_im: g1.im, gain2_re: g2.re, gain2_im: g2.im, out3_re: 0.0, out3_im: 0.0, ..*m }
         })
         .collect()
 }

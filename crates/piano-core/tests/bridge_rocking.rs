@@ -2,7 +2,11 @@
 //! sideways motion to the built board by a path of its own: it changes
 //! nothing without that motion, and is heard with it.
 
+use assert_no_alloc::{assert_no_alloc, AllocDisabler};
 use piano_core::{Engine, EngineConfig, Event, TimedEvent};
+
+#[global_allocator]
+static A: AllocDisabler = AllocDisabler;
 
 /// A coarse built board (2 cm elements, modes below 600 Hz), each key
 /// driving its low modes at its own bridge point; no room, no noise.
@@ -33,7 +37,8 @@ fn render(cfg: EngineConfig) -> (Vec<f32>, Vec<f32>) {
     ];
     for (i, (bl, br)) in l.chunks_mut(bs).zip(r.chunks_mut(bs)).enumerate() {
         let events: &[TimedEvent] = if i == 0 { &first } else { &[] };
-        engine.process_stereo(events, bl, br);
+        // The rocking's room is made when the engine is built: none here.
+        assert_no_alloc(|| engine.process_stereo(events, bl, br));
     }
     (l, r)
 }

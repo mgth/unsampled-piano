@@ -186,6 +186,16 @@ fn fill(chunks: &mut [Chunk], dw: &mut [f32], modes: impl IntoIterator<Item = Mo
     n
 }
 
+/// A mode's weight in the bank's energy: |w|² over the outputs it is heard
+/// by, the first (the bridge force) and the third (the bridge's rocking,
+/// `NoteModel::rock_input`), which alone carries a sideways mode that the
+/// first does not (`polarization.radiation` 0). The second (the agraffe)
+/// moves the frame from the same motion and is not counted.
+#[inline(always)]
+fn out_weight(c: &Chunk, l: usize) -> f32 {
+    c.or[l] * c.or[l] + c.oi[l] * c.oi[l] + c.o3r[l] * c.o3r[l] + c.o3i[l] * c.o3i[l]
+}
+
 /// A bank's coefficients computed ahead, off the audio thread (they take
 /// an exp and a sin_cos per mode in f64): [`ModalBank::load`] only copies
 /// them.
@@ -242,6 +252,8 @@ pub struct ModalBank {
     n_specs: usize,
     acc: Vec<[f32; LANES]>,
     acc2: Vec<[f32; LANES]>,
+    /// The third output's accumulators: empty until
+    /// [`Self::reserve_third_output`] (16 floats per frame of the block).
     acc3: Vec<[f32; LANES]>,
     isa: Isa,
     group: usize,
@@ -263,7 +275,7 @@ impl ModalBank {
             n_specs: 0,
             acc: vec![[0.0; LANES]; max_block],
             acc2: vec![[0.0; LANES]; max_block],
-            acc3: vec![[0.0; LANES]; max_block],
+            acc3: Vec::new(),
             isa: Isa::detect(),
             group: Isa::detect().best_group(),
             pr0: vec![0.0; n_chunks * LANES],
@@ -427,7 +439,7 @@ impl ModalBank {
             let ch = &self.chunks[c - 1];
             let mut ce = 0.0f32;
             for l in 0..LANES {
-                ce += (ch.or[l] * ch.or[l] + ch.oi[l] * ch.oi[l]) * (ch.zr[l] * ch.zr[l] + ch.zi[l] * ch.zi[l]);
+                ce += out_weight(ch, l) * (ch.zr[l] * ch.zr[l] + ch.zi[l] * ch.zi[l]);
             }
             if e + ce >= threshold {
                 break;
@@ -446,14 +458,14 @@ impl ModalBank {
         n
     }
 
-    /// Sum of |w·z|² over modes (output-weighted), a cheap loudness proxy
-    /// for voice management.
+    /// Sum of |w·z|² over modes (output-weighted, the first and the third
+    /// outputs: what a mode is heard by), a cheap loudness proxy for voice
+    /// management.
     pub fn energy(&self) -> f32 {
         let mut e = [0.0f32; LANES];
         for c in &self.chunks[..self.n_modes.div_ceil(LANES)] {
             for (l, el) in e.iter_mut().enumerate() {
-                let w2 = c.or[l] * c.or[l] + c.oi[l] * c.oi[l];
-                *el += w2 * (c.zr[l] * c.zr[l] + c.zi[l] * c.zi[l]);
+                *el += out_weight(c, l) * (c.zr[l] * c.zr[l] + c.zi[l] * c.zi[l]);
             }
         }
         e.iter().sum()
@@ -472,9 +484,17 @@ impl ModalBank {
         self.process_impl::<true, false>(input, None, out, out2, &mut []);
     }
 
+    /// Makes room for the third output ([`Self::process_outputs`]): only
+    /// the banks that use it pay for it. Allocates; not on the audio thread.
+    pub fn reserve_third_output(&mut self) {
+        if self.acc3.len() < self.acc.len() {
+            self.acc3 = vec![[0.0; LANES]; self.acc.len()];
+        }
+    }
+
     /// Like [`Self::process`] with a second and a third output (weights
     /// `out2_*`, `out3_*`), each when given, from the same states in the
-    /// same pass.
+    /// same pass. The third needs [`Self::reserve_third_output`] first.
     pub fn process_outputs(&mut self, input: Option<&[f32]>, out: &mut [f32], out2: Option<&mut [f32]>, out3: Option<&mut [f32]>) {
         for o in [out2.as_deref(), out3.as_deref()].into_iter().flatten() {
             assert_eq!(out.len(), o.len());
@@ -501,6 +521,7 @@ impl ModalBank {
         assert!(x1.is_some() || x2.is_none());
         let acc = &mut self.acc[..len];
         let acc2 = &mut self.acc2[..if O2 { len } else { 0 }];
+        assert!(!O3 || self.acc3.len() >= len, "third output not reserved");
         let acc3 = &mut self.acc3[..if O3 { len } else { 0 }];
         let chunks = &mut self.chunks[..self.n_modes.div_ceil(LANES)];
         // A driven bank holds 8–12 arrays per chunk: beyond 2 chunks per time
@@ -904,6 +925,24 @@ mod tests {
         }
     }
 
+    /// A sideways mode heard only through the rocking (no first output, as
+    /// with `polarization.radiation` 0) still counts as sounding: voice
+    /// management and pruning must not cut its tail.
+    #[test]
+    fn a_rocking_only_tail_is_kept() {
+        let mut b = ModalBank::new(48_000.0, 16, 128);
+        b.reserve_third_output();
+        b.set_modes([ModeSpec { out_re: 0.0, out_im: 0.0, out3_re: 1.0, out3_im: 0.0, ..ModeSpec::driven(220.0, 1.0, 1.0) }]);
+        let mut x = [0.0f32; 128];
+        x[0] = 1.0;
+        b.process(Some(&x), &mut [0.0f32; 128]);
+        let (mut o, mut o3) = ([0.0f32; 128], [0.0f32; 128]);
+        b.process_outputs(None, &mut o, None, Some(&mut o3));
+        assert!(o.iter().all(|v| *v == 0.0) && o3.iter().any(|v| v.abs() > 0.5), "the mode sounds through the rocking only");
+        assert!(b.energy() > 0.1, "energy {}", b.energy());
+        assert_eq!(b.drop_tail(1e-12), 1, "the rocking-only mode was dropped");
+    }
+
     #[test]
     fn third_output_matches_a_separate_bank_with_or_without_the_second() {
         let specs: Vec<ModeSpec> = (1..=70)
@@ -926,6 +965,7 @@ mod tests {
             for driven in [true, false] {
                 let bank = |sp: &[ModeSpec]| {
                     let mut b = ModalBank::new(48_000.0, 70, 128);
+                    b.reserve_third_output();
                     b.set_isa(isa);
                     b.set_modes(sp.iter().copied());
                     // Undriven: ring from a first block driven alike.

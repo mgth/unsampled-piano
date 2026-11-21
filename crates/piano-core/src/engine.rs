@@ -388,10 +388,15 @@ impl Engine {
         let capacity = inst.table.capacity();
         let action_time = inst.model.noise.action_time;
         let body_law = inst.model.body;
+        // Only an instrument whose bridge rocks pays for its third output.
+        let rocking = inst.low.as_ref().is_some_and(|l| l.rocking);
         let voices = (0..cfg.polyphony)
             .map(|_| {
                 let mut v = Voice::with_capacity(cfg.sample_rate, cfg.max_block, capacity);
                 v.set_shortcuts(&shortcuts);
+                if rocking {
+                    v.reserve_rocking();
+                }
                 v
             })
             .collect();

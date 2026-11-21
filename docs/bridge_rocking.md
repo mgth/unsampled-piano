@@ -6,26 +6,26 @@ Status as of 2026-11-21. Off by default and in the Concert grand: measured, not 
 
 A string's sideways (horizontal) motion pulls the bridge across the strings at the height where they bear on its pins. Until now the engine summed everything a key's strings do into one vertical force at its bridge point: the vertical oscillators whole, the horizontal ones by `polarization.radiation`, the longitudinal force too. Every part of a partial then reached the microphones by the same path, and a partial kept the same left/right balance from its strike to its end.
 
-On every real grand a strong partial wanders between the microphones while it sounds. With `soundboard.bridge_rocking` the sideways force also acts as a moment on the board: h·F, h = `bridge_height` (0.033 m, the strings above the board's mid-plane), which drives each mode of the built board by its slope across the bridge, h·∂φ/∂y (the strings run along x), where the vertical force drives it by φ. The vertical and the sideways parts of a partial then radiate through different modes, and as they beat their sum moves between the microphones.
+On every real grand a strong partial wanders between the microphones while it sounds. With `soundboard.bridge_rocking` the sideways force also acts as a moment on the board: h·F, h = `bridge_height` (0.033 m, the strings above the board's mid-plane), which drives each mode of the built board by its slope square to the key's strings, h·∂φ/∂n, where the vertical force drives it by φ. The strings run along x, the main ones turned by their slant (`main_string_slant`, `SoundboardParams::string_direction`): n is y for straight strings. The vertical and the sideways parts of a partial then radiate through different modes, and as they beat their sum moves between the microphones.
 
 It adds to the sideways motion's direct share (`polarization.radiation`, which stands for the bridge's asymmetries: side-draft, pins, bearing), and needs the built board (`structure`) with `exact_below`, where each key drives the low modes at its own bridge point.
 
 ## In the engine
 
-- `ModalBank::process_outputs`: a third output (`out3_*`) from the same states in the same pass, on every ISA (test `third_output_matches_a_separate_bank_with_or_without_the_second`).
+- `ModalBank::process_outputs`: a third output (`out3_*`) from the same states in the same pass, on every ISA (test `third_output_matches_a_separate_bank_with_or_without_the_second`). Its accumulators are made by `reserve_third_output`, which the engine calls only for an instrument whose bridge rocks (`Voice::reserve_rocking`): 16 floats per frame and bank, 16 MiB for a plugin's 128 voices at 1,024-frame blocks otherwise. The bank's energy, which voice management and the dropping of silent partials read, counts the third output beside the first: a sideways mode heard only by its rocking keeps its tail (test `a_rocking_only_tail_is_kept`).
 - `NoteModel::rock_input`: the coupled modes' third output carries the horizontal oscillators' force, whole (`wrock`), for the partials and the duplex front lengths.
-- `Soundboard::bridge_slopes`: h·∂φ/∂y at the key's bridge point, a central difference over ±1 cm (the elements' size), for the built board's modes; 0 for the others.
+- `Soundboard::bridge_slopes`: h·∂φ/∂n at the key's bridge point, a central difference over ±1 cm (the elements' size) square to its strings (test `the_rocking_takes_the_slope_across_the_slanted_strings`).
 - `board::LOW_INPUTS` = 2 × 88: the low bank's inputs are each key's force, then each key's moment (`LowDrive::rock_input`). Without the rocking the moments' inputs are zero and never active.
 - `Voice::mix` adds the moment's force to its input.
 
 Two simplifications, both small:
 
 - **During the hammer's contact** (1–4 ms) the sideways motion is heard through its direct share only.
-- **The strings' own sympathetic bank** cancels its key's vertical force at its bridge point, not the rocking's: a key's own moment reaches its own listening strings.
+- **The strings' own sympathetic bank** cancels its key's vertical force at its bridge point, not the rocking's: a key's own moment reaches its own listening strings. The listening banks are heard by their vertical force only (no rocking).
 
 ## What it changes
 
-Off, the renders are those of before bit for bit (three notes at close microphones and a phrase with the room, against a build of the commit below). Tests `without_sideways_motion_the_rocking_changes_nothing` and `with_sideways_motion_the_rocking_is_heard`.
+Off, the renders are those of before bit for bit (three notes at close microphones and a phrase with the room, against a build of the commit below). Tests `without_sideways_motion_the_rocking_changes_nothing` and `with_sideways_motion_the_rocking_is_heard`, without allocation on the audio path.
 
 On, Concert grand, B0–B2, close microphones in the studio, velocity 100 (`docs/case_effect.md` for the measure):
 
