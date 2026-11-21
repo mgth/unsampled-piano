@@ -51,6 +51,10 @@ pub struct Voice {
     pub contact: ContactSolver,
     sym_force: Vec<f32>,
     agraffe: Vec<f32>,
+    /// The sideways motion's force on the bridge pins, whose moment rocks
+    /// the bridge (`NoteModel::rock_input`), this sub-block from `from`.
+    /// Empty until [`Self::reserve_rocking`].
+    rock: Vec<f32>,
     /// Own bridge force: this sub-block, and its history (ring indexed by
     /// absolute sample) to cancel its own contribution D samples later.
     force: Vec<f32>,
@@ -112,6 +116,7 @@ impl Voice {
             contact: ContactSolver::new(modes, sample_rate),
             sym_force: vec![0.0; max_block],
             agraffe: vec![0.0; max_block],
+            rock: Vec::new(),
             force: vec![0.0; max_block],
             force_ring: vec![0.0; RING],
             x2: vec![0.0; max_block],
@@ -134,6 +139,14 @@ impl Voice {
             sym_silence: crate::engine::Shortcuts::DEFAULT.sym_silence,
             nl_silence: crate::engine::Shortcuts::DEFAULT.nl_silence,
         }
+    }
+
+    /// Makes room for the bridge's rocking (an instrument with
+    /// `bridge_rocking`): its force and the bank's third output. Without it
+    /// a key's rocking is not heard. Allocates; not on the audio thread.
+    pub fn reserve_rocking(&mut self) {
+        self.rock = vec![0.0; self.force.len()];
+        self.bank.reserve_third_output();
     }
 
     pub fn set_shortcuts(&mut self, s: &crate::engine::Shortcuts) {
@@ -259,6 +272,10 @@ impl Voice {
         self.force[from..to].fill(0.0);
         let n = to - from;
         self.agraffe[..n].fill(0.0);
+        let rocking = nm.rock_input.is_some() && !self.rock.is_empty();
+        if rocking {
+            self.rock[..n].fill(0.0);
+        }
         let mut start = 0;
         if self.contact.is_active() {
             let agraffe = with_agraffe.then_some(&mut self.agraffe[..n]);
@@ -277,12 +294,13 @@ impl Voice {
         // states), for the longitudinal modes.
         let nl = nm.longitudinal.as_ref().filter(|_| self.struck && start < n);
         let nl_on = nl.is_some_and(|lg| self.nl_start(lg, nm.n_osc));
+        // (During the hammer's contact the sideways motion is heard through
+        // the force alone, by its direct share: a few milliseconds.)
         if start < n && !self.bank.is_empty() {
-            if with_agraffe {
-                self.bank.process2(None, &mut self.force[from + start..to], &mut self.agraffe[start..n]);
-            } else {
-                self.bank.process(None, &mut self.force[from + start..to]);
-            }
+            let agraffe = with_agraffe.then_some(&mut self.agraffe[start..n]);
+            // (Lazily: without the rocking's room the slice does not exist.)
+            let rock = if rocking { Some(&mut self.rock[start..n]) } else { None };
+            self.bank.process_outputs(None, &mut self.force[from + start..to], agraffe, rock);
         }
         if let (true, Some(lg)) = (nl_on, nl) {
             self.nl_run(lg, from + start, to);
@@ -342,12 +360,22 @@ impl Voice {
         let r = nm.region;
         // (A listening string has no primary force.)
         let primary = &self.force[from..to];
-        if let (Some(b), Some(c)) = (basis, nm.basis.as_ref())
-            && primary.iter().any(|&v| v != 0.0)
-        {
-            for (j, &w) in c.iter().enumerate().filter(|(_, w)| **w != 0.0) {
-                for (o, f) in b[j][from..to].iter_mut().zip(primary) {
-                    *o += w * f;
+        if let Some(b) = basis {
+            if let Some(c) = nm.basis.as_ref()
+                && primary.iter().any(|&v| v != 0.0)
+            {
+                for (j, &w) in c.iter().enumerate().filter(|(_, w)| **w != 0.0) {
+                    for (o, f) in b[j][from..to].iter_mut().zip(primary) {
+                        *o += w * f;
+                    }
+                }
+            }
+            if let Some(ri) = nm.rock_input
+                && ri < b.len()
+                && !self.rock.is_empty()
+            {
+                for (o, f) in b[ri][from..to].iter_mut().zip(&self.rock[..n]) {
+                    *o += f;
                 }
             }
         }

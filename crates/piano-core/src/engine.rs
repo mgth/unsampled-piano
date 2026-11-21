@@ -308,7 +308,7 @@ pub struct Engine {
     /// profile inputs for the current block. The sympathetic forces keep
     /// the regions: a diffuse halo, where the exact drive changes nothing
     /// audible and would double the cost.
-    board_low: Option<BoardBank<{ crate::board::KEYS }>>,
+    board_low: Option<BoardBank<{ crate::board::LOW_INPUTS }>>,
     basis: Vec<Vec<f32>>,
     board_sym_awake: bool,
     board_awake: bool,
@@ -388,10 +388,15 @@ impl Engine {
         let capacity = inst.table.capacity();
         let action_time = inst.model.noise.action_time;
         let body_law = inst.model.body;
+        // Only an instrument whose bridge rocks pays for its third output.
+        let rocking = inst.low.as_ref().is_some_and(|l| l.rocking);
         let voices = (0..cfg.polyphony)
             .map(|_| {
                 let mut v = Voice::with_capacity(cfg.sample_rate, cfg.max_block, capacity);
                 v.set_shortcuts(&shortcuts);
+                if rocking {
+                    v.reserve_rocking();
+                }
                 v
             })
             .collect();
@@ -399,7 +404,7 @@ impl Engine {
         // The low modes apart when they are driven at each key; the rim's
         // projections follow their modes.
         let n_low = inst.low.as_ref().map_or(0, |l| l.n);
-        let n_basis = if inst.low.is_some() { crate::board::KEYS } else { 0 };
+        let n_basis = if inst.low.is_some() { crate::board::LOW_INPUTS } else { 0 };
         let (low_couple, high_couple) = rim_couple.split_at(n_low.min(rim_couple.len()));
         let low_modes = inst.low.as_ref().zip(inst.board.as_ref()).map(|(l, m)| l.modes(m));
         let board = inst.board.as_ref().map(|m| BoardBank::with_extra(cfg.sample_rate, &m[n_low..], high_couple, SUB_BLOCK));
@@ -1071,7 +1076,7 @@ impl Engine {
     /// far) and its probes summed over the banks, for the room.
     fn board_feed(
         board: &BoardBank,
-        low: Option<&BoardBank<{ crate::board::KEYS }>>,
+        low: Option<&BoardBank<{ crate::board::LOW_INPUTS }>>,
         mics: &[&mut [f32]],
         board_mics: &mut [Vec<f32>; MICS],
         probes: &mut [Vec<f32>; PROBES],

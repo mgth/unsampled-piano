@@ -33,6 +33,9 @@ pub struct ModeSpec {
     /// Weight of the second output (see [`ModalBank::process2`]).
     pub out2_re: f64,
     pub out2_im: f64,
+    /// Weight of the third output (see [`ModalBank::process_outputs`]).
+    pub out3_re: f64,
+    pub out3_im: f64,
     /// Gain of the second input (see [`ModalBank::process_two_inputs`]).
     pub gain2_re: f64,
     pub gain2_im: f64,
@@ -51,6 +54,8 @@ impl Default for ModeSpec {
             out_im: 0.0,
             out2_re: 0.0,
             out2_im: 0.0,
+            out3_re: 0.0,
+            out3_im: 0.0,
             gain2_re: 0.0,
             gain2_im: 0.0,
             damp_w: 0.0,
@@ -130,6 +135,8 @@ struct Chunk {
     oi: [f32; LANES],
     o2r: [f32; LANES],
     o2i: [f32; LANES],
+    o3r: [f32; LANES],
+    o3i: [f32; LANES],
     zr: [f32; LANES],
     zi: [f32; LANES],
 }
@@ -164,17 +171,29 @@ fn fill(chunks: &mut [Chunk], dw: &mut [f32], modes: impl IntoIterator<Item = Mo
         c.oi[l] = m.out_im as f32;
         c.o2r[l] = m.out2_re as f32;
         c.o2i[l] = m.out2_im as f32;
+        c.o3r[l] = m.out3_re as f32;
+        c.o3i[l] = m.out3_im as f32;
         dw[n] = (m.damp_w * t) as f32;
         n += 1;
     }
     for i in n..n.next_multiple_of(LANES) {
         let (c, l) = (&mut chunks[i / LANES], i % LANES);
-        for a in [&mut c.pr, &mut c.pi, &mut c.br, &mut c.bi, &mut c.b2r, &mut c.b2i, &mut c.or, &mut c.oi, &mut c.o2r, &mut c.o2i] {
+        for a in [&mut c.pr, &mut c.pi, &mut c.br, &mut c.bi, &mut c.b2r, &mut c.b2i, &mut c.or, &mut c.oi, &mut c.o2r, &mut c.o2i, &mut c.o3r, &mut c.o3i] {
             a[l] = 0.0;
         }
         dw[i] = 0.0;
     }
     n
+}
+
+/// A mode's weight in the bank's energy: |w|² over the outputs it is heard
+/// by, the first (the bridge force) and the third (the bridge's rocking,
+/// `NoteModel::rock_input`), which alone carries a sideways mode that the
+/// first does not (`polarization.radiation` 0). The second (the agraffe)
+/// moves the frame from the same motion and is not counted.
+#[inline(always)]
+fn out_weight(c: &Chunk, l: usize) -> f32 {
+    c.or[l] * c.or[l] + c.oi[l] * c.oi[l] + c.o3r[l] * c.o3r[l] + c.o3i[l] * c.o3i[l]
 }
 
 /// A bank's coefficients computed ahead, off the audio thread (they take
@@ -233,6 +252,9 @@ pub struct ModalBank {
     n_specs: usize,
     acc: Vec<[f32; LANES]>,
     acc2: Vec<[f32; LANES]>,
+    /// The third output's accumulators: empty until
+    /// [`Self::reserve_third_output`] (16 floats per frame of the block).
+    acc3: Vec<[f32; LANES]>,
     isa: Isa,
     group: usize,
     /// Per mode: undamped pole and damper weight (for set_damping).
@@ -253,6 +275,7 @@ impl ModalBank {
             n_specs: 0,
             acc: vec![[0.0; LANES]; max_block],
             acc2: vec![[0.0; LANES]; max_block],
+            acc3: Vec::new(),
             isa: Isa::detect(),
             group: Isa::detect().best_group(),
             pr0: vec![0.0; n_chunks * LANES],
@@ -416,7 +439,7 @@ impl ModalBank {
             let ch = &self.chunks[c - 1];
             let mut ce = 0.0f32;
             for l in 0..LANES {
-                ce += (ch.or[l] * ch.or[l] + ch.oi[l] * ch.oi[l]) * (ch.zr[l] * ch.zr[l] + ch.zi[l] * ch.zi[l]);
+                ce += out_weight(ch, l) * (ch.zr[l] * ch.zr[l] + ch.zi[l] * ch.zi[l]);
             }
             if e + ce >= threshold {
                 break;
@@ -435,14 +458,14 @@ impl ModalBank {
         n
     }
 
-    /// Sum of |w·z|² over modes (output-weighted), a cheap loudness proxy
-    /// for voice management.
+    /// Sum of |w·z|² over modes (output-weighted, the first and the third
+    /// outputs: what a mode is heard by), a cheap loudness proxy for voice
+    /// management.
     pub fn energy(&self) -> f32 {
         let mut e = [0.0f32; LANES];
         for c in &self.chunks[..self.n_modes.div_ceil(LANES)] {
             for (l, el) in e.iter_mut().enumerate() {
-                let w2 = c.or[l] * c.or[l] + c.oi[l] * c.oi[l];
-                *el += w2 * (c.zr[l] * c.zr[l] + c.zi[l] * c.zi[l]);
+                *el += out_weight(c, l) * (c.zr[l] * c.zr[l] + c.zi[l] * c.zi[l]);
             }
         }
         e.iter().sum()
@@ -451,22 +474,45 @@ impl ModalBank {
     /// Advances the bank by `out.len()` samples and *adds* its output to `out`.
     /// `input` (the driving force) must have the same length when present.
     pub fn process(&mut self, input: Option<&[f32]>, out: &mut [f32]) {
-        self.process_impl::<false>(input, None, out, &mut []);
+        self.process_impl::<false, false>(input, None, out, &mut [], &mut []);
     }
 
     /// Like [`Self::process`] with a second output (weights `out2_*`) computed
     /// from the same states in the same pass (e.g. two microphones).
     pub fn process2(&mut self, input: Option<&[f32]>, out: &mut [f32], out2: &mut [f32]) {
         assert_eq!(out.len(), out2.len());
-        self.process_impl::<true>(input, None, out, out2);
+        self.process_impl::<true, false>(input, None, out, out2, &mut []);
+    }
+
+    /// Makes room for the third output ([`Self::process_outputs`]): only
+    /// the banks that use it pay for it. Allocates; not on the audio thread.
+    pub fn reserve_third_output(&mut self) {
+        if self.acc3.len() < self.acc.len() {
+            self.acc3 = vec![[0.0; LANES]; self.acc.len()];
+        }
+    }
+
+    /// Like [`Self::process`] with a second and a third output (weights
+    /// `out2_*`, `out3_*`), each when given, from the same states in the
+    /// same pass. The third needs [`Self::reserve_third_output`] first.
+    pub fn process_outputs(&mut self, input: Option<&[f32]>, out: &mut [f32], out2: Option<&mut [f32]>, out3: Option<&mut [f32]>) {
+        for o in [out2.as_deref(), out3.as_deref()].into_iter().flatten() {
+            assert_eq!(out.len(), o.len());
+        }
+        match (out2, out3) {
+            (None, None) => self.process_impl::<false, false>(input, None, out, &mut [], &mut []),
+            (Some(o2), None) => self.process_impl::<true, false>(input, None, out, o2, &mut []),
+            (None, Some(o3)) => self.process_impl::<false, true>(input, None, out, &mut [], o3),
+            (Some(o2), Some(o3)) => self.process_impl::<true, true>(input, None, out, o2, o3),
+        }
     }
 
     /// Two inputs (gains `gain_*` and `gain2_*`), one output.
     pub fn process_two_inputs(&mut self, x1: &[f32], x2: &[f32], out: &mut [f32]) {
-        self.process_impl::<false>(Some(x1), Some(x2), out, &mut []);
+        self.process_impl::<false, false>(Some(x1), Some(x2), out, &mut [], &mut []);
     }
 
-    fn process_impl<const O2: bool>(&mut self, x1: Option<&[f32]>, x2: Option<&[f32]>, out: &mut [f32], out2: &mut [f32]) {
+    fn process_impl<const O2: bool, const O3: bool>(&mut self, x1: Option<&[f32]>, x2: Option<&[f32]>, out: &mut [f32], out2: &mut [f32], out3: &mut [f32]) {
         let len = out.len();
         assert!(len <= self.acc.len(), "block larger than max_block");
         for x in [x1, x2].into_iter().flatten() {
@@ -475,11 +521,13 @@ impl ModalBank {
         assert!(x1.is_some() || x2.is_none());
         let acc = &mut self.acc[..len];
         let acc2 = &mut self.acc2[..if O2 { len } else { 0 }];
+        assert!(!O3 || self.acc3.len() >= len, "third output not reserved");
+        let acc3 = &mut self.acc3[..if O3 { len } else { 0 }];
         let chunks = &mut self.chunks[..self.n_modes.div_ceil(LANES)];
         // A driven bank holds 8–12 arrays per chunk: beyond 2 chunks per time
         // loop the kernel spills (≈ 20× slower, measured on all ISAs), and a
         // driven bank with a second input or output needs one chunk on AVX2.
-        let heavy = x2.is_some() || O2;
+        let heavy = x2.is_some() || O2 || O3;
         #[cfg_attr(target_arch = "aarch64", allow(unused))]
         let g = match (x1.is_some(), heavy, self.isa) {
             #[cfg(target_arch = "x86_64")]
@@ -491,13 +539,14 @@ impl ModalBank {
         let (a, b) = (x1.unwrap_or(&[]), x2.unwrap_or(&[]));
         acc.fill([0.0; LANES]);
         acc2.fill([0.0; LANES]);
+        acc3.fill([0.0; LANES]);
         #[cfg_attr(target_arch = "aarch64", allow(unused_macros))]
         macro_rules! go {
             ($run:ident) => {
                 match (x1.is_some(), x2.is_some()) {
-                    (false, _) => $run::<false, false, O2>(chunks, a, b, acc, acc2, g),
-                    (true, false) => $run::<true, false, O2>(chunks, a, b, acc, acc2, g),
-                    (true, true) => $run::<true, true, O2>(chunks, a, b, acc, acc2, g),
+                    (false, _) => $run::<false, false, O2, O3>(chunks, a, b, acc, acc2, acc3, g),
+                    (true, false) => $run::<true, false, O2, O3>(chunks, a, b, acc, acc2, acc3, g),
+                    (true, true) => $run::<true, true, O2, O3>(chunks, a, b, acc, acc2, acc3, g),
                 }
             };
         }
@@ -505,9 +554,9 @@ impl ModalBank {
             // aarch64: explicit NEON, two chunks per time loop.
             #[cfg(target_arch = "aarch64")]
             Isa::Generic => match (x1.is_some(), x2.is_some()) {
-                (false, _) => run_v::<crate::simd::arm::N, false, false, O2>(chunks, a, b, acc, acc2),
-                (true, false) => run_v::<crate::simd::arm::N, true, false, O2>(chunks, a, b, acc, acc2),
-                (true, true) => run_v::<crate::simd::arm::N, true, true, O2>(chunks, a, b, acc, acc2),
+                (false, _) => run_v::<crate::simd::arm::N, false, false, O2, O3>(chunks, a, b, acc, acc2, acc3),
+                (true, false) => run_v::<crate::simd::arm::N, true, false, O2, O3>(chunks, a, b, acc, acc2, acc3),
+                (true, true) => run_v::<crate::simd::arm::N, true, true, O2, O3>(chunks, a, b, acc, acc2, acc3),
             },
             #[cfg(not(target_arch = "aarch64"))]
             Isa::Generic => go!(run),
@@ -522,6 +571,11 @@ impl ModalBank {
         }
         if O2 {
             for (o, a) in out2.iter_mut().zip(acc2.iter()) {
+                *o += a.iter().sum::<f32>();
+            }
+        }
+        if O3 {
+            for (o, a) in out3.iter_mut().zip(acc3.iter()) {
                 *o += a.iter().sum::<f32>();
             }
         }
@@ -563,96 +617,101 @@ fn damp_chunks(chunks: &mut [Chunk], pr0: &[f32], pi0: &[f32], dw: &[f32], d: f3
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
-fn run_avx2<const IN: bool, const IN2: bool, const O2: bool>(
+fn run_avx2<const IN: bool, const IN2: bool, const O2: bool, const O3: bool>(
     chunks: &mut [Chunk],
     x: &[f32],
     x2: &[f32],
     acc: &mut [[f32; LANES]],
     acc2: &mut [[f32; LANES]],
+    acc3: &mut [[f32; LANES]],
     g: usize,
 ) {
     // Driven banks: explicit 8-lane halves, two chunks per time loop (the
     // generic code spills there and runs one chunk, latency-bound).
     if IN {
-        run_v::<crate::simd::x86::Y, IN, IN2, O2>(chunks, x, x2, acc, acc2)
+        run_v::<crate::simd::x86::Y, IN, IN2, O2, O3>(chunks, x, x2, acc, acc2, acc3)
     } else {
-        run::<IN, IN2, O2>(chunks, x, x2, acc, acc2, g)
+        run::<IN, IN2, O2, O3>(chunks, x, x2, acc, acc2, acc3, g)
     }
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f")]
-fn run_avx512<const IN: bool, const IN2: bool, const O2: bool>(
+fn run_avx512<const IN: bool, const IN2: bool, const O2: bool, const O3: bool>(
     chunks: &mut [Chunk],
     x: &[f32],
     x2: &[f32],
     acc: &mut [[f32; LANES]],
     acc2: &mut [[f32; LANES]],
+    acc3: &mut [[f32; LANES]],
     g: usize,
 ) {
-    run::<IN, IN2, O2>(chunks, x, x2, acc, acc2, g)
+    run::<IN, IN2, O2, O3>(chunks, x, x2, acc, acc2, acc3, g)
 }
 
 #[cfg_attr(target_arch = "aarch64", allow(dead_code))]
 #[inline(always)]
-fn run<const IN: bool, const IN2: bool, const O2: bool>(
+fn run<const IN: bool, const IN2: bool, const O2: bool, const O3: bool>(
     chunks: &mut [Chunk],
     x: &[f32],
     x2: &[f32],
     acc: &mut [[f32; LANES]],
     acc2: &mut [[f32; LANES]],
+    acc3: &mut [[f32; LANES]],
     g: usize,
 ) {
     let rest = match g {
         4 => {
             let (grps, rest) = chunks.as_chunks_mut::<4>();
             for grp in grps {
-                group::<4, IN, IN2, O2>(grp, x, x2, acc, acc2);
+                group::<4, IN, IN2, O2, O3>(grp, x, x2, acc, acc2, acc3);
             }
             rest
         }
         2 => {
             let (grps, rest) = chunks.as_chunks_mut::<2>();
             for grp in grps {
-                group::<2, IN, IN2, O2>(grp, x, x2, acc, acc2);
+                group::<2, IN, IN2, O2, O3>(grp, x, x2, acc, acc2, acc3);
             }
             rest
         }
         _ => chunks,
     };
     for grp in rest.as_chunks_mut::<1>().0 {
-        group::<1, IN, IN2, O2>(grp, x, x2, acc, acc2);
+        group::<1, IN, IN2, O2, O3>(grp, x, x2, acc, acc2, acc3);
     }
 }
 
 /// [`run`] with explicit 16-lane vectors, two chunks per time loop; the
 /// same operations in the same order (bit-identical results).
 #[inline(always)]
-fn run_v<V: V16, const IN: bool, const IN2: bool, const O2: bool>(
+fn run_v<V: V16, const IN: bool, const IN2: bool, const O2: bool, const O3: bool>(
     chunks: &mut [Chunk],
     x: &[f32],
     x2: &[f32],
     acc: &mut [[f32; LANES]],
     acc2: &mut [[f32; LANES]],
+    acc3: &mut [[f32; LANES]],
 ) {
     let (grps, rest) = chunks.as_chunks_mut::<2>();
     for grp in grps {
-        group_v::<V, 2, IN, IN2, O2>(grp, x, x2, acc, acc2);
+        group_v::<V, 2, IN, IN2, O2, O3>(grp, x, x2, acc, acc2, acc3);
     }
     for grp in rest.as_chunks_mut::<1>().0 {
-        group_v::<V, 1, IN, IN2, O2>(grp, x, x2, acc, acc2);
+        group_v::<V, 1, IN, IN2, O2, O3>(grp, x, x2, acc, acc2, acc3);
     }
 }
 
 /// [`group`] with the states in registers and the coefficients read from
 /// the chunks at every sample (loads are cheap; registers are not).
 #[inline(always)]
-fn group_v<V: V16, const G: usize, const IN: bool, const IN2: bool, const O2: bool>(
+fn group_v<V: V16, const G: usize, const IN: bool, const IN2: bool, const O2: bool, const O3: bool>(
     grp: &mut [Chunk; G],
     x: &[f32],
     x2: &[f32],
     acc: &mut [[f32; LANES]],
     acc2: &mut [[f32; LANES]],
+    acc3: &mut [[f32; LANES]],
 ) {
     let (mut zr, mut zi) = ([V::zero(); G], [V::zero(); G]);
     for g in 0..G {
@@ -662,6 +721,7 @@ fn group_v<V: V16, const G: usize, const IN: bool, const IN2: bool, const O2: bo
     for n in 0..acc.len() {
         let mut s = V::ld(&acc[n]);
         let mut s2 = if O2 { V::ld(&acc2[n]) } else { V::zero() };
+        let mut s3 = if O3 { V::ld(&acc3[n]) } else { V::zero() };
         let xn = V::splat(if IN { x[n] } else { 0.0 });
         let xn2 = V::splat(if IN2 { x2[n] } else { 0.0 });
         for g in 0..G {
@@ -683,10 +743,16 @@ fn group_v<V: V16, const G: usize, const IN: bool, const IN2: bool, const O2: bo
             if O2 {
                 s2 = s2.add(V::ld(&c.o2r).mul(r).sub(V::ld(&c.o2i).mul(i)));
             }
+            if O3 {
+                s3 = s3.add(V::ld(&c.o3r).mul(r).sub(V::ld(&c.o3i).mul(i)));
+            }
         }
         s.st(&mut acc[n]);
         if O2 {
             s2.st(&mut acc2[n]);
+        }
+        if O3 {
+            s3.st(&mut acc3[n]);
         }
     }
     for g in 0..G {
@@ -697,12 +763,13 @@ fn group_v<V: V16, const G: usize, const IN: bool, const IN2: bool, const O2: bo
 
 #[cfg_attr(target_arch = "aarch64", allow(dead_code))]
 #[inline(always)]
-fn group<const G: usize, const IN: bool, const IN2: bool, const O2: bool>(
+fn group<const G: usize, const IN: bool, const IN2: bool, const O2: bool, const O3: bool>(
     grp: &mut [Chunk; G],
     x: &[f32],
     x2: &[f32],
     acc: &mut [[f32; LANES]],
     acc2: &mut [[f32; LANES]],
+    acc3: &mut [[f32; LANES]],
 ) {
     let pr: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].pr);
     let pi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].pi);
@@ -714,12 +781,15 @@ fn group<const G: usize, const IN: bool, const IN2: bool, const O2: bool>(
     let oi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].oi);
     let o2r: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].o2r);
     let o2i: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].o2i);
+    let o3r: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].o3r);
+    let o3i: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].o3i);
     let mut zr: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].zr);
     let mut zi: [[f32; LANES]; G] = std::array::from_fn(|g| grp[g].zi);
 
-    let mut step = |a: &mut [f32; LANES], a2: &mut [f32; LANES], xn: f32, xn2: f32| {
+    let mut step = |a: &mut [f32; LANES], a2: &mut [f32; LANES], a3: &mut [f32; LANES], xn: f32, xn2: f32| {
         let mut s = *a;
         let mut s2 = *a2;
+        let mut s3 = *a3;
         for g in 0..G {
             for l in 0..LANES {
                 let mut r = pr[g][l] * zr[g][l] - pi[g][l] * zi[g][l];
@@ -738,22 +808,26 @@ fn group<const G: usize, const IN: bool, const IN2: bool, const O2: bool>(
                 if O2 {
                     s2[l] += o2r[g][l] * r - o2i[g][l] * i;
                 }
+                if O3 {
+                    s3[l] += o3r[g][l] * r - o3i[g][l] * i;
+                }
             }
         }
         *a = s;
         if O2 {
             *a2 = s2;
         }
+        if O3 {
+            *a3 = s3;
+        }
     };
-    let mut dummy = [0.0f32; LANES];
+    let (mut dummy2, mut dummy3) = ([0.0f32; LANES], [0.0f32; LANES]);
     for (n, a) in acc.iter_mut().enumerate() {
         let xn = if IN { x[n] } else { 0.0 };
         let xn2 = if IN2 { x2[n] } else { 0.0 };
-        if O2 {
-            step(a, &mut acc2[n], xn, xn2);
-        } else {
-            step(a, &mut dummy, xn, xn2);
-        }
+        let a2 = if O2 { &mut acc2[n] } else { &mut dummy2 };
+        let a3 = if O3 { &mut acc3[n] } else { &mut dummy3 };
+        step(a, a2, a3, xn, xn2);
     }
 
     for g in 0..G {
@@ -847,6 +921,73 @@ mod tests {
             bank(&alt).process(Some(&x), &mut r2);
             for (p, q) in o1.iter().zip(&r1).chain(o2.iter().zip(&r2)) {
                 assert!((p - q).abs() <= 1e-6 * (1.0 + q.abs()), "{isa:?}: {p} vs {q}");
+            }
+        }
+    }
+
+    /// A sideways mode heard only through the rocking (no first output, as
+    /// with `polarization.radiation` 0) still counts as sounding: voice
+    /// management and pruning must not cut its tail.
+    #[test]
+    fn a_rocking_only_tail_is_kept() {
+        let mut b = ModalBank::new(48_000.0, 16, 128);
+        b.reserve_third_output();
+        b.set_modes([ModeSpec { out_re: 0.0, out_im: 0.0, out3_re: 1.0, out3_im: 0.0, ..ModeSpec::driven(220.0, 1.0, 1.0) }]);
+        let mut x = [0.0f32; 128];
+        x[0] = 1.0;
+        b.process(Some(&x), &mut [0.0f32; 128]);
+        let (mut o, mut o3) = ([0.0f32; 128], [0.0f32; 128]);
+        b.process_outputs(None, &mut o, None, Some(&mut o3));
+        assert!(o.iter().all(|v| *v == 0.0) && o3.iter().any(|v| v.abs() > 0.5), "the mode sounds through the rocking only");
+        assert!(b.energy() > 0.1, "energy {}", b.energy());
+        assert_eq!(b.drop_tail(1e-12), 1, "the rocking-only mode was dropped");
+    }
+
+    #[test]
+    fn third_output_matches_a_separate_bank_with_or_without_the_second() {
+        let specs: Vec<ModeSpec> = (1..=70)
+            .map(|k| ModeSpec {
+                freq_hz: 29.0 * k as f64,
+                sigma: 1.0 + 0.1 * k as f64,
+                out_re: 0.7,
+                out_im: -0.2,
+                out2_re: -0.3,
+                out2_im: 0.9,
+                out3_re: 0.4,
+                out3_im: 0.5 - 0.01 * k as f64,
+                ..ModeSpec::driven(29.0 * k as f64, 1.0 + 0.1 * k as f64, 1e-3)
+            })
+            .collect();
+        let alt = |f: fn(&ModeSpec) -> (f64, f64)| -> Vec<ModeSpec> { specs.iter().map(|s| ModeSpec { out_re: f(s).0, out_im: f(s).1, ..*s }).collect() };
+        let (alt2, alt3) = (alt(|s| (s.out2_re, s.out2_im)), alt(|s| (s.out3_re, s.out3_im)));
+        let x: Vec<f32> = (0..128).map(|i| ((i * 37) % 11) as f32 - 5.0).collect();
+        for isa in Isa::available() {
+            for driven in [true, false] {
+                let bank = |sp: &[ModeSpec]| {
+                    let mut b = ModalBank::new(48_000.0, 70, 128);
+                    b.reserve_third_output();
+                    b.set_isa(isa);
+                    b.set_modes(sp.iter().copied());
+                    // Undriven: ring from a first block driven alike.
+                    if !driven {
+                        b.process(Some(&x), &mut vec![0.0f32; 128]);
+                    }
+                    b
+                };
+                let input = driven.then_some(&x[..]);
+                let run = |sp: &[ModeSpec]| {
+                    let mut r = vec![0.0f32; 128];
+                    bank(sp).process(input, &mut r);
+                    r
+                };
+                let (r1, r2, r3) = (run(&specs), run(&alt2), run(&alt3));
+                let (mut o1, mut o2, mut o3) = (vec![0.0f32; 128], vec![0.0f32; 128], vec![0.0f32; 128]);
+                bank(&specs).process_outputs(input, &mut o1, Some(&mut o2), Some(&mut o3));
+                let (mut p1, mut p3) = (vec![0.0f32; 128], vec![0.0f32; 128]);
+                bank(&specs).process_outputs(input, &mut p1, None, Some(&mut p3));
+                for (p, q) in o1.iter().zip(&r1).chain(o2.iter().zip(&r2)).chain(o3.iter().zip(&r3)).chain(p1.iter().zip(&r1)).chain(p3.iter().zip(&r3)) {
+                    assert!((p - q).abs() <= 1e-6 * (1.0 + q.abs()), "{isa:?} driven {driven}: {p} vs {q}");
+                }
             }
         }
     }

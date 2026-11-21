@@ -55,6 +55,10 @@ pub struct NoteModel {
     pub unison: crate::params::UnisonLaw,
     /// Output weight of the horizontal oscillators (polarization.radiation).
     pub h_radiation: f64,
+    /// The low board bank's input this key's rocking moment drives, when the
+    /// bridge rocks (`SoundboardParams::bridge_rocking`): the coupled modes'
+    /// third output (`out3_*`) carries it, the sideways motion's force.
+    pub rock_input: Option<usize>,
     /// Modes run by a string that only listens (partials < max_freq).
     pub n_listen: usize,
     /// Geometric nonlinearity (phantom partials), when enabled for the key.
@@ -167,6 +171,10 @@ impl NoteModel {
         // own region whole (no low band to share).
         let region_mix = if low.is_some() { [(region, 1.0), (region, 0.0)] } else { board::region_weights(note) };
         let basis = low.map(|ld| ld.key(note).map(|x| x as f32));
+        let rock_input = low.and_then(|ld| ld.rock_input(note));
+        // Weight of each oscillator on the rocking moment's force: the
+        // sideways ones whole, the vertical ones not at all.
+        let rocks = rock_input.is_some();
         // Each low mode's gain from this key (its drive shape · T, as the
         // profiles rebuild it).
         let low_gain: Option<(usize, Vec<f64>)> =
@@ -240,6 +248,7 @@ impl NoteModel {
                 unison::couple(&dv, eps)
             };
             let mut wout = [0.0; MAX_OSC];
+            let mut wrock = [0.0; MAX_OSC];
             for j in 0..ns {
                 phys.push(PhysOsc { k, freq: fv[j], sigma: -dv[j].re, hit: 1.0, uneven: pattern[j], shape: at(j).map(|d| d.shape) });
                 wout[j] = at(j).map_or(1.0, |d| d.shape.bridge / k as f64);
@@ -248,6 +257,9 @@ impl NoteModel {
                 for j in 0..ns {
                     phys.push(PhysOsc { k, freq: fh[j], sigma: -dv[j].re, hit: pol.hammer_tilt, uneven: pattern[j], shape: at(j).map(|d| d.shape) });
                     wout[ns + j] = pol.radiation * at(j).map_or(1.0, |d| d.shape.bridge / k as f64);
+                    if rocks {
+                        wrock[ns + j] = at(j).map_or(1.0, |d| d.shape.bridge / k as f64);
+                    }
                 }
             }
             // Bridge force of partial k: T·(kπ/L)·Σ_j w_j·q_j.
@@ -265,6 +277,7 @@ impl NoteModel {
             let damp_w = if has_damper { model.damper.shape_of(model.damper.pad(note), k, damper_at, np.length, wedge) } else { 0.0 };
             for m in 0..n_osc {
                 let u = cl.output_weight(m, &wout).scale(wk);
+                let u3 = if rocks { cl.output_weight(m, &wrock).scale(wk) } else { C64::ZERO };
                 // The felt rests on the strings: it brakes the vertical
                 // polarisation fully, the sideways one by friction only.
                 // First order in the damping: Σ_j w_j·V_jm² (Vᵀ·V = I).
@@ -319,6 +332,8 @@ impl NoteModel {
                     // Agraffe end: same slope weights with (−1)^{k+1}.
                     out2_re: if k % 2 == 0 { -u.re } else { u.re },
                     out2_im: if k % 2 == 0 { -u.im } else { u.im },
+                    out3_re: u3.re,
+                    out3_im: u3.im,
                     damp_w,
                 });
             }
@@ -362,6 +377,7 @@ impl NoteModel {
                 unison::couple(&dv, eps)
             };
             let mut wout = [0.0; MAX_OSC];
+            let mut wrock = [0.0; MAX_OSC];
             for j in 0..ns {
                 phys.push(PhysOsc { k: 0, freq: fv[j], sigma: -dv[j].re, hit: 1.0, uneven: pattern[j], shape: Some(d[j].shape) });
                 wout[j] = d[j].shape.bridge;
@@ -370,6 +386,9 @@ impl NoteModel {
                 for j in 0..ns {
                     phys.push(PhysOsc { k: 0, freq: fh[j], sigma: -dv[j].re, hit: pol.hammer_tilt, uneven: pattern[j], shape: Some(d[j].shape) });
                     wout[ns + j] = pol.radiation * d[j].shape.bridge;
+                    if rocks {
+                        wrock[ns + j] = d[j].shape.bridge;
+                    }
                 }
             }
             // The damper lies on the speaking length: it takes the mode by
@@ -378,6 +397,7 @@ impl NoteModel {
             let damp_w = if has_damper { model.damper.shape_of(model.damper.pad(note), near, damper_at, np.length, wedge) * hold } else { 0.0 };
             for m in 0..n_osc {
                 let u = cl.output_weight(m, &wout).scale(np.tension * std::f64::consts::PI / np.length);
+                let u3 = cl.output_weight(m, &wrock).scale(np.tension * std::f64::consts::PI / np.length);
                 modes.push(ModeSpec {
                     freq_hz: cl.lam[m].im / tau,
                     sigma: -cl.lam[m].re,
@@ -389,6 +409,8 @@ impl NoteModel {
                     out_im: u.im,
                     out2_re: 0.0,
                     out2_im: 0.0,
+                    out3_re: u3.re,
+                    out3_im: u3.im,
                     damp_w,
                 });
             }
@@ -411,6 +433,7 @@ impl NoteModel {
             has_damper,
             unison: model.unison,
             h_radiation: pol.radiation,
+            rock_input,
             n_listen,
             longitudinal,
             table,
@@ -446,7 +469,8 @@ fn sym_specs(modes: &[ModeSpec], brake: Option<&[C64]>, sample_rate: f64) -> Vec
             let adv = C64::polar(1.0, std::f64::consts::TAU * m.freq_hz * delay) * brake.and_then(|b| b.get(i)).copied().unwrap_or(C64::ONE);
             let g1 = C64::new(m.gain_re, m.gain_im) * adv;
             let g2 = C64::new(m.gain2_re, m.gain2_im) * adv;
-            ModeSpec { gain_re: g1.re, gain_im: g1.im, gain2_re: g2.re, gain2_im: g2.im, ..*m }
+            // (A listening bank is heard by its first output only: no rocking.)
+            ModeSpec { gain_re: g1.re, gain_im: g1.im, gain2_re: g2.re, gain2_im: g2.im, out3_re: 0.0, out3_im: 0.0, ..*m }
         })
         .collect()
 }
@@ -499,6 +523,8 @@ pub fn rear_modes(model: &PianoModel, board: Option<&Soundboard>, sample_rate: f
                 out_im: 0.0,
                 out2_re: 0.0,
                 out2_im: 0.0,
+                out3_re: 0.0,
+                out3_im: 0.0,
                 damp_w: 0.0,
             });
         }
