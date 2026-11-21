@@ -331,6 +331,20 @@ pub struct SoundboardParams {
     /// there from the strike's first sample (docs/attack_rise.md). Through
     /// an all-pass: every partial keeps its level.
     pub case_field_builds: bool,
+    /// The bridge rocks. A string's sideways (horizontal) motion pulls the
+    /// bridge across the strings at their height on the pins, `bridge_height`
+    /// above the board: a moment, which drives each mode of the built board by
+    /// its slope across the bridge, h·∂φ/∂y, where the vertical force drives
+    /// it by φ. The two motions then reach the microphones by paths of their
+    /// own: as a partial's vertical and sideways parts beat apart, it moves
+    /// between the microphones as a real grand's does (±1–4 dB, against
+    /// ±0.1–0.6 dB with one path, docs/bridge_rocking.md). On top of the
+    /// sideways motion's direct share (`polarization.radiation`). Needs the
+    /// built board (`structure`) and `exact_below`.
+    pub bridge_rocking: bool,
+    /// Height (m) of the strings above the board's mid-plane on the bridge:
+    /// the moment's lever.
+    pub bridge_height: f64,
     /// The board as it is built: its modes below `structure.below` come from
     /// a plate, ribs and bridges by finite elements ([`crate::fem`]). Above
     /// that, the rectangle's modes remain, set on `rho_h`, `dx` and `dy` and
@@ -560,6 +574,8 @@ impl SoundboardParams {
         case_field: false,
         radiation_delays: false,
         case_field_builds: false,
+        bridge_rocking: false,
+        bridge_height: 0.033,
         structure: crate::fem::BoardStructure::STEINWAY_D,
     };
 
@@ -1742,6 +1758,22 @@ impl Soundboard {
     /// Shape of every mode as a key's string drives it through the bridge:
     /// Φ averaged (Hann window) over the drive length at the mode's
     /// frequency, along the key's bridge.
+    /// Per mode, the drive of a unit sideways force at the strings' height
+    /// on the key's bridge point (`bridge_rocking`): its moment h·F rocks
+    /// the bridge about the strings' line, and drives the mode by its slope
+    /// across it, h·∂φ/∂y (the strings run along x). Central difference
+    /// over ±1 cm, the built board's element size. The built board's modes
+    /// only; 0 for the others.
+    pub fn bridge_slopes(&self, note: u8) -> Vec<f64> {
+        const D: f64 = 0.01;
+        let (x, y) = self.params.bridge_point(note);
+        let h = self.params.bridge_height;
+        self.modes
+            .iter()
+            .map(|md| if md.fem.is_some() { h * (self.shape(md, x, y + D) - self.shape(md, x, y - D)) / (2.0 * D) } else { 0.0 })
+            .collect()
+    }
+
     pub fn bridge_shapes(&self, note: u8) -> Vec<f64> {
         let p = &self.params;
         let main = note >= p.main_bridge_from;

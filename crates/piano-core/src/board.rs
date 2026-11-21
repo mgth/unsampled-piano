@@ -22,6 +22,9 @@ use crate::simd;
 pub const REGIONS: usize = 16;
 /// Inputs of the bank that takes a force per key ([`LowDrive`]).
 pub const KEYS: usize = 88;
+/// That bank's inputs: each key's force, then each key's rocking moment
+/// (`SoundboardParams::bridge_rocking`, [`LowDrive::rock_input`]).
+pub const LOW_INPUTS: usize = 2 * KEYS;
 /// Mic output slots ([`crate::mics::MAX_MICS`]): a bank computes those of
 /// the set-up's microphones only.
 pub const MICS: usize = crate::mics::MAX_MICS;
@@ -758,10 +761,13 @@ pub struct LowDrive {
     /// The first `n` board modes (those below the soundboard's
     /// `exact_below`).
     pub n: usize,
-    /// Per low mode: its gain from each profile (profile · T).
-    pub inputs: Vec<[f64; KEYS]>,
+    /// Per low mode: its gain from each profile (profile · T), then from
+    /// each key's rocking moment (zeros without `bridge_rocking`).
+    pub inputs: Vec<[f64; LOW_INPUTS]>,
     /// Per key A0..C8: its weight on each profile.
     pub keys: Vec<[f64; KEYS]>,
+    /// The keys' rocking inputs are driven (`bridge_rocking` on a built board).
+    pub rocking: bool,
 }
 
 impl LowDrive {
@@ -783,24 +789,29 @@ impl LowDrive {
         }
         let t = 1.0 / sample_rate;
         // The built board's drive shapes change from key to key up to its
-        // highest modes: a force per key, no profiles.
+        // highest modes: a force per key, no profiles. With the bridge
+        // rocking, each key's moment drives the modes by their slope.
         if sb.fem.is_some() {
-            let inputs = (0..n).map(|i| std::array::from_fn(|k| shapes[k][i] * t)).collect();
+            let rocking = sb.params.bridge_rocking;
+            let slopes: Vec<Vec<f64>> = if rocking { crate::par::map(88, |k| sb.bridge_slopes(21 + k as u8)[..n].to_vec()) } else { Vec::new() };
+            let inputs = (0..n)
+                .map(|i| std::array::from_fn(|j| if j < KEYS { shapes[j][i] * t } else if rocking { slopes[j - KEYS][i] * t } else { 0.0 }))
+                .collect();
             let keys = (0..KEYS).map(|k| std::array::from_fn(|j| if j == k { 1.0 } else { 0.0 })).collect();
-            return Some(Self { n, inputs, keys });
+            return Some(Self { n, inputs, keys, rocking });
         }
         let (_, mut profiles) = crate::eigen::symmetric(&gram, n);
         profiles.truncate(PROFILES);
-        let inputs = (0..n).map(|i| std::array::from_fn(|j| profiles.get(j).map_or(0.0, |v| v[i] * t))).collect();
+        let inputs = (0..n).map(|i| std::array::from_fn(|j| if j < KEYS { profiles.get(j).map_or(0.0, |v| v[i] * t) } else { 0.0 })).collect();
         let keys = shapes
             .iter()
             .map(|s| std::array::from_fn(|j| profiles.get(j).map_or(0.0, |v| v.iter().zip(s).map(|(a, b)| a * b).sum())))
             .collect();
-        Some(Self { n, inputs, keys })
+        Some(Self { n, inputs, keys, rocking: false })
     }
 
     /// The low modes as the bank of profiles runs them.
-    pub fn modes(&self, modes: &[BoardMode]) -> Vec<BoardMode<KEYS>> {
+    pub fn modes(&self, modes: &[BoardMode]) -> Vec<BoardMode<LOW_INPUTS>> {
         modes[..self.n]
             .iter()
             .zip(&self.inputs)
@@ -811,6 +822,11 @@ impl LowDrive {
     /// A key's weights on the profiles.
     pub fn key(&self, note: u8) -> [f64; KEYS] {
         self.keys[(note.clamp(21, 108) - 21) as usize]
+    }
+
+    /// The input a key's rocking moment drives, when the bridge rocks.
+    pub fn rock_input(&self, note: u8) -> Option<usize> {
+        self.rocking.then(|| KEYS + (note.clamp(21, 108) - 21) as usize)
     }
 }
 

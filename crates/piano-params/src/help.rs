@@ -887,6 +887,20 @@ const HELP: &[(&str, &str, &str)] = &[
          its mean level, the attack fills in as a real one does (docs/attack_rise.md).",
     ),
     (
+        "soundboard.bridge_rocking",
+        "The strings' sideways motion rocks the bridge and reaches you by a path of its own.",
+        "A string's horizontal motion pulls the bridge across the strings at their height on the \
+         pins: a moment that drives each mode of the built board by its slope across the bridge \
+         (h·∂φ/∂y), not by its height. A partial's vertical and sideways parts then radiate \
+         differently, and as they beat it moves between the microphones as on a real grand. \
+         On top of `polarization.radiation`; needs the built board (docs/bridge_rocking.md).",
+    ),
+    (
+        "soundboard.bridge_height",
+        "Height of the strings above the board on the bridge: the lever of its rocking.",
+        "m, from the board's mid-plane to the strings on the pins.",
+    ),
+    (
         "soundboard.case_field",
         "The sound that comes back off the rim, the frame and the lid before it leaves the case.",
         "Each mode adds a reverberant field to the microphones, in power, from the power it radiates (`structure.air`) and the openings of the case: p² = 4ρc·P/R, R the box's room constant, above the box's Schroeder frequency, ≈ 500 Hz with the lid at 35°. It adds no damping: that energy is already the mode's radiation loss (docs/real_board.md). With the lid taken off, only the share of the board's sound that meets the rim before leaving feeds the field, 16 % on a concert grand (docs/case_radiation.md).",
