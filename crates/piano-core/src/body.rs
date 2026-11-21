@@ -59,6 +59,17 @@ pub const SPEED_KEYS: [f64; 4] = [21.0, 48.0, 72.0, 96.0];
 /// Largest speed ratio the speed law follows above `speed_ref`.
 const SPEED_RATIO_MAX: f64 = 2.0;
 
+/// A strike that found every slot taken: it takes the slot of `pending[j]`
+/// at its own event frame, `at` samples into the render, once that strike
+/// has had the rest of its excitation (until then the slot's strike rings on
+/// untouched, so nothing before the incoming note changes).
+#[derive(Clone, Copy)]
+struct Handoff {
+    at: u32,
+    next: Pending,
+    tilt: SpeedTilt,
+}
+
 #[derive(Clone, Copy, Default)]
 struct Pending {
     key: u8,
@@ -83,6 +94,8 @@ pub struct BodyBank {
     /// Per key and resonance: amplitude and sign of the strike, unit rms.
     pattern: Vec<f32>,
     pending: [Pending; PENDING],
+    /// Per slot, the strike waiting to take it over, if any.
+    handoff: [Option<Handoff>; PENDING],
     /// Per pending strike and resonance: the speed law's weight.
     speed_w: Vec<f32>,
     pulse: Vec<f32>,
@@ -218,6 +231,7 @@ impl BodyBank {
             w: [vec![0.0; MODES], vec![0.0; MODES]],
             pattern: Vec::new(),
             pending: [Pending::default(); PENDING],
+            handoff: [None; PENDING],
             speed_w: vec![1.0; PENDING * MODES],
             pulse: w.iter().map(|x| (x / sum) as f32).collect(),
             exc: vec![0.0; MODES],
@@ -322,78 +336,91 @@ impl BodyBank {
         }
         let amp = law.gain * speed * 10f64.powf(law.slope * (note as f64 - 60.0) / 12.0 / 20.0);
         let wait = ((offset + law.delay) * self.sample_rate).round().max(0.0) as u32;
-        let j = match self.pending.iter().position(|p| p.amp == 0.0) {
-            Some(j) => j,
-            None => self.make_room(),
-        };
         let sub = if self.rise >= STEPS { (1u32 << (self.rise / STEPS).ilog2()).min(SUB) } else { 1 };
-        self.pending[j] = Pending { key: note - 21, amp: amp as f32, wait, age: 0, rise: self.rise, sub };
+        let next = Pending { key: note - 21, amp: amp as f32, wait, age: 0, rise: self.rise, sub };
+        let tilt = SpeedTilt::of(&law, note, speed).scaled(at_key(&law.speed_halo, note));
+        match self.pending.iter().zip(&self.handoff).position(|(p, h)| p.amp == 0.0 && h.is_none()) {
+            Some(j) => self.install(j, next, tilt),
+            None => {
+                // No room: the strike under way with the least of its
+                // excitation left gives way at this one's own frame.
+                let Some(j) = self.victim() else { return };
+                let at = (offset * self.sample_rate).round().max(0.0) as u32;
+                self.handoff[j] = Some(Handoff { at, next: Pending { wait: wait.saturating_sub(at), ..next }, tilt });
+            }
+        }
+    }
+
+    fn install(&mut self, j: usize, p: Pending, tilt: SpeedTilt) {
+        self.pending[j] = p;
         self.ph_r[j * MODES..(j + 1) * MODES].fill(1.0);
         self.ph_i[j * MODES..(j + 1) * MODES].fill(0.0);
-        let tilt = SpeedTilt::of(&law, note, speed).scaled(at_key(&law.speed_halo, note));
         for (w, &f) in self.speed_w[j * MODES..(j + 1) * MODES].iter_mut().zip(&self.freq) {
             *w = tilt.gain(f) as f32;
         }
     }
 
-    /// No free slot: frees the strike under way with the least of its
-    /// excitation left (one still waiting only if all are). A settling
-    /// strike first takes the rest of its ramp at once, in phase with what
-    /// it already rings, so that its tail is the same as if it had settled
-    /// in: only the rest's onset comes early. Real-time safe.
-    fn make_room(&mut self) -> usize {
-        let left = |p: &Pending, pulse: &[f32]| -> f64 {
+    /// The slot to give up when all are taken: among those not already
+    /// promised, the strike under way with the least of its excitation left
+    /// (one still waiting only if all are).
+    fn victim(&self) -> Option<usize> {
+        let left = |p: &Pending| -> f64 {
             let done = if p.rise > 0 {
                 ramp(p.age.div_ceil(p.sub) * p.sub, p.rise)
             } else {
-                pulse[..(p.age as usize).min(pulse.len())].iter().map(|&x| x as f64).sum()
+                self.pulse[..(p.age as usize).min(self.pulse.len())].iter().map(|&x| x as f64).sum()
             };
             p.amp as f64 * (1.0 - done).max(0.0)
         };
-        let j = (0..PENDING)
-            .min_by(|&a, &b| {
-                let (pa, pb) = (&self.pending[a], &self.pending[b]);
-                (pa.wait > 0).cmp(&(pb.wait > 0)).then(left(pa, &self.pulse).total_cmp(&left(pb, &self.pulse)))
-            })
-            .unwrap();
+        (0..PENDING).filter(|&j| self.handoff[j].is_none()).min_by(|&a, &b| {
+            let (pa, pb) = (&self.pending[a], &self.pending[b]);
+            (pa.wait > 0).cmp(&(pb.wait > 0)).then(left(pa).total_cmp(&left(pb)))
+        })
+    }
+
+    /// A settling strike giving its slot away takes the rest of its ramp at
+    /// once, in phase with what it already rings, so that its tail is the
+    /// same as if it had settled in: only the rest's onset comes early. A
+    /// pulse's last samples (under 0.25 ms) are dropped. Real-time safe.
+    fn settle_rest(&mut self, j: usize) {
         let p = self.pending[j];
-        if p.rise > 0 && p.wait == 0 {
-            // What has been added so far reaches the next step `next`, with
-            // the phasor at p^next; the rest goes in now, at `age`: turned
-            // back by p^(next − age).
-            let next = p.age.div_ceil(p.sub) * p.sub;
-            let d = p.amp as f64 * (1.0 - ramp(next, p.rise));
-            let m = next - p.age;
-            let pat = &self.pattern[p.key as usize * MODES..(p.key as usize + 1) * MODES];
-            let sw = &self.speed_w[j * MODES..(j + 1) * MODES];
-            for i in 0..MODES {
-                // p^m from the tables of p^(2^k), then its inverse.
-                let (mut mr, mut mi) = (1.0f64, 0.0f64);
-                for k in 0..SUB_TABLES {
-                    if m >> k & 1 == 1 {
-                        let (sr, si) = (self.step_r[k][i] as f64, self.step_i[k][i] as f64);
-                        (mr, mi) = (mr * sr - mi * si, mr * si + mi * sr);
-                    }
-                }
-                let n2 = mr * mr + mi * mi;
-                let (qr, qi) = (mr / n2, -mi / n2);
-                let (a, b) = (self.ph_r[j * MODES + i] as f64, self.ph_i[j * MODES + i] as f64);
-                let (hr, hi) = (self.pulse_hr[i] as f64, self.pulse_hi[i] as f64);
-                let (ur, ui) = (a * hr - b * hi, a * hi + b * hr);
-                let (er, ei) = (ur * qr - ui * qi, ur * qi + ui * qr);
-                let v = d * pat[i] as f64 * sw[i] as f64;
-                self.zr[i] += (v * er) as f32;
-                self.zi[i] += (v * ei) as f32;
-            }
-            self.awake = true;
+        if p.amp == 0.0 || p.rise == 0 || p.wait > 0 {
+            return;
         }
-        j
+        // What has been added so far reaches the next step `next`, with the
+        // phasor at p^next; the rest goes in now, at `age`: turned back by
+        // p^(next − age).
+        let next = p.age.div_ceil(p.sub) * p.sub;
+        let d = p.amp as f64 * (1.0 - ramp(next, p.rise));
+        let m = next - p.age;
+        let pat = &self.pattern[p.key as usize * MODES..(p.key as usize + 1) * MODES];
+        let sw = &self.speed_w[j * MODES..(j + 1) * MODES];
+        for i in 0..MODES {
+            // p^m from the tables of p^(2^k), then its inverse.
+            let (mut mr, mut mi) = (1.0f64, 0.0f64);
+            for k in 0..SUB_TABLES {
+                if m >> k & 1 == 1 {
+                    let (sr, si) = (self.step_r[k][i] as f64, self.step_i[k][i] as f64);
+                    (mr, mi) = (mr * sr - mi * si, mr * si + mi * sr);
+                }
+            }
+            let n2 = mr * mr + mi * mi;
+            let (qr, qi) = (mr / n2, -mi / n2);
+            let (a, b) = (self.ph_r[j * MODES + i] as f64, self.ph_i[j * MODES + i] as f64);
+            let (hr, hi) = (self.pulse_hr[i] as f64, self.pulse_hi[i] as f64);
+            let (ur, ui) = (a * hr - b * hi, a * hi + b * hr);
+            let (er, ei) = (ur * qr - ui * qi, ur * qi + ui * qr);
+            let v = d * pat[i] as f64 * sw[i] as f64;
+            self.zr[i] += (v * er) as f32;
+            self.zi[i] += (v * ei) as f32;
+        }
+        self.awake = true;
     }
 
     /// Adds the halo to the two microphone signals (pressure, Pa, times
     /// `gain`). Real-time safe.
     pub fn render(&mut self, out: [&mut [f32]; 2], gain: f32) {
-        if !self.awake && self.pending.iter().all(|p| p.amp == 0.0) {
+        if !self.awake && self.pending.iter().all(|p| p.amp == 0.0) && self.handoff.iter().all(|h| h.is_none()) {
             return;
         }
         let [l, r] = out;
@@ -401,6 +428,17 @@ impl BodyBank {
             // Strikes under way this sample.
             let mut struck = false;
             for j in 0..PENDING {
+                // A strike promised this slot takes it at its own frame.
+                if let Some(h) = &mut self.handoff[j] {
+                    if h.at > 0 {
+                        h.at -= 1;
+                    } else {
+                        let h = *h;
+                        self.handoff[j] = None;
+                        self.settle_rest(j);
+                        self.install(j, h.next, h.tilt);
+                    }
+                }
                 let p = self.pending[j];
                 if p.amp == 0.0 {
                     continue;
@@ -667,6 +705,51 @@ mod tests {
         let err: Vec<f32> = w.clone().map(|i| together[i] - apart[i] - alone[i]).collect();
         let rel = db(&err) - db(&apart[w]);
         assert!(rel < -40.0, "{rel:.1} dB");
+    }
+
+    #[test]
+    fn a_strike_that_needs_a_slot_changes_nothing_before_its_frame() {
+        // All 32 slots settling in; one more note 48 frames into the next
+        // render. Struck with that offset, or after rendering those 48
+        // frames first: the same output, and before the note the same as
+        // without it.
+        let sr = 48_000.0;
+        let law = BodyLaw { t60: [1.0; 8], rise: 0.3, delay: 0.0, ..law() };
+        let full = || {
+            let mut b = BodyBank::new(sr, &law);
+            for k in 0..32u8 {
+                b.strike(30 + 2 * k, 1.0 + 0.05 * k as f64, 0.0);
+            }
+            let (mut l, mut r) = (vec![0.0f32; 64], vec![0.0f32; 64]);
+            b.render([&mut l, &mut r], 1.0);
+            b
+        };
+        let n = 2400;
+        let run = |split: Option<usize>| {
+            let mut b = full();
+            let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+            match split {
+                None => b.render([&mut l, &mut r], 1.0),
+                Some(0) => {
+                    b.strike(80, 2.0, 48.0 / sr);
+                    b.render([&mut l, &mut r], 1.0);
+                }
+                Some(k) => {
+                    b.render([&mut l[..k], &mut r[..k]], 1.0);
+                    b.strike(80, 2.0, 0.0);
+                    b.render([&mut l[k..], &mut r[k..]], 1.0);
+                }
+            }
+            (l, r)
+        };
+        let (without, offset, split) = (run(None), run(Some(0)), run(Some(48)));
+        let diff = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(x, y)| (x - y).abs()).fold(0.0f32, f32::max);
+        assert_eq!(diff(&offset.0[..48], &without.0[..48]), 0.0);
+        assert_eq!(diff(&offset.1[..48], &without.1[..48]), 0.0);
+        assert_eq!(diff(&offset.0, &split.0), 0.0);
+        assert_eq!(diff(&offset.1, &split.1), 0.0);
+        // The note does sound from its frame on.
+        assert!(diff(&offset.0[48..], &without.0[48..]) > 1e-3);
     }
 
     #[test]
