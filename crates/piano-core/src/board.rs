@@ -1007,14 +1007,51 @@ pub fn mic_transfer_folded(modes: &[BoardMode], zones: Option<&Zones>, r: usize,
 /// keys, outputs at the two mics (Rayleigh) and bridge velocity there.
 pub fn board_modes(sb: &crate::soundboard::Soundboard, sample_rate: f64) -> Vec<BoardMode> {
     let shapes: Vec<Vec<f64>> = (0..REGIONS).map(|r| sb.bridge_shapes(region_center_note(r))).collect();
-    board_modes_with(sb, &shapes, true, sample_rate)
+    board_modes_with(sb, &shapes, true, true, sample_rate)
 }
 
-/// Same as [`board_modes`] with point inputs at `points` (m).
+/// Same as [`board_modes`] with point inputs at `points` (m), no probes,
+/// and the plain radiation at the mics whatever the switches (the frame's
+/// own path, `structure::frame_modes`, has no delay zones of its own).
 pub fn board_modes_at(sb: &crate::soundboard::Soundboard, points: &[(f64, f64)], sample_rate: f64) -> Vec<BoardMode> {
-    let shapes: Vec<Vec<f64>> =
-        points.iter().map(|&(x, y)| sb.modes.iter().map(|md| sb.shape(md, x, y)).collect()).collect();
-    board_modes_with(sb, &shapes, false, sample_rate)
+    board_modes_with(sb, &point_shapes(sb, points), false, false, sample_rate)
+}
+
+/// Same as [`board_modes_at`] with the mics as the engine hears them: the
+/// delay zones and the case's slot of the switches ([`zones_for`]), to be
+/// read through [`mic_transfer_folded`].
+pub fn board_modes_heard_at(sb: &crate::soundboard::Soundboard, points: &[(f64, f64)], sample_rate: f64) -> Vec<BoardMode> {
+    board_modes_with(sb, &point_shapes(sb, points), false, true, sample_rate)
+}
+
+fn point_shapes(sb: &crate::soundboard::Soundboard, points: &[(f64, f64)]) -> Vec<Vec<f64>> {
+    points.iter().map(|&(x, y)| sb.modes.iter().map(|md| sb.shape(md, x, y)).collect()).collect()
+}
+
+/// The physical microphones the engine renders (a pair at the origin when
+/// the preset names none, as `Engine::new` takes it).
+pub fn heard_mics(sb: &crate::soundboard::Soundboard) -> crate::mics::Mics {
+    let mics = sb.params.mics;
+    if mics.is_empty() { crate::mics::Mics::pair((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)) } else { mics }
+}
+
+/// Σ over the physical microphones of |[`mic_transfer_folded`]|², region `r`.
+pub fn heard_power(modes: &[BoardMode], zones: Option<&Zones>, n_mics: usize, r: usize, omega: f64, sample_rate: f64) -> f64 {
+    (0..n_mics.min(MICS)).map(|m| mic_transfer_folded(modes, zones, r, m, omega, sample_rate).norm_sqr()).sum()
+}
+
+/// The stereo pair the engine mixes from the physical microphones (each by
+/// its gain and pan, `Engine::process`), region `r`, as
+/// [`mic_transfer_folded`] hears each.
+pub fn stereo_transfer(modes: &[BoardMode], zones: Option<&Zones>, mics: &[crate::mics::Mic], r: usize, omega: f64, sample_rate: f64) -> [crate::complex::C64; 2] {
+    let mut out = [crate::complex::C64::ZERO; 2];
+    for (m, mic) in mics.iter().enumerate().take(MICS) {
+        let (g, (l, rr)) = (10f64.powf(mic.gain_db / 20.0), mic.pan_gains());
+        let h = mic_transfer_folded(modes, zones, r, m, omega, sample_rate);
+        out[0] += h.scale(g * l);
+        out[1] += h.scale(g * rr);
+    }
+    out
 }
 
 /// The probes' outputs of every mode (before the impulse-shape factor):
@@ -1054,12 +1091,13 @@ fn probe_outputs(sb: &crate::soundboard::Soundboard, rad: &[Vec<crate::complex::
 }
 
 /// Board modes with per-region input shapes `shapes[r][mode]`, and the
-/// probes' radiation when `probes` (else none).
-fn board_modes_with(sb: &crate::soundboard::Soundboard, shapes: &[Vec<f64>], probes: bool, sample_rate: f64) -> Vec<BoardMode> {
+/// probes' radiation when `probes` (else none), the mics' slots split by
+/// [`zones_for`] when `zoned` (else the plain radiation).
+fn board_modes_with(sb: &crate::soundboard::Soundboard, shapes: &[Vec<f64>], probes: bool, zoned: bool, sample_rate: f64) -> Vec<BoardMode> {
     use crate::complex::C64;
     // With delay zones, each zone's weights into its own slot; the plain
     // weights (the probes') are their sum once delayed.
-    let zones = if probes { zones_for(sb, sample_rate) } else { None };
+    let zones = if zoned { zones_for(sb, sample_rate) } else { None };
     let zoned = zones.map(|(z, from, w)| (z, w, sb.radiation_zoned(from, w, z.count, z.case)));
     let rad = match &zoned {
         Some((z, w, zr)) => zr
@@ -1362,6 +1400,97 @@ mod tests {
         bank.process(&inputs, 64, &mut refs, None, None);
         assert!(slots.iter().skip(1).any(|s| s.iter().any(|&x| x != 0.0)));
         assert!(bank.energy() > 0.0);
+    }
+
+    /// A board with the switches set, its mics `mics` (absolute).
+    fn switched_board(delays: bool, case: bool, mics: crate::mics::Mics) -> crate::soundboard::Soundboard {
+        let mut model = crate::params::PianoModel::default();
+        let p = model.soundboard.as_mut().unwrap();
+        p.radiation_delays = delays;
+        p.case_field_builds = case;
+        p.case_field |= case;
+        p.mics_relative = false;
+        p.mics = mics;
+        let model = crate::params::PianoModel { soundboard: model.soundboard.map(|s| s.resolved()), ..model };
+        model.board().unwrap()
+    }
+
+    /// Mean of `heard_power` over 400–630 Hz at region 0, dB.
+    fn band_db(modes: &[BoardMode], zones: Option<&Zones>, n_mics: usize, sr: f64) -> f64 {
+        let fs: Vec<f64> = (0..=46).map(|k| 400.0 + 5.0 * k as f64).collect();
+        let s: f64 = fs.iter().map(|f| heard_power(modes, zones, n_mics, 0, std::f64::consts::TAU * f, sr)).sum();
+        10.0 * (s / fs.len() as f64).log10()
+    }
+
+    /// The point-driven diagnostics hear the switches; `board_modes_at`
+    /// (the frame's path) keeps the plain radiation.
+    #[test]
+    fn point_diagnostics_hear_the_radiation_switches() {
+        let sr = 48_000.0;
+        let pair = crate::mics::Mics::pair((0.6, 0.5, 0.4), (1.4, 0.9, 0.4));
+        let pts = [(0.8, 0.6); REGIONS];
+        let w = std::f64::consts::TAU * 500.0;
+        let off = switched_board(false, false, pair);
+        let on = switched_board(true, false, pair);
+        let z = zones_for(&on, sr).map(|z| z.0);
+        assert!(z.is_some_and(|z| z.count > 1));
+        let plain = board_modes_at(&off, &pts, sr);
+        let heard_off = board_modes_heard_at(&off, &pts, sr);
+        let heard_on = board_modes_heard_at(&on, &pts, sr);
+        let frame_on = board_modes_at(&on, &pts, sr);
+        for m in 0..2 {
+            let a = mic_transfer(&plain, 0, m, w, sr);
+            // Switches off: the same modes, bit for bit.
+            assert_eq!(a, mic_transfer_folded(&heard_off, None, 0, m, w, sr));
+            // The frame's path stays unzoned with the switches on.
+            assert_eq!(a, mic_transfer(&frame_on, 0, m, w, sr));
+            // The heard one moves with them.
+            let b = mic_transfer_folded(&heard_on, z.as_ref(), 0, m, w, sr);
+            assert!((b - a).norm() > 1e-3 * a.norm(), "{a:?} {b:?}");
+        }
+    }
+
+    /// One microphone and four zones: only that microphone's slots count,
+    /// and the zoned power stays near the plain one.
+    #[test]
+    fn one_microphone_sums_only_its_own_slots() {
+        let sr = 48_000.0;
+        let one = crate::mics::Mics::new(&[crate::mics::Mic::omni((0.8, 0.6, 0.4))]);
+        let on = switched_board(true, false, one);
+        let off = switched_board(false, false, one);
+        let z = zones_for(&on, sr).map(|z| z.0);
+        assert!(z.is_some_and(|z| z.mics == 1 && z.count == MAX_ZONES), "{:?}", z.map(|z| z.count));
+        assert_eq!(heard_mics(&on).len(), 1);
+        let zoned = board_modes(&on, sr);
+        let plain = board_modes(&off, sr);
+        let heard = band_db(&zoned, z.as_ref(), 1, sr);
+        let reference = band_db(&plain, None, 1, sr);
+        assert!((heard - reference).abs() < 1.0, "{heard} against {reference}");
+        // Counting slot 1 as a second microphone would add mic 0's shifted zones.
+        assert!(band_db(&zoned, z.as_ref(), 2, sr) > heard + 0.5);
+    }
+
+    /// The stereo pair mixes each physical microphone's folded transfer by
+    /// its gain and pan, as the engine's output does.
+    #[test]
+    fn the_stereo_transfer_mixes_by_gain_and_pan() {
+        let sr = 48_000.0;
+        let mut left = crate::mics::Mic::omni((0.6, 0.5, 0.4));
+        left.pan = -1.0;
+        left.gain_db = -6.0;
+        let mut right = crate::mics::Mic::omni((1.4, 0.9, 0.4));
+        right.pan = 1.0;
+        let sb = switched_board(true, true, crate::mics::Mics::new(&[left, right]));
+        let z = zones_for(&sb, sr).map(|z| z.0);
+        let modes = board_modes(&sb, sr);
+        let mics = heard_mics(&sb);
+        for f in [120.0, 500.0, 2000.0] {
+            let w = std::f64::consts::TAU * f;
+            let [l, r] = stereo_transfer(&modes, z.as_ref(), mics.as_slice(), 3, w, sr);
+            let hl = mic_transfer_folded(&modes, z.as_ref(), 3, 0, w, sr).scale(10f64.powf(-6.0 / 20.0));
+            let hr = mic_transfer_folded(&modes, z.as_ref(), 3, 1, w, sr);
+            assert!((l - hl).norm() <= 1e-12 * hl.norm() && (r - hr).norm() <= 1e-12 * hr.norm());
+        }
     }
 
     /// Microphones under a grand hear the back face directly: the zones

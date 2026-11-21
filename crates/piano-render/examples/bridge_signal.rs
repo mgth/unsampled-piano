@@ -10,10 +10,11 @@
 //! Writes raw little-endian f32 files: `<prefix>_bridge.f32` (the velocity,
 //! m/s, 48 kHz), `<prefix>_mics.f32` (left and right interleaved, Pa) and,
 //! with `--transfer`, `<prefix>_transfer.f32`: LEN/2 + 1 bins of the rfft
-//! grid at 48 kHz, each as (re, im) for the left then the right microphone,
-//! in Pa per m/s², the acceleration being the backward difference of the
-//! velocity as the engine makes it for the strings.
-use piano_core::board::{board_modes, mic_differentiator, mic_transfer, mic_transfer_folded, region_of, to_acceleration_weights, transfer, zones_for};
+//! grid at 48 kHz, each as (re, im) for the left then the right channel
+//! (the physical microphones mixed by their gains and pans, as in
+//! `_mics.f32`), in Pa per m/s², the acceleration being the backward
+//! difference of the velocity as the engine makes it for the strings.
+use piano_core::board::{board_modes, heard_mics, mic_differentiator, mic_transfer, region_of, stereo_transfer, to_acceleration_weights, transfer, zones_for};
 use piano_core::engine::SUB_BLOCK;
 use piano_core::instrument::MICS;
 use piano_core::params::PianoModel;
@@ -97,10 +98,11 @@ fn main() {
         let sb = model.board().expect("a preset with a soundboard");
         let mut modes = board_modes(&sb, SR);
         to_acceleration_weights(&mut modes, SR);
-        // Each physical microphone as heard, its delay zones and case's slot
-        // folded in (switches of the preset); the other slots silent.
+        // The left and right of the render: each physical microphone as
+        // heard (its delay zones and case's slot folded in, the preset's
+        // switches), mixed by its gain and pan. Four floats a bin, DC too.
         let split = zones_for(&sb, SR).map(|z| z.0);
-        let n_phys = split.map_or(MICS, |z| z.mics);
+        let mics = heard_mics(&sb);
         let bins = len / 2 + 1;
         let mut out = Vec::with_capacity(bins * 4);
         for j in 0..bins {
@@ -110,12 +112,13 @@ fn main() {
             }
             let w = std::f64::consts::TAU * j as f64 * SR / len as f64;
             let acc = transfer(&modes, r, piano_core::board::BRIDGE + r, w, SR) * mic_differentiator(w, SR);
-            for mic in 0..MICS {
-                let h = if mic < n_phys { mic_transfer_folded(&modes, split.as_ref(), r, mic, w, SR) / acc } else { piano_core::complex::C64::ZERO };
+            for h in stereo_transfer(&modes, split.as_ref(), mics.as_slice(), r, w, SR) {
+                let h = h / acc;
                 out.push(h.re as f32);
                 out.push(h.im as f32);
             }
         }
+        assert_eq!(out.len(), bins * 4, "two complex values a bin");
         write_f32(&format!("{prefix}_transfer.f32"), &out);
         eprintln!("transfer: {bins} bins, {} modes", modes.len());
 
