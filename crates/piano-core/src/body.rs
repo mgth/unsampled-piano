@@ -104,9 +104,20 @@ pub struct BodyBank {
     /// Length of the rise in samples for the next strikes; 0: struck at
     /// once by the pulse, as is any rise no longer than the pulse itself.
     rise: u32,
+    /// The tables of the resonances (poles, steps, pulse) and of the
+    /// microphones' weights hold for `law`: a live change that leaves the
+    /// decays or the levels as they were skips their rebuild.
+    built: bool,
     awake: bool,
     sample_rate: f64,
     law: BodyLaw,
+}
+
+/// The share of a strike settled in after `age` samples of a rise of `rise`
+/// samples: a raised-cosine ramp from 0 to 1.
+fn ramp(age: u32, rise: u32) -> f64 {
+    let x = (age as f64 / rise as f64).min(1.0);
+    x - (std::f64::consts::TAU * x).sin() / std::f64::consts::TAU
 }
 
 fn hash(a: f64, b: f64) -> f64 {
@@ -217,6 +228,7 @@ impl BodyBank {
             ph_r: vec![1.0; PENDING * MODES],
             ph_i: vec![0.0; PENDING * MODES],
             rise: 0,
+            built: false,
             awake: false,
             sample_rate,
             law: *law,
@@ -248,39 +260,51 @@ impl BodyBank {
             self.fill_pattern(&mut p, law.shared);
             self.pattern = p;
         }
+        let poles = !self.built || law.t60 != self.law.t60;
+        let weights = !self.built || law.levels != self.law.levels;
+        self.built = true;
         self.law = *law;
         let rise = (law.rise.max(0.0) * self.sample_rate).round() as u32;
         self.rise = if rise as usize <= self.pulse.len() { 0 } else { rise };
-        // Unit peak for MODES resonances of random sign and unit rms.
-        let norm = 1.0 / (MODES as f64).sqrt();
-        for i in 0..MODES {
-            let f = self.freq[i];
-            let t60 = band_value(&law.t60, f).max(1e-3);
-            let r = (-6.91 / (t60 * self.sample_rate)).exp();
-            let wv = std::f64::consts::TAU * f / self.sample_rate;
-            self.pr[i] = (r * wv.cos()) as f32;
-            self.pi[i] = (r * wv.sin()) as f32;
-            for k in 0..SUB_TABLES {
-                let n = 1i32 << k;
-                let rn = r.powi(n);
-                self.step_r[k][i] = (rn * (wv * n as f64).cos()) as f32;
-                self.step_i[k][i] = (rn * (wv * n as f64).sin()) as f32;
+        if poles {
+            for i in 0..MODES {
+                let f = self.freq[i];
+                let t60 = band_value(&law.t60, f).max(1e-3);
+                let r = (-6.91 / (t60 * self.sample_rate)).exp();
+                let wv = std::f64::consts::TAU * f / self.sample_rate;
+                let (cr, ci) = (r * wv.cos(), r * wv.sin());
+                self.pr[i] = cr as f32;
+                self.pi[i] = ci as f32;
+                // p^(2^k) by squaring.
+                let (mut sr, mut si) = (cr, ci);
+                for k in 0..SUB_TABLES {
+                    self.step_r[k][i] = sr as f32;
+                    self.step_i[k][i] = si as f32;
+                    (sr, si) = (sr * sr - si * si, 2.0 * sr * si);
+                }
+                // The pulse added sample by sample to a decaying, turning
+                // resonance amounts to one kick of Σ_k w_k·p^(−k), p = r·e^(iω).
+                let (qr, qi) = (wv.cos() / r, -wv.sin() / r);
+                let (mut gr, mut gi, mut hr, mut hi) = (1.0, 0.0, 0.0, 0.0);
+                for &x in &self.pulse {
+                    hr += x as f64 * gr;
+                    hi += x as f64 * gi;
+                    (gr, gi) = (gr * qr - gi * qi, gr * qi + gi * qr);
+                }
+                self.pulse_hr[i] = hr as f32;
+                self.pulse_hi[i] = hi as f32;
             }
-            // The pulse added sample by sample to a decaying, turning
-            // resonance amounts to one kick of Σ_k w_k·p^(−k), p = r·e^(iω).
-            let (mut hr, mut hi) = (0.0, 0.0);
-            for (k, &x) in self.pulse.iter().enumerate() {
-                let g = x as f64 * r.powi(-(k as i32));
-                hr += g * (wv * k as f64).cos();
-                hi -= g * (wv * k as f64).sin();
-            }
-            self.pulse_hr[i] = hr as f32;
-            self.pulse_hi[i] = hi as f32;
-            let level = 10f64.powf(band_value(&law.levels, f) / 20.0) * norm;
-            for (ch, w) in self.w.iter_mut().enumerate() {
-                let h = hash(i as f64 + 0.5, ch as f64 + 41.0);
-                let sign = if hash(i as f64, ch as f64 + 17.0) < 0.5 { -1.0 } else { 1.0 };
-                w[i] = (level * sign * (0.7 + 0.6 * h)) as f32;
+        }
+        if weights {
+            // Unit peak for MODES resonances of random sign and unit rms.
+            let norm = 1.0 / (MODES as f64).sqrt();
+            for i in 0..MODES {
+                let level = 10f64.powf(band_value(&law.levels, self.freq[i]) / 20.0) * norm;
+                for (ch, w) in self.w.iter_mut().enumerate() {
+                    let h = hash(i as f64 + 0.5, ch as f64 + 41.0);
+                    let sign = if hash(i as f64, ch as f64 + 17.0) < 0.5 { -1.0 } else { 1.0 };
+                    w[i] = (level * sign * (0.7 + 0.6 * h)) as f32;
+                }
             }
         }
     }
@@ -298,10 +322,9 @@ impl BodyBank {
         }
         let amp = law.gain * speed * 10f64.powf(law.slope * (note as f64 - 60.0) / 12.0 / 20.0);
         let wait = ((offset + law.delay) * self.sample_rate).round().max(0.0) as u32;
-        // No room: the strike furthest along gives up what it had left.
         let j = match self.pending.iter().position(|p| p.amp == 0.0) {
             Some(j) => j,
-            None => (0..PENDING).max_by_key(|&j| (self.pending[j].wait == 0, self.pending[j].age)).unwrap(),
+            None => self.make_room(),
         };
         let sub = if self.rise >= STEPS { (1u32 << (self.rise / STEPS).ilog2()).min(SUB) } else { 1 };
         self.pending[j] = Pending { key: note - 21, amp: amp as f32, wait, age: 0, rise: self.rise, sub };
@@ -311,6 +334,60 @@ impl BodyBank {
         for (w, &f) in self.speed_w[j * MODES..(j + 1) * MODES].iter_mut().zip(&self.freq) {
             *w = tilt.gain(f) as f32;
         }
+    }
+
+    /// No free slot: frees the strike under way with the least of its
+    /// excitation left (one still waiting only if all are). A settling
+    /// strike first takes the rest of its ramp at once, in phase with what
+    /// it already rings, so that its tail is the same as if it had settled
+    /// in: only the rest's onset comes early. Real-time safe.
+    fn make_room(&mut self) -> usize {
+        let left = |p: &Pending, pulse: &[f32]| -> f64 {
+            let done = if p.rise > 0 {
+                ramp(p.age.div_ceil(p.sub) * p.sub, p.rise)
+            } else {
+                pulse[..(p.age as usize).min(pulse.len())].iter().map(|&x| x as f64).sum()
+            };
+            p.amp as f64 * (1.0 - done).max(0.0)
+        };
+        let j = (0..PENDING)
+            .min_by(|&a, &b| {
+                let (pa, pb) = (&self.pending[a], &self.pending[b]);
+                (pa.wait > 0).cmp(&(pb.wait > 0)).then(left(pa, &self.pulse).total_cmp(&left(pb, &self.pulse)))
+            })
+            .unwrap();
+        let p = self.pending[j];
+        if p.rise > 0 && p.wait == 0 {
+            // What has been added so far reaches the next step `next`, with
+            // the phasor at p^next; the rest goes in now, at `age`: turned
+            // back by p^(next − age).
+            let next = p.age.div_ceil(p.sub) * p.sub;
+            let d = p.amp as f64 * (1.0 - ramp(next, p.rise));
+            let m = next - p.age;
+            let pat = &self.pattern[p.key as usize * MODES..(p.key as usize + 1) * MODES];
+            let sw = &self.speed_w[j * MODES..(j + 1) * MODES];
+            for i in 0..MODES {
+                // p^m from the tables of p^(2^k), then its inverse.
+                let (mut mr, mut mi) = (1.0f64, 0.0f64);
+                for k in 0..SUB_TABLES {
+                    if m >> k & 1 == 1 {
+                        let (sr, si) = (self.step_r[k][i] as f64, self.step_i[k][i] as f64);
+                        (mr, mi) = (mr * sr - mi * si, mr * si + mi * sr);
+                    }
+                }
+                let n2 = mr * mr + mi * mi;
+                let (qr, qi) = (mr / n2, -mi / n2);
+                let (a, b) = (self.ph_r[j * MODES + i] as f64, self.ph_i[j * MODES + i] as f64);
+                let (hr, hi) = (self.pulse_hr[i] as f64, self.pulse_hi[i] as f64);
+                let (ur, ui) = (a * hr - b * hi, a * hi + b * hr);
+                let (er, ei) = (ur * qr - ui * qi, ur * qi + ui * qr);
+                let v = d * pat[i] as f64 * sw[i] as f64;
+                self.zr[i] += (v * er) as f32;
+                self.zi[i] += (v * ei) as f32;
+            }
+            self.awake = true;
+        }
+        j
     }
 
     /// Adds the halo to the two microphone signals (pressure, Pa, times
@@ -338,11 +415,7 @@ impl BodyBank {
                     // Settling in: every `sub` samples the next step of the
                     // ramp, turned as the resonance has since the strike.
                     if p.age.is_multiple_of(p.sub) {
-                        let ramp = |a: u32| {
-                            let x = (a as f64 / p.rise as f64).min(1.0);
-                            x - (std::f64::consts::TAU * x).sin() / std::f64::consts::TAU
-                        };
-                        let d = (p.amp as f64 * (ramp(p.age + p.sub) - ramp(p.age))) as f32;
+                        let d = (p.amp as f64 * (ramp(p.age + p.sub, p.rise) - ramp(p.age, p.rise))) as f32;
                         let t = p.sub.trailing_zeros() as usize;
                         let (sr, si) = (&self.step_r[t], &self.step_i[t]);
                         let phr = &mut self.ph_r[j * MODES..(j + 1) * MODES];
@@ -557,6 +630,43 @@ mod tests {
             let x = first(n);
             assert!(x <= 1.5 * pulse, "rise {n} samples: first sample {x:.5} of the peak, the pulse's {pulse:.5}");
         }
+    }
+
+    #[test]
+    fn a_full_queue_keeps_every_strike_whole() {
+        // Four eight-note chords 40 ms apart fill the 32 slots while they
+        // settle in over 0.3 s; one quiet note at 160 ms must free one. Once
+        // every ramp is over, the halo is the sum of each strike's own.
+        let sr = 48_000.0;
+        let law = BodyLaw { t60: [1.0; 8], rise: 0.3, delay: 0.0, ..law() };
+        let chords: Vec<(usize, u8, f64)> = (0..4).flat_map(|c| (0..8).map(move |k| (c * 1920, 36 + 3 * k as u8 + c as u8, 2.0))).collect();
+        let quiet = (7680, 70, 0.3);
+        let play = |strikes: &[(usize, u8, f64)]| {
+            let mut b = BodyBank::new(sr, &law);
+            let n = (sr * 0.6) as usize;
+            let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+            let mut at = 0;
+            let mut times: Vec<usize> = strikes.iter().map(|s| s.0).collect();
+            times.push(n);
+            times.sort();
+            times.dedup();
+            for t in times {
+                b.render([&mut l[at..t], &mut r[at..t]], 1.0);
+                for &(_, note, speed) in strikes.iter().filter(|s| s.0 == t) {
+                    b.strike(note, speed, 0.0);
+                }
+                at = t;
+            }
+            l
+        };
+        let mut all = chords.clone();
+        all.push(quiet);
+        let (together, apart, alone) = (play(&all), play(&chords), play(&[quiet]));
+        let db = |x: &[f32]| 10.0 * (x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len() as f64).log10();
+        let w = (0.5 * sr) as usize..(0.6 * sr) as usize;
+        let err: Vec<f32> = w.clone().map(|i| together[i] - apart[i] - alone[i]).collect();
+        let rel = db(&err) - db(&apart[w]);
+        assert!(rel < -40.0, "{rel:.1} dB");
     }
 
     #[test]
