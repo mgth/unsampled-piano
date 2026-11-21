@@ -125,6 +125,12 @@ pub struct Longitudinal {
     pub coupling: f32,
     /// One-pole high-pass pole on the board force (bridge moment).
     pub hp_pole: f32,
+    /// The strike's stretching (`strike_stretch`), per longitudinal mode n:
+    /// the rotation e^(i·nπc·dt/L) of the strain pulses leaving the strike
+    /// point and the weight that turns Σ F_s² into the mode's bracket,
+    /// (8/(L·c))·cos(nπx_h/L)·dt/(4Z²·strings). Empty when off.
+    pub strike_rot: Vec<(f32, f32)>,
+    pub strike_w: Vec<f32>,
 }
 
 impl NoteModel {
@@ -622,7 +628,24 @@ fn longitudinal(
         long_gain.push((-(ea * n as f64 * PI / 8.0) * ns as f64 * dt / (m_long * w)) as f32);
         long_out.push((nl.coupling * ea * n as f64 * PI / np.length) as f32);
     }
+    // The strike's stretching, d'Alembert while the pulses run free: the
+    // string's speed under the hammer is v = F/(2Z) and the strain v²/c²
+    // leaves at ±c, so (4/L)·∫y'²·cos(nπx/L)dx = (8/(L·c))·cos(nπx_h/L)·
+    // ∫v²(s)·cos(nπc(t − s)/L)ds, x_h from the bridge.
+    let (mut strike_rot, mut strike_w) = (Vec::new(), Vec::new());
+    if nl.strike_stretch {
+        let c = (np.tension / np.mu).sqrt();
+        let z2 = np.tension * np.mu;
+        let xh = (1.0 - np.strike_pos) * np.length;
+        for n in 1..=n_long {
+            let r = C64::polar(1.0, n as f64 * PI * c * dt / np.length);
+            strike_rot.push((r.re as f32, r.im as f32));
+            strike_w.push((nl.strike_scale * 8.0 / (np.length * c) * (n as f64 * PI * xh / np.length).cos() * dt / (4.0 * z2 * ns as f64)) as f32);
+        }
+    }
     Some(Longitudinal {
+        strike_rot,
+        strike_w,
         slope,
         weights,
         pole_re,

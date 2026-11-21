@@ -871,6 +871,22 @@ const HELP: &[(&str, &str, &str)] = &[
          (docs/board_radiation.md).",
     ),
     (
+        "soundboard.radiation_delays",
+        "Sound takes time to reach you from each part of the board: the far end later than the near one.",
+        "The board split by distance from the microphones into delay zones (as many as free mic \
+         slots: 4 for a pair), each heard after its own travel time; a mode's steady sound is \
+         unchanged. At the player's seat the attack then rises as on a real grand from A2 to C5; \
+         with close microphones it changes little. Costs about a quarter more CPU \
+         (docs/attack_rise.md).",
+    ),
+    (
+        "soundboard.case_field_builds",
+        "The sound inside the case builds up over a few milliseconds instead of being there at once.",
+        "The case's field (`case_field`) heard through all-passes whose energy gathers like a box \
+         of time constant 4V/(cA) (4.6 ms on the concert grand, lid at 35°): every partial keeps \
+         its mean level, the attack fills in as a real one does (docs/attack_rise.md).",
+    ),
+    (
         "soundboard.case_field",
         "The sound that comes back off the rim, the frame and the lid before it leaves the case.",
         "Each mode adds a reverberant field to the microphones, in power, from the power it radiates (`structure.air`) and the openings of the case: p² = 4ρc·P/R, R the box's room constant, above the box's Schroeder frequency, ≈ 500 Hz with the lid at 35°. It adds no damping: that energy is already the mode's radiation loss (docs/real_board.md). With the lid taken off, only the share of the board's sound that meets the rim before leaving feeds the field, 16 % on a concert grand (docs/case_radiation.md).",
@@ -1200,6 +1216,15 @@ const HELP: &[(&str, &str, &str)] = &[
     ("nonlinear.max_long_hz", "Highest stretching vibration kept (CPU).", "Longitudinal modes kept (Hz)."),
     ("nonlinear.long_loss", "Damping of the stretching vibrations.", "Loss factor of the longitudinal modes."),
     ("nonlinear.coupling", "Loudness of the phantom overtones.", "Share of the longitudinal force at the bridge driving the board; ≈ −28 dB below the partials in the bass at ff (tools/phantom_levels.py)."),
+    (
+        "nonlinear.strike_stretch",
+        "The faint noise a bass string sends to the bridge as soon as it is struck, before its tone arrives.",
+        "While the hammer pushes, the strain of the two pulses leaving the strike point drives the \
+         longitudinal modes (d'Alembert: string speed F/(2Z) under the hammer); off, they start \
+         after the contact. A real bass's bridge carries it 5–10 ms ahead of the transverse wave \
+         (docs/attack_rise.md).",
+    ),
+    ("nonlinear.strike_scale", "Loudness of that strike noise.", "Scale on the strike's stretching force (1: as computed; 0.25 meets Plath's grand below D2)."),
     (
         "nonlinear.coupling_corner",
         "Slow changes of string tension barely move the board; this filters them out.",

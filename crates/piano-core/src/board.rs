@@ -829,6 +829,143 @@ pub fn mic_transfer(modes: &[BoardMode], r: usize, mic: usize, omega: f64, sampl
     transfer(modes, r, mic, omega, sample_rate) * mic_differentiator(omega, sample_rate)
 }
 
+/// The board's mic slots when its radiation is split
+/// (`SoundboardParams::radiation_delays`, `case_field_builds`): slot
+/// z·mics + m carries delay zone z of microphone m, heard z·step samples
+/// after zone 0 (which is heard as without zones); with `case`, slot
+/// count·mics + m carries the case's field at microphone m, heard through
+/// the box's fill ([`CASE_STAGES`] all-passes, delays ∝ `case_time`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Zones {
+    pub mics: usize,
+    pub count: usize,
+    pub step: usize,
+    pub case: bool,
+    /// The box's energy time constant, samples.
+    pub case_time: f64,
+}
+
+impl Zones {
+    /// Slots the zones (and the case's field) take.
+    pub fn slots(&self) -> usize {
+        self.mics * (self.count + self.case as usize)
+    }
+}
+
+/// Most zones a microphone gets.
+pub const MAX_ZONES: usize = 4;
+
+/// The case's fill: all-pass stages with delays CASE_STAGES·τ and gain
+/// CASE_GAIN, whose impulse response gathers its energy like a box of
+/// energy time constant τ (16/43/78/98 % by τ·0.35/0.9/1.75/3.5, against
+/// 30/58/83/97 % for e^(−t/τ)), each microphone's delays a little apart.
+pub const CASE_STAGES: [f64; 5] = [0.07, 0.13, 0.21, 0.33, 0.47];
+pub const CASE_GAIN: f32 = 0.7;
+
+/// The split of a board's radiation, with the distance (m) zone 0 starts
+/// at and the zones' width (m, a whole number of samples of sound travel):
+/// the direct paths' range split evenly, as many zones as the free mic
+/// slots allow. None when neither switch is on (or nothing to split).
+pub fn zones_for(sb: &crate::soundboard::Soundboard, sample_rate: f64) -> Option<(Zones, f64, f64)> {
+    let p = &sb.params;
+    let mics = p.mics.as_slice().len();
+    let case = p.case_field_builds && p.case_field && !p.vertical;
+    if !(p.radiation_delays || case) || !p.radiate || mics == 0 || mics * (1 + case as usize) > MICS {
+        return None;
+    }
+    let case_time = if case { sb.params.case_fill_time() * sample_rate } else { 0.0 };
+    let (lo, hi) = sb.mic_path_range();
+    let count = if p.radiation_delays && !p.vertical && hi > lo { (MICS / mics - case as usize).min(MAX_ZONES) } else { 1 };
+    if count < 2 {
+        return case.then_some((Zones { mics, count: 1, step: 0, case, case_time }, 0.0, 1.0));
+    }
+    let c = crate::soundboard::C0;
+    let step = ((hi - lo) / count as f64 / c * sample_rate).round().max(1.0) as usize;
+    Some((Zones { mics, count, step, case, case_time }, lo, step as f64 * c / sample_rate))
+}
+
+/// Delays the zones' slots and adds them to their microphone's, the case's
+/// field through the box's fill (each slot cleared once taken). Allocated
+/// once; real-time safe.
+pub struct ZoneFold {
+    zones: Zones,
+    rings: Vec<Vec<f32>>,
+    mask: usize,
+    pos: usize,
+    /// Per microphone, per all-pass stage: its delay line and length.
+    case: Vec<[(Vec<f32>, usize); CASE_STAGES.len()]>,
+    case_pos: usize,
+}
+
+impl ZoneFold {
+    pub fn new(zones: Zones, max_block: usize) -> Self {
+        let size = ((zones.count - 1) * zones.step + max_block + 1).next_power_of_two();
+        let case = if zones.case {
+            (0..zones.mics)
+                .map(|m| {
+                    std::array::from_fn(|k| {
+                        let n = ((CASE_STAGES[k] * (1.0 + 0.11 * m as f64) * zones.case_time).round() as usize).max(1);
+                        (vec![0.0; n], n)
+                    })
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        Self { zones, rings: vec![vec![0.0; size]; (zones.count - 1) * zones.mics], mask: size - 1, pos: 0, case, case_pos: 0 }
+    }
+
+    pub fn zones(&self) -> Zones {
+        self.zones
+    }
+
+    /// `slots[..zones.slots()]`, the first `len` samples.
+    pub fn fold<S: AsMut<[f32]>>(&mut self, slots: &mut [S], len: usize) {
+        let n = self.zones.mics;
+        for (k, ring) in self.rings.iter_mut().enumerate() {
+            let s = n + k;
+            let d = (s / n) * self.zones.step;
+            {
+                let x = &mut slots[s].as_mut()[..len];
+                for (t, v) in x.iter_mut().enumerate() {
+                    ring[(self.pos + t) & self.mask] = *v;
+                    *v = 0.0;
+                }
+            }
+            let y = &mut slots[s % n].as_mut()[..len];
+            for (t, v) in y.iter_mut().enumerate() {
+                *v += ring[(self.pos + t).wrapping_sub(d) & self.mask];
+            }
+        }
+        self.pos = (self.pos + len) & self.mask;
+        let base = self.zones.count * n;
+        let g = CASE_GAIN;
+        for (m, stages) in self.case.iter_mut().enumerate() {
+            {
+                // Schroeder all-passes, y = −g·x + w[n−d], w = x + g·w[n−d].
+                let x = &mut slots[base + m].as_mut()[..len];
+                for (t, v) in x.iter_mut().enumerate() {
+                    let mut u = *v;
+                    for (line, d) in stages.iter_mut() {
+                        let i = (self.case_pos + t) % *d;
+                        let w = u + g * line[i];
+                        let y = line[i] - g * w;
+                        line[i] = w;
+                        u = y;
+                    }
+                    *v = u;
+                }
+            }
+            let (head, tail) = slots.split_at_mut(base);
+            for (y, x) in head[m].as_mut()[..len].iter_mut().zip(tail[m].as_mut()[..len].iter_mut()) {
+                *y += *x;
+                *x = 0.0;
+            }
+        }
+        self.case_pos = self.case_pos.wrapping_add(len);
+    }
+}
+
 /// Board modes for a soundboard: inputs through the bridge at the region
 /// keys, outputs at the two mics (Rayleigh) and bridge velocity there.
 pub fn board_modes(sb: &crate::soundboard::Soundboard, sample_rate: f64) -> Vec<BoardMode> {
@@ -883,7 +1020,24 @@ fn probe_outputs(sb: &crate::soundboard::Soundboard, rad: &[Vec<crate::complex::
 /// probes' radiation when `probes` (else none).
 fn board_modes_with(sb: &crate::soundboard::Soundboard, shapes: &[Vec<f64>], probes: bool, sample_rate: f64) -> Vec<BoardMode> {
     use crate::complex::C64;
-    let rad = sb.radiation();
+    // With delay zones, each zone's weights into its own slot; the plain
+    // weights (the probes') are their sum once delayed.
+    let zones = if probes { zones_for(sb, sample_rate) } else { None };
+    let zoned = zones.map(|(z, from, w)| (z, w, sb.radiation_zoned(from, w, z.count, z.case)));
+    let rad = match &zoned {
+        Some((z, w, zr)) => zr
+            .iter()
+            .zip(&sb.modes)
+            .map(|(r, md)| {
+                let k = md.omega / crate::soundboard::C0;
+                let per = z.count + z.case as usize;
+                // Zone q heard q·w later; the case's slot undelayed.
+                let delay = |q: usize| if q < z.count { q as f64 * w } else { 0.0 };
+                (0..z.mics).map(|m| (0..per).fold(C64::ZERO, |s, q| s + r[m * per + q] * C64::polar(1.0, -k * delay(q)))).collect()
+            })
+            .collect(),
+        None => sb.radiation(),
+    };
     let at_probes = if probes { probe_outputs(sb, &rad, shapes) } else { Vec::new() };
     let nyq = 0.45 * sample_rate;
     let t = 1.0 / sample_rate;
@@ -894,8 +1048,21 @@ fn board_modes_with(sb: &crate::soundboard::Soundboard, shapes: &[Vec<f64>], pro
         .filter(|(_, (md, _))| md.omega / std::f64::consts::TAU < nyq)
         .map(|(i, (md, w))| {
             let mut outputs = [(0.0, 0.0); OUTPUTS];
-            for (o, x) in outputs.iter_mut().zip(w.iter().take(MICS)) {
-                *o = (x.re, x.im);
+            match &zoned {
+                Some((z, _, zr)) => {
+                    let per = z.count + z.case as usize;
+                    for m in 0..z.mics {
+                        for q in 0..per {
+                            let x = zr[i][m * per + q];
+                            outputs[q * z.mics + m] = (x.re, x.im);
+                        }
+                    }
+                }
+                None => {
+                    for (o, x) in outputs.iter_mut().zip(w.iter().take(MICS)) {
+                        *o = (x.re, x.im);
+                    }
+                }
             }
             for (k, p) in at_probes.get(i).into_iter().flatten().enumerate() {
                 outputs[MICS + k] = (p.re, p.im);
@@ -1077,5 +1244,60 @@ mod tests {
                 Some(r) => assert!(r.iter().zip(&out).all(|(a, b)| a.to_bits() == b.to_bits()), "{isa:?}"),
             }
         }
+    }
+
+    /// Delayed by their own travel time, the zones (and the case's slot)
+    /// sum to the plain radiation at each mode's frequency.
+    #[test]
+    fn zones_sum_to_the_plain_radiation() {
+        let sr = 48_000.0;
+        let mut model = crate::params::PianoModel::default();
+        let p = model.soundboard.as_mut().unwrap();
+        p.radiation_delays = true;
+        p.case_field_builds = true;
+        p.case_field = true;
+        p.mics = crate::mics::Mics::new(&p.mics.as_slice()[..2]);
+        let model = crate::params::PianoModel { soundboard: model.soundboard.map(|s| s.resolved()), ..model };
+        let sb = model.board().unwrap();
+        let (z, from, w) = zones_for(&sb, sr).unwrap();
+        assert_eq!((z.mics, z.count, z.case), (2, 3, true));
+        let zr = sb.radiation_zoned(from, w, z.count, z.case);
+        let plain = sb.radiation();
+        let per = z.count + 1;
+        let (mut err, mut norm) = (0.0f64, 0.0f64);
+        for (i, md) in sb.modes.iter().enumerate().take(400) {
+            let k = md.omega / crate::soundboard::C0;
+            for m in 0..z.mics {
+                let sum = (0..per).fold(crate::complex::C64::ZERO, |s, q| {
+                    let d = if q < z.count { q as f64 * w } else { 0.0 };
+                    s + zr[i][m * per + q] * crate::complex::C64::polar(1.0, -k * d)
+                });
+                err = err.max((sum - plain[i][m]).norm());
+                norm = norm.max(plain[i][m].norm());
+            }
+        }
+        assert!(err < 1e-6 * norm, "{err} against {norm}");
+    }
+
+    /// The fold delays each zone by whole samples and passes the case's slot
+    /// through an all-pass: an impulse comes out with all its energy.
+    #[test]
+    fn the_fold_delays_zones_and_keeps_the_case_energy() {
+        let zones = Zones { mics: 2, count: 2, step: 5, case: true, case_time: 4.6e-3 * 48_000.0 };
+        let mut fold = ZoneFold::new(zones, 64);
+        let (mut zone_out, mut case_e) = (Vec::new(), 0.0f64);
+        for b in 0..200 {
+            let mut slots: Vec<Vec<f32>> = vec![vec![0.0; 64]; zones.slots()];
+            if b == 0 {
+                slots[2][0] = 1.0; // zone 1 of mic 0
+                slots[5][0] = 1.0; // the case of mic 1
+            }
+            fold.fold(&mut slots, 64);
+            zone_out.extend_from_slice(&slots[0]);
+            case_e += slots[1].iter().map(|x| (*x as f64).powi(2)).sum::<f64>();
+            assert!(slots[2..].iter().all(|s| s.iter().all(|&x| x == 0.0)));
+        }
+        assert_eq!(zone_out.iter().position(|&x| x != 0.0), Some(5));
+        assert!((case_e - 1.0).abs() < 1e-3, "{case_e}");
     }
 }

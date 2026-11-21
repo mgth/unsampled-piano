@@ -72,6 +72,10 @@ pub struct Voice {
     /// Samples since the hammer left the strings, for the onset ramp.
     nl_age: u32,
     nl_ramp: u32,
+    /// The strike's strain pulses per longitudinal mode (`strike_stretch`)
+    /// and the strings' Σ F² of the contact's samples.
+    nl_strike: Vec<(f32, f32)>,
+    stretch: Vec<f32>,
     /// High-pass state (previous input, output).
     nl_hp: (f32, f32),
     /// Below this bridge-force energy (N²) a sympathetic bank at rest is
@@ -120,6 +124,8 @@ impl Voice {
             nl_a: vec![0.0; nl_partials],
             nl_long: vec![(0.0, 0.0); nl_long],
             nl_age: 0,
+            nl_strike: vec![(0.0, 0.0); nl_long],
+            stretch: vec![0.0; max_block],
             // The stretching builds up while the hammer pushes: 2 ms ramp
             // from the hand-over (a step would ring the high longitudinal
             // modes like a click).
@@ -172,6 +178,7 @@ impl Voice {
         }
         self.bank.set_active_len(nm.modes.len());
         self.struck = true;
+        self.nl_strike.fill((0.0, 0.0));
         let n = nm.n_osc;
         let ns = nm.params.strings;
         let shift = if ns >= 2 { una_corda.clamp(0.0, 1.0) } else { 0.0 };
@@ -255,7 +262,13 @@ impl Voice {
         let mut start = 0;
         if self.contact.is_active() {
             let agraffe = with_agraffe.then_some(&mut self.agraffe[..n]);
-            start = self.contact.run(&mut self.force[from..to], agraffe);
+            let strike = nm.longitudinal.as_ref().filter(|lg| !lg.strike_w.is_empty());
+            if let Some(lg) = strike {
+                start = self.contact.run_with(&mut self.force[from..to], agraffe, Some(&mut self.stretch[..n]));
+                self.nl_strike_run(lg, from, start);
+            } else {
+                start = self.contact.run(&mut self.force[from..to], agraffe);
+            }
             if !self.contact.is_active() {
                 self.hand_over(nm);
             }
@@ -391,6 +404,33 @@ impl Voice {
         true
     }
 
+    /// During the contact (`strike_stretch`): the strike's strain pulses
+    /// drive the longitudinal modes, whose force on the bridge is added to
+    /// `force[from..from + len]` (`stretch[..len]` holds Σ F²).
+    fn nl_strike_run(&mut self, lg: &crate::note_model::Longitudinal, from: usize, len: usize) {
+        let nl = lg.strike_w.len();
+        for i in 0..len {
+            let s2 = self.stretch[i];
+            let mut out = 0.0f32;
+            for n in 0..nl {
+                let (jr, ji) = self.nl_strike[n];
+                let (rr, ri) = lg.strike_rot[n];
+                let j = (rr * jr - ri * ji + lg.strike_w[n] * s2, rr * ji + ri * jr);
+                self.nl_strike[n] = j;
+                let f = lg.long_gain[n] * j.0;
+                let (zr, zi) = self.nl_long[n];
+                let (pr, pi) = lg.long_pole[n];
+                let z = (pr * zr - pi * zi + f, pr * zi + pi * zr);
+                self.nl_long[n] = z;
+                out += lg.long_out[n] * z.1;
+            }
+            let (x1, y1) = self.nl_hp;
+            let y = lg.hp_pole * (y1 + out - x1);
+            self.nl_hp = (out, y);
+            self.force[from + i] += y;
+        }
+    }
+
     /// Adds the longitudinal force on the bridge to `force[a..b]`, advancing
     /// the partial displacements freely from the segment's start.
     fn nl_run(&mut self, lg: &crate::note_model::Longitudinal, a: usize, b: usize) {
@@ -439,7 +479,14 @@ impl Voice {
                     }
                 }
                 let diff = ((acc[0] + acc[4]) + (acc[1] + acc[5])) + ((acc[2] + acc[6]) + (acc[3] + acc[7]));
-                let f = ramp * lg.long_gain[n - 1] * (sum + 2.0 * diff);
+                let mut f = ramp * lg.long_gain[n - 1] * (sum + 2.0 * diff);
+                // The strike's strain pulses hand over to the partials'.
+                if ramp < 1.0 && n <= lg.strike_w.len() {
+                    let (jr, ji) = self.nl_strike[n - 1];
+                    let (rr, ri) = lg.strike_rot[n - 1];
+                    self.nl_strike[n - 1] = (rr * jr - ri * ji, rr * ji + ri * jr);
+                    f += (1.0 - ramp) * lg.long_gain[n - 1] * jr;
+                }
                 let (zr, zi) = self.nl_long[n - 1];
                 let (pr, pi) = lg.long_pole[n - 1];
                 let z = (pr * zr - pi * zi + f, pr * zi + pi * zr);

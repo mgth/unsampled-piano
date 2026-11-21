@@ -29,6 +29,8 @@ pub struct Instrument {
     /// The rear lengths' modes per board region (`sympathetic.rear`), with
     /// a rendered soundboard.
     pub rear: Option<Vec<Vec<crate::modal::ModeSpec>>>,
+    /// The radiation's delay zones in the board's mic slots, if any.
+    pub zones: Option<board::Zones>,
 }
 
 impl Instrument {
@@ -88,6 +90,7 @@ impl Instrument {
             }
         }
         let rear = modes.as_ref().and_then(|_| crate::note_model::rear_modes(&model, sb.as_ref(), sample_rate));
-        Self { model, source, sample_rate, table, board: modes, low, frame, rim, rear }
+        let zones = modes.as_ref().and(sb.as_ref()).and_then(|s| board::zones_for(s, sample_rate)).map(|z| z.0);
+        Self { model, source, sample_rate, table, board: modes, low, frame, rim, rear, zones }
     }
 }

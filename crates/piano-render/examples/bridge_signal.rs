@@ -26,6 +26,7 @@ fn main() {
     let preset = std::path::Path::new(&args[1]);
     let prefix = args[2].clone();
     let (mut note, mut velocity, mut hold, mut tail, mut len) = (33u8, 100u8, 4.8f64, 0.4f64, 0usize);
+    let mut zones: Option<(f64, f64, usize)> = None;
     let mut listening = Vec::new();
     let mut i = 3;
     while i < args.len() {
@@ -37,6 +38,13 @@ fn main() {
             "--tail" => tail = v.parse().unwrap(),
             "--transfer" => len = v.parse().unwrap(),
             "--listening" => listening.push(v.clone()),
+            "--zones" => {
+                // "N": N zones over the board's path range; "W:N": from 0 m.
+                zones = Some(match v.split_once(':') {
+                    Some((w, n)) => (-1.0, w.parse().unwrap(), n.parse().unwrap()),
+                    None => (0.0, 0.0, v.parse().unwrap()),
+                });
+            }
             a => panic!("unknown argument {a}"),
         }
         i += 2;
@@ -106,6 +114,45 @@ fn main() {
         }
         write_f32(&format!("{prefix}_transfer.f32"), &out);
         eprintln!("transfer: {bins} bins, {} modes", modes.len());
+
+        // The same transfer with the radiation split in delay zones
+        // (Soundboard::radiation_zoned), each zone delayed by its centre.
+        if let Some((from, width, nz)) = zones {
+            use piano_core::complex::C64;
+            let (from, width) = if from < 0.0 {
+                (0.0, width)
+            } else {
+                let (lo, hi) = sb.mic_path_range();
+                eprintln!("paths {lo:.2}–{hi:.2} m");
+                (lo, (hi - lo) / nz as f64)
+            };
+            let rad = sb.radiation_zoned(from, width, nz, false);
+            let n_mics = sb.params.mics.as_slice().len().min(MICS);
+            let mut h = vec![C64::ZERO; bins * n_mics];
+            for z in 0..nz {
+                let mut mz = board_modes(&sb, SR);
+                for (i, m) in mz.iter_mut().enumerate() {
+                    let md = &sb.modes[i];
+                    let shape = C64::new(1.0, sb.sigma(md) / md.omega);
+                    for mic in 0..n_mics {
+                        let w = rad[i][mic * nz + z] * shape;
+                        m.outputs[mic] = (w.re, w.im);
+                    }
+                }
+                to_acceleration_weights(&mut mz, SR);
+                let delay = z as f64 * width / 343.0;
+                for j in 1..bins {
+                    let w = std::f64::consts::TAU * j as f64 * SR / len as f64;
+                    let acc = transfer(&modes, r, piano_core::board::BRIDGE + r, w, SR) * mic_differentiator(w, SR);
+                    for mic in 0..n_mics {
+                        h[j * n_mics + mic] += mic_transfer(&mz, r, mic, w, SR) / acc * C64::polar(1.0, -w * delay);
+                    }
+                }
+            }
+            let out: Vec<f32> = h.iter().flat_map(|c| [c.re as f32, c.im as f32]).collect();
+            write_f32(&format!("{prefix}_transfer_zoned.f32"), &out);
+            eprintln!("zoned transfer: {nz} zones of {width} m");
+        }
     }
 }
 
