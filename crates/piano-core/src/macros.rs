@@ -365,7 +365,14 @@ mod tests {
             assert!(!sb.lid_removed);
             let (r, leaving, f) = sb.case_room_constant();
             assert!((r / r0 - 1.0).abs() < 1e-4 && (leaving / leaving0 - 1.0).abs() < 1e-4 && (f / f0 - 1.0).abs() < 1e-4, "{eps}: {r} {r0}, {leaving} {leaving0}");
+            // Nor does the box's fill time (case_field_builds).
+            let (t, t0) = (sb.case_fill_time(), base.case_fill_time());
+            assert!((t / t0 - 1.0).abs() < 1e-4, "{eps}: fill {t} against {t0}");
         }
+        // It grows as the lid comes back, up to the whole lid's.
+        let fills: Vec<f64> = [0.0, 0.3, 0.6, 1.0].iter().map(|&l| at(l).case_fill_time()).collect();
+        assert!(fills.windows(2).all(|w| w[0] < w[1]), "{fills:?}");
+        assert_eq!(at(1.0).case_fill_time(), SoundboardParams { lid_removed: false, lid_angle: LID_MAX, ..sb }.case_fill_time());
         // The field grows as the lid comes back, up to the whole lid's.
         let leaving: Vec<f64> = [0.0, 0.3, 0.6, 1.0].iter().map(|&l| at(l).case_room_constant().1).collect();
         assert!(leaving.windows(2).all(|w| w[0] < w[1]), "{leaving:?}");

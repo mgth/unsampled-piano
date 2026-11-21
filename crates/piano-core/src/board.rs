@@ -134,6 +134,9 @@ pub struct BoardBank<const R: usize = REGIONS> {
     /// Microphones the modes radiate to (the first `n_mics` slots), and the
     /// outputs computed: those mics, then the probes and bridge velocities.
     n_mics: usize,
+    /// Mic slots the sleep estimate reads: 0, stride, 2·stride… (the
+    /// first microphone's delay zones and case slot); usize::MAX: slot 0.
+    sleep_stride: usize,
     outs: Vec<usize>,
     /// Inputs transposed per sample, only the active regions.
     xin: Vec<[f32; R]>,
@@ -234,6 +237,7 @@ impl<const R: usize> BoardBank<R> {
             no: 0,
             n_ex: 0,
             n_mics,
+            sleep_stride: usize::MAX,
             outs: (0..n_mics).chain(MICS..OUTPUTS).collect(),
             xin: vec![[0.0; R]; max_block],
             direct: direct.map(|row| row.map(|d| d as f32)),
@@ -308,14 +312,25 @@ impl<const R: usize> BoardBank<R> {
     /// differentiator's gain |1 − p|·fs at each mode restores the pressure.
     pub fn energy(&self) -> f32 {
         let mut e = 0.0;
+        let more = (self.sleep_stride..self.n_mics).step_by(self.sleep_stride.max(1));
         for c in self.parts.iter().flat_map(|p| &p.chunks) {
             for l in 0..LANES {
-                let w = c.wr[0][l] * c.wr[0][l] + c.wi[0][l] * c.wi[0][l];
+                let mut w = c.wr[0][l] * c.wr[0][l] + c.wi[0][l] * c.wi[0][l];
+                for o in more.clone() {
+                    w += c.wr[o][l] * c.wr[o][l] + c.wi[o][l] * c.wi[o][l];
+                }
                 let d = (1.0 - c.pr[l]) * (1.0 - c.pr[l]) + c.pi[l] * c.pi[l];
                 e += w * d * (c.zr[l] * c.zr[l] + c.zi[l] * c.zi[l]);
             }
         }
         e * self.fs2
+    }
+
+    /// With the radiation split ([`Zones`]): the sleep estimate reads all
+    /// the first microphone's slots, `mics` apart (its zone 0 may hold no
+    /// path at all, when the board lies far from it).
+    pub fn set_zones(&mut self, zones: &Zones) {
+        self.sleep_stride = zones.mics;
     }
 
     /// Modulus of each mode's state, in the order of the modes given, into
@@ -884,6 +899,11 @@ pub fn zones_for(sb: &crate::soundboard::Soundboard, sample_rate: f64) -> Option
     Some((Zones { mics, count, step, case, case_time }, lo, step as f64 * c / sample_rate))
 }
 
+/// Delays (samples) of the case's all-passes at microphone `m`.
+pub fn case_delays(zones: &Zones, m: usize) -> [usize; CASE_STAGES.len()] {
+    std::array::from_fn(|k| ((CASE_STAGES[k] * (1.0 + 0.11 * m as f64) * zones.case_time).round() as usize).max(1))
+}
+
 /// Delays the zones' slots and adds them to their microphone's, the case's
 /// field through the box's fill (each slot cleared once taken). Allocated
 /// once; real-time safe.
@@ -901,14 +921,7 @@ impl ZoneFold {
     pub fn new(zones: Zones, max_block: usize) -> Self {
         let size = ((zones.count - 1) * zones.step + max_block + 1).next_power_of_two();
         let case = if zones.case {
-            (0..zones.mics)
-                .map(|m| {
-                    std::array::from_fn(|k| {
-                        let n = ((CASE_STAGES[k] * (1.0 + 0.11 * m as f64) * zones.case_time).round() as usize).max(1);
-                        (vec![0.0; n], n)
-                    })
-                })
-                .collect()
+            (0..zones.mics).map(|m| case_delays(&zones, m).map(|n| (vec![0.0; n], n))).collect()
         } else {
             Vec::new()
         };
@@ -964,6 +977,30 @@ impl ZoneFold {
         }
         self.case_pos = self.case_pos.wrapping_add(len);
     }
+}
+
+/// [`mic_transfer`] to the physical microphone `mic`: with the radiation
+/// split ([`zones_for`]), its delay zones each after its delay and its
+/// case's slot through the box's all-passes, as [`ZoneFold`] hears them.
+pub fn mic_transfer_folded(modes: &[BoardMode], zones: Option<&Zones>, r: usize, mic: usize, omega: f64, sample_rate: f64) -> crate::complex::C64 {
+    use crate::complex::C64;
+    let Some(z) = zones else {
+        return mic_transfer(modes, r, mic, omega, sample_rate);
+    };
+    let delay = |d: usize| C64::polar(1.0, -omega * d as f64 / sample_rate);
+    let mut h = C64::ZERO;
+    for q in 0..z.count {
+        h += mic_transfer(modes, r, q * z.mics + mic, omega, sample_rate) * delay(q * z.step);
+    }
+    if z.case {
+        let g = CASE_GAIN as f64;
+        let ap = case_delays(z, mic).iter().fold(C64::ONE, |a, &d| {
+            let e = delay(d);
+            a * (e - C64::new(g, 0.0)) / (C64::ONE - e.scale(g))
+        });
+        h += mic_transfer(modes, r, z.count * z.mics + mic, omega, sample_rate) * ap;
+    }
+    h
 }
 
 /// Board modes for a soundboard: inputs through the bridge at the region
@@ -1299,5 +1336,100 @@ mod tests {
         }
         assert_eq!(zone_out.iter().position(|&x| x != 0.0), Some(5));
         assert!((case_e - 1.0).abs() < 1e-3, "{case_e}");
+    }
+
+    /// A microphone far from the board, listed first, has nothing in its
+    /// zone 0: the board must not fall asleep while it still rings there.
+    #[test]
+    fn a_far_first_microphone_keeps_the_board_awake() {
+        let sr = 48_000.0;
+        let mut model = crate::params::PianoModel::default();
+        let p = model.soundboard.as_mut().unwrap();
+        p.radiation_delays = true;
+        p.mics_relative = false;
+        p.mics = crate::mics::Mics::pair((0.5, 0.5, 3.0), (0.5, 0.5, 0.25));
+        let model = crate::params::PianoModel { soundboard: model.soundboard.map(|s| s.resolved()), ..model };
+        let sb = model.board().unwrap();
+        let (z, ..) = zones_for(&sb, sr).unwrap();
+        let modes = board_modes(&sb, sr);
+        assert!(modes.iter().all(|m| m.outputs[0] == (0.0, 0.0)), "zone 0 of the far microphone should be empty");
+        let mut bank = BoardBank::new(sr, &modes, 64);
+        bank.set_zones(&z);
+        let mut inputs = vec![vec![0.0f32; 64]; REGIONS];
+        inputs[5][0] = 1.0;
+        let mut slots = vec![vec![0.0f32; 64]; z.slots()];
+        let mut refs: Vec<&mut [f32]> = slots.iter_mut().map(|v| &mut v[..]).collect();
+        bank.process(&inputs, 64, &mut refs, None, None);
+        assert!(slots.iter().skip(1).any(|s| s.iter().any(|&x| x != 0.0)));
+        assert!(bank.energy() > 0.0);
+    }
+
+    /// Microphones under a grand hear the back face directly: the zones
+    /// span those paths too.
+    #[test]
+    fn microphones_below_the_board_get_their_zones() {
+        let sr = 48_000.0;
+        let mut model = crate::params::PianoModel::default();
+        let p = model.soundboard.as_mut().unwrap();
+        p.radiation_delays = true;
+        p.mics_relative = false;
+        p.mics = crate::mics::Mics::pair((0.6, 0.5, -0.4), (1.4, 0.9, -0.4));
+        let model = crate::params::PianoModel { soundboard: model.soundboard.map(|s| s.resolved()), ..model };
+        let sb = model.board().unwrap();
+        let (lo, hi) = sb.mic_path_range();
+        assert!(lo >= 0.4 && hi > lo, "{lo} {hi}");
+        assert!(zones_for(&sb, sr).is_some_and(|(z, ..)| z.count > 1));
+    }
+
+    /// The folded transfer is what the bank, the fold and the engine's
+    /// differentiator give a sine at the region.
+    #[test]
+    fn the_folded_transfer_is_what_the_microphone_hears() {
+        let sr = 48_000.0;
+        let mut model = crate::params::PianoModel::default();
+        let p = model.soundboard.as_mut().unwrap();
+        p.radiation_delays = true;
+        p.case_field_builds = true;
+        p.case_field = true;
+        p.mics = crate::mics::Mics::new(&p.mics.as_slice()[..2]);
+        let model = crate::params::PianoModel { soundboard: model.soundboard.map(|s| s.resolved()), ..model };
+        let mut sb = model.board().unwrap();
+        for m in sb.modes.iter_mut() {
+            m.air = 0.01;
+        }
+        let (z, ..) = zones_for(&sb, sr).unwrap();
+        assert!(z.count > 1 && z.case);
+        let mut modes = board_modes(&sb, sr);
+        to_acceleration_weights(&mut modes, sr);
+        assert!(modes.iter().any(|m| m.outputs[z.count * z.mics] != (0.0, 0.0)), "the case's slot should hold the field");
+        let r = 6;
+        for f in [700.0, 2500.0] {
+            let w = std::f64::consts::TAU * f;
+            let h = mic_transfer_folded(&modes, Some(&z), r, 1, w, sr);
+            let mut bank = BoardBank::new(sr, &modes, 256);
+            let mut fold = ZoneFold::new(z, 256);
+            let mut inputs = vec![vec![0.0f32; 256]; REGIONS];
+            let mut slots = vec![vec![0.0f32; 256]; z.slots()];
+            let (mut last, mut err, mut refp) = (0.0f32, 0.0f64, 0.0f64);
+            for blk in 0..400 {
+                for (t, x) in inputs[r].iter_mut().enumerate() {
+                    *x = (w * (blk * 256 + t) as f64 / sr).cos() as f32;
+                }
+                slots.iter_mut().for_each(|s| s.fill(0.0));
+                let mut refs: Vec<&mut [f32]> = slots.iter_mut().map(|v| &mut v[..]).collect();
+                bank.process(&inputs, 256, &mut refs, None, None);
+                fold.fold(&mut slots, 256);
+                for t in 0..256 {
+                    let y = (slots[1][t] - last) as f64 * sr;
+                    last = slots[1][t];
+                    if blk >= 380 {
+                        let want = (h * crate::complex::C64::polar(1.0, w * (blk * 256 + t) as f64 / sr)).re;
+                        err += (y - want).powi(2);
+                        refp += want * want;
+                    }
+                }
+            }
+            assert!(err / refp < 1e-3, "{f} Hz: relative error {}", err / refp);
+        }
     }
 }

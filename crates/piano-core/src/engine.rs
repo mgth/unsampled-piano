@@ -412,6 +412,13 @@ impl Engine {
             .as_ref()
             .filter(|_| inst.model.sympathetic.enabled)
             .map(|m| BoardBank::new(cfg.sample_rate, m, SUB_BLOCK));
+        // The radiation's zones: each bank lets the board sleep only once
+        // all the first microphone's slots are quiet.
+        let (mut board, mut board_low, mut board_sym) = (board, board_low, board_sym);
+        if let Some(z) = &inst.zones {
+            board.iter_mut().chain(board_sym.iter_mut()).for_each(|b| b.set_zones(z));
+            board_low.iter_mut().for_each(|b| b.set_zones(z));
+        }
         let rear: Vec<ModalBank> = inst
             .rear
             .iter()

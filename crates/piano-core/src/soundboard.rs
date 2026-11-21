@@ -745,13 +745,17 @@ impl SoundboardParams {
         }
         let centroid_y = ay / (3.0 * twice_area);
         let wall = perimeter * self.lid_hinge_height;
-        let (volume, absorbing) = if self.lid_removed {
-            (area * self.lid_hinge_height, area + CASE_ABSORPTION * (area + wall))
-        } else {
-            let height = self.lid_hinge_height + (self.b - centroid_y).max(0.0) * self.lid_angle.to_radians().tan();
-            (area * height, gap + CASE_ABSORPTION * (2.0 * area + wall))
-        };
-        4.0 * volume / (C0 * absorbing.max(1e-6))
+        let fill = |volume: f64, absorbing: f64| 4.0 * volume / (C0 * absorbing.max(1e-6));
+        let without = fill(area * self.lid_hinge_height, area + CASE_ABSORPTION * (area + wall));
+        if self.lid_removed {
+            return without;
+        }
+        let height = self.lid_hinge_height + (self.b - centroid_y).max(0.0) * self.lid_angle.to_radians().tan();
+        let with = fill(area * height, gap + CASE_ABSORPTION * (2.0 * area + wall));
+        // A lid that lets the sound through fills as much less of a box, as
+        // in case_room_constant: a lid being put back starts from none.
+        let through = ((self.lid_transmission.powi(2) - CASE_ABSORPTION) / (1.0 - CASE_ABSORPTION)).clamp(0.0, 1.0);
+        with + (without - with) * through
     }
 
     /// The case's reverberant pressure at the point `m` per unit modal
@@ -1870,7 +1874,8 @@ impl Soundboard {
 
 
     /// Shortest and longest direct path (m) from the board's radiating
-    /// cells to its microphones above it.
+    /// cells to its microphones: the front face's for one above the board,
+    /// the back face's for one below it (the same length, [`Self::path`]).
     pub fn mic_path_range(&self) -> (f64, f64) {
         let p = &self.params;
         let step = p.grid_step;
@@ -1884,7 +1889,7 @@ impl Soundboard {
                 if self.outline.as_ref().is_some_and(|o| o.coverage(x, y, dx, dy) <= 0.0) {
                     continue;
                 }
-                for m in mics.iter().filter(|m| m[2] >= 0.0) {
+                for m in &mics {
                     let d = ((m[0] - x).powi(2) + (m[1] - y).powi(2) + m[2].powi(2)).sqrt();
                     lo = lo.min(d);
                     hi = hi.max(d);
