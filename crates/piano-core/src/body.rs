@@ -59,16 +59,20 @@ pub const SPEED_KEYS: [f64; 4] = [21.0, 48.0, 72.0, 96.0];
 /// Largest speed ratio the speed law follows above `speed_ref`.
 const SPEED_RATIO_MAX: f64 = 2.0;
 
-/// A strike that found every slot taken: it takes the slot of `pending[j]`
-/// at its own event frame, `at` samples into the render, once that strike
-/// has had the rest of its excitation (until then the slot's strike rings on
-/// untouched, so nothing before the incoming note changes).
-#[derive(Clone, Copy)]
-struct Handoff {
+/// A strike on its way: it takes a slot at its own event frame, `at`
+/// samples into the render, whatever the slots hold then (a free one, or
+/// the one whose strike has the least excitation left). Choosing then, not
+/// when it is queued, makes the halo the same however the render is cut
+/// into blocks.
+#[derive(Clone, Copy, Default)]
+struct Arrival {
     at: u32,
     next: Pending,
     tilt: SpeedTilt,
 }
+
+/// Strikes on their way within one render.
+const ARRIVALS: usize = 64;
 
 #[derive(Clone, Copy, Default)]
 struct Pending {
@@ -94,8 +98,9 @@ pub struct BodyBank {
     /// Per key and resonance: amplitude and sign of the strike, unit rms.
     pattern: Vec<f32>,
     pending: [Pending; PENDING],
-    /// Per slot, the strike waiting to take it over, if any.
-    handoff: [Option<Handoff>; PENDING],
+    /// Strikes on their way, in the order they came; `arrived` of them.
+    arrivals: [Arrival; ARRIVALS],
+    arrived: usize,
     /// Per pending strike and resonance: the speed law's weight.
     speed_w: Vec<f32>,
     pulse: Vec<f32>,
@@ -231,7 +236,8 @@ impl BodyBank {
             w: [vec![0.0; MODES], vec![0.0; MODES]],
             pattern: Vec::new(),
             pending: [Pending::default(); PENDING],
-            handoff: [None; PENDING],
+            arrivals: [Arrival::default(); ARRIVALS],
+            arrived: 0,
             speed_w: vec![1.0; PENDING * MODES],
             pulse: w.iter().map(|x| (x / sum) as f32).collect(),
             exc: vec![0.0; MODES],
@@ -339,16 +345,27 @@ impl BodyBank {
         let sub = if self.rise >= STEPS { (1u32 << (self.rise / STEPS).ilog2()).min(SUB) } else { 1 };
         let next = Pending { key: note - 21, amp: amp as f32, wait, age: 0, rise: self.rise, sub };
         let tilt = SpeedTilt::of(&law, note, speed).scaled(at_key(&law.speed_halo, note));
-        match self.pending.iter().zip(&self.handoff).position(|(p, h)| p.amp == 0.0 && h.is_none()) {
-            Some(j) => self.install(j, next, tilt),
-            None => {
-                // No room: the strike under way with the least of its
-                // excitation left gives way at this one's own frame.
-                let Some(j) = self.victim() else { return };
-                let at = (offset * self.sample_rate).round().max(0.0) as u32;
-                self.handoff[j] = Some(Handoff { at, next: Pending { wait: wait.saturating_sub(at), ..next }, tilt });
-            }
+        if self.arrived == ARRIVALS {
+            return;
         }
+        let at = (offset * self.sample_rate).round().max(0.0) as u32;
+        self.arrivals[self.arrived] = Arrival { at, next: Pending { wait: wait.saturating_sub(at), ..next }, tilt };
+        self.arrived += 1;
+    }
+
+    /// A strike reaching its frame takes a free slot, or else the slot of
+    /// the strike with the least excitation left, which first takes that
+    /// rest at once.
+    fn arrive(&mut self, a: Arrival) {
+        let j = match self.pending.iter().position(|p| p.amp == 0.0) {
+            Some(j) => j,
+            None => {
+                let j = self.victim();
+                self.settle_rest(j);
+                j
+            }
+        };
+        self.install(j, a.next, a.tilt);
     }
 
     fn install(&mut self, j: usize, p: Pending, tilt: SpeedTilt) {
@@ -360,10 +377,9 @@ impl BodyBank {
         }
     }
 
-    /// The slot to give up when all are taken: among those not already
-    /// promised, the strike under way with the least of its excitation left
-    /// (one still waiting only if all are).
-    fn victim(&self) -> Option<usize> {
+    /// The slot to give up when all are taken: the strike under way with the
+    /// least of its excitation left (one still waiting only if all are).
+    fn victim(&self) -> usize {
         let left = |p: &Pending| -> f64 {
             let done = if p.rise > 0 {
                 ramp(p.age.div_ceil(p.sub) * p.sub, p.rise)
@@ -372,10 +388,12 @@ impl BodyBank {
             };
             p.amp as f64 * (1.0 - done).max(0.0)
         };
-        (0..PENDING).filter(|&j| self.handoff[j].is_none()).min_by(|&a, &b| {
-            let (pa, pb) = (&self.pending[a], &self.pending[b]);
-            (pa.wait > 0).cmp(&(pb.wait > 0)).then(left(pa).total_cmp(&left(pb)))
-        })
+        (0..PENDING)
+            .min_by(|&a, &b| {
+                let (pa, pb) = (&self.pending[a], &self.pending[b]);
+                (pa.wait > 0).cmp(&(pb.wait > 0)).then(left(pa).total_cmp(&left(pb)))
+            })
+            .unwrap_or(0)
     }
 
     /// A settling strike giving its slot away takes the rest of its ramp at
@@ -420,25 +438,30 @@ impl BodyBank {
     /// Adds the halo to the two microphone signals (pressure, Pa, times
     /// `gain`). Real-time safe.
     pub fn render(&mut self, out: [&mut [f32]; 2], gain: f32) {
-        if !self.awake && self.pending.iter().all(|p| p.amp == 0.0) && self.handoff.iter().all(|h| h.is_none()) {
+        if !self.awake && self.arrived == 0 && self.pending.iter().all(|p| p.amp == 0.0) {
             return;
         }
         let [l, r] = out;
         for n in 0..l.len() {
+            // Strikes reaching their frame take their slots, in the order
+            // they came.
+            if self.arrived > 0 {
+                let mut kept = 0;
+                for i in 0..self.arrived {
+                    let mut a = self.arrivals[i];
+                    if a.at == 0 {
+                        self.arrive(a);
+                    } else {
+                        a.at -= 1;
+                        self.arrivals[kept] = a;
+                        kept += 1;
+                    }
+                }
+                self.arrived = kept;
+            }
             // Strikes under way this sample.
             let mut struck = false;
             for j in 0..PENDING {
-                // A strike promised this slot takes it at its own frame.
-                if let Some(h) = &mut self.handoff[j] {
-                    if h.at > 0 {
-                        h.at -= 1;
-                    } else {
-                        let h = *h;
-                        self.handoff[j] = None;
-                        self.settle_rest(j);
-                        self.install(j, h.next, h.tilt);
-                    }
-                }
                 let p = self.pending[j];
                 if p.amp == 0.0 {
                     continue;
@@ -750,6 +773,59 @@ mod tests {
         assert_eq!(diff(&offset.1, &split.1), 0.0);
         // The note does sound from its frame on.
         assert!(diff(&offset.0[48..], &without.0[48..]) > 1e-3);
+    }
+
+    #[test]
+    fn the_slot_is_chosen_when_the_note_takes_effect() {
+        // The same notes rendered in one call, or cut into blocks at their
+        // frames and struck at offset zero: the same halo, bit for bit.
+        let sr = 48_000.0;
+        let settling = BodyLaw { t60: [1.0; 8], rise: 0.3, delay: 0.0, ..law() };
+        let n = 4800;
+        let play = |setup: &dyn Fn(&mut BodyBank), notes: &[(usize, u8)], cut: bool| {
+            let mut b = BodyBank::new(sr, &settling);
+            setup(&mut b);
+            let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+            if cut {
+                let mut at = 0;
+                for &(t, note) in notes {
+                    b.render([&mut l[at..t], &mut r[at..t]], 1.0);
+                    b.strike(note, 1.5, 0.0);
+                    at = t;
+                }
+                b.render([&mut l[at..], &mut r[at..]], 1.0);
+            } else {
+                for &(t, note) in notes {
+                    b.strike(note, 1.5, t as f64 / sr);
+                }
+                b.render([&mut l, &mut r], 1.0);
+            }
+            (l, r)
+        };
+        let same = |a: &(Vec<f32>, Vec<f32>), b: &(Vec<f32>, Vec<f32>)| a.0 == b.0 && a.1 == b.1;
+        // A slot frees during the block: 31 settling strikes and one 12-frame
+        // pulse struck at its start, a new note at frame 48 (the pulse's
+        // slot is free by then).
+        let freeing = |b: &mut BodyBank| {
+            for k in 0..31u8 {
+                b.strike(30 + 2 * k, 1.0 + 0.05 * k as f64, 0.0);
+            }
+            b.set_law(&BodyLaw { rise: 0.0, ..settling });
+            b.strike(95, 2.0, 0.0);
+            b.set_law(&settling);
+        };
+        assert!(same(&play(&freeing, &[(48, 80)], false), &play(&freeing, &[(48, 80)], true)));
+        // A full queue and two arrivals, at frames 8 and 48: the first one is
+        // the least advanced when the second comes.
+        let full = |b: &mut BodyBank| {
+            for k in 0..32u8 {
+                b.strike(30 + 2 * k, 1.0 + 0.05 * k as f64, 0.0);
+            }
+            let (mut l, mut r) = (vec![0.0f32; 64], vec![0.0f32; 64]);
+            b.render([&mut l, &mut r], 1.0);
+        };
+        let two = [(8, 80), (48, 84)];
+        assert!(same(&play(&full, &two, false), &play(&full, &two, true)));
     }
 
     #[test]
