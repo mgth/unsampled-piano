@@ -229,7 +229,9 @@ pub const NOISE_REFERENCE_GAIN_DB: f64 = -7.4;
 /// the mean path from the board and the action along the keys, against
 /// the reference's, at most [`MAX_NOISE_DELAY`]. Near a reference
 /// microphone, both tend to its own (the references weighed by 1/d²); at
-/// it, the noises are heard as before, bit for bit. The board's radiation
+/// it, the noises are heard as before, bit for bit. A board with no mode in
+/// the measured octaves (`f_max` very low) takes the mean path's 1/r
+/// instead, continuous at the reference as well. The board's radiation
 /// carries the lid's shadow and reflection: the noises take them too.
 /// Patterns are not counted.
 pub fn noise_paths(sb: &crate::soundboard::Soundboard, setup_gain_db: f64, sample_rate: f64) -> Vec<(f64, usize)> {
@@ -267,7 +269,7 @@ pub fn noise_paths(sb: &crate::soundboard::Soundboard, setup_gain_db: f64, sampl
         (!db.is_empty()).then(|| db.iter().sum::<f64>() / db.len() as f64)
     };
     let nm = mics.len();
-    let ref_db: Vec<f64> = (0..refs.len()).map(|k| level(nm + k).unwrap_or(0.0)).collect();
+    let ref_db: Option<Vec<f64>> = (0..refs.len()).map(|k| level(nm + k)).collect();
     // The mean path from the sources: the board and the action in front of it.
     let mut sources = Vec::new();
     for i in 0..8 {
@@ -292,7 +294,12 @@ pub fn noise_paths(sb: &crate::soundboard::Soundboard, setup_gain_db: f64, sampl
             let wk: Vec<f64> = refs.iter().map(|r| 1.0 / ((m[0] - r[0]).powi(2) + (m[1] - r[1]).powi(2) + (m[2] - r[2]).powi(2)).max(1e-30)).collect();
             let ws: f64 = wk.iter().sum();
             let blend = |v: &[f64]| if ws.is_finite() && ws > 0.0 { v.iter().zip(&wk).map(|(x, w)| x * w).sum::<f64>() / ws } else { v.iter().sum::<f64>() / v.len() as f64 };
-            let gain = level(i).map_or(0.0, |l| 10f64.powf((l - blend(&ref_db) + setup) / 20.0));
+            // Without a band of the board to measure (no mode between 88 Hz and
+            // 5.7 kHz), the mean path's 1/r: continuous at the reference too.
+            let gain = match (level(i), &ref_db) {
+                (Some(l), Some(r)) => 10f64.powf((l - blend(r) + setup) / 20.0),
+                _ => blend(&ref_path) / path(m) * at_ref,
+            };
             let extra = (path(m) - blend(&ref_path)) / crate::soundboard::C0 * sample_rate;
             let delay = if extra.is_finite() { extra.round().clamp(0.0, max_delay as f64) as usize } else { max_delay };
             (if gain.is_finite() { gain } else { 0.0 }, delay)
@@ -332,6 +339,27 @@ mod tests {
         let near = noise_paths(&board_with(&[(l.0, l.1, l.2 + 1e-6), (r.0, r.1, r.2 + 1e-6), far]), NOISE_REFERENCE_GAIN_DB, 48_000.0);
         for (k, &(g, d)) in near[..2].iter().enumerate() {
             assert!((20.0 * g.log10()).abs() < 0.01 && d == 0, "reference {k} moved 1 µm: {:.3} dB, {d} samples", 20.0 * g.log10());
+        }
+    }
+
+    /// The same on a board with no mode in the measured octaves: the mean
+    /// path stands in for the radiation, and nothing jumps either.
+    #[test]
+    fn the_noises_path_is_continuous_without_a_measured_band() {
+        let mut p = crate::soundboard::SoundboardParams::DEFAULT;
+        p.f_max = 80.0;
+        let [l, r] = reference(p.a, p.b);
+        let board = |pts: &[(f64, f64, f64)]| {
+            let q = crate::soundboard::SoundboardParams { mics_relative: false, mics: Mics::new(&pts.iter().map(|&at| Mic { at, upright: at, ..Mic::DEFAULT }).collect::<Vec<_>>()), ..p };
+            crate::soundboard::Soundboard::new(q)
+        };
+        let far = (0.6, -1.8, 2.0);
+        let at = noise_paths(&board(&[l, r, far]), NOISE_REFERENCE_GAIN_DB, 48_000.0);
+        assert_eq!((at[0], at[1]), ((1.0, 0), (1.0, 0)));
+        assert!(at[2].0 > 0.0 && at[2].0 < 1.0 && at[2].1 > 0, "{:?}", at[2]);
+        let near = noise_paths(&board(&[(l.0, l.1, l.2 + 1e-6), (r.0, r.1, r.2 + 1e-6), far]), NOISE_REFERENCE_GAIN_DB, 48_000.0);
+        for (k, &(g, d)) in near[..2].iter().enumerate() {
+            assert!((20.0 * g.log10()).abs() < 0.01 && d == 0, "reference {k} moved 1 µm: {g}, {d} samples");
         }
     }
 
