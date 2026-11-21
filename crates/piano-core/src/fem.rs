@@ -59,6 +59,10 @@ pub struct BoardStructure {
     /// How the rim holds it: clamped (no rotation), or simply supported, the
     /// transverse movement alone held at the nodes along the outline.
     pub clamped: bool,
+    /// When not clamped, a spring against the board's turning at the rim
+    /// (N·m/rad per metre of edge): the glued ledge, which neither holds the
+    /// edge square nor lets it turn freely. 0: simply supported.
+    pub edge_spring: f64,
     /// Grid step (m) and highest own mode (Hz).
     pub step: f64,
     pub below: f64,
@@ -198,6 +202,7 @@ impl BoardStructure {
         enabled: false,
         air: true,
         clamped: true,
+        edge_spring: 0.0,
         step: 0.01,
         below: 3000.0,
         grain_angle: 40.0,
@@ -967,6 +972,29 @@ impl BoardFem {
                 }
             }
         }
+        // The ledge: on a board that is not clamped, a spring on each held
+        // node's rotations, for the length of edge it stands for (half of each
+        // grid side beside it that parts the board from the rim).
+        if !s.clamped && s.edge_spring > 0.0 {
+            for i in 0..=nx {
+                for j in 0..=ny {
+                    let id = node_id(i, j);
+                    if !held[id] {
+                        continue;
+                    }
+                    let (a, b) = (i as i64, j as i64);
+                    let parts = |c: [(i64, i64); 2]| is_active(c[0].0, c[0].1) != is_active(c[1].0, c[1].1);
+                    let edge = 0.5
+                        * (hx * (parts([(a, b - 1), (a, b)]) as u8 as f64 + parts([(a - 1, b - 1), (a - 1, b)]) as u8 as f64)
+                            + hy * (parts([(a - 1, b), (a, b)]) as u8 as f64 + parts([(a - 1, b - 1), (a, b - 1)]) as u8 as f64));
+                    for d in 1..3 {
+                        if let Ok(g) = usize::try_from(dof[3 * id + d]) {
+                            k.add(g, g, s.edge_spring * edge);
+                        }
+                    }
+                }
+            }
+        }
         // The strings' hold: a spring under each key's bridge point, shared
         // between the corners of its element as the shape is read there.
         if s.strings {
@@ -1351,9 +1379,11 @@ fn key(p: &SoundboardParams) -> u64 {
     let sections = if p.string_sections.iter().any(|s| s.1 > 0.0) { format!(" {:?}", p.string_sections) } else { String::new() };
     // (Nor do the bridges' measured points, which move the bridges.)
     let sections = if p.bridge_keys.iter().any(|k| k.0 >= 21.0) { format!("{sections} {:?}", p.bridge_keys) } else { sections };
+    // (Nor does the ledge's spring while it is off.)
+    let structure = format!("{:?}", BoardStructure { enabled: true, ..p.structure });
+    let structure = if p.structure.edge_spring == 0.0 { structure.replace(" edge_spring: 0.0,", "") } else { structure };
     let text = format!(
-        "{VERSION} {:?} {} {} {:?} {:?} {:?} {} {} {}{sections}",
-        BoardStructure { enabled: true, ..p.structure },
+        "{VERSION} {structure} {} {} {:?} {:?} {:?} {} {} {}{sections}",
         p.a,
         p.b,
         p.outline,
@@ -1430,6 +1460,24 @@ mod tests {
         for (w, known) in fem.omega.iter().zip([35.985, 73.394, 73.394, 108.22, 131.58, 132.20]) {
             assert!((w / unit / known - 1.0).abs() < 0.005, "{} against {known}", w / unit);
         }
+    }
+
+    /// The ledge's spring takes the square from simply supported (Leissa's
+    /// 2π² for its first mode) to clamped (35.985) as it stiffens, by way of
+    /// every board in between.
+    #[test]
+    fn the_ledges_spring_runs_from_supported_to_clamped() {
+        let d: f64 = 1e10 * 1e-6 / 12.0 / (1.0 - 0.09);
+        let unit = (d / (400.0 * 0.01)).sqrt();
+        let first = |spring: f64| {
+            let mut p = plain(1.0, 0.0125, 120.0);
+            (p.structure.clamped, p.structure.edge_spring) = (false, spring);
+            BoardFem::build(&p).omega[0] / unit
+        };
+        let (free, mid, held) = (first(0.0), first(10.0 * d), first(1e8));
+        assert!((free / (2.0 * std::f64::consts::PI.powi(2)) - 1.0).abs() < 0.005, "{free}");
+        assert!((held / 35.985 - 1.0).abs() < 0.01, "{held}");
+        assert!(free + 2.0 < mid && mid + 2.0 < held, "{free} {mid} {held}");
     }
 
     /// Five elements to the wavelength: the mass in use keeps the modes a

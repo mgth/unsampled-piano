@@ -234,6 +234,15 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("shank_loss", "Damping of the shank's swing.", "Loss factor of the head-against-shank mode (c = loss·m_r·2πf)."),
     (
+        "strike_ratio_spread",
+        "How far each hammer strays from the line where it should strike, as a real action \
+         regulated by hand: at 0 every key strikes on the law, and a partial whose node falls \
+         there is lost on a whole run of keys.",
+        "Rms over the keyboard (share of the length) of a fixed offset per key added to the strike \
+         law, the same at every build. A real concert grand reads 0.0005–0.001 at its bridge from \
+         A0 to C#3.",
+    ),
+    (
         "strike_ratio_top",
         "How much nearer the end of the string the hammers strike at the very top of the keyboard.",
         "Share of the length taken off `strike_ratio` at C8, linearly from C6.",
@@ -464,6 +473,13 @@ const HELP: &[(&str, &str, &str)] = &[
          other.",
         "Height spread (m) of a unison's strings: string j takes no hammer force until \
          h_j·spread/v (h_j in 0…1, irregular per key, v the hammer speed) (docs/release.md).",
+    ),
+    (
+        "unison.strike_spread",
+        "The strings of a key are not struck at quite the same point: a partial the hammer \
+         cannot excite on one string is excited a little on the others.",
+        "Rms (share of the length) of each string's fixed offset from the key's strike point, \
+         zero mean within the unison; single strings keep the key's point.",
     ),
     (
         "unison.load_ramp",
@@ -790,6 +806,12 @@ const HELP: &[(&str, &str, &str)] = &[
         "How the rim holds the board: glued and held at its edge, or free to rotate there.",
         "On: clamped. Off: simply supported, only its transverse movement held, as in the thesis's \
          simulations. The first modes of a real 2.74 m board lie nearer the clamped one.",
+    ),
+    (
+        "soundboard.structure.edge_spring",
+        "How hard the rim's glued ledge resists the board's turning at its edge.",
+        "N·m/rad per metre of edge, with `clamped` off: 0 lets the edge turn freely (simply supported), \
+         a very large value holds it square (clamped).",
     ),
     ("soundboard.structure.step", "Size of the elements of the built board.", "Grid step (m). The cost grows as its inverse cubed."),
     ("soundboard.structure.below", "Up to which pitch the board has its own vibrations.", "Own modes below this frequency (Hz); the rectangle's above."),

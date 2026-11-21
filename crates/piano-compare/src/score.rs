@@ -166,6 +166,7 @@ pub fn run(
         REGISTERS.iter().zip(&by_register).map(|(r, t)| (r.0.to_string(), t.json())).collect();
     let report = json!({
         "off": all.off, "mean": all.mean(), "count": all.count,
+        "measure_version": measure::VERSION,
         "band": band.iter().map(|s| s.key.as_str()).collect::<Vec<_>>(),
         "measures": measures, "registers": registers,
     });

@@ -807,15 +807,24 @@ impl Engine {
                 }
             }
         }
+        // The body's halo renders up to each event, so that a strike takes
+        // its slot in the bank from what the bank holds at its own frame,
+        // however many come in one sub-block (crate::body).
+        let body_gain = out_gain * PRESSURE_GAIN;
+        for n in &mut self.noise_buf {
+            n[..len].fill(0.0);
+        }
         let mut pos = 0;
         for ev in events {
             let f = (ev.frame as usize).saturating_sub(offset).min(len);
             self.render(pos, f);
+            self.render_body(pos, f, body_gain);
             pos = f;
             self.now = t0 + f as u64;
             self.handle(ev.event);
         }
         self.render(pos, len);
+        self.render_body(pos, len, body_gain);
         // The rear lengths answer the bridge (the same delayed motion the
         // strings take) and push on the sympathetic board.
         if self.sympathy() {
@@ -975,14 +984,8 @@ impl Engine {
                 // mics by their pan.
                 let [nl, nr] = &mut self.noise_buf;
                 let (nl, nr) = (&mut nl[..len], &mut nr[..len]);
-                nl.fill(0.0);
-                nr.fill(0.0);
+                // The body's halo is already in (render_body).
                 self.action.render([&mut *nl, &mut *nr], out_gain * PRESSURE_GAIN);
-                if self.live.body != *self.body.law() {
-                    let law = self.live.body;
-                    self.body.set_law(&law);
-                }
-                self.body.render([&mut *nl, &mut *nr], out_gain * PRESSURE_GAIN);
                 for (c, &(wl, wr)) in chans.iter_mut().zip(&self.noise_w) {
                     for ((y, a), b) in c.iter_mut().zip(nl.iter()).zip(nr.iter()) {
                         *y += wl * a + wr * b;
@@ -1299,6 +1302,21 @@ impl Engine {
         self.gain
     }
 
+    /// The body's halo over samples `a..b` of the sub-block, into the noise
+    /// buffers, with the law as it stands (a live change applies from its
+    /// own frame on).
+    fn render_body(&mut self, a: usize, b: usize, gain: f32) {
+        if self.board.is_none() || a >= b {
+            return;
+        }
+        if self.live.body != *self.body.law() {
+            let law = self.live.body;
+            self.body.set_law(&law);
+        }
+        let [nl, nr] = &mut self.noise_buf;
+        self.body.render([&mut nl[a..b], &mut nr[a..b]], gain);
+    }
+
     fn note_on(&mut self, note: u8, velocity: u8) {
         let cfg = self.cfg;
         let repetition = self.repetition(note);
@@ -1349,8 +1367,9 @@ impl Engine {
         // The key bottoms on the keybed as the hammer reaches the string.
         self.knock(region_of(note), self.live.noise.keybed * vh);
         if self.board.is_some() {
-            // Both banks render from the start of the sub-block: the strike
-            // waits for the note's own frame within it, then its delay.
+            // The action's knock renders from the start of the sub-block: it
+            // waits for the note's own frame within it, then its delay. The
+            // body's halo has rendered up to this frame (render_body).
             let within = self.now.saturating_sub(self.clock) as f64 / self.cfg.sample_rate;
             let tilt = crate::body::SpeedTilt::of(&self.live.body, note, vh);
             self.action.strike(note, self.live.noise.action * vh, within + self.live.noise.action_delay, tilt);
@@ -1360,7 +1379,7 @@ impl Engine {
                 let law = self.live.body;
                 self.body.set_law(&law);
             }
-            self.body.strike(note, thrown, within);
+            self.body.strike(note, thrown, 0.0);
         }
     }
 
