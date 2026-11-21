@@ -82,6 +82,7 @@ live_params! {
     BodyGain => "body.gain", body.gain;
     BodySlope => "body.slope", body.slope;
     BodyDelay => "body.delay", body.delay;
+    BodyRise => "body.rise", body.rise;
     // The musician's controls that move live parameters only (crate::macros).
     MacroTouch => "macros.touch", macros.touch;
     MacroRelease => "macros.release", macros.release;

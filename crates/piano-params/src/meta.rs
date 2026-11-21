@@ -87,6 +87,7 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("body.gain", "Body halo level", "Pa·s/m", 0.0, 0.5, false),
     ("body.slope", "Body halo slope", "dB/oct", -12.0, 12.0, false),
     ("body.delay", "Body halo delay", "s", 0.0, 0.03, false),
+    ("body.rise", "Body halo rise", "s", 0.0, 0.3, false),
     ("body.shared", "Body pattern shared by all keys", "", 0.0, 1.0, false),
     ("body.levels[0]", "Body halo level, 63 Hz", "dB", -40.0, 20.0, false),
     ("body.levels[1]", "Body halo level, 125 Hz", "dB", -40.0, 20.0, false),

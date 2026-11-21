@@ -994,6 +994,12 @@ pub struct BodyLaw {
     pub t60: [f64; 8],
     /// Delay (s) after the hammer meets the string.
     pub delay: f64,
+    /// Time (s) over which the halo settles in, along a raised-cosine ramp,
+    /// instead of starting at once; its spectrum and its tail stay the same.
+    /// On real grands the first 20–40 ms between the partials are the
+    /// strings' own attack: a halo struck at full level adds a "chtac" of
+    /// its own there (docs/body.md). 0: struck at once.
+    pub rise: f64,
     /// Share of each key's pattern of amplitudes common to every key (the
     /// same body answers them all); the rest is the key's own.
     pub shared: f64,
@@ -1025,6 +1031,7 @@ impl BodyLaw {
         levels: [0.0; 8],
         t60: [0.6, 0.6, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1],
         delay: 0.002,
+        rise: 0.0,
         shared: 0.5,
         speed_ref: 0.0,
         speed_corner: 1300.0,
