@@ -6,7 +6,7 @@ over all its measures, against the real pianos that do not buzz
 A step is kept if it removes measures from the red without raising the mean gap,
 or lowers the mean gap without adding any to the red. Passes repeat until one
 keeps nothing; the steps are then halved once, and the search goes on."""
-import argparse, json, os, re, subprocess, sys, time, traceback
+import argparse, hashlib, json, os, re, subprocess, sys, time, traceback
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOL = os.path.join(ROOT, "target", "release", "unsampled-piano-compare")
@@ -144,6 +144,11 @@ def save(st, text):
     os.replace(STATE + ".tmp", STATE)
 
 
+def digest(path):
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
 def main():
     global PRESET, WITHOUT, BEST, STATE, LOG, TRIAL, OUT
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -155,16 +160,29 @@ def main():
     os.makedirs(args.work, exist_ok=True)
     BEST, STATE, LOG = (os.path.join(args.work, n) for n in ("best.toml", "state.json", "log.txt"))
     TRIAL, OUT = os.path.join(args.work, "trial.toml"), os.path.join(args.work, "trial.json")
+    st = None
     if os.path.exists(STATE) and os.path.exists(BEST):
         st = json.load(open(STATE))
         text = open(BEST).read()
-        log(f"RESUME pass {st['pass']} at {st['next']}: off {st['off']} mean {st['mean']:.4f}")
-    else:
+        # A checkpoint holds only for the scoring it was made with: the same
+        # measures (the tool's measure version), the same band, the same start
+        # (its path and its contents: a pull may change the file in place).
+        s = evaluate(text)
+        made = (st.get("version"), st.get("band"), st.get("preset"), st.get("preset_sha256"))
+        now = (s.get("measure_version"), s["band"], PRESET, digest(PRESET))
+        if made != now:
+            log(f"RESTART: checkpoint made with version, band, preset {made}, now {now}")
+            st = None
+        else:
+            log(f"RESUME pass {st['pass']} at {st['next']}: off {st['off']} mean {st['mean']:.4f}")
+    if st is None:
         text = open(PRESET).read()
         s = evaluate(text)
         log("BASE " + brief(s) + " band " + ",".join(s["band"]))
         st = {"off": s["off"], "mean": s["mean"], "base_off": s["off"], "base_mean": s["mean"], "pass": 1, "next": 0,
-              "scale": 1.0, "kept": [], "kept_this_pass": 0, "trials": 0}
+              "scale": 1.0, "kept": [], "kept_this_pass": 0, "trials": 0,
+              "version": s.get("measure_version"), "band": s["band"], "preset": PRESET,
+              "preset_sha256": digest(PRESET)}
         save(st, text)
     while st["pass"] <= MAX_PASSES:
         for i in range(st["next"], len(P)):

@@ -2,10 +2,10 @@
 //! key up to 8 kHz: the board and its radiation alone, as Plath's anechoic
 //! measurements give them for a real concert grand (bridge accelerometer
 //! and dummy head at the player, `tools/plath_tf.py`). One line per
-//! sample: note, partial, frequency (Hz), 10·log10(mean over the two mics
+//! sample: note, partial, frequency (Hz), 10·log10(mean over the mics
 //! of |p|² / |a|²) in dB re (Pa per m/s²)².
 //!   cargo run --release -p piano-render --example bridge_to_ear -- <preset.toml> [listening.toml …]
-use piano_core::board::{board_modes_at, mic_transfer, to_acceleration_weights};
+use piano_core::board::{board_modes_heard_at, heard_mics, heard_power, to_acceleration_weights, zones_for};
 use piano_core::instrument::REGIONS;
 use piano_core::params::PianoModel;
 
@@ -19,10 +19,13 @@ fn main() {
     let model = PianoModel { soundboard: model.soundboard.map(|s| s.resolved()), ..model };
     let sb = model.board().expect("a preset with a soundboard");
     let sr = 48_000.0;
+    // The mics as the engine hears them (delay zones, the case's fill).
+    let zones = zones_for(&sb, sr).map(|z| z.0);
+    let n_mics = heard_mics(&sb).len();
     for note in 21u8..=108 {
         let (x, y) = sb.params.bridge_point(note);
         // One input per region, all at the key's point: the bank wants REGIONS of them.
-        let mut modes = board_modes_at(&sb, &[(x, y); REGIONS], sr);
+        let mut modes = board_modes_heard_at(&sb, &[(x, y); REGIONS], sr);
         to_acceleration_weights(&mut modes, sr);
         let f0 = 440.0 * 2f64.powf((note as f64 - 69.0) / 12.0);
         for k in 1..=60 {
@@ -31,7 +34,7 @@ fn main() {
                 break;
             }
             let w = std::f64::consts::TAU * f;
-            let p = 0.5 * (mic_transfer(&modes, 0, 0, w, sr).norm_sqr() + mic_transfer(&modes, 0, 1, w, sr).norm_sqr());
+            let p = heard_power(&modes, zones.as_ref(), n_mics, 0, w, sr) / n_mics as f64;
             let a = (w * sb.admittance(x, y, w).norm()).powi(2);
             println!("{note} {k} {f:.1} {:.2}", 10.0 * (p / a).log10());
         }

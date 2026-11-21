@@ -59,6 +59,24 @@ pub const SPEED_KEYS: [f64; 4] = [21.0, 48.0, 72.0, 96.0];
 /// Largest speed ratio the speed law follows above `speed_ref`.
 const SPEED_RATIO_MAX: f64 = 2.0;
 
+/// A strike on its way: it takes a slot at its own event frame, `at`
+/// samples into the render, whatever the slots hold then (a free one, or
+/// the one whose strike has the least excitation left). Choosing then, not
+/// when it is queued, makes the halo the same however the render is cut
+/// into blocks.
+#[derive(Clone, Copy, Default)]
+struct Arrival {
+    at: u32,
+    next: Pending,
+    tilt: SpeedTilt,
+}
+
+/// Strikes due later within one render (an offset). A strike due at once
+/// (offset 0, as the engine gives them, rendering the bank up to each
+/// event) takes its slot straight away and never waits here; beyond this
+/// many later ones, a strike is lost.
+const ARRIVALS: usize = 64;
+
 #[derive(Clone, Copy, Default)]
 struct Pending {
     key: u8,
@@ -83,6 +101,9 @@ pub struct BodyBank {
     /// Per key and resonance: amplitude and sign of the strike, unit rms.
     pattern: Vec<f32>,
     pending: [Pending; PENDING],
+    /// Strikes on their way, in the order they came; `arrived` of them.
+    arrivals: [Arrival; ARRIVALS],
+    arrived: usize,
     /// Per pending strike and resonance: the speed law's weight.
     speed_w: Vec<f32>,
     pulse: Vec<f32>,
@@ -104,9 +125,20 @@ pub struct BodyBank {
     /// Length of the rise in samples for the next strikes; 0: struck at
     /// once by the pulse, as is any rise no longer than the pulse itself.
     rise: u32,
+    /// The tables of the resonances (poles, steps, pulse) and of the
+    /// microphones' weights hold for `law`: a live change that leaves the
+    /// decays or the levels as they were skips their rebuild.
+    built: bool,
     awake: bool,
     sample_rate: f64,
     law: BodyLaw,
+}
+
+/// The share of a strike settled in after `age` samples of a rise of `rise`
+/// samples: a raised-cosine ramp from 0 to 1.
+fn ramp(age: u32, rise: u32) -> f64 {
+    let x = (age as f64 / rise as f64).min(1.0);
+    x - (std::f64::consts::TAU * x).sin() / std::f64::consts::TAU
 }
 
 fn hash(a: f64, b: f64) -> f64 {
@@ -207,6 +239,8 @@ impl BodyBank {
             w: [vec![0.0; MODES], vec![0.0; MODES]],
             pattern: Vec::new(),
             pending: [Pending::default(); PENDING],
+            arrivals: [Arrival::default(); ARRIVALS],
+            arrived: 0,
             speed_w: vec![1.0; PENDING * MODES],
             pulse: w.iter().map(|x| (x / sum) as f32).collect(),
             exc: vec![0.0; MODES],
@@ -217,6 +251,7 @@ impl BodyBank {
             ph_r: vec![1.0; PENDING * MODES],
             ph_i: vec![0.0; PENDING * MODES],
             rise: 0,
+            built: false,
             awake: false,
             sample_rate,
             law: *law,
@@ -248,39 +283,51 @@ impl BodyBank {
             self.fill_pattern(&mut p, law.shared);
             self.pattern = p;
         }
+        let poles = !self.built || law.t60 != self.law.t60;
+        let weights = !self.built || law.levels != self.law.levels;
+        self.built = true;
         self.law = *law;
         let rise = (law.rise.max(0.0) * self.sample_rate).round() as u32;
         self.rise = if rise as usize <= self.pulse.len() { 0 } else { rise };
-        // Unit peak for MODES resonances of random sign and unit rms.
-        let norm = 1.0 / (MODES as f64).sqrt();
-        for i in 0..MODES {
-            let f = self.freq[i];
-            let t60 = band_value(&law.t60, f).max(1e-3);
-            let r = (-6.91 / (t60 * self.sample_rate)).exp();
-            let wv = std::f64::consts::TAU * f / self.sample_rate;
-            self.pr[i] = (r * wv.cos()) as f32;
-            self.pi[i] = (r * wv.sin()) as f32;
-            for k in 0..SUB_TABLES {
-                let n = 1i32 << k;
-                let rn = r.powi(n);
-                self.step_r[k][i] = (rn * (wv * n as f64).cos()) as f32;
-                self.step_i[k][i] = (rn * (wv * n as f64).sin()) as f32;
+        if poles {
+            for i in 0..MODES {
+                let f = self.freq[i];
+                let t60 = band_value(&law.t60, f).max(1e-3);
+                let r = (-6.91 / (t60 * self.sample_rate)).exp();
+                let wv = std::f64::consts::TAU * f / self.sample_rate;
+                let (cr, ci) = (r * wv.cos(), r * wv.sin());
+                self.pr[i] = cr as f32;
+                self.pi[i] = ci as f32;
+                // p^(2^k) by squaring.
+                let (mut sr, mut si) = (cr, ci);
+                for k in 0..SUB_TABLES {
+                    self.step_r[k][i] = sr as f32;
+                    self.step_i[k][i] = si as f32;
+                    (sr, si) = (sr * sr - si * si, 2.0 * sr * si);
+                }
+                // The pulse added sample by sample to a decaying, turning
+                // resonance amounts to one kick of Σ_k w_k·p^(−k), p = r·e^(iω).
+                let (qr, qi) = (wv.cos() / r, -wv.sin() / r);
+                let (mut gr, mut gi, mut hr, mut hi) = (1.0, 0.0, 0.0, 0.0);
+                for &x in &self.pulse {
+                    hr += x as f64 * gr;
+                    hi += x as f64 * gi;
+                    (gr, gi) = (gr * qr - gi * qi, gr * qi + gi * qr);
+                }
+                self.pulse_hr[i] = hr as f32;
+                self.pulse_hi[i] = hi as f32;
             }
-            // The pulse added sample by sample to a decaying, turning
-            // resonance amounts to one kick of Σ_k w_k·p^(−k), p = r·e^(iω).
-            let (mut hr, mut hi) = (0.0, 0.0);
-            for (k, &x) in self.pulse.iter().enumerate() {
-                let g = x as f64 * r.powi(-(k as i32));
-                hr += g * (wv * k as f64).cos();
-                hi -= g * (wv * k as f64).sin();
-            }
-            self.pulse_hr[i] = hr as f32;
-            self.pulse_hi[i] = hi as f32;
-            let level = 10f64.powf(band_value(&law.levels, f) / 20.0) * norm;
-            for (ch, w) in self.w.iter_mut().enumerate() {
-                let h = hash(i as f64 + 0.5, ch as f64 + 41.0);
-                let sign = if hash(i as f64, ch as f64 + 17.0) < 0.5 { -1.0 } else { 1.0 };
-                w[i] = (level * sign * (0.7 + 0.6 * h)) as f32;
+        }
+        if weights {
+            // Unit peak for MODES resonances of random sign and unit rms.
+            let norm = 1.0 / (MODES as f64).sqrt();
+            for i in 0..MODES {
+                let level = 10f64.powf(band_value(&law.levels, self.freq[i]) / 20.0) * norm;
+                for (ch, w) in self.w.iter_mut().enumerate() {
+                    let h = hash(i as f64 + 0.5, ch as f64 + 41.0);
+                    let sign = if hash(i as f64, ch as f64 + 17.0) < 0.5 { -1.0 } else { 1.0 };
+                    w[i] = (level * sign * (0.7 + 0.6 * h)) as f32;
+                }
             }
         }
     }
@@ -298,29 +345,135 @@ impl BodyBank {
         }
         let amp = law.gain * speed * 10f64.powf(law.slope * (note as f64 - 60.0) / 12.0 / 20.0);
         let wait = ((offset + law.delay) * self.sample_rate).round().max(0.0) as u32;
-        // No room: the strike furthest along gives up what it had left.
+        let sub = if self.rise >= STEPS { (1u32 << (self.rise / STEPS).ilog2()).min(SUB) } else { 1 };
+        let next = Pending { key: note - 21, amp: amp as f32, wait, age: 0, rise: self.rise, sub };
+        let tilt = SpeedTilt::of(&law, note, speed).scaled(at_key(&law.speed_halo, note));
+        let at = (offset * self.sample_rate).round().max(0.0) as u32;
+        let a = Arrival { at, next: Pending { wait: wait.saturating_sub(at), ..next }, tilt };
+        if at == 0 {
+            // Due now: it takes its slot at once, after those already due.
+            self.arrive_due();
+            self.arrive(a);
+        } else if self.arrived < ARRIVALS {
+            self.arrivals[self.arrived] = a;
+            self.arrived += 1;
+        }
+    }
+
+    /// The queued strikes due at this frame take their slots, in the order
+    /// they came; the others count down one sample.
+    fn arrive_due(&mut self) {
+        let mut kept = 0;
+        for i in 0..self.arrived {
+            let a = self.arrivals[i];
+            if a.at == 0 {
+                self.arrive(a);
+            } else {
+                self.arrivals[kept] = a;
+                kept += 1;
+            }
+        }
+        self.arrived = kept;
+    }
+
+    /// A strike reaching its frame takes a free slot, or else the slot of
+    /// the strike with the least excitation left, which first takes that
+    /// rest at once.
+    fn arrive(&mut self, a: Arrival) {
         let j = match self.pending.iter().position(|p| p.amp == 0.0) {
             Some(j) => j,
-            None => (0..PENDING).max_by_key(|&j| (self.pending[j].wait == 0, self.pending[j].age)).unwrap(),
+            None => {
+                let j = self.victim();
+                self.settle_rest(j);
+                j
+            }
         };
-        let sub = if self.rise >= STEPS { (1u32 << (self.rise / STEPS).ilog2()).min(SUB) } else { 1 };
-        self.pending[j] = Pending { key: note - 21, amp: amp as f32, wait, age: 0, rise: self.rise, sub };
+        self.install(j, a.next, a.tilt);
+    }
+
+    fn install(&mut self, j: usize, p: Pending, tilt: SpeedTilt) {
+        self.pending[j] = p;
         self.ph_r[j * MODES..(j + 1) * MODES].fill(1.0);
         self.ph_i[j * MODES..(j + 1) * MODES].fill(0.0);
-        let tilt = SpeedTilt::of(&law, note, speed).scaled(at_key(&law.speed_halo, note));
         for (w, &f) in self.speed_w[j * MODES..(j + 1) * MODES].iter_mut().zip(&self.freq) {
             *w = tilt.gain(f) as f32;
         }
     }
 
+    /// The slot to give up when all are taken: the strike under way with the
+    /// least of its excitation left (one still waiting only if all are).
+    fn victim(&self) -> usize {
+        let left = |p: &Pending| -> f64 {
+            let done = if p.rise > 0 {
+                ramp(p.age.div_ceil(p.sub) * p.sub, p.rise)
+            } else {
+                self.pulse[..(p.age as usize).min(self.pulse.len())].iter().map(|&x| x as f64).sum()
+            };
+            p.amp as f64 * (1.0 - done).max(0.0)
+        };
+        (0..PENDING)
+            .min_by(|&a, &b| {
+                let (pa, pb) = (&self.pending[a], &self.pending[b]);
+                (pa.wait > 0).cmp(&(pb.wait > 0)).then(left(pa).total_cmp(&left(pb)))
+            })
+            .unwrap_or(0)
+    }
+
+    /// A settling strike giving its slot away takes the rest of its ramp at
+    /// once, in phase with what it already rings, so that its tail is the
+    /// same as if it had settled in: only the rest's onset comes early. A
+    /// pulse's last samples (under 0.25 ms) are dropped. Real-time safe.
+    fn settle_rest(&mut self, j: usize) {
+        let p = self.pending[j];
+        if p.amp == 0.0 || p.rise == 0 || p.wait > 0 {
+            return;
+        }
+        // What has been added so far reaches the next step `next`, with the
+        // phasor at p^next; the rest goes in now, at `age`: turned back by
+        // p^(next − age).
+        let next = p.age.div_ceil(p.sub) * p.sub;
+        let d = p.amp as f64 * (1.0 - ramp(next, p.rise));
+        let m = next - p.age;
+        let pat = &self.pattern[p.key as usize * MODES..(p.key as usize + 1) * MODES];
+        let sw = &self.speed_w[j * MODES..(j + 1) * MODES];
+        for i in 0..MODES {
+            // p^m from the tables of p^(2^k), then its inverse.
+            let (mut mr, mut mi) = (1.0f64, 0.0f64);
+            for k in 0..SUB_TABLES {
+                if m >> k & 1 == 1 {
+                    let (sr, si) = (self.step_r[k][i] as f64, self.step_i[k][i] as f64);
+                    (mr, mi) = (mr * sr - mi * si, mr * si + mi * sr);
+                }
+            }
+            let n2 = mr * mr + mi * mi;
+            let (qr, qi) = (mr / n2, -mi / n2);
+            let (a, b) = (self.ph_r[j * MODES + i] as f64, self.ph_i[j * MODES + i] as f64);
+            let (hr, hi) = (self.pulse_hr[i] as f64, self.pulse_hi[i] as f64);
+            let (ur, ui) = (a * hr - b * hi, a * hi + b * hr);
+            let (er, ei) = (ur * qr - ui * qi, ur * qi + ui * qr);
+            let v = d * pat[i] as f64 * sw[i] as f64;
+            self.zr[i] += (v * er) as f32;
+            self.zi[i] += (v * ei) as f32;
+        }
+        self.awake = true;
+    }
+
     /// Adds the halo to the two microphone signals (pressure, Pa, times
     /// `gain`). Real-time safe.
     pub fn render(&mut self, out: [&mut [f32]; 2], gain: f32) {
-        if !self.awake && self.pending.iter().all(|p| p.amp == 0.0) {
+        if !self.awake && self.arrived == 0 && self.pending.iter().all(|p| p.amp == 0.0) {
             return;
         }
         let [l, r] = out;
         for n in 0..l.len() {
+            // Strikes reaching their frame take their slots, in the order
+            // they came; the others come one sample nearer.
+            if self.arrived > 0 {
+                self.arrive_due();
+                for a in &mut self.arrivals[..self.arrived] {
+                    a.at -= 1;
+                }
+            }
             // Strikes under way this sample.
             let mut struck = false;
             for j in 0..PENDING {
@@ -338,11 +491,7 @@ impl BodyBank {
                     // Settling in: every `sub` samples the next step of the
                     // ramp, turned as the resonance has since the strike.
                     if p.age.is_multiple_of(p.sub) {
-                        let ramp = |a: u32| {
-                            let x = (a as f64 / p.rise as f64).min(1.0);
-                            x - (std::f64::consts::TAU * x).sin() / std::f64::consts::TAU
-                        };
-                        let d = (p.amp as f64 * (ramp(p.age + p.sub) - ramp(p.age))) as f32;
+                        let d = (p.amp as f64 * (ramp(p.age + p.sub, p.rise) - ramp(p.age, p.rise))) as f32;
                         let t = p.sub.trailing_zeros() as usize;
                         let (sr, si) = (&self.step_r[t], &self.step_i[t]);
                         let phr = &mut self.ph_r[j * MODES..(j + 1) * MODES];
@@ -557,6 +706,141 @@ mod tests {
             let x = first(n);
             assert!(x <= 1.5 * pulse, "rise {n} samples: first sample {x:.5} of the peak, the pulse's {pulse:.5}");
         }
+    }
+
+    #[test]
+    fn a_full_queue_keeps_every_strike_whole() {
+        // Four eight-note chords 40 ms apart fill the 32 slots while they
+        // settle in over 0.3 s; one quiet note at 160 ms must free one. Once
+        // every ramp is over, the halo is the sum of each strike's own.
+        let sr = 48_000.0;
+        let law = BodyLaw { t60: [1.0; 8], rise: 0.3, delay: 0.0, ..law() };
+        let chords: Vec<(usize, u8, f64)> = (0..4).flat_map(|c| (0..8).map(move |k| (c * 1920, 36 + 3 * k as u8 + c as u8, 2.0))).collect();
+        let quiet = (7680, 70, 0.3);
+        let play = |strikes: &[(usize, u8, f64)]| {
+            let mut b = BodyBank::new(sr, &law);
+            let n = (sr * 0.6) as usize;
+            let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+            let mut at = 0;
+            let mut times: Vec<usize> = strikes.iter().map(|s| s.0).collect();
+            times.push(n);
+            times.sort();
+            times.dedup();
+            for t in times {
+                b.render([&mut l[at..t], &mut r[at..t]], 1.0);
+                for &(_, note, speed) in strikes.iter().filter(|s| s.0 == t) {
+                    b.strike(note, speed, 0.0);
+                }
+                at = t;
+            }
+            l
+        };
+        let mut all = chords.clone();
+        all.push(quiet);
+        let (together, apart, alone) = (play(&all), play(&chords), play(&[quiet]));
+        let db = |x: &[f32]| 10.0 * (x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len() as f64).log10();
+        let w = (0.5 * sr) as usize..(0.6 * sr) as usize;
+        let err: Vec<f32> = w.clone().map(|i| together[i] - apart[i] - alone[i]).collect();
+        let rel = db(&err) - db(&apart[w]);
+        assert!(rel < -40.0, "{rel:.1} dB");
+    }
+
+    #[test]
+    fn a_strike_that_needs_a_slot_changes_nothing_before_its_frame() {
+        // All 32 slots settling in; one more note 48 frames into the next
+        // render. Struck with that offset, or after rendering those 48
+        // frames first: the same output, and before the note the same as
+        // without it.
+        let sr = 48_000.0;
+        let law = BodyLaw { t60: [1.0; 8], rise: 0.3, delay: 0.0, ..law() };
+        let full = || {
+            let mut b = BodyBank::new(sr, &law);
+            for k in 0..32u8 {
+                b.strike(30 + 2 * k, 1.0 + 0.05 * k as f64, 0.0);
+            }
+            let (mut l, mut r) = (vec![0.0f32; 64], vec![0.0f32; 64]);
+            b.render([&mut l, &mut r], 1.0);
+            b
+        };
+        let n = 2400;
+        let run = |split: Option<usize>| {
+            let mut b = full();
+            let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+            match split {
+                None => b.render([&mut l, &mut r], 1.0),
+                Some(0) => {
+                    b.strike(80, 2.0, 48.0 / sr);
+                    b.render([&mut l, &mut r], 1.0);
+                }
+                Some(k) => {
+                    b.render([&mut l[..k], &mut r[..k]], 1.0);
+                    b.strike(80, 2.0, 0.0);
+                    b.render([&mut l[k..], &mut r[k..]], 1.0);
+                }
+            }
+            (l, r)
+        };
+        let (without, offset, split) = (run(None), run(Some(0)), run(Some(48)));
+        let diff = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(x, y)| (x - y).abs()).fold(0.0f32, f32::max);
+        assert_eq!(diff(&offset.0[..48], &without.0[..48]), 0.0);
+        assert_eq!(diff(&offset.1[..48], &without.1[..48]), 0.0);
+        assert_eq!(diff(&offset.0, &split.0), 0.0);
+        assert_eq!(diff(&offset.1, &split.1), 0.0);
+        // The note does sound from its frame on.
+        assert!(diff(&offset.0[48..], &without.0[48..]) > 1e-3);
+    }
+
+    #[test]
+    fn the_slot_is_chosen_when_the_note_takes_effect() {
+        // The same notes rendered in one call, or cut into blocks at their
+        // frames and struck at offset zero: the same halo, bit for bit.
+        let sr = 48_000.0;
+        let settling = BodyLaw { t60: [1.0; 8], rise: 0.3, delay: 0.0, ..law() };
+        let n = 4800;
+        let play = |setup: &dyn Fn(&mut BodyBank), notes: &[(usize, u8)], cut: bool| {
+            let mut b = BodyBank::new(sr, &settling);
+            setup(&mut b);
+            let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+            if cut {
+                let mut at = 0;
+                for &(t, note) in notes {
+                    b.render([&mut l[at..t], &mut r[at..t]], 1.0);
+                    b.strike(note, 1.5, 0.0);
+                    at = t;
+                }
+                b.render([&mut l[at..], &mut r[at..]], 1.0);
+            } else {
+                for &(t, note) in notes {
+                    b.strike(note, 1.5, t as f64 / sr);
+                }
+                b.render([&mut l, &mut r], 1.0);
+            }
+            (l, r)
+        };
+        let same = |a: &(Vec<f32>, Vec<f32>), b: &(Vec<f32>, Vec<f32>)| a.0 == b.0 && a.1 == b.1;
+        // A slot frees during the block: 31 settling strikes and one 12-frame
+        // pulse struck at its start, a new note at frame 48 (the pulse's
+        // slot is free by then).
+        let freeing = |b: &mut BodyBank| {
+            for k in 0..31u8 {
+                b.strike(30 + 2 * k, 1.0 + 0.05 * k as f64, 0.0);
+            }
+            b.set_law(&BodyLaw { rise: 0.0, ..settling });
+            b.strike(95, 2.0, 0.0);
+            b.set_law(&settling);
+        };
+        assert!(same(&play(&freeing, &[(48, 80)], false), &play(&freeing, &[(48, 80)], true)));
+        // A full queue and two arrivals, at frames 8 and 48: the first one is
+        // the least advanced when the second comes.
+        let full = |b: &mut BodyBank| {
+            for k in 0..32u8 {
+                b.strike(30 + 2 * k, 1.0 + 0.05 * k as f64, 0.0);
+            }
+            let (mut l, mut r) = (vec![0.0f32; 64], vec![0.0f32; 64]);
+            b.render([&mut l, &mut r], 1.0);
+        };
+        let two = [(8, 80), (48, 84)];
+        assert!(same(&play(&full, &two, false), &play(&full, &two, true)));
     }
 
     #[test]

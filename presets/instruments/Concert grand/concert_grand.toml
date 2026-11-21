@@ -13,6 +13,14 @@ hammer_mass_slope = 0.00078
 # 17 dB short at a real grand's bridge and their second partial 19 dB too strong
 # (docs/steinway_d_gaps.md, "The strike point in the top octave").
 strike_ratio_top = 0.05
+# Each hammer at its own place, as on a real action regulated by hand. A real concert
+# grand's bridge reads its strike points at 0.1214 on average from A0 to C#3, in two
+# states a year apart, with no slope along the keyboard, scattered by 0.0005–0.001 about
+# that mean (RT-425's 0.12 at every key is a rule). At 0.12 on every key the 25th
+# partial had a node on the strike point and was lost from A#3 to D#4, 40 to 60 dB
+# under the real grand's (docs/steinway_d_gaps.md, "The strike point key by key").
+strike_ratio = 0.1215
+strike_ratio_spread = 0.0007
 # Top felt over a hard core: the recorded D's middle attack is darker than the
 # default's, and its low bass brightens far more from mf to ff (2–4 kHz at A0–B1,
 # 36 dB from velocity 60 to 100; 22 here with the harder felt below, 31 before it).
@@ -36,11 +44,18 @@ hardness = 1.2
 p_bass = -1.0
 # 0.0378 until the comparison tool's search (docs/compare_search.md).
 hardness_slope_bass = 0.0318
-# A softer felt above C4, 0.55 of the hardness at C5 and 0.30 from C6 up: the treble's
+# A softer felt above C4, 0.55 of the hardness at C5 and 0.30 at C6 (harder above, below): the treble's
 # mf attack was 7 to 9 dB brighter than the real grands' at 2-8 kHz, and loses half of
 # that at 4-8 kHz. Kept at the keyboard (docs/felt_law.md).
 hardness_slope = -0.05
-hardness_slope_top = 0.085
+# Harder again from C6 up (0.085 before): the top grew far too much from soft to loud,
+# its hammers' contact lasting 69 % longer at mf than at ff at C8 where a real grand's
+# lasts 11 % longer. Against a real Disklavier grand at its own eight velocities the
+# top's fundamental now grows by 4.2 dB per 10 velocity steps (6.2 before, the real
+# one 4.25) and its ff - mf comes to 12.6-15.6 dB (13.4-18.8; real 11.2-14.3). The
+# top's mf attack a little brighter (docs/steinway_d_gaps.md, "The top's growth with
+# the blow").
+hardness_slope_top = 0.25
 
 [polarization]
 # The sideways coupling as measured on a real grand's partials (0.03, the cross
@@ -142,6 +157,12 @@ len_a0 = 2.01
 tension = 750.0
 
 [unison]
+# The strings of a key struck a little apart (0.2 mm at C4, 0.4 at C3): at one point
+# a partial whose node falls there was left 50 to 80 dB down at the bridge (F3, G3);
+# a real grand's deepest dips stay above −40 dB at every key, and their median over
+# D3–C#4 is −16 to −19 dB, here −14.5 (docs/steinway_d_gaps.md, "The strings of a
+# unison struck apart").
+strike_spread = 0.0003
 # 8 single strings (A0–E1), 5 bichords (F1–A1), then trichords.
 bichord_from = 29
 trichord_from = 34
@@ -224,7 +245,11 @@ string_sections = [[41.0, 0.014], [56.0, 0.014], [74.0, 0.014], [92.0, 0.014]]
 # to 10 cm from their measured places in the tenor (A2-E3), and 5 to 6 cm in the bass
 # (C1-A1). With them every string's measured length ends on its bridge point from one
 # straight line of hammers (docs/string_sections.md, "The strings' lengths").
-bridge_keys = [[24.0, 0.8540, 0.7260], [27.0, 0.8258, 0.6849], [30.0, 0.7740, 0.6438], [33.0, 0.7128, 0.6164], [36.0, 0.6516, 0.5959], [40.0, 0.5810, 0.5753], [41.0, 0.8023, 0.8425], [43.0, 0.7222, 0.8151], [46.0, 0.6186, 0.7603], [50.0, 0.5056, 0.6918], [54.0, 0.4115, 0.6301], [58.0, 0.3409, 0.5753], [63.0, 0.2655, 0.5137], [68.0, 0.2090, 0.4521], [73.0, 0.1667, 0.3973], [78.0, 0.1384, 0.3425], [84.0, 0.1102, 0.2808], [90.0, 0.0866, 0.2123], [96.0, 0.0678, 0.1507], [102.0, 0.0537, 0.0959], [107.0, 0.0443, 0.0548], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+# RT-425 stops at B7: C8's point is drawn on along the line, and with the board's edge
+# on the rim's inner face it fell on the clamped edge itself, C8 29 dB weak at the
+# player's ears. B7's point 1 cm further in (0.0548 -> 0.0617) keeps C8 1.2 cm from the
+# edge, in the real grands' range (docs/steinway_d_gaps.md, "B7 and C8").
+bridge_keys = [[24.0, 0.8540, 0.7260], [27.0, 0.8258, 0.6849], [30.0, 0.7740, 0.6438], [33.0, 0.7128, 0.6164], [36.0, 0.6516, 0.5959], [40.0, 0.5810, 0.5753], [41.0, 0.8023, 0.8425], [43.0, 0.7222, 0.8151], [46.0, 0.6186, 0.7603], [50.0, 0.5056, 0.6918], [54.0, 0.4115, 0.6301], [58.0, 0.3409, 0.5753], [63.0, 0.2655, 0.5137], [68.0, 0.2090, 0.4521], [73.0, 0.1667, 0.3973], [78.0, 0.1384, 0.3425], [84.0, 0.1102, 0.2808], [90.0, 0.0866, 0.2123], [96.0, 0.0678, 0.1507], [102.0, 0.0537, 0.0959], [107.0, 0.0443, 0.0617], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
 # The board as it is built, by finite elements: plate, ribs and bridges of the D
 # (fem::BoardStructure::STEINWAY_D, docs/real_board.md).
@@ -236,10 +261,17 @@ enabled = true
 below = 6000.0
 # The strings hold the bridge, T·(1/L + 1/l) each, and its top along their own
 # length, E·A·(1/L + 1/l)·h² on the board's slope: stringing raises the board's
-# first resonances from 63, 87, 125 Hz to 83, 108, 148 Hz, a real concert grand's
+# first resonances from 58, 80, 112 Hz to 78, 100, 136 Hz, a real concert grand's
 # from 56, 80, 114 to 74, 98, 136 (Plath 2019; docs/bass_gaps.md, docs/outline.md).
 strings = true
 strings_grip = true
+# The board's edge glued on the rim's ledge, which lets it turn a little: a spring
+# of 1500 N·m/rad per metre of edge, fitted on those resonances. Clamped all round,
+# the board moved two to three times too much under the bridge from C7 to G7: G#6
+# to D#7 came in 5 dB loud and died away too fast in their first tenth of a second
+# (docs/steinway_d_gaps.md, "The board's edge").
+clamped = false
+edge_spring = 1500.0
 # The D's 17 ribs from its dimensioned drawing (Boutillon, Ege & Paulello 2012,
 # figure 2; tools/steinway_d_ribs.py): from rim to rim at 51.2° to the spine, as the
 # drawing has them (their lengths within 4 mm from the sixth on), 17 to 27 mm high under the
@@ -348,8 +380,9 @@ slope = -3.0
 # the residual's octave energy, where the model's slightly strong partials filled the
 # octaves, the halo in the middle of the gaps stood 7–20 dB under the real grands' from
 # 1.5 kHz (the comparison tool's between measure: C3–C5 12–15 dB low, now 4–6).
-# 125 and 250 Hz 3 dB up in the comparison tool's search (docs/compare_search.md).
-levels = [-7.0, 3.0, -1.0, -12.0, -18.0, -13.0, -20.0, -32.0]
+# 125 and 250 Hz 3 dB up in the comparison tool's search, then 1 kHz 3 dB down and 4 kHz
+# 1.5 dB up in the second, with partials 2-4 counted (docs/compare_search.md).
+levels = [-7.0, 3.0, -1.0, -12.0, -21.0, -13.0, -18.5, -32.0]
 t60 = [1.6, 1.15, 0.9, 0.8, 0.8, 0.5, 0.3, 0.2]
 # Levels set at ff (velocity 100 on the playback scale, 2.76 m/s). On the real grands
 # the attack's knock grows faster than the note with the hammer speed, its top fastest
