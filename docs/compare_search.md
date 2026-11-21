@@ -98,4 +98,4 @@ It read each partial at its strongest line, which made a unison's split partial 
 
 None of the 66 parameters moves the overtones of the sustain. Their excess sits on single keys (against the band's median: D#3 +18 dB, D#5 +19, D6 +19, G1 −24, D7 −27). It takes a lever that acts key by key, such as the board's modes at each bridge point, not the instrument-wide values searched here.
 
-A checkpoint of `tools/compare_search.py` now records the measure version, the band and the starting preset. If any of them differs, the search starts again from a freshly scored baseline.
+A checkpoint of `tools/compare_search.py` now records the measure version, the band, and the starting preset's path and contents (SHA-256, since a pull may change the file in place). If any of them differs, the search starts again from a freshly scored baseline.
