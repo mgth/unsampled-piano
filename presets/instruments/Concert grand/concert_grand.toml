@@ -374,6 +374,13 @@ coupling_plain = 0.3
 strike_stretch = true
 strike_scale = 0.25
 
+[noise]
+# The case's knock under every note: below the fundamentals of the keys from C4 up the
+# real grands hold one wooden thud from 80 to 630 Hz, the same under every key, which
+# the action's knock and the body's halo left 11 dB short of the Splendid Grand's. At
+# its level re the middle notes; kept by ear (docs/case_knock.md).
+case = 0.05
+
 [body]
 # The body's halo after each strike, calibrated on the Splendid Grand: once the
 # partials are taken out, its median over 14 keys (A1–C7, ff) within 5 dB from 63 Hz

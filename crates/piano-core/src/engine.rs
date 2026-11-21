@@ -354,6 +354,8 @@ pub struct Engine {
     /// The action's knock, heard directly, and the decay time it was set to.
     action: crate::action::ActionNoise,
     action_time: f64,
+    /// The case's knock, heard directly.
+    case: crate::case::CaseKnock,
     /// The body's halo after each strike (crate::body).
     body: crate::body::BodyBank,
     room: Option<crate::room::Room>,
@@ -397,6 +399,7 @@ impl Engine {
         let shortcuts = cfg.quality.shortcuts();
         let capacity = inst.table.capacity();
         let action_time = inst.model.noise.action_time;
+        let (case_low, case_time) = (inst.model.noise.case_low, inst.model.noise.case_time);
         let body_law = inst.model.body;
         // Only an instrument whose bridge rocks pays for its third output.
         let rocking = inst.low.as_ref().is_some_and(|l| l.rocking);
@@ -533,6 +536,7 @@ impl Engine {
             knocks: [Knock::default(); MAX_KNOCKS],
             action: crate::action::ActionNoise::new(cfg.sample_rate, action_time),
             action_time,
+            case: crate::case::CaseKnock::new(cfg.sample_rate, case_low, case_time),
             body: crate::body::BodyBank::new(cfg.sample_rate, &body_law),
             room,
             sustain_prev: 0.0,
@@ -1036,6 +1040,8 @@ impl Engine {
                 let (nl, nr) = (&mut nl[..len], &mut nr[..len]);
                 // The body's halo is already in (render_body).
                 self.action.render([&mut *nl, &mut *nr], out_gain * PRESSURE_GAIN);
+                self.case.set(self.live.noise.case_low, self.live.noise.case_time);
+                self.case.render([&mut *nl, &mut *nr], out_gain * PRESSURE_GAIN);
                 // Each microphone hears them from its distance: a far pair
                 // later and weaker (crate::mics::noise_paths).
                 let mask = self.noise_hist[0].len() - 1;
@@ -1455,6 +1461,8 @@ impl Engine {
             let within = self.now.saturating_sub(self.clock) as f64 / self.cfg.sample_rate;
             let tilt = crate::body::SpeedTilt::of(&self.live.body, note, vh);
             self.action.strike(note, self.live.noise.action * vh, within + self.live.noise.action_delay, tilt);
+            self.case.set(self.live.noise.case_low, self.live.noise.case_time);
+            self.case.strike(note, self.live.noise.case * vh, within);
             // A live change of the body's law earlier in this sub-block
             // takes effect for this strike, not only at the next one.
             if self.live.body != *self.body.law() {

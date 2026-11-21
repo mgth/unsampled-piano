@@ -1155,6 +1155,17 @@ pub struct NoiseLaw {
     pub action: f64,
     pub action_time: f64,
     pub action_delay: f64,
+    /// The case's knock heard directly (the keybed's and the case's own
+    /// resonances under every key's blow, crate::case): peak pressure (Pa)
+    /// at the microphones per m/s of hammer speed. 0: none. 0.05 puts the
+    /// knock below the fundamentals of the keys from C4 up at the Splendid
+    /// Grand's level from 80 to 630 Hz (docs/case_knock.md).
+    pub case: f64,
+    /// Its lowest resonance (Hz): 77–93 Hz on six real grands.
+    pub case_low: f64,
+    /// Its decay time T60 (s) at 200 Hz, longer below and shorter above as
+    /// (200/f)^0.5.
+    pub case_time: f64,
 }
 
 impl NoiseLaw {
@@ -1172,9 +1183,12 @@ impl NoiseLaw {
         action: 0.02102,
         action_time: 0.2,
         action_delay: 0.008,
+        case: 0.0,
+        case_low: 80.0,
+        case_time: 0.55,
     };
     pub const OFF: Self =
-        Self { keybed: 0.0, damper_mass: 0.0, damper_speed: 0.0, damper_landing: 0.004, pedal: 0.0, knock_time: 0.003, action: 0.0, action_time: 0.2, action_delay: 0.008 };
+        Self { keybed: 0.0, damper_mass: 0.0, damper_speed: 0.0, damper_landing: 0.004, pedal: 0.0, knock_time: 0.003, action: 0.0, action_time: 0.2, action_delay: 0.008, case: 0.0, case_low: 80.0, case_time: 0.55 };
 
     /// |spectrum| of a unit-area half-sine pulse of duration τ at ω.
     pub fn half_sine_spectrum(omega: f64, tau: f64) -> f64 {

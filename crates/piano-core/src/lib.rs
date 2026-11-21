@@ -4,6 +4,7 @@
 pub mod action;
 pub mod board;
 pub mod body;
+pub mod case;
 pub mod complex;
 pub mod denormal;
 pub mod duplex;
