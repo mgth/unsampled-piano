@@ -55,3 +55,37 @@ fn the_halo_waits_for_the_note_frame() {
     // After it, it does.
     assert!(max_diff(&lw[48..], &lo[48..]) > 1e-4);
 }
+
+/// A change of the halo's rise while a strike settles in leaves that strike
+/// as it began (to zero or to another length): the next ones take it.
+#[test]
+fn a_live_rise_change_leaves_a_settling_strike_alone() {
+    let mut cfg = config(0.25);
+    cfg.model.body.rise = 0.1;
+    let note = TimedEvent { frame: 0, event: Event::NoteOn { note: 48, velocity: 100 } };
+    let run = |to: Option<f32>| {
+        let mut e = Engine::new(cfg);
+        let bs = e.config().max_block;
+        let frames = 9600;
+        let (mut l, mut r) = (vec![0.0f32; frames], vec![0.0f32; frames]);
+        for (i, (bl, br)) in l.chunks_mut(bs).zip(r.chunks_mut(bs)).enumerate() {
+            let mut ev = Vec::new();
+            if i == 0 {
+                ev.push(note);
+            }
+            // 64 frames into the 0.1 s ramp (blocks of 64 or more: the
+            // second block starts at frame ≥ 64).
+            if let (1, Some(v)) = (i, to) {
+                ev.push(TimedEvent { frame: 0, event: Event::Param { id: LiveParam::BodyRise, value: v } });
+            }
+            e.process_stereo(&ev, bl, br);
+        }
+        (l, r)
+    };
+    let (lk, rk) = run(None);
+    for to in [0.0, 0.03] {
+        let (l, r) = run(Some(to));
+        assert!(l.iter().chain(&r).all(|x| x.is_finite()));
+        assert!(max_diff(&l, &lk) < 1e-6 && max_diff(&r, &rk) < 1e-6, "rise → {to}: {} {}", max_diff(&l, &lk), max_diff(&r, &rk));
+    }
+}
