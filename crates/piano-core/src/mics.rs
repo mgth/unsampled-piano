@@ -227,19 +227,29 @@ pub const NOISE_REFERENCE_GAIN_DB: f64 = -7.4;
 /// the listening set-ups give them, before the musician's controls move
 /// them alike (`setup_gain_db`). Delay:
 /// the mean path from the board and the action along the keys, against
-/// the reference's. A set-up at the reference hears them as before, bit for
-/// bit. Patterns and the lid are not counted.
+/// the reference's, at most [`MAX_NOISE_DELAY`]. Near a reference
+/// microphone, both tend to its own (the references weighed by 1/d²); at
+/// it, the noises are heard as before, bit for bit. The board's radiation
+/// carries the lid's shadow and reflection: the noises take them too.
+/// Patterns are not counted.
 pub fn noise_paths(sb: &crate::soundboard::Soundboard, setup_gain_db: f64, sample_rate: f64) -> Vec<(f64, usize)> {
     let p = &sb.params;
     let (a, b) = (p.a, p.b);
     let refs: Vec<[f64; 3]> = NOISE_REFERENCE.iter().map(|&(u, v, z)| [u * a, v * b, z]).collect();
     let mics: Vec<[f64; 3]> = p.mics.iter().map(|m| [m.at.0, m.at.1, m.at.2]).collect();
+    let setup = setup_gain_db - NOISE_REFERENCE_GAIN_DB;
+    let at_ref = if setup == 0.0 { 1.0 } else { 10f64.powf(setup / 20.0) };
+    let max_delay = (MAX_NOISE_DELAY * sample_rate).round() as usize;
+    // Every microphone at the reference: no radiation to integrate.
+    if mics.iter().all(|m| refs.contains(m)) {
+        return vec![(at_ref, 0); mics.len()];
+    }
     let points: Vec<[f64; 3]> = mics.iter().chain(&refs).copied().collect();
-    // The board's level at each point.
+    // The board's level at each point (None: it hears none of it).
     let n = sb.modes.iter().take_while(|m| m.omega < std::f64::consts::TAU * 4000.0).count();
     let w = sb.radiation_points(&points, n);
     let bands: Vec<f64> = (0..6).map(|k| 125.0 * 2f64.powi(k)).collect();
-    let level = |pt: usize| {
+    let level = |pt: usize| -> Option<f64> {
         let mut db = Vec::new();
         for &c in &bands {
             let (mut e, mut k) = (0.0, 0);
@@ -250,14 +260,14 @@ pub fn noise_paths(sb: &crate::soundboard::Soundboard, setup_gain_db: f64, sampl
                     k += 1;
                 }
             }
-            if k > 0 && e > 0.0 {
+            if k > 0 && e > 0.0 && e.is_finite() {
                 db.push(10.0 * (e / k as f64).log10());
             }
         }
-        if db.is_empty() { 0.0 } else { db.iter().sum::<f64>() / db.len() as f64 }
+        (!db.is_empty()).then(|| db.iter().sum::<f64>() / db.len() as f64)
     };
     let nm = mics.len();
-    let ref_db = 10.0 * (0.5 * (10f64.powf(level(nm) / 10.0) + 10f64.powf(level(nm + 1) / 10.0))).log10();
+    let ref_db: Vec<f64> = (0..refs.len()).map(|k| level(nm + k).unwrap_or(0.0)).collect();
     // The mean path from the sources: the board and the action in front of it.
     let mut sources = Vec::new();
     for i in 0..8 {
@@ -269,24 +279,80 @@ pub fn noise_paths(sb: &crate::soundboard::Soundboard, setup_gain_db: f64, sampl
         sources.push([crate::soundboard::KEY_LINE_X - 0.12, (0.1 + 0.8 * j as f64 / 8.0) * b, 0.0]);
     }
     let path = |m: &[f64; 3]| sources.iter().map(|s| ((m[0] - s[0]).powi(2) + (m[1] - s[1]).powi(2) + (m[2] - s[2]).powi(2)).sqrt()).sum::<f64>() / sources.len() as f64;
-    let ref_path = 0.5 * (path(&refs[0]) + path(&refs[1]));
-    let setup = setup_gain_db - NOISE_REFERENCE_GAIN_DB;
+    let ref_path: Vec<f64> = refs.iter().map(&path).collect();
     mics.iter()
         .enumerate()
         .map(|(i, m)| {
             // A reference microphone hears them as it did.
             if refs.contains(m) {
-                return (if setup == 0.0 { 1.0 } else { 10f64.powf(setup / 20.0) }, 0);
+                return (at_ref, 0);
             }
-            let gain = 10f64.powf((level(i) - ref_db + setup) / 20.0);
-            (gain, ((path(m) - ref_path).max(0.0) / crate::soundboard::C0 * sample_rate).round() as usize)
+            // Against the reference microphones weighed by 1/d²: near one of
+            // them, its own level and path, continuously.
+            let wk: Vec<f64> = refs.iter().map(|r| 1.0 / ((m[0] - r[0]).powi(2) + (m[1] - r[1]).powi(2) + (m[2] - r[2]).powi(2)).max(1e-30)).collect();
+            let ws: f64 = wk.iter().sum();
+            let blend = |v: &[f64]| if ws.is_finite() && ws > 0.0 { v.iter().zip(&wk).map(|(x, w)| x * w).sum::<f64>() / ws } else { v.iter().sum::<f64>() / v.len() as f64 };
+            let gain = level(i).map_or(0.0, |l| 10f64.powf((l - blend(&ref_db) + setup) / 20.0));
+            let extra = (path(m) - blend(&ref_path)) / crate::soundboard::C0 * sample_rate;
+            let delay = if extra.is_finite() { extra.round().clamp(0.0, max_delay as f64) as usize } else { max_delay };
+            (if gain.is_finite() { gain } else { 0.0 }, delay)
         })
         .collect()
 }
 
+/// The longest delay (s) a microphone hears the noises with: 17 m of extra
+/// path. Further, a preset's coordinates would size the engine's noise
+/// history without bound.
+pub const MAX_NOISE_DELAY: f64 = 0.05;
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A board with these microphones (metres), its modes as built.
+    fn board_with(points: &[(f64, f64, f64)]) -> crate::soundboard::Soundboard {
+        let p = crate::soundboard::SoundboardParams { mics_relative: false, mics: Mics::new(&points.iter().map(|&at| Mic { at, upright: at, ..Mic::DEFAULT }).collect::<Vec<_>>()), ..crate::soundboard::SoundboardParams::DEFAULT };
+        crate::soundboard::Soundboard::new(p)
+    }
+
+    fn reference(a: f64, b: f64) -> [(f64, f64, f64); 2] {
+        NOISE_REFERENCE.map(|(u, v, z)| (u * a, v * b, z))
+    }
+
+    /// At a reference microphone the noises are heard as before; a
+    /// micrometre away, nearly so: no step in gain or delay.
+    #[test]
+    fn the_noises_path_is_continuous_at_the_reference() {
+        let p = crate::soundboard::SoundboardParams::DEFAULT;
+        let [l, r] = reference(p.a, p.b);
+        let far = (0.6, -1.8, 2.0);
+        let at = noise_paths(&board_with(&[l, r, far]), NOISE_REFERENCE_GAIN_DB, 48_000.0);
+        assert_eq!((at[0], at[1]), ((1.0, 0), (1.0, 0)));
+        assert!(at[2].0 < 1.0 && at[2].1 > 0, "a far microphone hears them later and weaker: {:?}", at[2]);
+        let near = noise_paths(&board_with(&[(l.0, l.1, l.2 + 1e-6), (r.0, r.1, r.2 + 1e-6), far]), NOISE_REFERENCE_GAIN_DB, 48_000.0);
+        for (k, &(g, d)) in near[..2].iter().enumerate() {
+            assert!((20.0 * g.log10()).abs() < 0.01 && d == 0, "reference {k} moved 1 µm: {:.3} dB, {d} samples", 20.0 * g.log10());
+        }
+    }
+
+    /// Every microphone at the reference: the set-up's gain alone.
+    #[test]
+    fn at_the_reference_the_set_up_gain_alone() {
+        let p = crate::soundboard::SoundboardParams::DEFAULT;
+        let [l, r] = reference(p.a, p.b);
+        let at = noise_paths(&board_with(&[l, r]), NOISE_REFERENCE_GAIN_DB + 6.0, 48_000.0);
+        let g = 10f64.powf(6.0 / 20.0);
+        assert!(at.iter().all(|&(x, d)| (x - g).abs() < 1e-12 && d == 0), "{at:?}");
+    }
+
+    /// A preset may put a microphone anywhere: its delay stays bounded and
+    /// its gain finite.
+    #[test]
+    fn a_far_microphone_keeps_a_bounded_delay() {
+        let at = noise_paths(&board_with(&[(1e9, -1e9, 1e9), (f64::MAX, 0.0, 1.0)]), NOISE_REFERENCE_GAIN_DB, 48_000.0);
+        let max = (MAX_NOISE_DELAY * 48_000.0).round() as usize;
+        assert!(at.iter().all(|&(g, d)| g.is_finite() && g <= 1.0 && d <= max), "{at:?}");
+    }
 
     #[test]
     fn pans_keep_the_power() {

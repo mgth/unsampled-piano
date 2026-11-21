@@ -452,7 +452,9 @@ impl Engine {
         let mics = if mics.is_empty() { crate::mics::Mics::pair((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)) } else { mics };
         let per_mic = inst.model.soundboard.is_some_and(|s| s.outputs_per_mic);
         let noise_paths = inst.noise_paths.clone();
-        let noise_path = |m: usize| noise_paths.get(m).copied().unwrap_or((1.0, 0));
+        // (A delay past the bound would size the history without one.)
+        let max_delay = (crate::mics::MAX_NOISE_DELAY * cfg.sample_rate).round() as usize;
+        let noise_path = |m: usize| noise_paths.get(m).map_or((1.0, 0), |&(g, d)| (g, d.min(max_delay)));
         let noise_span = (0..MICS).map(|m| noise_path(m).1).max().unwrap_or(0);
         let zones = inst.zones.filter(|z| z.mics == mics.len());
         let live = inst.model;
