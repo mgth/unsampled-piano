@@ -881,33 +881,49 @@ impl Engine {
                 let has_sym = any(&self.region_sym);
                 let run_sym = self.board_sym.is_some() && (has_sym || self.board_sym_awake);
                 if let Some(pool) = self.pool.as_mut().filter(|_| run_board) {
-                    // The board's parts, the frame and the sympathetic board in
-                    // parallel, each into its own buffers, summed below in the
-                    // same order as on one thread: the same result, bit for bit.
-                    board.prepare(&self.region, len, true, self.rim.is_some());
+                    // The parts of the board's banks (its high modes, its low
+                    // modes, the sympathetic board) and the frame in parallel,
+                    // each into its own buffers, summed below in the same order
+                    // as on one thread: the same result, bit for bit.
+                    let with_rim = self.rim.is_some();
+                    board.prepare(&self.region, len, true, with_rim);
+                    if let Some(low) = self.board_low.as_mut() {
+                        low.prepare(&self.basis, len, true, with_rim);
+                    }
+                    if let Some(bs) = self.board_sym.as_mut().filter(|_| run_sym) {
+                        bs.prepare(&self.region_sym, len, false, false);
+                    }
                     for b in self.side_out.iter_mut().flatten() {
                         b[..len].fill(0.0);
                     }
                     let (job, parts) = board.split();
                     let parts = Ptr(parts.as_mut_ptr());
+                    let low = self.board_low.as_mut().map(|l| l.split()).map(|(job, parts)| (job, Ptr(parts.as_mut_ptr())));
+                    let sym = self.board_sym.as_mut().filter(|_| run_sym).map(|b| b.split()).map(|(job, parts)| (job, Ptr(parts.as_mut_ptr())));
                     let frame = Ptr(self.frame.as_mut().map_or(std::ptr::null_mut(), |f| f as *mut BoardBank));
-                    let sym = Ptr(self.board_sym.as_mut().map_or(std::ptr::null_mut(), |b| b as *mut BoardBank));
                     let side = Ptr(self.side_out.as_mut_ptr());
-                    let (region_agraffe, region_sym) = (&self.region_agraffe, &self.region_sym);
-                    let n = PARTS + 2;
-                    pool.run(n, &|i| {
-                        let _ = (&parts, &frame, &sym, &side);
+                    let region_agraffe = &self.region_agraffe;
+                    pool.run(3 * PARTS + 1, &|i| {
+                        let _ = (&parts, &low, &sym, &frame, &side);
                         // SAFETY: every item touches its own part, bank and buffers.
                         unsafe {
-                            match i {
-                                i if i < PARTS => (*parts.0.add(i)).run(&job),
-                                _ => {
-                                    let (bank, run, input) = if i == PARTS { (frame.0, run_frame, region_agraffe) } else { (sym.0, run_sym, region_sym) };
-                                    if run {
-                                        let mut out: [&mut [f32]; MICS] = (*side.0.add(i - PARTS)).each_mut().map(|v| &mut v[..len]);
-                                        (*bank).process(input, len, &mut out[..nm], None, None);
+                            match (i / PARTS, i % PARTS) {
+                                (0, k) => (*parts.0.add(k)).run(&job),
+                                (1, k) => {
+                                    if let Some((job, parts)) = &low {
+                                        (*parts.0.add(k)).run(job)
                                     }
                                 }
+                                (2, k) => {
+                                    if let Some((job, parts)) = &sym {
+                                        (*parts.0.add(k)).run(job)
+                                    }
+                                }
+                                _ if run_frame => {
+                                    let mut out: [&mut [f32]; MICS] = (*side.0).each_mut().map(|v| &mut v[..len]);
+                                    (*frame.0).process(region_agraffe, len, &mut out[..nm], None, None);
+                                }
+                                _ => {}
                             }
                         }
                     });
@@ -915,7 +931,11 @@ impl Engine {
                     board.finish(chans, Some(&mut self.disp), rim_force);
                     if let Some(low) = self.board_low.as_mut() {
                         let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
-                        low.process(&self.basis, len, chans, Some(&mut self.disp), rim_force);
+                        low.finish(chans, Some(&mut self.disp), rim_force);
+                    }
+                    if let Some(bs) = self.board_sym.as_mut().filter(|_| run_sym) {
+                        let mut out: [&mut [f32]; MICS] = self.side_out[1].each_mut().map(|v| &mut v[..len]);
+                        bs.finish(&mut out[..nm], None, None);
                     }
                     Self::board_feed(board, self.board_low.as_ref(), chans, &mut self.board_mics, &mut self.probes, len);
                     self.board_awake = has_input || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr);
