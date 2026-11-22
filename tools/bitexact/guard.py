@@ -247,11 +247,21 @@ def render_set(bin_path, preset, out, threads=1, isa="native", block=128, jobs=2
         scen = [s for s in scen if s[0] in only]
     opts = options_of(a)
     bin_sha, preset_sha = sha256_file(bin_path), sha256_file(preset)
-    old = load_manifest(out) if reuse else None
-    man = {"binary": bin_path, "binary_sha256": bin_sha, "preset": preset, "preset_sha256": preset_sha,
-           "options": opts, "cores": cores, "jobs": jobs, "scenarios": {}}
-    if old and old.get("scenarios"):
-        man["scenarios"] = dict(old["scenarios"])
+    # What made a render, kept with each scenario: a set holds one
+    # configuration, and a render is only reused by the one that made it.
+    made_by = {"binary_sha256": bin_sha, "preset_sha256": preset_sha, "options": opts}
+    old = (load_manifest(out) or {}).get("scenarios", {})
+    kept = {k: v for k, v in old.items() if all(v.get(f) == x for f, x in made_by.items())}
+    rendered_now = {s[0] for s in scen}
+    if only:
+        # The scenarios left alone must be this configuration's too.
+        foreign = sorted(k for k in old if k not in kept and k not in rendered_now)
+        if foreign:
+            raise SystemExit(f"{out}: {', '.join(foreign)} rendered with another binary, preset or options "
+                             f"(or by an earlier guard.py); render the whole set, or into another directory")
+    else:
+        kept = {k: v for k, v in kept.items() if k in rendered_now}
+    man = {"binary": bin_path, "cores": cores, "jobs": jobs, "scenarios": kept, **made_by}
     env = dict(os.environ)
     env.pop("PIANO_ISA", None)
     if isa != "native":
@@ -261,10 +271,9 @@ def render_set(bin_path, preset, out, threads=1, isa="native", block=128, jobs=2
     for name, mid, desc, end_ms in scen:
         wav = os.path.join(out, name + ".wav")
         mid_sha = sha256_file(mid)
-        prev = old and old.get("scenarios", {}).get(name)
-        same = (old and old.get("binary_sha256") == bin_sha and old.get("preset_sha256") == preset_sha
-                and old.get("options") == opts and prev and prev.get("midi_sha256") == mid_sha)
-        if same and (prev.get("pruned") or (os.path.exists(wav) and os.path.getsize(wav) == prev.get("size"))):
+        prev = kept.get(name) if reuse else None
+        if prev and "error" not in prev and prev.get("midi_sha256") == mid_sha and (
+                prev.get("pruned") or (os.path.exists(wav) and sha256_file(wav) == prev.get("sha256"))):
             continue
         todo.append((name, mid, desc, mid_sha, wav))
 
@@ -278,13 +287,15 @@ def render_set(bin_path, preset, out, threads=1, isa="native", block=128, jobs=2
         p = subprocess.run(cmd, env=env, capture_output=True, text=True)
         wall = time.monotonic() - t0
         if p.returncode != 0:
-            if os.path.exists(part):
-                os.remove(part)
+            # An earlier render's WAV is not this attempt's result.
+            for stale in (part, wav):
+                if os.path.exists(stale):
+                    os.remove(stale)
             return name, {"error": f"exit {p.returncode}: {p.stderr.strip()[-2000:]}", "wall_s": round(wall, 2),
-                          "midi_sha256": mid_sha, "description": desc}
+                          "midi_sha256": mid_sha, "description": desc, **made_by}
         os.replace(part, wav)
         ent = {"description": desc, "midi_sha256": mid_sha, "sha256": sha256_file(wav), "size": os.path.getsize(wav),
-               "wall_s": round(wall, 2), "renderer_says": p.stdout.strip().split(": ", 1)[-1]}
+               "wall_s": round(wall, 2), "renderer_says": p.stdout.strip().split(": ", 1)[-1], **made_by}
         ent.update(wav_stats(wav))
         return name, ent
 
@@ -313,8 +324,6 @@ def render_set(bin_path, preset, out, threads=1, isa="native", block=128, jobs=2
         with cf.ThreadPoolExecutor(max_workers=jobs) as ex:
             for res in ex.map(run, todo[1:]):
                 record(res)
-    names = [s[0] for s in scen]
-    man["scenarios"] = {k: v for k, v in man["scenarios"].items() if k in names or only}
     man["total_duration_s"] = round(sum(v.get("duration_s", 0) for v in man["scenarios"].values()), 3)
     man["total_size"] = sum(v.get("size", 0) for v in man["scenarios"].values())
     save_manifest(out, man)
@@ -349,7 +358,11 @@ def compare_dirs(da, db, quiet=False):
     for name in order:
         ea, eb = ma["scenarios"].get(name, {}), mb["scenarios"].get(name, {})
         pa, pb = wav_path(da, name, ea), wav_path(db, name, eb)
-        if ea.get("midi_sha256") and eb.get("midi_sha256") and ea["midi_sha256"] != eb["midi_sha256"]:
+        failed = [d for d, e in ((da, ea), (db, eb)) if "error" in e]
+        if failed:
+            # Whatever WAV lies there is not that render's.
+            r = {"identical": False, "missing": f"render failed in {' and '.join(failed)}"}
+        elif ea.get("midi_sha256") and eb.get("midi_sha256") and ea["midi_sha256"] != eb["midi_sha256"]:
             r = {"identical": False, "missing": "different MIDI input (scenario changed)"}
         elif os.path.exists(pa) and os.path.exists(pb):
             if sha256_file(pa) == sha256_file(pb):
@@ -429,8 +442,9 @@ def prune(d, ref):
     for name, e in m["scenarios"].items():
         p, pr = os.path.join(d, name + ".wav"), os.path.join(ref, name + ".wav")
         er = mr["scenarios"].get(name, {})
-        if os.path.exists(p) and os.path.exists(pr) and e.get("sha256") == er.get("sha256") \
-                and e.get("size") == os.path.getsize(pr) and sha256_file(pr) == e["sha256"]:
+        # The files themselves, not what the manifests say of them.
+        if os.path.exists(p) and os.path.exists(pr) and e.get("sha256") and e["sha256"] == er.get("sha256") \
+                and sha256_file(p) == e["sha256"] and sha256_file(pr) == e["sha256"]:
             freed += os.path.getsize(p)
             os.remove(p)
             e["pruned"] = True

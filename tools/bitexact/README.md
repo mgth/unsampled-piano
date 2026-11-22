@@ -17,6 +17,8 @@ when it can be imported; there is a pure-Python fallback).
   neither is there, a pseudo-random dense piece with a fixed seed replaces
   them. `python3 scenarios.py <dir>` lists the scenarios.
 - `guard.py` renders, compares and runs the determinism study.
+- `test_guard.py` tests the bookkeeping of `guard.py` with a stand-in
+  renderer (`python3 tools/bitexact/test_guard.py`).
 - `difference.py` measures what a shortcut that is not bit-exact costs: the
   level of the difference between two renders, by octave band and in time
   (needs numpy and scipy).
@@ -37,9 +39,15 @@ Every render runs as `nice -n 19 ionice -c3 taskset -c <cores> <bin> …`, at
 most `--jobs` at once (default 2), reduced so that jobs × threads does not
 exceed the number of cores given. `--cores` defaults to `$BITEXACT_CORES`,
 else to every core the process may use. `--isa generic|avx2` sets
-`PIANO_ISA`; `native` leaves the best SIMD level of the CPU. `--reuse` keeps
-WAVs already rendered with the same binary, preset, MIDI and options;
-`--only a b` renders some scenarios only.
+`PIANO_ISA`; `native` leaves the best SIMD level of the CPU. `--only a b`
+renders some scenarios only.
+
+A set holds the renders of one binary, preset and option set, recorded with
+each scenario. `--reuse` keeps a WAV only if that record matches, its MIDI is
+the same and the file still has the hash written down; anything else is
+rendered again. `--only` refuses a set whose other scenarios were rendered
+with something else. A render that fails removes the scenario's earlier WAV
+and leaves an `error` in the manifest.
 
 Compare two sets (exit code 0 only if every WAV is byte-identical):
 
@@ -50,7 +58,8 @@ python3 tools/bitexact/guard.py compare out/bitexact/ref out/bitexact/candidate
 One line per scenario: `identical`, or the first differing frame and time,
 the number of differing samples and the peak and RMS of the difference in dB
 relative to the RMS of A. A changed scenario MIDI is reported as such rather
-than compared.
+than compared, and a scenario whose render failed on either side is never
+identical, whatever WAV lies there.
 
 Determinism study (run-to-run, `--threads` 1/2/4, `PIANO_ISA`
 native/avx2/generic, `--block` 128/64/32/100), one sub-directory per option
@@ -62,7 +71,8 @@ python3 tools/bitexact/guard.py matrix --bin … --preset … --out out/bitexact
 ```
 
 Delete the WAVs of a set that are byte-identical to a reference (the manifest
-keeps their hash, and `compare` still works through it):
+keeps their hash, and `compare` still works through it; both files are hashed
+again before anything is deleted):
 
 ```sh
 python3 tools/bitexact/guard.py prune out/bitexact/matrix/t2_native_b128 --against out/bitexact/ref
