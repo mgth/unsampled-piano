@@ -1,6 +1,6 @@
 # Engine performance audit
 
-October 2026. Where the engine's time goes, what makes it miss a deadline, what was fixed, which compromises smaller machines can take, and what multi-threading gives. Two rounds: the first (October 23) found the costs and spikes and fixed the worst; the second (October 24) added the Overkill reference level, dropped silent partials, spread the soundboard over threads and kept replaced engines from piling up. The sections up to "Fixes made in the first round" describe the state before the first round.
+October and November 2026. Where the engine's time goes, what makes it miss a deadline, what was fixed, which compromises smaller machines can take, and what multi-threading gives. Three rounds: the first (October 23) found the costs and spikes and fixed the worst; the second (October 24) added the Overkill reference level, dropped silent partials, spread the soundboard over threads and kept replaced engines from piling up; the third (November 22) took the shipped Concert grand, far heavier than the default instrument of the first two, and cut its load by a third to a half without changing an output bit. The sections up to "Fixes made in the first round" describe the state before the first round.
 
 All figures come from a Ryzen 9 9950X (Zen 5, AVX-512) unless stated otherwise. Smaller machines are emulated by capping the SIMD level (`PIANO_ISA=avx2` or `generic`). This removes the vector width but not the clock or cache differences, so real small machines are slower still.
 
@@ -22,6 +22,7 @@ Scenarios:
 - a 10-key ff chord struck in one buffer (bass/middle, then treble);
 - 10 keys re-struck every 60 ms;
 - 30 keys with the pedal pumping;
+- 30 keys struck in one buffer, again every 200 ms (the profile of the onset spike);
 - a glissando without pedal;
 - the whole keyboard ff with the pedal down (the old `stress_cost` case);
 - the six MIDI performances of `data/midi`.
@@ -34,9 +35,12 @@ Other examples:
 |---|---|
 | `voice_ops.rs` (piano-core) | the per-event voice operations |
 | `board_bench.rs` and `modal_kernels.rs` (piano-core) | the soundboard and string-bank kernels, on every ISA |
+| `board_shapes.rs` (piano-render) | the three soundboard banks of a preset on the shapes the engine runs them with, and a hash of every output bit |
 | `shortcut_diff.rs` (piano-core) | what each engine shortcut changes in the signal |
 | `overkill_parts.rs` (piano-render) | what each of Overkill's differences from Full changes, on a MIDI file |
 | `edit_load.rs` (piano-control) | the load while a parameter is edited during playing |
+
+[`tools/bitexact`](../tools/bitexact/README.md) checks that a change leaves the sound alone: a fixed set of MIDI scenarios rendered offline with the shipped preset, compared byte for byte before and after (third round, below).
 
 The `Bench` workflow runs the tests and `perf_audit` on GitHub's runners (macOS ARM, Linux, Windows). Measurements need an idle machine: another process rendering on a few cores was enough to double some means and to send p99s past 100 %.
 
@@ -291,6 +295,142 @@ The 10-key ff chord, Full, on 1 / 2 / 4 threads: M1 66 / 46 / 33 %, EPYC 21 / 13
 
 There is no `main` baseline on these runners, as the workflow only exists on this branch. The Windows job's CPU name comes from PowerShell (`Get-CimInstance`): `wmic` is gone from the current images.
 
+## Third round (November 22): the shipped Concert grand
+
+The first two rounds measured the default instrument. The Concert grand as shipped is much heavier: its board is built by finite elements (2124 modes below 0.45·fs), driven key by key below 6 kHz; four microphones, each with the case's field in a slot of its own (8 mic slots); the room fed by four probes; the body's halo after every strike. The player's own set-up runs it on two threads.
+
+Rule of this round: every output bit stays the same.
+
+### Starting point
+
+48 kHz, 128-frame buffers, Ryzen 9 9950X, mean / p99.9 / worst buffer, best of three runs:
+
+| Scenario | 1 thread | 2 threads |
+|---|---|---|
+| idle | 2.8 / 3.0 / 4 % | 2.7 / 2.9 / 4 % |
+| pedal held, nothing played | 7.4 / 31.6 / 42 | 6.6 / 24.8 / 37 |
+| one note C4 mf | 22.6 / 28.2 / 28 | 19.2 / 23.1 / 23 |
+| 10-key chord ff, bass/middle | 34.9 / 57.2 / 58 | 26.3 / 40.5 / 47 |
+| 10-key chord ff, treble | 31.6 / 51.3 / 55 | 24.9 / 36.6 / 44 |
+| 10 keys re-struck every 60 ms | 46.9 / 64.3 / 65 | 37.8 / 51.6 / 52 |
+| 30 keys, pedal pumping | 39.6 / 93.6 / **105** | 29.9 / 65.1 / 77 |
+| 30-key chord every 200 ms | 52.2 / **106.7** / 107 | 40.8 / 78.2 / 79 |
+| glissando, no pedal | 42.5 / 87.8 / 88 | 33.2 / 65.3 / 66 |
+| whole keyboard ff, pedal | 52.8 / 59.7 / 60 | 38.1 / 43.4 / 44 |
+
+### Where the time went
+
+Profile of the audio thread (`perf record -e cycles:u`, one thread), share of the render time:
+
+| Part | One note | 10-key chord | 10 keys re-struck | Whole keyboard ff |
+|---|---|---|---|---|
+| Soundboard banks (kernel, `prepare`, `finish`) | 64 % | 50 % | 38 % | 40 % |
+| String banks, sympathetic (two inputs) | 1 % | 14 % | 11 % | 10 % |
+| String banks, primary | 1 % | 4 % | 4 % | 9 % |
+| `Voice::compute` (phantom partials, hammer hand-over) | 1 % | 6 % | 4 % | 20 % |
+| Body's halo | 9 % | 6 % | **24 %** | 6 % |
+| Room | 8 % | 6 % | 4 % | 4 % |
+| Hammer contact | — | — | 3 % | — |
+
+- **The soundboard is a fixed cost of about 20 points of a buffer.** Without it (bridge force straight to the output) one note costs 0.2 %. As soon as anything sounds, three banks run: the low modes driven key by key (825 modes, 28 outputs and the rim's 17), the modes above (1299, the same 28 outputs) and the sympathetic board (all 2124, 8 mic slots). The 28 outputs are the 8 mic slots, the 4 probes and the 16 bridge velocities. Counting one item per chunk of 16 modes, output and sample, that is about 4800 items a sample, at 3.7 cycles each where the multipliers alone allow about 1: the lane sums of one bank (115 KB) went through memory once per 4 chunks and did not fit the first-level cache, 16-lane loads straddled cache lines, and each small tile paid its bounds checks and index arithmetic.
+- **The body's halo ran scalar.** Its 1024 resonances were not dispatched to AVX. A strike that settles in over `body.rise` (0.1 s in this preset) adds a step to every resonance every 16 samples: with ten keys re-struck, a quarter of the engine.
+- **The room cost 1.8 points at all times**, silence included: per sample, each microphone's taps were summed through memory (`by_order[t.order] +=`, a store-to-load chain per tap).
+- **On several threads the low modes' bank ran on the audio thread alone**, after the pool had finished the others.
+- **The onset spike** of thirty keys in one buffer (105 %): about 50 points of hammer contact, 10 to 15 of the halo's strikes, on top of the 40 of the steady state.
+
+### The guard rail
+
+[`tools/bitexact`](../tools/bitexact/README.md): twelve MIDI scenarios, 208 s (single notes over the keyboard at three velocities, chords, re-strikes, releases, the sustain pedal held, pumped and half down, sostenuto and una corda, a glissando, thirty keys in one tick, 20 s of the Chopin and of La Campanella), rendered by `unsampled-piano-render` with the shipped preset; `guard.py compare` compares the WAV files byte for byte.
+
+What the render depends on, measured before any change (`guard.py matrix`):
+
+| Compared | Result |
+|---|---|
+| two runs | identical |
+| 1, 2 and 4 threads | identical |
+| AVX-512, AVX2 (`PIANO_ISA=avx2`), none (`generic`) | identical |
+| buffers of 128 and of 64 frames | identical |
+| buffers of 128 and of 32 or 100 frames | **different**: peak difference 13 to 31 dB under the signal's rms |
+
+The engine cuts a buffer in sub-blocks of at most 64 samples, and the dampers, the gains and the silences move once per sub-block: a host whose buffers are not multiples of 64 gets a slightly different render. This was there before this round and is left as it is.
+
+### What changed, every output bit the same
+
+Each step was checked on the twelve scenarios against the reference; the final state on one and two threads and on the three ISAs, all identical. `cargo test -p piano-core -p piano-params -p piano-compare` passes, with no allocation on the audio thread. The comparison tool's score of the shipped preset is the same value for value (865 off, mean 1.1938 on 24 measures).
+
+1. **Body's halo** ([`body.rs`](../crates/piano-core/src/body.rs)). Its three loops (the settling steps, the pulse, the resonances) run on the 16-lane type of the soundboard, dispatched to AVX2 and AVX-512: plain multiplies and adds resonance by resonance, the lane sums reduced as before. A test compares every ISA with the loop as it was written.
+2. **The banks' parts on the pool** ([`engine.rs`](../crates/piano-core/src/engine.rs)). The low modes' bank and the sympathetic board are split like the board's (`prepare`, the parts, `finish`): six parts and the frame for the workers, summed afterwards in the same order. One thread is unchanged.
+3. **A string that only listens runs one input** ([`voice.rs`](../crates/piano-core/src/voice.rs)). Its second input is its own bridge force, cancelled from what it hears: zero until it is struck. b₂·0 adds nothing but the sign of a zero to a state at rest, which no output can read. Worth little: 0.7 point on a pedalled ten-key chord, nothing measurable elsewhere.
+4. **Room** ([`room.rs`](../crates/piano-core/src/room.rs)). A block's source is computed first (it never depends on the room's output), then the taps, grouped by order when the room is built and summed across time (each sample and order keeps its taps in order), then the tail over the block, the lines read before they are written (a block is never longer than a line). The filters of every microphone and order run side by side. An exactly silent room (every state +0, every source sample +0) is skipped, the microphones still receiving the `+0` they would have. Tested bit for bit against the sample-by-sample room on seven set-ups, with and without flush-to-zero. Reflections of order 8 and more are dropped when the room is built: the old loop indexed its eight per-order sums out of bounds on them and panicked, which only happened when one survived among a microphone's 128 strongest taps (`room.order` reaches 8 at the end of its slider).
+5. **Soundboard kernel** ([`board.rs`](../crates/piano-core/src/board.rs)):
+   - history, weights and lane sums in 64-byte-aligned lines (they were `Vec`s of plain `f32` arrays, aligned to 4 bytes);
+   - blocks of 16 chunks over segments of 8 samples instead of 4 chunks over the 64: the working set is about 22 KB and fits a 32 KB first-level cache, each output's lane sums go through memory once per 16 chunks;
+   - the weights of the outputs actually computed packed apart from the poles and the 176 input gains;
+   - tiles with their bounds checked once, then raw pointers;
+   - with more than four inputs, the drive Σφ·x summed ahead of the recursion, several samples at a time (the inputs in the same order);
+   - `finish` compiled per ISA.
+
+   Each output still sums its chunks in order lane by lane, then its lanes as a tree. A test compares the kernel on every ISA with a scalar reference written lane by lane. Per mode and sample on this preset's shapes ([`board_shapes.rs`](../crates/piano-render/examples/board_shapes.rs)): the low modes with one key 1.38 → 0.70 ns on AVX-512, 1.83 → 1.22 on AVX2, 4.13 → 2.62 without AVX; the sympathetic board 0.40 → 0.21, 0.55 → 0.40 and 1.23 → 0.92. About 1.5 to 1.9 cycles per item on AVX-512.
+
+Mean / p99.9 after each step, one thread, in the order the steps were measured (best of three; the machine was not idle, read the means to about half a point and the p99.9 to a few):
+
+| Scenario | start | halo | pool | listening | room | kernel |
+|---|---|---|---|---|---|---|
+| idle | 2.9 / 3.0 | 3.0 / 3.2 | 2.9 / 3.5 | 3.2 / 3.4 | 1.1 / 1.2 | 1.1 / 1.4 |
+| pedal held, nothing played | 7.4 / 31.7 | 7.6 / 31.0 | 7.5 / 30.8 | 8.0 / 31.7 | 5.8 / 28.2 | 4.7 / 20.9 |
+| one note C4 mf | 22.6 / 28.3 | 21.7 / 25.9 | 21.9 / 26.3 | 22.2 / 26.3 | 20.1 / 23.6 | **12.2** / 15.3 |
+| 10-key chord ff, bass/middle | 34.7 / 56.4 | 34.0 / 51.2 | 33.7 / 52.1 | 33.1 / 51.3 | 31.6 / 49.2 | 23.3 / 41.7 |
+| 10-key chord ff, treble | 32.1 / 50.5 | 30.9 / 46.0 | 30.3 / 45.6 | 30.2 / 45.4 | 28.3 / 43.4 | 20.2 / 36.0 |
+| 10 keys re-struck every 60 ms | 48.1 / 66.4 | **39.0** / 62.6 | 37.5 / 57.8 | 39.1 / 66.3 | 35.9 / 58.6 | 27.6 / 49.4 |
+| 30 keys, pedal pumping | 40.8 / 96.9 | 39.2 / **82.5** | 38.2 / 77.4 | 38.9 / 81.9 | 37.3 / 80.2 | 28.0 / 70.8 |
+| 30-key chord every 200 ms | 54.2 / 110.8 | 45.0 / 98.3 | 44.1 / 98.7 | 44.9 / 101.8 | 43.4 / 97.9 | 33.7 / 88.6 |
+| glissando, no pedal | 43.5 / 90.4 | 39.4 / **75.7** | 38.6 / 73.4 | 39.9 / 76.0 | 37.6 / 74.2 | 28.6 / 63.1 |
+| whole keyboard ff, pedal | 54.9 / 64.4 | 51.9 / 58.5 | 50.8 / 57.2 | 52.7 / 63.5 | 49.5 / 60.6 | 40.4 / 46.9 |
+
+On two threads the pool step is the large one (one note 18.3 → 15.3, whole keyboard 36.2 → 31.5).
+
+### Result
+
+Mean / p99.9 / worst buffer, best of three runs alternating the start and the end on an idle machine (four threads: one run):
+
+| Scenario | 1 thread, before | 1 thread, now | 2 threads, before | 2 threads, now | 4 threads, before | 4 threads, now |
+|---|---|---|---|---|---|---|
+| idle | 2.8 / 3.0 / 4 | **1.0** / 1.1 / 2 | 2.7 / 2.9 / 4 | 0.9 / 1.1 / 2 | 2.7 / 3.0 / 4 | 0.9 / 1.1 / 2 |
+| pedal held, nothing played | 7.4 / 31.6 / 42 | 4.8 / 22.8 / 35 | 6.6 / 24.8 / 37 | 4.0 / 13.1 / 26 | 6.1 / 18.5 / 32 | 3.5 / 9.6 / 26 |
+| one note C4 mf | 22.6 / 28.2 / 28 | **11.9** / 15.1 / 16 | 19.2 / 23.1 / 23 | **8.2** / 10.1 / 11 | 15.6 / 18.8 / 19 | 6.3 / 8.1 / 8 |
+| 10-key chord ff, bass/middle | 34.9 / 57.2 / 58 | 22.8 / 39.9 / 42 | 26.3 / 40.5 / 47 | 14.0 / 29.1 / 30 | 20.4 / 33.3 / 40 | 9.8 / 24.9 / 26 |
+| 10-key chord ff, treble | 31.6 / 51.3 / 55 | 19.8 / 35.0 / 35 | 24.9 / 36.6 / 44 | 12.6 / 26.9 / 28 | 19.6 / 31.5 / 39 | 9.0 / 23.8 / 24 |
+| 10 keys re-struck every 60 ms | 46.9 / 64.3 / 65 | 26.9 / 48.2 / 49 | 37.8 / 51.6 / 52 | 17.6 / 32.9 / 33 | 32.0 / 46.1 / 46 | 13.1 / 25.5 / 26 |
+| 30 keys, pedal pumping | 39.6 / 93.6 / 105 | 27.5 / 67.1 / **83** | 29.9 / 65.1 / 77 | 17.0 / 46.4 / 60 | 22.9 / 54.6 / 69 | 11.9 / 30.5 / 51 |
+| 30-key chord every 200 ms | 52.2 / 106.7 / 107 | 33.3 / 85.9 / 87 | 40.8 / 78.2 / 79 | 20.7 / 58.4 / 61 | 34.2 / 79.9 / 118 | 14.3 / 48.0 / 51 |
+| glissando, no pedal | 42.5 / 87.8 / 88 | 28.3 / 62.8 / 63 | 33.2 / 65.3 / 66 | 17.6 / 37.5 / 38 | 27.3 / 65.4 / 67 | 12.4 / 25.4 / 26 |
+| whole keyboard ff, pedal | 52.8 / 59.7 / 60 | **39.8** / 46.4 / 47 | 38.1 / 43.4 / 44 | **23.4** / 27.5 / 30 | 29.7 / 54.7 / 65 | 15.2 / 18.2 / 29 |
+
+On one thread the mean falls by a quarter (whole keyboard) to a half (one note), and no buffer of these scenarios passes its deadline any more. On two threads, the player's setting, it falls by 40 to 57 %.
+
+Smaller machines, emulated with `PIANO_ISA` on one thread (one run each, mean / p99.9):
+
+| Scenario | AVX2, before | AVX2, now | no AVX, before | no AVX, now |
+|---|---|---|---|---|
+| one note C4 mf | 27.2 / 33 | 18.9 / 23 | 58.2 / 107 | 40.8 / 46 |
+| 10-key chord ff, bass/middle | 44.3 / 68 | 33.6 / 69 | 86.6 / 116 | 67.2 / 110 |
+| 10 keys re-struck every 60 ms | 57.1 / 76 | 37.6 / 58 | 101.2 / 186 | 74.1 / 96 |
+| 30 keys, pedal pumping | 50.6 / 109 | 39.5 / 82 | 96.5 / 177 | 76.8 / 149 |
+| whole keyboard ff, pedal | 66.4 / 95 | 55.0 / 78 | 119.3 / 211 | 97.7 / 109 |
+
+AVX2 on two threads now: one note 11.8 / 14, whole keyboard 30.5 / 57.
+
+Where the time goes now (one thread): one held note is the soundboard for three quarters (12 % of a buffer in all); the whole keyboard ff is the phantom partials and the hammer hand-over for 30 %, the soundboard for 31 %, the string banks for 20 %.
+
+What is left of the onset spike is the hammer contact: thirty keys struck in one buffer still take about 50 points for the three buffers their contact lasts (83 % worst buffer on one thread, 60 % on two).
+
+### Tried and dropped, and what is left
+
+- **Phantom partials dispatched to AVX** (the products of `Voice::nl_run`): no gain, as in the first round.
+- **Partials dropped earlier** (`Shortcuts::drop_partials` 10 and 100 times higher): no gain on these scenarios, where the notes have not decayed.
+- **Skipping (chunk, output) weights that are zero**: there are none; the probes above 3 kHz carry the microphones' estimate.
+- Not done: the hammer contact (the spike that is left; 13 cache lines per 8 modes in f64, up to 768 modes a key); the strings that listen at rest with the pedal held and nothing played (3.8 points for 66 voices that compute nothing useful); `prepare` scanning the 176 inputs of the low modes' bank where the engine knows which keys sound, and `finish` reducing the parts' lane sums on the audio thread (15 to 25 % of that bank's time; both need a change of the banks' interface).
+
 ## Quality levels
 
 Each level is a `Quality` ([`engine.rs`](../crates/piano-core/src/engine.rs)), chosen in the player's Audio and MIDI page, with `--quality` on the command line or `quality` in `play.toml`. A level only changes the model an instrument is built from and the engine's shortcuts: presets keep their values.
@@ -335,7 +475,7 @@ So the standalone player computes the piano at 44.1 or 48 kHz behind any output 
 **What runs in parallel.** The bridge motion reaches the strings 64 samples late (`note_model::BRIDGE_DELAY`), so no voice depends on another within a sub-block. Each sub-block makes two runs on a pool of persistent workers ([`par.rs`](../crates/piano-core/src/par.rs)):
 
 1. **The voices.** Each voice computes its forces into its own buffers (`Voice::compute`). The audio thread adds them in voice order (`Voice::mix`).
-2. **The structures.** The soundboard's modes are split in two halves (`BoardBank::split`, `BoardPart`), and the frame and the sympathetic board each run whole into their own buffers. The audio thread then adds everything in the same order as one thread would. The halves are taken in every case, one thread or several, so the result does not depend on it.
+2. **The structures.** Each of the soundboard's banks (its modes above the ones driven key by key, those, and the sympathetic board) is split in two halves (`BoardBank::split`, `BoardPart`), and the frame runs whole into its own buffers. The audio thread then adds everything in the same order as one thread would. The halves are taken in every case, one thread or several, so the result does not depend on it. (Until the third round the low modes' bank and the sympathetic board ran whole, the first on the audio thread.)
 
 The rim (small, fed by the board) and the room stay on the audio thread.
 
