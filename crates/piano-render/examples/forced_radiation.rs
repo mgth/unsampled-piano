@@ -128,7 +128,7 @@ fn main() {
             spent += t1.elapsed().as_secs_f64();
             count += 1;
             // The modes' velocity response to the key's force.
-            let delta = forced.as_ref().map(|fd| fd.delta(&sb.bridge_shapes(note), f));
+            let delta = forced.as_ref().map(|fd| fd.delta(note, &sb.bridge_shapes(note), f));
             let vel: Vec<C64> = heard.iter().zip(&shape).map(|(m, s)| mode_response(m, m.inputs[0], *s, w, sr)).collect();
             for mic in 0..n_mics {
                 let total = mic_transfer_folded(&heard, zones.as_ref(), 0, mic, w, sr);

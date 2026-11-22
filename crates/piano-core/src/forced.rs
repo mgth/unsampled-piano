@@ -13,7 +13,9 @@
 //! field at ω (front face through the case, its lid image, back face and
 //! its wall image). The bank's transfer is what the engine renders: each
 //! mode's weight at ω_n as acceleration weights, through its delay zones
-//! (`radiation_delays`). The case's field (`case_field`) is statistical by
+//! (`radiation_delays`), driven as the engine drives it: at the key itself
+//! for the modes below `exact_below`, at the centres of the key's regions
+//! for the others ([`Forced::drive`]). The case's field (`case_field`) is statistical by
 //! design and stays the bank's; so do the modes above the built board's.
 //! The coupled modes then add Re(ΔH·w·z) at each microphone, w their bridge
 //! force weight: the correction rides on the strings' own states.
@@ -29,7 +31,7 @@ use std::f64::consts::TAU;
 pub const FORCED_MAX_HZ: f64 = 8000.0;
 
 /// Version of the cached tables' contents.
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// The bank's response at ω of one damped mode (frequency `freq_hz`, decay
 /// `sigma`) to a real input of gain `g`, read through the complex weight
@@ -55,6 +57,23 @@ pub struct Forced<'a> {
     count: usize,
     step: usize,
     sample_rate: f64,
+    /// The first board modes, which the engine drives at each key itself
+    /// (those below `exact_below`, [`board::LowDrive`]); the others take
+    /// the key's force at its regions' centres.
+    keyed: usize,
+    /// The bridge shapes of every region's centre, `[region][mode]`.
+    regions: Vec<Vec<f64>>,
+}
+
+/// How many of the board's modes the engine drives at each key itself: as
+/// [`board::LowDrive::new`] counts them among the modes the bank runs.
+fn keyed_modes(sb: &Soundboard, sample_rate: f64) -> usize {
+    let below = sb.params.exact_below;
+    if below <= 0.0 {
+        return 0;
+    }
+    let nyq = 0.45 * sample_rate;
+    sb.modes.iter().map(|md| md.omega / TAU).filter(|f| *f < nyq).take_while(|f| *f < below).count()
 }
 
 impl<'a> Forced<'a> {
@@ -88,16 +107,47 @@ impl<'a> Forced<'a> {
                 (f, sb.sigma(md), C64::new(1.0, sb.sigma(md) / md.omega), w)
             })
             .collect();
-        Some(Self { sb, ff, modes, count, step, sample_rate })
+        let regions = (0..board::REGIONS).map(|r| sb.bridge_shapes(board::region_center_note(r))).collect();
+        Some(Self { sb, ff, modes, count, step, sample_rate, keyed: keyed_modes(sb, sample_rate), regions })
     }
 
     pub fn mics(&self) -> usize {
         self.ff.mics
     }
 
-    /// ΔH at each microphone (Pa per N of bridge force) for a force at
-    /// `note`'s bridge point at frequency `f` (Hz): exact minus the bank's.
-    pub fn delta(&self, shapes: &[f64], f: f64) -> Vec<C64> {
+    /// The engine's gain from `note`'s bridge force at ω (rad/s) to board
+    /// mode `n` (per sample, as the bank's inputs), `shapes` the key's own
+    /// bridge shapes. The modes below `exact_below` are driven at the key
+    /// itself. The others take the force at the centres of its regions
+    /// (`Voice::mix`): whole at its own region when the low modes have
+    /// their own drive, else its low band shared between the two regions
+    /// around the key ([`board::region_weights`]).
+    pub fn drive(&self, note: u8, shapes: &[f64], n: usize, omega: f64) -> C64 {
+        let t = 1.0 / self.sample_rate;
+        if n < self.keyed {
+            return C64::new(shapes[n] * t, 0.0);
+        }
+        let own = self.regions[board::region_of(note)][n];
+        if self.keyed > 0 {
+            return C64::new(own * t, 0.0);
+        }
+        let lp = crate::voice::share_lowpass(omega, self.sample_rate);
+        let shared = board::region_weights(note).iter().fold(0.0, |s, &(r, w)| s + w as f64 * self.regions[r][n]);
+        (lp.scale(shared) + (C64::ONE - lp).scale(own)).scale(t)
+    }
+
+    /// ΔH at each microphone (Pa per N of bridge force) for `note`'s bridge
+    /// force at frequency `f` (Hz), `shapes` its bridge shapes
+    /// ([`Soundboard::bridge_shapes`]): the exact field of the modes driven
+    /// at the key's own point, minus what the bank renders of them.
+    pub fn delta(&self, note: u8, shapes: &[f64], f: f64) -> Vec<C64> {
+        let w = TAU * f;
+        self.delta_with(shapes, |n| self.drive(note, shapes, n, w), f)
+    }
+
+    /// [`Self::delta`] with the bank's drive of each mode given (`bank(n)`,
+    /// per sample).
+    fn delta_with(&self, shapes: &[f64], drive: impl Fn(usize) -> C64, f: f64) -> Vec<C64> {
         let sr = self.sample_rate;
         let w = TAU * f;
         let t = 1.0 / sr;
@@ -111,13 +161,16 @@ impl<'a> Forced<'a> {
                 vel.push(C64::ZERO);
                 continue;
             }
-            let g = shapes[n] * t;
-            vel.push(mode_response(*fm, *sigma, g, *shape, w, sr));
+            vel.push(mode_response(*fm, *sigma, shapes[n] * t, *shape, w, sr));
+            // A real drive is the bank's input gain; one with a phase (the
+            // shared low band's filter) a filter ahead of the mode.
+            let g = drive(n);
             let d_n = board::mic_differentiator(TAU * fm, sr);
             for (m, b) in bank.iter_mut().enumerate() {
                 for q in 0..self.count {
                     let wq = own[m * self.count + q] * *shape / d_n;
-                    *b += mode_response(*fm, *sigma, g, wq, w, sr) * d_w * C64::polar(1.0, -w * (q * self.step) as f64 / sr);
+                    let h = if g.im == 0.0 { mode_response(*fm, *sigma, g.re, wq, w, sr) } else { mode_response(*fm, *sigma, 1.0, wq, w, sr) * g };
+                    *b += h * d_w * C64::polar(1.0, -w * (q * self.step) as f64 / sr);
                 }
             }
         }
@@ -139,7 +192,7 @@ pub fn corrections(sb: &Soundboard, freqs: &[Vec<f64>], sample_rate: f64) -> Opt
     let forced = Forced::new(sb, sample_rate)?;
     let out = crate::par::map(freqs.len(), |i| {
         let shapes = sb.bridge_shapes(21 + i as u8);
-        freqs[i].iter().map(|&f| if f > 0.0 && f < FORCED_MAX_HZ { forced.delta(&shapes, f) } else { vec![C64::ZERO; forced.mics()] }).collect::<Vec<_>>()
+        freqs[i].iter().map(|&f| if f > 0.0 && f < FORCED_MAX_HZ { forced.delta(21 + i as u8, &shapes, f) } else { vec![C64::ZERO; forced.mics()] }).collect::<Vec<_>>()
     });
     if let Some(p) = &path {
         let _ = write(p, key, &out);
@@ -248,30 +301,57 @@ mod tests {
     /// A small built board radiating from its nodes (as soundboard's
     /// `the_built_board_radiates_from_its_nodes`), the case's field off.
     fn board() -> Soundboard {
+        board_with(0.0)
+    }
+
+    /// The same, its modes below `exact_below` driven at each key.
+    fn board_with(exact_below: f64) -> Soundboard {
         let structure = crate::fem::BoardStructure { enabled: true, step: 0.04, below: 400.0, ..crate::fem::BoardStructure::STEINWAY_D };
-        let p = SoundboardParams { a: 2.124, b: 1.46, rho_h: 14.7, crown_freq: 0.0, f_max: 400.0, structure, grid_step: 0.08, case_field: false, ..SoundboardParams::GRAND_2M }.resolved();
+        let p = SoundboardParams { a: 2.124, b: 1.46, rho_h: 14.7, crown_freq: 0.0, f_max: 400.0, structure, grid_step: 0.08, case_field: false, exact_below, ..SoundboardParams::GRAND_2M }.resolved();
         Soundboard::new(p)
     }
 
+    /// The transfer at ω from `note`'s bridge force to a mic of the modes
+    /// `keep` selects, as the engine renders them (`modes` its bank, with
+    /// acceleration weights): the first `keyed` driven at the key itself
+    /// (`LowDrive`), the others at the centres of its regions, its low band
+    /// shared between two of them when no mode is keyed (`Voice::mix`).
+    #[allow(clippy::too_many_arguments)]
+    fn rendered(sb: &Soundboard, modes: &[board::BoardMode], keyed: usize, keep: impl Fn(usize) -> bool, note: u8, mic: usize, w: f64, sr: f64) -> C64 {
+        let shapes = sb.bridge_shapes(note);
+        let low = board::transfer_with(&modes[..keyed], |i, _| if keep(i) { shapes[i] / sr } else { 0.0 }, mic, w, sr);
+        let region = |q: usize| board::transfer_with(&modes[keyed..], |i, m| if keep(keyed + i) { m.inputs[q] } else { 0.0 }, mic, w, sr);
+        let own = region(board::region_of(note));
+        let high = if keyed > 0 {
+            own
+        } else {
+            let lp = crate::voice::share_lowpass(w, sr);
+            let shared = board::region_weights(note).iter().fold(C64::ZERO, |s, &(q, wq)| s + region(q).scale(wq as f64));
+            lp * shared + (C64::ONE - lp) * own
+        };
+        (low + high) * board::mic_differentiator(w, sr)
+    }
+
     /// The bank's transfer at ω from a key's bridge force to its mics, as
-    /// the engine renders it, and the exact one (every mode's integral at
-    /// ω on the same modes' response).
+    /// the engine renders it, and the exact one (every built mode's
+    /// integral at ω on its response to the force at the key's own point;
+    /// the other modes as the bank has them, the correction leaves them).
     fn transfers(sb: &Soundboard, note: u8, f: f64, sr: f64) -> (Vec<C64>, Vec<C64>) {
-        let (x, y) = sb.params.bridge_point(note);
-        let mut modes = board::board_modes_heard_at(sb, &[(x, y); board::REGIONS], sr);
+        let mut modes = board::board_modes(sb, sr);
+        let keyed = board::LowDrive::new(sb, &modes, sb.params.exact_below, sr).filter(|_| sb.params.exact_below > 0.0).map_or(0, |l| l.n);
         let w = TAU * f;
         let at = sb.radiation_parts_of(Some(w), RAD_ALL & !RAD_CASE, modes.len());
-        // The exact sum over the built board's modes; the others as the
-        // bank has them (the correction leaves them).
+        let shapes = sb.bridge_shapes(note);
         let exact_fem: Vec<C64> = (0..2)
             .map(|mic| {
-                modes.iter().zip(&sb.modes).zip(&at).filter(|((_, md), _)| md.fem.is_some()).fold(C64::ZERO, |s, ((m, md), r)| s + mode_response(m.freq_hz, m.sigma, m.inputs[0], C64::new(1.0, sb.sigma(md) / md.omega), w, sr) * r[mic])
+                modes.iter().zip(&sb.modes).zip(&at).enumerate().filter(|(_, ((_, md), _))| md.fem.is_some()).fold(C64::ZERO, |s, (i, ((m, md), r))| {
+                    s + mode_response(m.freq_hz, m.sigma, shapes[i] / sr, C64::new(1.0, sb.sigma(md) / md.omega), w, sr) * r[mic]
+                })
             })
             .collect();
         board::to_acceleration_weights(&mut modes, sr);
-        let bank: Vec<C64> = (0..2).map(|mic| board::mic_transfer_folded(&modes, None, 0, mic, w, sr)).collect();
-        let others: Vec<board::BoardMode> = modes.iter().zip(&sb.modes).map(|(m, md)| if md.fem.is_some() { board::BoardMode { inputs: [0.0; board::REGIONS], ..*m } } else { *m }).collect();
-        let exact = (0..2).map(|mic| exact_fem[mic] + board::mic_transfer_folded(&others, None, 0, mic, w, sr)).collect();
+        let bank: Vec<C64> = (0..2).map(|mic| rendered(sb, &modes, keyed, |_| true, note, mic, w, sr)).collect();
+        let exact = (0..2).map(|mic| exact_fem[mic] + rendered(sb, &modes, keyed, |i| sb.modes[i].fem.is_none(), note, mic, w, sr)).collect();
         (bank, exact)
     }
 
@@ -303,7 +383,7 @@ mod tests {
         let note = 52;
         let f = 287.0;
         let (bank, exact) = transfers(&sb, note, f, sr);
-        let delta = forced.delta(&sb.bridge_shapes(note), f);
+        let delta = forced.delta(note, &sb.bridge_shapes(note), f);
         let mut off = 0.0f64;
         for mic in 0..2 {
             let fixed = bank[mic] + delta[mic];
@@ -347,6 +427,45 @@ mod tests {
         }
     }
 
+    /// The correction subtracts what the engine renders, whatever drives
+    /// the modes: all at the key (`exact_below` above them), all at the
+    /// regions' centres (0, the low band shared between two regions), or
+    /// the low ones at the key and the others at its region.
+    #[test]
+    fn the_bank_is_subtracted_as_the_engine_drives_it() {
+        let sr = 48_000.0;
+        for exact_below in [0.0, 200.0, 1000.0] {
+            let sb = board_with(exact_below);
+            let forced = Forced::new(&sb, sr).unwrap();
+            let modes = board::board_modes(&sb, sr);
+            let keyed = board::LowDrive::new(&sb, &modes, exact_below, sr).filter(|_| exact_below > 0.0).map_or(0, |l| l.n);
+            assert_eq!(forced.keyed, keyed, "exact_below {exact_below}");
+            assert!(match exact_below as u32 {
+                0 => keyed == 0,
+                200 => keyed > 0 && keyed < modes.len(),
+                _ => keyed == modes.len(),
+            });
+            for (note, f) in [(21u8, 385.0), (52, 287.0), (84, 131.0), (108, 350.0)] {
+                let (bank, exact) = transfers(&sb, note, f, sr);
+                let shapes = sb.bridge_shapes(note);
+                let delta = forced.delta(note, &shapes, f);
+                for mic in 0..2 {
+                    let fixed = bank[mic] + delta[mic];
+                    assert!((fixed - exact[mic]).norm() < 1e-6 * exact[mic].norm(), "exact_below {exact_below} note {note} mic {mic}: {fixed:?} against {:?}", exact[mic]);
+                }
+            }
+        }
+        // With every mode driven at the regions, the bank is not the one a
+        // force at the key's own point would give: A0's whole force goes to
+        // the first region, centred two keys above.
+        let sb = board();
+        let forced = Forced::new(&sb, sr).unwrap();
+        let (bank, exact) = transfers(&sb, 21, 385.0, sr);
+        let shapes = sb.bridge_shapes(21);
+        let at_key = forced.delta_with(&shapes, |i| C64::new(shapes[i] / sr, 0.0), 385.0);
+        assert!((bank[0] + at_key[0] - exact[0]).norm() > 0.05 * exact[0].norm(), "the regions' drive is the key's here");
+    }
+
     /// A mode driven at its own frequency radiates as the bank has it.
     #[test]
     fn a_mode_at_its_own_frequency_is_unchanged() {
@@ -361,7 +480,8 @@ mod tests {
             let mut shapes = vec![0.0; sb.modes.len()];
             shapes[n] = sb.bridge_shapes(60)[n];
             let f = sb.modes[n].omega / TAU;
-            let d = forced.delta(&shapes, f);
+            // The bank driven as the exact sum is: at the key's point.
+            let d = forced.delta_with(&shapes, |i| C64::new(shapes[i] / sr, 0.0), f);
             let one: Vec<board::BoardMode> = modes.iter().enumerate().map(|(i, m)| if i == n { *m } else { board::BoardMode { inputs: [0.0; board::REGIONS], ..*m } }).collect();
             // Within the mode's damping: the bank radiates its response's
             // negative-frequency part with the conjugate weight, of relative

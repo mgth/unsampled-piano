@@ -1019,15 +1019,6 @@ impl Engine {
                         *last = v;
                     }
                 }
-                // The strings' forced response, in pressure (not through the
-                // differentiator: it starts as a sine does, with no step to
-                // differentiate), not in the room's feed (its probes keep
-                // their weights).
-                for (c, f) in chans.iter_mut().zip(&self.forced_mics) {
-                    for (y, x) in c.iter_mut().zip(&f[..len]) {
-                        *y += x * out_gain * PRESSURE_GAIN;
-                    }
-                }
                 for (b, last) in self.board_mics.iter_mut().chain(self.probes.iter_mut()).zip(self.board_last.iter_mut()) {
                     for x in b[..len].iter_mut() {
                         let v = *x;
@@ -1075,6 +1066,17 @@ impl Engine {
                         probes: std::array::from_fn(|k| &self.probes[k][..len]),
                     };
                     room.process_with(chans, Some(feed));
+                }
+                // The strings' forced response, in pressure (not through the
+                // differentiator: it starts as a sine does, with no step to
+                // differentiate). After the room, which takes what the
+                // microphones hold beyond the board's part as its source:
+                // the correction is the direct sound's alone (the probes
+                // keep their weights).
+                for (c, f) in chans.iter_mut().zip(&self.forced_mics) {
+                    for (y, x) in c.iter_mut().zip(&f[..len]) {
+                        *y += x * out_gain * PRESSURE_GAIN;
+                    }
                 }
             }
         }
