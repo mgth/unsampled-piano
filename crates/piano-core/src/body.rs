@@ -25,7 +25,9 @@
 //! its own ringing, so its spectrum and its tail stay those of the struck
 //! halo.
 
+use crate::modal::Isa;
 use crate::params::BodyLaw;
+use crate::simd::V16;
 
 /// Resonances of the bank (a multiple of [`LANES`]).
 pub const MODES: usize = 1024;
@@ -132,6 +134,7 @@ pub struct BodyBank {
     awake: bool,
     sample_rate: f64,
     law: BodyLaw,
+    isa: Isa,
 }
 
 /// The share of a strike settled in after `age` samples of a rise of `rise`
@@ -255,6 +258,7 @@ impl BodyBank {
             awake: false,
             sample_rate,
             law: *law,
+            isa: Isa::detect(),
         };
         s.fill_pattern(&mut pattern, law.shared);
         s.pattern = pattern;
@@ -458,9 +462,43 @@ impl BodyBank {
         self.awake = true;
     }
 
+    /// Panics on an ISA this CPU does not have ([`Isa::available`]).
+    pub fn set_isa(&mut self, isa: Isa) {
+        assert!(Isa::available().contains(&isa), "{isa:?} is not available on this CPU");
+        self.isa = isa;
+    }
+
     /// Adds the halo to the two microphone signals (pressure, Pa, times
-    /// `gain`). Real-time safe.
+    /// `gain`). Real-time safe. The same result on every ISA: plain
+    /// multiplies and adds, resonance by resonance.
     pub fn render(&mut self, out: [&mut [f32]; 2], gain: f32) {
+        match self.isa {
+            #[cfg(target_arch = "aarch64")]
+            Isa::Generic => self.render_v::<crate::simd::arm::N>(out, gain),
+            #[cfg(not(target_arch = "aarch64"))]
+            Isa::Generic => self.render_v::<[f32; LANES]>(out, gain),
+            // SAFETY: only selectable when detected.
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx2 => unsafe { self.render_avx2(out, gain) },
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx512 => unsafe { self.render_avx512(out, gain) },
+        }
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx2")]
+    fn render_avx2(&mut self, out: [&mut [f32]; 2], gain: f32) {
+        self.render_v::<crate::simd::x86::Y>(out, gain)
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx512f")]
+    fn render_avx512(&mut self, out: [&mut [f32]; 2], gain: f32) {
+        self.render_v::<crate::simd::x86::Z>(out, gain)
+    }
+
+    #[inline(always)]
+    fn render_v<V: V16>(&mut self, out: [&mut [f32]; 2], gain: f32) {
         if !self.awake && self.arrived == 0 && self.pending.iter().all(|p| p.amp == 0.0) {
             return;
         }
@@ -485,25 +523,28 @@ impl BodyBank {
                     self.pending[j].wait -= 1;
                     continue;
                 }
-                let pat = &self.pattern[p.key as usize * MODES..(p.key as usize + 1) * MODES];
-                let sw = &self.speed_w[j * MODES..(j + 1) * MODES];
+                let pat = lanes(&self.pattern[p.key as usize * MODES..(p.key as usize + 1) * MODES]);
+                let sw = lanes(&self.speed_w[j * MODES..(j + 1) * MODES]);
                 if p.rise > 0 {
                     // Settling in: every `sub` samples the next step of the
                     // ramp, turned as the resonance has since the strike.
                     if p.age.is_multiple_of(p.sub) {
-                        let d = (p.amp as f64 * (ramp(p.age + p.sub, p.rise) - ramp(p.age, p.rise))) as f32;
+                        let d = V::splat((p.amp as f64 * (ramp(p.age + p.sub, p.rise) - ramp(p.age, p.rise))) as f32);
                         let t = p.sub.trailing_zeros() as usize;
-                        let (sr, si) = (&self.step_r[t], &self.step_i[t]);
-                        let phr = &mut self.ph_r[j * MODES..(j + 1) * MODES];
-                        let phi = &mut self.ph_i[j * MODES..(j + 1) * MODES];
-                        for i in 0..MODES {
-                            let v = d * pat[i] * sw[i];
-                            let (a, b) = (phr[i], phi[i]);
-                            let (hr, hi) = (self.pulse_hr[i], self.pulse_hi[i]);
-                            self.zr[i] += v * (a * hr - b * hi);
-                            self.zi[i] += v * (a * hi + b * hr);
-                            phr[i] = a * sr[i] - b * si[i];
-                            phi[i] = a * si[i] + b * sr[i];
+                        let (sr, si) = (lanes(&self.step_r[t]), lanes(&self.step_i[t]));
+                        let (hr, hi) = (lanes(&self.pulse_hr), lanes(&self.pulse_hi));
+                        let phr = lanes_mut(&mut self.ph_r[j * MODES..(j + 1) * MODES]);
+                        let phi = lanes_mut(&mut self.ph_i[j * MODES..(j + 1) * MODES]);
+                        let (zr, zi) = (lanes_mut(&mut self.zr), lanes_mut(&mut self.zi));
+                        for c in 0..MODES / LANES {
+                            let v = d.mul(V::ld(&pat[c])).mul(V::ld(&sw[c]));
+                            let (a, b) = (V::ld(&phr[c]), V::ld(&phi[c]));
+                            let (hr, hi) = (V::ld(&hr[c]), V::ld(&hi[c]));
+                            V::ld(&zr[c]).add(v.mul(a.mul(hr).sub(b.mul(hi)))).st(&mut zr[c]);
+                            V::ld(&zi[c]).add(v.mul(a.mul(hi).add(b.mul(hr)))).st(&mut zi[c]);
+                            let (sr, si) = (V::ld(&sr[c]), V::ld(&si[c]));
+                            a.mul(sr).sub(b.mul(si)).st(&mut phr[c]);
+                            a.mul(si).add(b.mul(sr)).st(&mut phi[c]);
                         }
                         self.awake = true;
                         if p.age + p.sub >= p.rise {
@@ -513,48 +554,47 @@ impl BodyBank {
                     self.pending[j].age += 1;
                     continue;
                 }
-                let a = p.amp * self.pulse[p.age as usize];
+                let a = V::splat(p.amp * self.pulse[p.age as usize]);
+                let exc = lanes_mut(&mut self.exc);
                 if !struck {
-                    self.exc.iter_mut().for_each(|e| *e = 0.0);
+                    exc.fill([0.0; LANES]);
                     struck = true;
                 }
-                for ((e, &q), &w) in self.exc.iter_mut().zip(pat).zip(sw) {
-                    *e += a * q * w;
+                for c in 0..MODES / LANES {
+                    V::ld(&exc[c]).add(a.mul(V::ld(&pat[c])).mul(V::ld(&sw[c]))).st(&mut exc[c]);
                 }
                 self.pending[j].age += 1;
                 if p.age as usize + 1 >= self.pulse.len() {
                     self.pending[j].amp = 0.0;
                 }
             }
+            let (zr, zi) = (lanes_mut(&mut self.zr), lanes_mut(&mut self.zi));
             if struck {
-                for (z, &e) in self.zr.iter_mut().zip(&self.exc) {
-                    *z += e;
+                let exc = lanes(&self.exc);
+                for c in 0..MODES / LANES {
+                    V::ld(&zr[c]).add(V::ld(&exc[c])).st(&mut zr[c]);
                 }
                 self.awake = true;
             }
             if !self.awake {
                 continue;
             }
-            let mut acc_l = [0.0f32; LANES];
-            let mut acc_r = [0.0f32; LANES];
+            let (pr, pi) = (lanes(&self.pr), lanes(&self.pi));
+            let (wl, wr) = (lanes(&self.w[0]), lanes(&self.w[1]));
+            let (mut acc_l, mut acc_r) = (V::zero(), V::zero());
             for c in 0..MODES / LANES {
-                let s = c * LANES;
-                let zr: &mut [f32; LANES] = (&mut self.zr[s..s + LANES]).try_into().unwrap();
-                let zi: &mut [f32; LANES] = (&mut self.zi[s..s + LANES]).try_into().unwrap();
-                let pr: &[f32; LANES] = self.pr[s..s + LANES].try_into().unwrap();
-                let pi: &[f32; LANES] = self.pi[s..s + LANES].try_into().unwrap();
-                let wl: &[f32; LANES] = self.w[0][s..s + LANES].try_into().unwrap();
-                let wr: &[f32; LANES] = self.w[1][s..s + LANES].try_into().unwrap();
-                for k in 0..LANES {
-                    let (re, im) = (zr[k], zi[k]);
-                    zr[k] = re * pr[k] - im * pi[k];
-                    zi[k] = re * pi[k] + im * pr[k];
-                    acc_l[k] += re * wl[k];
-                    acc_r[k] += re * wr[k];
-                }
+                let (re, im) = (V::ld(&zr[c]), V::ld(&zi[c]));
+                let (pr, pi) = (V::ld(&pr[c]), V::ld(&pi[c]));
+                re.mul(pr).sub(im.mul(pi)).st(&mut zr[c]);
+                re.mul(pi).add(im.mul(pr)).st(&mut zi[c]);
+                acc_l = acc_l.add(re.mul(V::ld(&wl[c])));
+                acc_r = acc_r.add(re.mul(V::ld(&wr[c])));
             }
-            l[n] += gain * acc_l.iter().sum::<f32>();
-            r[n] += gain * acc_r.iter().sum::<f32>();
+            let (mut sl, mut sr) = ([0.0f32; LANES], [0.0f32; LANES]);
+            acc_l.st(&mut sl);
+            acc_r.st(&mut sr);
+            l[n] += gain * sl.iter().sum::<f32>();
+            r[n] += gain * sr.iter().sum::<f32>();
         }
         if self.awake && self.pending.iter().all(|p| p.amp == 0.0) {
             let e: f32 = self.zr.iter().zip(&self.zi).map(|(a, b)| a * a + b * b).sum();
@@ -565,6 +605,18 @@ impl BodyBank {
             }
         }
     }
+}
+
+/// The bank's arrays by chunks of [`LANES`] resonances ([`MODES`] is a
+/// multiple of it).
+#[inline(always)]
+fn lanes(a: &[f32]) -> &[[f32; LANES]] {
+    a.as_chunks::<LANES>().0
+}
+
+#[inline(always)]
+fn lanes_mut(a: &mut [f32]) -> &mut [[f32; LANES]] {
+    a.as_chunks_mut::<LANES>().0
 }
 
 #[cfg(test)]
@@ -841,6 +893,160 @@ mod tests {
         };
         let two = [(8, 80), (48, 84)];
         assert!(same(&play(&full, &two, false), &play(&full, &two, true)));
+    }
+
+    /// The render as it was written before the vector kernels, resonance by
+    /// resonance: the reference the kernels must match bit for bit.
+    fn render_reference(bank: &mut BodyBank, out: [&mut [f32]; 2], gain: f32) {
+        if !bank.awake && bank.arrived == 0 && bank.pending.iter().all(|p| p.amp == 0.0) {
+            return;
+        }
+        let [l, r] = out;
+        for n in 0..l.len() {
+            // Strikes reaching their frame take their slots, in the order
+            // they came; the others come one sample nearer.
+            if bank.arrived > 0 {
+                bank.arrive_due();
+                for a in &mut bank.arrivals[..bank.arrived] {
+                    a.at -= 1;
+                }
+            }
+            // Strikes under way this sample.
+            let mut struck = false;
+            for j in 0..PENDING {
+                let p = bank.pending[j];
+                if p.amp == 0.0 {
+                    continue;
+                }
+                if p.wait > 0 {
+                    bank.pending[j].wait -= 1;
+                    continue;
+                }
+                let pat = &bank.pattern[p.key as usize * MODES..(p.key as usize + 1) * MODES];
+                let sw = &bank.speed_w[j * MODES..(j + 1) * MODES];
+                if p.rise > 0 {
+                    // Settling in: every `sub` samples the next step of the
+                    // ramp, turned as the resonance has since the strike.
+                    if p.age.is_multiple_of(p.sub) {
+                        let d = (p.amp as f64 * (ramp(p.age + p.sub, p.rise) - ramp(p.age, p.rise))) as f32;
+                        let t = p.sub.trailing_zeros() as usize;
+                        let (sr, si) = (&bank.step_r[t], &bank.step_i[t]);
+                        let phr = &mut bank.ph_r[j * MODES..(j + 1) * MODES];
+                        let phi = &mut bank.ph_i[j * MODES..(j + 1) * MODES];
+                        for i in 0..MODES {
+                            let v = d * pat[i] * sw[i];
+                            let (a, b) = (phr[i], phi[i]);
+                            let (hr, hi) = (bank.pulse_hr[i], bank.pulse_hi[i]);
+                            bank.zr[i] += v * (a * hr - b * hi);
+                            bank.zi[i] += v * (a * hi + b * hr);
+                            phr[i] = a * sr[i] - b * si[i];
+                            phi[i] = a * si[i] + b * sr[i];
+                        }
+                        bank.awake = true;
+                        if p.age + p.sub >= p.rise {
+                            bank.pending[j].amp = 0.0;
+                        }
+                    }
+                    bank.pending[j].age += 1;
+                    continue;
+                }
+                let a = p.amp * bank.pulse[p.age as usize];
+                if !struck {
+                    bank.exc.iter_mut().for_each(|e| *e = 0.0);
+                    struck = true;
+                }
+                for ((e, &q), &w) in bank.exc.iter_mut().zip(pat).zip(sw) {
+                    *e += a * q * w;
+                }
+                bank.pending[j].age += 1;
+                if p.age as usize + 1 >= bank.pulse.len() {
+                    bank.pending[j].amp = 0.0;
+                }
+            }
+            if struck {
+                for (z, &e) in bank.zr.iter_mut().zip(&bank.exc) {
+                    *z += e;
+                }
+                bank.awake = true;
+            }
+            if !bank.awake {
+                continue;
+            }
+            let mut acc_l = [0.0f32; LANES];
+            let mut acc_r = [0.0f32; LANES];
+            for c in 0..MODES / LANES {
+                let s = c * LANES;
+                let zr: &mut [f32; LANES] = (&mut bank.zr[s..s + LANES]).try_into().unwrap();
+                let zi: &mut [f32; LANES] = (&mut bank.zi[s..s + LANES]).try_into().unwrap();
+                let pr: &[f32; LANES] = bank.pr[s..s + LANES].try_into().unwrap();
+                let pi: &[f32; LANES] = bank.pi[s..s + LANES].try_into().unwrap();
+                let wl: &[f32; LANES] = bank.w[0][s..s + LANES].try_into().unwrap();
+                let wr: &[f32; LANES] = bank.w[1][s..s + LANES].try_into().unwrap();
+                for k in 0..LANES {
+                    let (re, im) = (zr[k], zi[k]);
+                    zr[k] = re * pr[k] - im * pi[k];
+                    zi[k] = re * pi[k] + im * pr[k];
+                    acc_l[k] += re * wl[k];
+                    acc_r[k] += re * wr[k];
+                }
+            }
+            l[n] += gain * acc_l.iter().sum::<f32>();
+            r[n] += gain * acc_r.iter().sum::<f32>();
+        }
+        if bank.awake && bank.pending.iter().all(|p| p.amp == 0.0) {
+            let e: f32 = bank.zr.iter().zip(&bank.zi).map(|(a, b)| a * a + b * b).sum();
+            if e < 1e-16 {
+                bank.zr.iter_mut().for_each(|z| *z = 0.0);
+                bank.zi.iter_mut().for_each(|z| *z = 0.0);
+                bank.awake = false;
+            }
+        }
+    }
+
+    /// Strikes of every kind (pulses, rises of every step length, a full
+    /// queue, strikes due later, live law changes) rendered in blocks of
+    /// every length: each ISA's kernels give the reference's bits.
+    #[test]
+    fn every_isa_matches_the_scalar_reference() {
+        let sr = 48_000.0;
+        for rise in [0.0, 0.004, 0.012, 0.03, 0.06, 0.1] {
+            let law = BodyLaw { rise, speed_ref: 2.76, ..law() };
+            for isa in Isa::available() {
+                let mut a = BodyBank::new(sr, &law);
+                let mut b = BodyBank::new(sr, &law);
+                a.set_isa(isa);
+                let mut seed = 0x2545_f491u32;
+                let mut rnd = |n: u32| {
+                    seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    (seed >> 8) % n
+                };
+                for block in 0..400 {
+                    let len = [1usize, 7, 16, 63, 64][block % 5];
+                    // Bursts of strikes (more than the slots hold), then rests
+                    // long enough for the bank to fall asleep.
+                    let strikes = if block % 97 < 60 { rnd(4) } else { 0 } + if block % 131 == 5 { 40 } else { 0 };
+                    for _ in 0..strikes {
+                        let (note, speed) = (21 + rnd(88) as u8, 0.3 + 0.05 * rnd(100) as f64);
+                        let offset = if rnd(3) == 0 { rnd(len as u32) as f64 / sr } else { 0.0 };
+                        a.strike(note, speed, offset);
+                        b.strike(note, speed, offset);
+                    }
+                    if block == 200 {
+                        let l2 = BodyLaw { rise: 0.5 * rise, gain: 0.7 * law.gain, ..law };
+                        a.set_law(&l2);
+                        b.set_law(&l2);
+                    }
+                    let (mut al, mut ar) = (vec![0.25f32; len], vec![-0.5f32; len]);
+                    let (mut bl, mut br) = (al.clone(), ar.clone());
+                    a.render([&mut al, &mut ar], 0.8);
+                    render_reference(&mut b, [&mut bl, &mut br], 0.8);
+                    let same = |x: &[f32], y: &[f32]| x.iter().zip(y).all(|(p, q)| p.to_bits() == q.to_bits());
+                    assert!(same(&al, &bl) && same(&ar, &br), "{isa:?}, rise {rise}, block {block}");
+                    assert!(same(&a.zr, &b.zr) && same(&a.zi, &b.zi), "{isa:?}, rise {rise}, block {block}: states");
+                }
+                assert!(b.zr.iter().any(|&z| z != 0.0) || !b.awake);
+            }
+        }
     }
 
     #[test]
