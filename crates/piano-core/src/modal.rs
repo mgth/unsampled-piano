@@ -289,6 +289,10 @@ impl ModalBank {
         self.chunks.len() * LANES
     }
 
+    pub fn sample_rate(&self) -> f64 {
+        self.sample_rate
+    }
+
     pub fn len(&self) -> usize {
         self.n_modes
     }
@@ -407,6 +411,21 @@ impl ModalBank {
                 self.set_state(i, 0.0, 0.0);
             }
         }
+    }
+
+    /// Takes `other`'s poles, states and number of modes run: the same
+    /// modes read through this bank's own output weights (a bank that
+    /// renders more outputs of another's modes, `soundboard.forced_radiation`),
+    /// the next block from where `other` stands. Real-time safe.
+    pub fn follow(&mut self, other: &ModalBank) {
+        let nc = other.n_modes.div_ceil(LANES).min(self.chunks.len());
+        for (c, o) in self.chunks[..nc].iter_mut().zip(&other.chunks) {
+            c.pr = o.pr;
+            c.pi = o.pi;
+            c.zr = o.zr;
+            c.zi = o.zi;
+        }
+        self.n_modes = other.n_modes.min(nc * LANES);
     }
 
     /// Complex state z of mode `i`.

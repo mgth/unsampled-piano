@@ -59,6 +59,10 @@ struct Cli {
     /// With --score: threads rendering and measuring.
     #[arg(long, default_value_t = 5, requires = "score")]
     score_threads: usize,
+    /// With --score: also write every key's and layer's value of the model
+    /// and of the pianos judging it, measure by measure.
+    #[arg(long, requires = "score")]
+    score_notes: bool,
 }
 
 /// The repository: the folder holding bench/references.json, from the
@@ -119,7 +123,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache_file = cache.join(format!("measures-v{}.json", measure::VERSION));
     if let Some(out) = &cli.score {
         let spec = spec.as_ref().ok_or("--score needs the model")?;
-        return score::run(srcs, spec, cache_file, &cli.band_without, cli.score_threads, out);
+        return score::run(srcs, spec, cache_file, &cli.band_without, cli.score_threads, out, cli.score_notes);
     }
     let viewport = egui::ViewportBuilder::default()
         .with_inner_size([1500.0, 950.0])

@@ -372,6 +372,37 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("losses.b2_high_from", "Key from which the top octaves have their own overtone losses.", "MIDI note where b2_high holds in full."),
     (
+        "losses.physical",
+        "The strings lose their overtones as steel wire does, to the air around it and inside \
+         the metal, each string by its own thickness, mass and stiffness, instead of by the \
+         keyboard zones of b2, b2_top and b2_high.",
+        "On: above the key's fundamental the growth of the b2 terms gives way to Valette and \
+         Cuesta's law, Q^-1 = Q_air^-1 + Q_ve^-1 + Q_te^-1 and sigma = pi f / Q; the \
+         fundamental keeps its rate (b1 + b2 f0^2). Off: b2 as before (docs/sustain.md).",
+    ),
+    (
+        "losses.air_scale",
+        "How much the air around the strings slows them: higher values darken the sustain a \
+         little, more on the thin treble strings.",
+        "Scale on the air term sigma = R / (2 mu), R = 2 pi eta + 2 pi d sqrt(pi eta rho f), \
+         d the outer diameter. 1: a cylinder in still air (physical on).",
+    ),
+    (
+        "losses.delta_ve",
+        "Losses of the steel as the strings bend: they grow fast with the overtone, most on \
+         the stiff treble strings.",
+        "Loss angle times the bending share of the partial's energy (about B n^2): sigma = pi \
+         f delta_ve x/(1 + x). 4.5e-3 from a steel guitar string (Issanchou et al. 2017), \
+         physical on.",
+    ),
+    (
+        "losses.q_te",
+        "Losses inside the steel that take the same share of every overtone's energy per \
+         cycle: higher values make the high overtones die sooner than the low ones.",
+        "Constant loss factor: sigma = pi f q_te. 2.03e-4 from a steel guitar string \
+         (Issanchou et al. 2017), physical on.",
+    ),
+    (
         "scale.len_c8",
         "Speaking length of the highest string (C8), between its two bearing points.",
         "Lengths grow by `ratio_per_octave` per octave down to `break_note`. This generic 2 m \
@@ -473,6 +504,14 @@ const HELP: &[(&str, &str, &str)] = &[
          other.",
         "Height spread (m) of a unison's strings: string j takes no hammer force until \
          h_j·spread/v (h_j in 0…1, irregular per key, v the hammer speed) (docs/release.md).",
+    ),
+    (
+        "unison.b_spread",
+        "The strings of a key do not have quite the same stiffness (wire diameter, lengths a few \
+         millimetres apart): their upper partials drift apart while the fundamentals stay in tune.",
+        "Rms of each string's relative departure from the key's inharmonicity B, zero mean within \
+         the unison, fixed per key and string; the first partial stays where the tuning puts it. \
+         0: one B for all (docs/sustain.md).",
     ),
     (
         "unison.strike_spread",
@@ -642,6 +681,17 @@ const HELP: &[(&str, &str, &str)] = &[
          keep them all (docs/evenness.md).",
     ),
     ("soundboard.bridge_mass", "Mass of the bridge where a string crosses it: heavier filters the highs reaching the board.", "Local mass m: the strings see Y/(1 + iω·m·Y), the board receives F/(1 + iω·m·Y). 0: none."),
+    (
+        "soundboard.bridge_yield",
+        "A fitted law: the bridge gives way more under the strings at high frequency than the \
+         board's modes do, so the treble's upper partials lose their first loudness quickly and \
+         then ring on.",
+        "On: adds the conductance yield_conductance x^4/(1 + x^4), x = f/yield_corner, to the \
+         admittance the strings see. It damps the strings and radiates nothing. Off: as before \
+         (docs/sustain.md, the treble's two stages).",
+    ),
+    ("soundboard.yield_conductance", "How much the bridge yields at high frequency (bridge_yield on).", "Conductance (s/kg) reached well above yield_corner."),
+    ("soundboard.yield_corner", "Where the bridge's yield comes in (bridge_yield on).", "Corner (Hz): the conductance is half its top value there and falls as f^4 below."),
     (
         "soundboard.series_stiffness",
         "Springiness between the string and the bridge (the bridge pins and cap).",
@@ -909,6 +959,19 @@ const HELP: &[(&str, &str, &str)] = &[
          its mean level, the attack fills in as a real one does (docs/attack_rise.md).",
     ),
     (
+        "soundboard.forced_radiation",
+        "The strings' partials radiate as the board really answers them, at their own frequency.",
+        "Each board mode radiates through its weight at its own frequency, exact for a mode ringing \
+         freely. A partial drives every mode off its resonance, and what they radiate together \
+         depends on the wavelength at the partial's frequency. On: every partial below 8 kHz \
+         adds at each microphone the difference between the exact transfer (every built-board \
+         mode's weight at that frequency) and the bank's; the board still renders its own ring \
+         and the attack. Close pair: partial levels move by 4 dB rms, bands by 2 dB or less; \
+         player's seat: 5 dB rms, the treble 2-3 dB softer. Needs the built board; the first \
+         build for a board, its strings and microphones takes about 5 s more (then cached on \
+         disk); about 20 % more CPU (docs/forced_radiation.md).",
+    ),
+    (
         "soundboard.bridge_rocking",
         "The strings' sideways motion rocks the bridge and reaches you by a path of its own.",
         "A string's horizontal motion pulls the bridge across the strings at their height on the \
@@ -1157,6 +1220,18 @@ const HELP: &[(&str, &str, &str)] = &[
         "Share of the damper rate the horizontal polarisation gets (first order in each coupled \
          mode: Σ_j w_j·V_jm²).",
     ),
+    (
+        "damper.grip_rise",
+        "The felt grips the strings' fast vibrations harder than the slow ones, whichever way \
+         they swing and wherever their still points lie: the high overtones of a released note \
+         go quiet while its fundamental fades a little longer, as on a real grand.",
+        "On: a partial at f takes the sideways share horizontal + (horizontal_high − \
+         horizontal)·r and the floor node_floor + (node_floor_high − node_floor)·r, \
+         r = x⁴/(1 + x⁴), x = f / grip_corner; fitted to a Disklavier grand's releases.",
+    ),
+    ("damper.horizontal_high", "How firmly the felt grips the sideways motion of the high overtones.", "Sideways share tended to well above grip_corner (grip_rise)."),
+    ("damper.node_floor_high", "How firmly the felt catches the high overtones that have a still point under it.", "Floor tended to well above grip_corner (grip_rise)."),
+    ("damper.grip_corner", "Where the felt's grip changes from the low overtones' to the high ones'.", "Frequency (Hz) at which the shares have risen half way (grip_rise)."),
     (
         "damper.contact_exponent",
         "How the damping grows as the felt settles on the strings. Higher: lightly touching \

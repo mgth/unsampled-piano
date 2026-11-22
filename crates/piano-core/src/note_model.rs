@@ -73,6 +73,11 @@ pub struct NoteModel {
     /// braked by every free string instead of the undamped ones alone
     /// ([`params::SympatheticLaw::brake`]).
     pub sym_table_free: ModeTable,
+    /// The board's forced response at the coupled modes' own frequencies
+    /// (`soundboard.forced_radiation`): per pair of microphones, the same
+    /// modes with no input and, as outputs 1 and 2, what each adds at those
+    /// two microphones ([`crate::forced`]). Empty when off.
+    pub forced: Vec<ModeTable>,
 }
 
 /// Delay (samples) of the bridge acceleration seen by the strings: the
@@ -166,6 +171,7 @@ impl NoteModel {
     ) -> Self {
         let max_modes = res.max_modes;
         let np = model.note(note);
+        let geo = params::StringGeometry::of(&np, model.nonlinear.young);
         let region = board::region_of(note);
         // With the low modes driven at the key itself, the others take its
         // own region whole (no low band to share).
@@ -192,7 +198,16 @@ impl NoteModel {
         let nyq = 0.45 * sample_rate;
         let tau = std::f64::consts::TAU;
         let pattern = model.unison.pattern(note);
-        let f0v: Vec<f64> = (0..ns).map(|j| np.f0 * 2f64.powf(np.detune[j] / 1200.0)).collect();
+        // Each string's own inharmonicity (unison.b_spread), its first
+        // partial kept where the tuning puts it.
+        let bf = model.unison.b_factors(note);
+        let b_of = |j: usize| np.b * bf[j];
+        let f0v: Vec<f64> = (0..ns)
+            .map(|j| {
+                let f = np.f0 * 2f64.powf(np.detune[j] / 1200.0);
+                if bf[j] == 1.0 { f } else { f * ((1.0 + np.b) / (1.0 + b_of(j))).sqrt() }
+            })
+            .collect();
         let f0h: Vec<f64> = f0v.iter().map(|f| f * 2f64.powf(pol.detune_cents / 1200.0)).collect();
         let (mut clusters, mut phys, mut modes) = (Vec::new(), Vec::new(), Vec::new());
         // Under a capo bar, the front duplex on: each string's modes on its
@@ -202,7 +217,7 @@ impl NoteModel {
                 (0..ns)
                     .map(|j| {
                         let l = model.frame.duplex_string(sb, note, j, ns)?;
-                        Some(crate::duplex::modes(np.length, np.b, np.strike_pos, l, nyq / params::partial_freq(f0v[j], np.b, 1)))
+                        Some(crate::duplex::modes(np.length, b_of(j), np.strike_pos, l, nyq / params::partial_freq(f0v[j], b_of(j), 1)))
                     })
                     .collect()
             });
@@ -212,7 +227,7 @@ impl NoteModel {
         for k in 1..=(max_modes / n_osc) as u32 {
             // String j's partial k where the string runs on under the capo.
             let at = |j: usize| front.as_ref().and_then(|f| f[j].partials.get(k as usize - 1).copied().flatten());
-            let freq = |j: usize, f: f64| at(j).map_or_else(|| params::partial_freq(f, np.b, k), |d| params::partial_freq(f, np.b, 1) * d.ratio);
+            let freq = |j: usize, f: f64| at(j).map_or_else(|| params::partial_freq(f, b_of(j), k), |d| params::partial_freq(f, b_of(j), 1) * d.ratio);
             let fv: Vec<f64> = f0v.iter().enumerate().map(|(j, &f)| freq(j, f)).collect();
             let fh: Vec<f64> = f0h.iter().enumerate().map(|(j, &f)| freq(j, f)).collect();
             if fv.iter().chain(&fh).any(|&f| f >= nyq) {
@@ -228,7 +243,9 @@ impl NoteModel {
                     // The string's other end: the frame at its agraffe (the
                     // mode's slope is the same there, (−1)^(k+1)·kπ/L).
                     let at_frame = frame.map_or(C64::ZERO, |f| f.at(b.params.key_across(note), tau * fv[0]));
-                    (b.bridge_admittance(sh, tau * fv[0]) + C64::new(b.edge_conductance(note, tau * fv[0]), 0.0) + at_frame).scale(np.tension / np.length)
+                    let y = b.bridge_admittance(sh, tau * fv[0]) + C64::new(b.edge_conductance(note, tau * fv[0]), 0.0) + at_frame;
+                    let y = if b.params.bridge_yield { y + C64::new(b.yield_conductance(tau * fv[0]), 0.0) } else { y };
+                    y.scale(np.tension / np.length)
                 }
                 _ => np.coupling(&model.bridge, fv[0]),
             };
@@ -239,9 +256,9 @@ impl NoteModel {
                 None => eps,
             };
             let extra = |j: usize| at(j).map_or(0.0, |d| front_loss(&d));
-            let dv: Vec<C64> = fv.iter().enumerate().map(|(j, &f)| C64::new(-(model.losses.sigma(note, f) + extra(j)), tau * f)).collect();
+            let dv: Vec<C64> = fv.iter().enumerate().map(|(j, &f)| C64::new(-(model.losses.sigma_on(note, f, &geo) + extra(j)), tau * f)).collect();
             let cl = if pol.enabled {
-                let dh: Vec<C64> = fh.iter().enumerate().map(|(j, &f)| C64::new(-(model.losses.sigma(note, f) + extra(j)), tau * f)).collect();
+                let dh: Vec<C64> = fh.iter().enumerate().map(|(j, &f)| C64::new(-(model.losses.sigma_on(note, f, &geo) + extra(j)), tau * f)).collect();
                 let (eps_h, eps_x) = pol.sideways(eps, eps_ref, fv[0]);
                 unison::couple_polarised(&dv, &dh, eps, eps_h, eps_x)
             } else {
@@ -274,7 +291,8 @@ impl NoteModel {
 
             let mut vert = [0.0; MAX_OSC];
             vert[..ns].fill(1.0);
-            let damp_w = if has_damper { model.damper.shape_of(model.damper.pad(note), k, damper_at, np.length, wedge) } else { 0.0 };
+            let damp_w = if has_damper { model.damper.shape_at(model.damper.pad(note), k, damper_at, np.length, wedge, fv[0]) } else { 0.0 };
+            let sideways = model.damper.horizontal_at(fv[0], wedge);
             for m in 0..n_osc {
                 let u = cl.output_weight(m, &wout).scale(wk);
                 let u3 = if rocks { cl.output_weight(m, &wrock).scale(wk) } else { C64::ZERO };
@@ -283,9 +301,9 @@ impl NoteModel {
                 // First order in the damping: Σ_j w_j·V_jm² (Vᵀ·V = I).
                 let mut pw = C64::ZERO;
                 for j in 0..n_osc {
-                    pw += (cl.v[j][m] * cl.v[j][m]).scale(if j < ns { 1.0 } else { model.damper.horizontal });
+                    pw += (cl.v[j][m] * cl.v[j][m]).scale(if j < ns { 1.0 } else { sideways });
                 }
-                let lo = model.damper.horizontal.min(1.0);
+                let lo = sideways.min(1.0);
                 let damp_w = damp_w * pw.re.clamp(lo, lo.max(1.0));
                 // Own contribution at this coupled mode's exact frequency (the
                 // bridge stiffness shifts treble modes by several Hz).
@@ -353,8 +371,8 @@ impl NoteModel {
         let orders = front.as_ref().map_or(0, |f| f.iter().map(|s| s.duplex.len()).min().unwrap_or(0));
         for i in 0..orders {
             let d: Vec<crate::duplex::DuplexMode> = front.iter().flatten().map(|s| s.duplex[i]).collect();
-            let fv: Vec<f64> = (0..ns).map(|j| params::partial_freq(f0v[j], np.b, 1) * d[j].ratio).collect();
-            let fh: Vec<f64> = (0..ns).map(|j| params::partial_freq(f0h[j], np.b, 1) * d[j].ratio).collect();
+            let fv: Vec<f64> = (0..ns).map(|j| params::partial_freq(f0v[j], b_of(j), 1) * d[j].ratio).collect();
+            let fh: Vec<f64> = (0..ns).map(|j| params::partial_freq(f0h[j], b_of(j), 1) * d[j].ratio).collect();
             if modes.len() + n_osc > max_modes || fv.iter().chain(&fh).any(|&f| f >= nyq) {
                 break;
             }
@@ -364,11 +382,15 @@ impl NoteModel {
             let (eps_ref, eps) = match (board, &bridge_shapes) {
                 (Some(b), Some(sh)) => (
                     C64::new(b.params.mean_mobility() * np.tension / np.length, 0.0),
-                    (b.bridge_admittance(sh, tau * fv[0]) + C64::new(b.edge_conductance(note, tau * fv[0]), 0.0)).scale(hold * np.tension / np.length),
+                    {
+                        let y = b.bridge_admittance(sh, tau * fv[0]) + C64::new(b.edge_conductance(note, tau * fv[0]), 0.0);
+                        let y = if b.params.bridge_yield { y + C64::new(b.yield_conductance(tau * fv[0]), 0.0) } else { y };
+                        y.scale(hold * np.tension / np.length)
+                    },
                 ),
                 _ => (np.coupling(&model.bridge, fv[0]), np.coupling(&model.bridge, fv[0]).scale(hold)),
             };
-            let dv: Vec<C64> = (0..ns).map(|j| C64::new(-(model.losses.sigma(note, fv[j]) + front_loss(&d[j])), tau * fv[j])).collect();
+            let dv: Vec<C64> = (0..ns).map(|j| C64::new(-(model.losses.sigma_on(note, fv[j], &geo) + front_loss(&d[j])), tau * fv[j])).collect();
             let cl = if pol.enabled {
                 let dh: Vec<C64> = (0..ns).map(|j| C64::new(dv[j].re, tau * fh[j])).collect();
                 let (eps_h, eps_x) = pol.sideways(eps, eps_ref, fv[0]);
@@ -394,7 +416,7 @@ impl NoteModel {
             // The damper lies on the speaking length: it takes the mode by
             // its share of motion there.
             let near = (d[0].shape.nu.round() as u32).max(1);
-            let damp_w = if has_damper { model.damper.shape_of(model.damper.pad(note), near, damper_at, np.length, wedge) * hold } else { 0.0 };
+            let damp_w = if has_damper { model.damper.shape_at(model.damper.pad(note), near, damper_at, np.length, wedge, fv[0]) * hold } else { 0.0 };
             for m in 0..n_osc {
                 let u = cl.output_weight(m, &wout).scale(np.tension * std::f64::consts::PI / np.length);
                 let u3 = cl.output_weight(m, &wrock).scale(np.tension * std::f64::consts::PI / np.length);
@@ -439,6 +461,7 @@ impl NoteModel {
             table,
             sym_table,
             sym_table_free,
+            forced: Vec::new(),
         }
     }
 
@@ -497,6 +520,7 @@ pub fn rear_modes(model: &PianoModel, board: Option<&Soundboard>, sample_rate: f
             continue;
         }
         let (f0, b) = (np.f0 * np.length / l, np.b * (np.length / l).powi(2));
+        let geo = params::StringGeometry::of(&np, model.nonlinear.young).with_length(np.length, l);
         let shapes = board.map(|bd| bd.bridge_shapes(note));
         for n in 1..=64u32 {
             let f = params::partial_freq(f0, b, n);
@@ -514,7 +538,7 @@ pub fn rear_modes(model: &PianoModel, board: Option<&Soundboard>, sample_rate: f
                 };
             regions[board::region_of(note)].push(ModeSpec {
                 freq_hz: f,
-                sigma: model.losses.sigma(note, f) + law.rear_loss.max(0.0) + to_bridge,
+                sigma: model.losses.sigma_on(note, f, &geo) + law.rear_loss.max(0.0) + to_bridge,
                 gain_re: g.re,
                 gain_im: g.im,
                 gain2_re: 0.0,
@@ -738,6 +762,11 @@ impl PianoTable {
     pub fn notes(&self) -> &[NoteModel] {
         &self.notes
     }
+
+    /// The 88 keys, A0 first, to be completed after the build.
+    pub fn notes_mut(&mut self) -> &mut [NoteModel] {
+        &mut self.notes
+    }
 }
 
 #[cfg(test)]
@@ -932,6 +961,50 @@ mod tests {
 
     /// Every key, including single strings, has a fast and a slow component
     /// per partial (in-phase vertical vs out-of-phase/horizontal motion).
+    #[test]
+    fn each_string_s_own_inharmonicity_spreads_the_upper_partials_alone() {
+        let base = PianoModel::default();
+        let model = PianoModel { unison: crate::params::UnisonLaw { b_spread: 0.05, ..base.unison }, ..base };
+        let note = 84u8;
+        let (a, b) = (NoteModel::build(&base, None, None, note, 48_000.0, 768), NoteModel::build(&model, None, None, note, 48_000.0, 768));
+        let ns = a.params.strings;
+        let split = |nm: &NoteModel, ki: usize| {
+            let f: Vec<f64> = (0..ns).map(|j| nm.phys[ki * nm.n_osc + j].freq).collect();
+            f.iter().cloned().fold(f64::MIN, f64::max) - f.iter().cloned().fold(f64::MAX, f64::min)
+        };
+        // Partial 1 of every string stays where the tuning puts it.
+        for j in 0..ns {
+            assert!((a.phys[j].freq - b.phys[j].freq).abs() < 1e-9 * a.phys[j].freq, "string {j}");
+        }
+        // A high partial splits by its own amount, no longer k times partial 1's.
+        let k = 6;
+        assert!((split(&a, k - 1) / split(&a, 0) - (a.phys[(k - 1) * a.n_osc].freq / a.phys[0].freq)).abs() < 0.05);
+        assert!((split(&b, k - 1) - split(&a, k - 1)).abs() > 0.2 * split(&a, k - 1), "{} vs {}", split(&b, k - 1), split(&a, k - 1));
+    }
+
+    #[test]
+    fn the_bridge_s_yield_damps_the_high_partials_alone() {
+        let base = PianoModel::default();
+        let mut sb = base.soundboard.unwrap();
+        sb.bridge_yield = true;
+        sb.yield_conductance = 2e-3;
+        sb.yield_corner = 3000.0;
+        let model = PianoModel { soundboard: Some(sb), ..base };
+        let (b0, b1) = (base.board().unwrap(), model.board().unwrap());
+        let note = 72u8;
+        let a = NoteModel::build(&base, Some(&b0), None, note, 48_000.0, 768);
+        let b = NoteModel::build(&model, Some(&b1), None, note, 48_000.0, 768);
+        let fastest = |nm: &NoteModel, ki: usize| nm.modes[ki * nm.n_osc..(ki + 1) * nm.n_osc].iter().map(|m| m.sigma).fold(0.0, f64::max);
+        // Partial 1 (523 Hz) within 3 %; partial 9 (4.9 kHz) far faster.
+        assert!((fastest(&b, 0) / fastest(&a, 0) - 1.0).abs() < 0.03, "{} vs {}", fastest(&b, 0), fastest(&a, 0));
+        assert!(fastest(&b, 8) > 2.0 * fastest(&a, 8), "{} vs {}", fastest(&b, 8), fastest(&a, 8));
+        // Off, the same law at any value is nothing.
+        let mut off = sb;
+        off.bridge_yield = false;
+        let c = NoteModel::build(&PianoModel { soundboard: Some(off), ..base }, Some(&PianoModel { soundboard: Some(off), ..base }.board().unwrap()), None, note, 48_000.0, 768);
+        assert!(a.modes.iter().zip(&c.modes).all(|(x, y)| x.sigma == y.sigma && x.freq_hz == y.freq_hz));
+    }
+
     #[test]
     fn every_key_has_two_decay_rates() {
         let model = PianoModel::default();

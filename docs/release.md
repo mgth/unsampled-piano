@@ -198,6 +198,23 @@ Listening page: `out/ab_dampers/index.html` (key-ups against the Disklavier gran
 - **The treble's hold at every depth** (+4 to +5 dB) and the top's.
 - No listening remark was given with the decision.
 
+## The felt's grip rising with frequency (2026-11-21, candidate)
+
+The comparison tool's release drops (docs/compare_tool.md: each band 100–250 ms after the key-up against just before it, judged against Liang's Disklavier grand) found the preset's damper leaving too much above 600 Hz: on C3–C5, 600–1200 Hz −17 dB against −35, 1.2–2.5 kHz −18 against −30, while 150–600 Hz stood right (−19 against −18).
+
+**What carries the residue.** Each partial has six coupled modes (three strings, two polarisations); three are almost purely sideways and take `horizontal` (0.3) of the rate, and partials with a node near the pad (C3: 5 and 6, C4: 4 and 5) take little more than `node_floor`. Those modes lose 7–15 dB in the window where the vertical ones lose 30–90. Switched off one at a time on C3–C5 (every second key): the room (dry against studio) and the sympathetic strings change nothing below 1.2 kHz; at 1.2–2.5 kHz on G#3–C5 part of the residue is the undamped top strings (D#6 up) and the rear lengths ringing on (C5's partial 3 lies on G6), which no damper touches. `horizontal` 1 or `node_floor` 0.4, or a stronger felt, deepen 150–600 Hz as much as the upper bands (`horizontal` 1: 150–600 Hz 13 dB too deep, 600–1200 Hz still 9 dB short): one share for every partial cannot do it.
+
+**New `damper.grip_rise`** (a switch, off by default: every other preset renders bit for bit as before; the shipped preset's comparison-tool score is unchanged to every note). On, a partial at f takes the sideways share `horizontal` + (`horizontal_high` − `horizontal`)·r and the floor `node_floor` + (`node_floor_high` − `node_floor`)·r, r = x⁴/(1 + x⁴), x = f/`grip_corner`, the response of a damper head riding on its felt below their resonance. The rise fades out under the bass wedges, which stop every partial at one rate. The law and its values are fitted, not derived.
+
+| Liang, median model − real (dB) | 150–600 Hz | 0.6–1.2 kHz | 1.2–2.5 kHz | 2.5–5 kHz |
+|---|---|---|---|---|
+| C3–C5, the preset | +0.5 | +16.0 | +7.8 | −1.0 |
+| C3–C5, corner 650 Hz, `horizontal_high` 1, `node_floor_high` 0.5 | −0.9 | +0.9 | +2.0 | −4.4 |
+| all keys, the preset | +3.4 | +9.6 | +5.2 | +3.6 |
+| all keys, the same | +2.5 | +1.4 | +1.1 | −5.6 |
+
+Corner 400 and 500 Hz took 150–600 Hz 3–6 dB too deep on C3–C5. Above 2.5 kHz and from G#4 up at 600–1200 Hz the model now drops deeper than the recording, which never drops more than about 35 dB in the window: what else rings in the real instrument there is not modelled. The thirteen older measures of the tool do not move, nor does the pedal bench (velocity 96: half-pedal hold, middle +1.1 → +0.1 dB, treble +9.9 → +8.7). Candidates and listening page: `out/presets/p2/`, `out/ab_p2/` (not listened to).
+
 ## Soft blows: the unison struck unevenly
 
 The most audible cut left came 0.3 s after a soft chord, the pedal changing just after it. Rendered with the pedal held throughout, the model still lost its 1.5–6 kHz band within 0.3 s; the recording kept it for 0.7 s. Over the first 0.3 s, eight real grands (tools/bench.py's references) decay the middle's upper partials at about −20 dB/s at pp and −30 at ff. The model had the same decay at every velocity: it is linear once the hammer leaves.

@@ -41,6 +41,17 @@ const RHO0: f64 = 1.2;
 const CASE_ABSORPTION: f64 = 0.1;
 pub const C0: f64 = 343.0;
 
+/// Parts of the board's radiation ([`Soundboard::radiation_parts`]): the
+/// front face (through the case, shaded by the scattering layer), the back
+/// face and its wall image, the front face's lid image, the scattering
+/// layer, the case's diffuse field (`case_field`).
+pub const RAD_FRONT: u8 = 1;
+pub const RAD_BACK: u8 = 2;
+pub const RAD_IMAGE: u8 = 4;
+pub const RAD_SCATTER: u8 = 8;
+pub const RAD_CASE: u8 = 16;
+pub const RAD_ALL: u8 = 31;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct SoundboardParams {
@@ -74,6 +85,23 @@ pub struct SoundboardParams {
     /// Stiffness (N/m) in series between string and bridge (pins, cap):
     /// adds iω/k to the admittance seen by the strings.
     pub series_stiffness: f64,
+    /// A FITTED LAW, not a built part: the bridge yields more to the strings
+    /// at high frequency than the board's modes give. A conductance
+    /// `yield_conductance`·x⁴/(1 + x⁴) (s/kg), x = f/`yield_corner`, added
+    /// to the admittance the strings see (vertically; the sideways and cross
+    /// couplings take their shares of it as of the rest). It damps the
+    /// strings and radiates nothing: the force reaching the board, and so
+    /// the sound per unit of force, are left as they were. Uprights' bridges
+    /// (Giordano 1998; Ege et al. 2013, docs/steinway_d_gaps.md) fall from 1–2·10³ to
+    /// 200–300 kg/s above 2.5 kHz, where the built board stays near 4·10⁻⁴
+    /// s/kg; on five real grands the treble's partials at 2.5–8 kHz lose
+    /// their first 15–20 dB at −55 to −75 dB/s, then ring on at −20 to −35,
+    /// a prompt sound and an aftersound that the strings' own loss cannot
+    /// give and that the board's conductance did not (docs/sustain.md,
+    /// "The treble's two stages"). Off: nothing changes.
+    pub bridge_yield: bool,
+    pub yield_conductance: f64,
+    pub yield_corner: f64,
     /// The bridge is a stiff hardwood beam glued on the board: a string's
     /// force reaches the board spread along it, over `bridge_spread` times
     /// the bridge's bending wavelength 2π·(EI/(μω²))^¼ (capped at 0.5 m).
@@ -331,6 +359,18 @@ pub struct SoundboardParams {
     /// there from the strike's first sample (docs/attack_rise.md). Through
     /// an all-pass: every partial keeps its level.
     pub case_field_builds: bool,
+    /// The strings' partials radiate as the board's forced response at
+    /// their own frequency. Each mode's radiation weight is the Rayleigh
+    /// integral of its shape at the mode's own frequency, exact for a mode
+    /// ringing freely; a partial at ω drives every mode off its resonance,
+    /// and what they radiate together depends on the wavelength at ω. On:
+    /// every coupled mode of a key's strings below [`crate::forced::FORCED_MAX_HZ`]
+    /// adds at each microphone the difference between the exact transfer
+    /// from its bridge force (every built-board mode's weight at ω) and
+    /// the bank's: the board's bank still renders all it did (the free ring
+    /// of its modes, the attack). Needs the built board (`structure`);
+    /// docs/forced_radiation.md.
+    pub forced_radiation: bool,
     /// The bridge rocks. A string's sideways (horizontal) motion pulls the
     /// bridge across the strings at their height on the pins, `bridge_height`
     /// above the board: a moment, which drives each mode of the built board by
@@ -456,6 +496,9 @@ impl SoundboardParams {
         edge_corner: 400.0,
         bridge_mass: 0.0,
         series_stiffness: 2e7,
+        bridge_yield: false,
+        yield_conductance: 1e-3,
+        yield_corner: 3000.0,
         // Maple, ≈ 3 × 2.5 cm; spread over 0.3 bending wavelength (set with
         // the ESPRIT decays of the upper partials, docs/sustain.md).
         bridge_stiffness: 470.0,
@@ -574,6 +617,7 @@ impl SoundboardParams {
         case_field: false,
         radiation_delays: false,
         case_field_builds: false,
+        forced_radiation: false,
         bridge_rocking: false,
         bridge_height: 0.033,
         structure: crate::fem::BoardStructure::STEINWAY_D,
@@ -1090,6 +1134,21 @@ struct Path {
     wall: (f64, f64),
     /// Front face reflected by the lid (gain 0 when the reflection misses).
     image: (f64, f64),
+}
+
+/// The paths from the built board's nodes to the microphones
+/// ([`Soundboard::forced_field`]).
+pub struct ForcedField {
+    /// Node-major: `[node·mics + mic]`.
+    paths: Vec<Path>,
+    pub mics: usize,
+    /// The microphone is above the board (the front face's side).
+    above: Vec<bool>,
+    /// Area per node (m²).
+    ds: f64,
+    /// The built board's modes: (index in `Soundboard::modes`, its index
+    /// in the finite elements).
+    pub modes: Vec<(usize, usize)>,
 }
 
 /// How a microphone hears: pattern a + (1 − a)·cos θ about its axis.
@@ -1874,6 +1933,17 @@ impl Soundboard {
         p.edge_loss * (-d / p.edge_depth.max(1e-6)).exp() / (1.0 + (f / p.edge_corner.max(1.0)).powi(2))
     }
 
+    /// Conductance (s/kg) of the bridge's yield at ω
+    /// (see [`SoundboardParams::bridge_yield`]); 0 when off.
+    pub fn yield_conductance(&self, omega: f64) -> f64 {
+        let p = &self.params;
+        if !p.bridge_yield {
+            return 0.0;
+        }
+        let x4 = (omega / (TAU * p.yield_corner.max(1.0))).powi(4);
+        p.yield_conductance.max(0.0) * x4 / (1.0 + x4)
+    }
+
     /// Corner (rad/s) of the smooth low-pass F/(1 + iω·m·Y∞) through which
     /// the bridge forces reach the board.
     pub fn bridge_mass_corner(&self) -> Option<f64> {
@@ -1897,7 +1967,7 @@ impl Soundboard {
     /// places them, each heard through its pattern.
     pub fn radiation(&self) -> Vec<Vec<C64>> {
         let (mics, ears) = self.mic_points();
-        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), None, None)
+        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), None, None, RAD_ALL)
     }
 
     /// [`Self::radiation`] split by path length into `nz` zones of `width`
@@ -1911,7 +1981,7 @@ impl Soundboard {
     /// slot after each microphone's zones, undelayed: `[mic·(nz + 1) + nz]`.
     pub fn radiation_zoned(&self, from: f64, width: f64, nz: usize, case_apart: bool) -> Vec<Vec<C64>> {
         let (mics, ears) = self.mic_points();
-        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), None, Some((from, width, nz.max(1), case_apart)))
+        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), None, Some((from, width, nz.max(1), case_apart)), RAD_ALL)
     }
 
 
@@ -1951,7 +2021,7 @@ impl Soundboard {
     /// `points` (board coordinates, m): pressure (Pa) per unit modal
     /// velocity, `[mode][point]`.
     pub fn radiation_points(&self, points: &[[f64; 3]], n_modes: usize) -> Vec<Vec<C64>> {
-        self.field_with(points, &vec![Ear::OMNI; points.len()], self.params.grid_step, n_modes.min(self.modes.len()), None, None)
+        self.field_with(points, &vec![Ear::OMNI; points.len()], self.params.grid_step, n_modes.min(self.modes.len()), None, None, RAD_ALL)
     }
 
     /// The radiation weights of every mode evaluated at one driving
@@ -1960,7 +2030,95 @@ impl Soundboard {
     /// sum of modes off resonance). Diagnostics.
     pub fn radiation_at(&self, omega: f64) -> Vec<Vec<C64>> {
         let (mics, ears) = self.mic_points();
-        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), Some(omega), None)
+        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), Some(omega), None, RAD_ALL)
+    }
+
+    /// The parts of [`Self::radiation`] (at `omega` for every mode when
+    /// given, else at each mode's own frequency) that `parts` names
+    /// ([`RAD_FRONT`], [`RAD_BACK`], [`RAD_IMAGE`], [`RAD_SCATTER`],
+    /// [`RAD_CASE`]): `[mode][mic]`, their sum being the whole with
+    /// [`RAD_ALL`]. Diagnostics, and the forced response's tables
+    /// (`soundboard.forced_radiation`).
+    pub fn radiation_parts(&self, omega: Option<f64>, parts: u8) -> Vec<Vec<C64>> {
+        let (mics, ears) = self.mic_points();
+        self.field_with(&mics, &ears, self.params.grid_step, self.modes.len(), omega, None, parts)
+    }
+
+    /// The paths from the built board's nodes to the microphones, for
+    /// [`Self::forced_direct`]: None unless the built board's modes radiate
+    /// from their own nodes (`structure`, nodes finer than `grid_step`) and
+    /// no scattering layer is on (its obstacles add in power, each with a
+    /// phase of its own: there "at the driving frequency" has no meaning).
+    pub fn forced_field(&self) -> Option<ForcedField> {
+        let p = &self.params;
+        let fem = self.fem.as_ref()?;
+        let step = p.grid_step;
+        let (nx, ny) = ((p.a / step).ceil() as usize, (p.b / step).ceil() as usize);
+        let (dx, dy) = (p.a / nx as f64, p.b / ny as f64);
+        if fem.hx.max(fem.hy) >= 0.99 * dx.min(dy) || (p.scatter > 0.0 && p.scatter_step > 0.0) {
+            return None;
+        }
+        let (mics, ears) = self.mic_points();
+        let lid = Lid::new(p);
+        let paths = fem.nodes().iter().flat_map(|&(x, y)| mics.iter().zip(&ears).map(|(&m, e)| p.path(lid.as_ref(), [x, y, 0.0], m, e)).collect::<Vec<_>>()).collect();
+        let modes = self.modes.iter().enumerate().filter_map(|(n, md)| md.fem.map(|i| (n, i as usize))).collect();
+        Some(ForcedField { paths, mics: mics.len(), above: mics.iter().map(|m| m[2] >= 0.0).collect(), ds: fem.hx * fem.hy, modes })
+    }
+
+    /// The direct field (front face through the case, its lid image, the
+    /// back face and its wall image: [`RAD_ALL`] less the scattering layer
+    /// and the case's field) at each microphone of the built board's modes
+    /// moving with complex velocities `vel[i]` (mode `ff.modes[i]`) at one
+    /// frequency `omega`: Σ_i vel_i·R_i(ω), every mode's Rayleigh integral
+    /// at ω, as [`Self::radiation_parts`] at `Some(omega)` gives each, summed
+    /// over the nodes once (the board's velocity field, then one integral).
+    pub fn forced_direct(&self, ff: &ForcedField, omega: f64, vel: &[C64]) -> Vec<C64> {
+        let p = &self.params;
+        let Some(fem) = self.fem.as_ref() else { return vec![C64::ZERO; ff.mics] };
+        let n_nodes = ff.paths.len() / ff.mics.max(1);
+        // The board's velocity at every node.
+        let mut u = vec![C64::ZERO; n_nodes];
+        for (&(_, i), v) in ff.modes.iter().zip(vel) {
+            if *v == C64::ZERO {
+                continue;
+            }
+            let s = self.fem_scale[i] * ff.ds;
+            let (re, im) = (v.re * s, v.im * s);
+            for (a, x) in u.iter_mut().zip(fem.at_nodes(i)) {
+                a.re += re * x;
+                a.im += im * x;
+            }
+        }
+        let k = omega / C0;
+        let case = p.case_gain(omega);
+        let shade = if p.scatter > 0.0 && p.scatter_shadow > 0.0 {
+            let r = (omega / (TAU * p.scatter_corner.max(1.0))).powi(2);
+            (1.0 - p.scatter_shadow.clamp(0.0, 1.0) * r / (1.0 + r)).sqrt()
+        } else {
+            1.0
+        };
+        let pre = C64::new(0.0, omega * RHO0 / TAU);
+        let mut out = vec![C64::ZERO; ff.mics];
+        for (a, g) in u.iter().zip(ff.paths.chunks(ff.mics)) {
+            for ((o, pt), &above) in out.iter_mut().zip(g).zip(&ff.above) {
+                let front = if above { shade } else { 1.0 };
+                let mut w = C64::polar(front * case * pt.front.1 / pt.front.0, -k * pt.front.0) - C64::polar(pt.back.1 / pt.back.0, -k * pt.back.0);
+                if pt.wall.1 != 0.0 {
+                    w += C64::polar(-pt.wall.1 / pt.wall.0, -k * pt.wall.0);
+                }
+                if pt.image.1 != 0.0 {
+                    w += C64::polar(front * case * pt.image.1 / pt.image.0, -k * pt.image.0);
+                }
+                *o += *a * w;
+            }
+        }
+        out.into_iter().map(|o| pre * o).collect()
+    }
+
+    /// [`Self::radiation_parts`] of the first `n_modes` modes only.
+    pub fn radiation_parts_of(&self, omega: Option<f64>, parts: u8, n_modes: usize) -> Vec<Vec<C64>> {
+        let (mics, ears) = self.mic_points();
+        self.field_with(&mics, &ears, self.params.grid_step, n_modes.min(self.modes.len()), omega, None, parts)
     }
 
     /// Pressure per unit modal velocity of the first `n_modes` modes at
@@ -1968,7 +2126,8 @@ impl Soundboard {
     /// through `ears`, on a radiation grid of `step` m; the Rayleigh
     /// integral taken at `omega` for every mode when given, else at each
     /// mode's own frequency.
-    fn field_with(&self, points: &[[f64; 3]], ears: &[Ear], step: f64, n_modes: usize, omega: Option<f64>, zone: Option<(f64, f64, usize, bool)>) -> Vec<Vec<C64>> {
+    fn field_with(&self, points: &[[f64; 3]], ears: &[Ear], step: f64, n_modes: usize, omega: Option<f64>, zone: Option<(f64, f64, usize, bool)>, parts: u8) -> Vec<Vec<C64>> {
+        let has = |b: u8| parts & b != 0;
         let nz = zone.map_or(1, |z| z.2);
         // Slots per point: the zones, then the case's field apart if asked.
         let case_apart = zone.is_some_and(|z| z.3);
@@ -2101,12 +2260,16 @@ impl Soundboard {
                 };
                 let path = |acc: &mut [C64], q: usize, pt: &Path, m: &[f64; 3], phi: f64| {
                     let front = if m[2] >= 0.0 { shade } else { 1.0 };
-                    put(acc, q, front * case * pt.front.1 * phi / pt.front.0, pt.front.0, 0.0);
-                    put(acc, q, -pt.back.1 * phi / pt.back.0, pt.back.0, 0.0);
-                    if pt.wall.1 != 0.0 {
+                    if has(RAD_FRONT) {
+                        put(acc, q, front * case * pt.front.1 * phi / pt.front.0, pt.front.0, 0.0);
+                    }
+                    if has(RAD_BACK) {
+                        put(acc, q, -pt.back.1 * phi / pt.back.0, pt.back.0, 0.0);
+                    }
+                    if pt.wall.1 != 0.0 && has(RAD_BACK) {
                         put(acc, q, -pt.wall.1 * phi / pt.wall.0, pt.wall.0, 0.0);
                     }
-                    if pt.image.1 != 0.0 {
+                    if pt.image.1 != 0.0 && has(RAD_IMAGE) {
                         put(acc, q, front * case * pt.image.1 * phi / pt.image.0, pt.image.0, 0.0);
                     }
                 };
@@ -2129,7 +2292,7 @@ impl Soundboard {
                         }
                     }
                 }
-                if !scat.is_empty() {
+                if !scat.is_empty() && has(RAD_SCATTER) {
                     let wc = TAU * p.scatter_corner.max(1.0);
                     let r = (w / wc).powi(2);
                     let sigma = p.scatter * r / (1.0 + r) * (wc / w);
@@ -2142,7 +2305,7 @@ impl Soundboard {
                     }
                 }
                 let mut out: Vec<C64> = acc.into_iter().map(|a| pre * a).collect();
-                if let Some(room) = case_room.filter(|_| md.air > 0.0) {
+                if let Some(room) = case_room.filter(|_| md.air > 0.0 && has(RAD_CASE)) {
                     // The case's diffuse field: from the board's middle.
                     let velocity = if md.fem.is_some() { 1.0 } else { self.above_radiation };
                     for (q, (m, e)) in points.iter().zip(ears).enumerate().filter(|(_, (m, _))| m[2] >= 0.0) {
@@ -2163,12 +2326,13 @@ impl Soundboard {
                     let phi = scale * v;
                     for ((a, pt), m) in acc.iter_mut().zip(g).zip(points) {
                         let front = if m[2] >= 0.0 { shade } else { 1.0 };
-                        *a += C64::polar(front * case * pt.front.1 * phi / pt.front.0, -k * pt.front.0)
-                            - C64::polar(pt.back.1 * phi / pt.back.0, -k * pt.back.0);
-                        if pt.wall.1 != 0.0 {
+                        let f = if has(RAD_FRONT) { C64::polar(front * case * pt.front.1 * phi / pt.front.0, -k * pt.front.0) } else { C64::ZERO };
+                        let b = if has(RAD_BACK) { C64::polar(pt.back.1 * phi / pt.back.0, -k * pt.back.0) } else { C64::ZERO };
+                        *a += f - b;
+                        if pt.wall.1 != 0.0 && has(RAD_BACK) {
                             *a += C64::polar(-pt.wall.1 * phi / pt.wall.0, -k * pt.wall.0);
                         }
-                        if pt.image.1 != 0.0 {
+                        if pt.image.1 != 0.0 && has(RAD_IMAGE) {
                             *a += C64::polar(front * case * pt.image.1 * phi / pt.image.0, -k * pt.image.0);
                         }
                     }
@@ -2184,17 +2348,18 @@ impl Soundboard {
                     // Front face (through the case) and its lid image in
                     // phase, back face and its wall image in antiphase.
                     let front = if m[2] >= 0.0 { shade } else { 1.0 };
-                    *a += C64::polar(front * case * pt.front.1 * phi / pt.front.0, -k * pt.front.0)
-                        - C64::polar(pt.back.1 * phi / pt.back.0, -k * pt.back.0);
-                    if pt.wall.1 != 0.0 {
+                    let f = if has(RAD_FRONT) { C64::polar(front * case * pt.front.1 * phi / pt.front.0, -k * pt.front.0) } else { C64::ZERO };
+                    let b = if has(RAD_BACK) { C64::polar(pt.back.1 * phi / pt.back.0, -k * pt.back.0) } else { C64::ZERO };
+                    *a += f - b;
+                    if pt.wall.1 != 0.0 && has(RAD_BACK) {
                         *a += C64::polar(-pt.wall.1 * phi / pt.wall.0, -k * pt.wall.0);
                     }
-                    if pt.image.1 != 0.0 {
+                    if pt.image.1 != 0.0 && has(RAD_IMAGE) {
                         *a += C64::polar(front * case * pt.image.1 * phi / pt.image.0, -k * pt.image.0);
                     }
                 }
             }
-            if !scat.is_empty() {
+            if !scat.is_empty() && has(RAD_SCATTER) {
                 // Rayleigh scattering below the corner (∝ f² in amplitude),
                 // geometric above (the scattered pressure follows the
                 // obstacle's incident pressure, ∝ the velocity, not its
@@ -2215,7 +2380,7 @@ impl Soundboard {
                 }
             }
             let mut out: Vec<C64> = acc.into_iter().map(|a| pre * a).collect();
-            if let Some(room) = case_room.filter(|_| md.air > 0.0) {
+            if let Some(room) = case_room.filter(|_| md.air > 0.0 && has(RAD_CASE)) {
                 // In power: a phase of its own for each mode at each point.
                 let velocity = if md.fem.is_some() { 1.0 } else { self.above_radiation };
                 for (q, ((a, m), e)) in out.iter_mut().zip(points).zip(ears).enumerate().filter(|(_, ((_, m), _))| m[2] >= 0.0) {

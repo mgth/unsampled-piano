@@ -52,6 +52,8 @@ At 1 the bench does not move (11 off instead of 12). At 2 and above the top octa
 
 ## Still open
 
+- The exact sum at the partials' own frequencies on the built board of the Concert grand, as an option (`soundboard.forced_radiation`): docs/forced_radiation.md (2026-11-21). Heard at the microphones, with the case's field, it moves the partials by 4–5 dB rms and the bands by ±2 dB at the close pair; at the player's seat, lid off, it takes 3–8 kHz 5 dB further from Plath's grand.
+
 - The board's coincidence band at the player: +5 to +7 dB at 400–800 Hz from every bridge point, and the first modes' hole at 250 Hz. Both are the plate's own radiation at grazing incidence; the real board's ribs, bridges and thickness spread its coincidence, and the frame shades the keyboard end.
 - The layer's normalisation (above), and its law above 5 kHz, where Plath's grand falls off 14 dB from 5 to 8 kHz and the layer stays flat.
 - `crates/piano-core/tests/realtime.rs` does not compile on this machine (`assert_no_alloc::AllocDisabler` is behind a feature of assert_no_alloc 1.1.2); unrelated to this work, left as found.
