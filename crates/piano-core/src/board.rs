@@ -76,31 +76,38 @@ pub struct BoardMode<const R: usize = REGIONS> {
     pub outputs: [(f64, f64); OUTPUTS],
 }
 
+/// 16 modes: their poles, states and input gains (the output weights are
+/// apart, [`BoardPart::w`], read in the order the kernel goes through them).
 #[derive(Clone, Copy)]
 #[repr(C, align(64))]
 struct Chunk<const R: usize> {
     pr: [f32; LANES],
     pi: [f32; LANES],
-    phi: [[f32; LANES]; R],
-    wr: [[f32; LANES]; OUTPUTS],
-    wi: [[f32; LANES]; OUTPUTS],
     zr: [f32; LANES],
     zi: [f32; LANES],
+    phi: [[f32; LANES]; R],
 }
 
 impl<const R: usize> Default for Chunk<R> {
     fn default() -> Self {
-        Self {
-            pr: [0.0; LANES],
-            pi: [0.0; LANES],
-            phi: [[0.0; LANES]; R],
-            wr: [[0.0; LANES]; OUTPUTS],
-            wi: [[0.0; LANES]; OUTPUTS],
-            zr: [0.0; LANES],
-            zi: [0.0; LANES],
-        }
+        Self { pr: [0.0; LANES], pi: [0.0; LANES], zr: [0.0; LANES], zi: [0.0; LANES], phi: [[0.0; LANES]; R] }
     }
 }
+
+/// 16 lanes of a complex number (re, im), on two cache lines of their own:
+/// one chunk's weight on one output, or its state at one sample.
+#[derive(Clone, Copy)]
+#[repr(C, align(64))]
+struct Pair([[f32; LANES]; 2]);
+
+/// 16 lanes on a cache line of their own (a 16-lane load never straddles
+/// two).
+#[derive(Clone, Copy)]
+#[repr(C, align(64))]
+struct Line([f32; LANES]);
+
+type W = Pair;
+type Hist = Pair;
 
 /// The modes are split in this many parts, computed one after the other or
 /// on several threads ([`BoardBank::split`]): the same result either way.
@@ -109,13 +116,21 @@ pub const PARTS: usize = 2;
 /// One part of a bank's modes, with its own working memory.
 pub struct BoardPart<const R: usize = REGIONS> {
     chunks: Vec<Chunk<R>>,
+    /// Weights on the bank's computed outputs (`BoardBank::outs`, j-th at
+    /// `j·chunks + c` for chunk c of the part), then on its extra outputs
+    /// (`ex_w[e·ex_chunks + c]`, the part's first `ex_chunks` chunks only).
+    w: Vec<W>,
+    n_w: usize,
+    ex_w: Vec<W>,
+    ex_chunks: usize,
     /// Index of the first chunk in the bank.
     c0: usize,
     /// Per output and sample: lane sums over the part's chunks, index
-    /// `output·max_block + t` (the extra outputs after the [`OUTPUTS`] ones).
-    lanes: Vec<[f32; LANES]>,
-    /// State history of one block of [`BLOCK`] chunks over the block, index
-    /// `chunk·max_block + t`.
+    /// `j·lane_stride(max_block) + t` for the j-th computed output (extra
+    /// output e at `j = n_w + e`).
+    lanes: Vec<Line>,
+    /// State history of one block of chunks over one time segment, index
+    /// `chunk·segment + t` ([`HIST`]).
     hist: Vec<Hist>,
     isa: Isa,
 }
@@ -143,17 +158,18 @@ pub struct BoardBank<const R: usize = REGIONS> {
     outs: Vec<usize>,
     /// Inputs transposed per sample, only the active regions.
     xin: Vec<[f32; R]>,
+    /// The same per active region, `xt[a·max_block + t]`.
+    xt: Vec<f32>,
     /// Direct feedthrough correcting impulse invariance (index output, region):
     /// a force impulse makes the velocity jump; the sampled response counts
     /// the jump fully at n = 0 instead of half.
     direct: [[f32; R]; OUTPUTS],
     /// Extra outputs computed on the first `extra_chunks` chunks only (the
-    /// low modes): weights `[c·n_extra + e]` (re, im).
+    /// low modes; their weights in the parts, [`BoardPart::ex_w`]).
     /// They carry no direct term: meant for displacement-like outputs,
     /// which do not jump on an impulse.
     n_extra: usize,
     extra_chunks: usize,
-    extra_w: Vec<[[f32; LANES]; 2]>,
     isa: Isa,
     /// fs², for [`Self::energy`].
     fs2: f32,
@@ -180,18 +196,22 @@ impl<const R: usize> BoardBank<R> {
         let n_extra = extra.first().map_or(0, |e| e.len());
         assert!(n_extra <= 64, "at most 64 extra outputs");
         let extra_chunks = if n_extra == 0 { 0 } else { extra.len().min(modes.len()).div_ceil(LANES) };
-        let mut extra_w = vec![[[0.0f32; LANES]; 2]; extra_chunks * n_extra];
+        let mut extra_w = vec![Pair([[0.0f32; LANES]; 2]); extra_chunks * n_extra];
         for (i, ws) in extra.iter().take(modes.len()).enumerate() {
             for (e, w) in ws.iter().enumerate() {
                 let cell = &mut extra_w[(i / LANES) * n_extra + e];
-                cell[0][i % LANES] = w.0 as f32;
-                cell[1][i % LANES] = w.1 as f32;
+                cell.0[0][i % LANES] = w.0 as f32;
+                cell.0[1][i % LANES] = w.1 as f32;
             }
         }
-        let mut chunks = vec![Chunk::<R>::default(); modes.len().div_ceil(LANES)];
+        let n_chunks = modes.len().div_ceil(LANES);
+        let mut chunks = vec![Chunk::<R>::default(); n_chunks];
         let isa = Isa::detect();
         // The mics the modes radiate to: up to the last slot with a weight.
         let n_mics = (0..MICS).rev().find(|&o| modes.iter().any(|m| m.outputs[o] != (0.0, 0.0))).map_or(0, |o| o + 1);
+        let outs: Vec<usize> = (0..n_mics).chain(MICS..OUTPUTS).collect();
+        let n_w = outs.len();
+        let mut w = vec![Pair([[0.0f32; LANES]; 2]); n_chunks * n_w];
         let mut direct = [[0.0f64; R]; OUTPUTS];
         for m in modes {
             for (o, row) in direct.iter_mut().enumerate() {
@@ -210,9 +230,10 @@ impl<const R: usize> BoardBank<R> {
             for (k, g) in m.inputs.iter().enumerate() {
                 c.phi[k][l] = *g as f32;
             }
-            for (o, w) in m.outputs.iter().enumerate() {
-                c.wr[o][l] = w.0 as f32;
-                c.wi[o][l] = w.1 as f32;
+            for (j, &o) in outs.iter().enumerate() {
+                let cell = &mut w[(i / LANES) * n_w + j];
+                cell.0[0][l] = m.outputs[o].0 as f32;
+                cell.0[1][l] = m.outputs[o].1 as f32;
             }
         }
         // Low modes first: the extra outputs live in the first part.
@@ -220,11 +241,23 @@ impl<const R: usize> BoardBank<R> {
         let mut rest = chunks;
         let parts = std::array::from_fn(|p| {
             let tail = rest.split_off(half.min(rest.len()));
+            let chunks = std::mem::replace(&mut rest, tail);
+            let (c0, n) = (p * half, chunks.len());
+            let ex = extra_chunks.saturating_sub(c0).min(n);
+            // Output by output, the part's chunks in order: each output's
+            // weights are one stream as the kernel goes through the chunks.
+            let by_output = |src: &[W], outs: usize, n: usize| -> Vec<W> {
+                (0..outs).flat_map(|j| (0..n).map(move |c| src[(c0 + c) * outs + j])).collect()
+            };
             BoardPart {
-                chunks: std::mem::replace(&mut rest, tail),
-                c0: p * half,
-                lanes: vec![[0.0; LANES]; (OUTPUTS + n_extra) * max_block],
-                hist: vec![([0.0; LANES], [0.0; LANES]); BLOCK * max_block],
+                chunks,
+                w: by_output(&w, n_w, n),
+                n_w,
+                ex_w: by_output(&extra_w, n_extra, ex),
+                ex_chunks: ex,
+                c0,
+                lanes: vec![Line([0.0; LANES]); (n_w + n_extra) * lane_stride(max_block)],
+                hist: vec![Pair([[0.0; LANES]; 2]); HIST],
                 isa,
             }
         });
@@ -241,12 +274,12 @@ impl<const R: usize> BoardBank<R> {
             n_ex: 0,
             n_mics,
             sleep_stride: usize::MAX,
-            outs: (0..n_mics).chain(MICS..OUTPUTS).collect(),
+            outs,
             xin: vec![[0.0; R]; max_block],
+            xt: vec![0.0; R * max_block],
             direct: direct.map(|row| row.map(|d| d as f32)),
             n_extra,
             extra_chunks,
-            extra_w,
             isa,
             fs2: (sample_rate * sample_rate) as f32,
             poles: modes
@@ -299,7 +332,9 @@ impl<const R: usize> BoardBank<R> {
         self.n_extra
     }
 
+    /// Panics on an ISA this CPU does not have ([`Isa::available`]).
     pub fn set_isa(&mut self, isa: Isa) {
+        assert!(Isa::available().contains(&isa), "{isa:?} is not available on this CPU");
         self.isa = isa;
         for p in &mut self.parts {
             p.isa = isa;
@@ -314,16 +349,26 @@ impl<const R: usize> BoardBank<R> {
     /// weights are acceleration weights ([`to_acceleration_weights`]): the
     /// differentiator's gain |1 − p|·fs at each mode restores the pressure.
     pub fn energy(&self) -> f32 {
+        // No microphone hears the bank: nothing to stay awake for (the first
+        // output computed is then a probe, not a mic slot).
+        if self.n_mics == 0 {
+            return 0.0;
+        }
         let mut e = 0.0;
         let more = (self.sleep_stride..self.n_mics).step_by(self.sleep_stride.max(1));
-        for c in self.parts.iter().flat_map(|p| &p.chunks) {
-            for l in 0..LANES {
-                let mut w = c.wr[0][l] * c.wr[0][l] + c.wi[0][l] * c.wi[0][l];
-                for o in more.clone() {
-                    w += c.wr[o][l] * c.wr[o][l] + c.wi[o][l] * c.wi[o][l];
+        // Mic slot o is the o-th output computed.
+        for p in &self.parts {
+            let n = p.chunks.len();
+            for (ci, c) in p.chunks.iter().enumerate() {
+                let ws = |o: usize| &p.w[o * n + ci].0;
+                for l in 0..LANES {
+                    let mut w = ws(0)[0][l] * ws(0)[0][l] + ws(0)[1][l] * ws(0)[1][l];
+                    for o in more.clone() {
+                        w += ws(o)[0][l] * ws(o)[0][l] + ws(o)[1][l] * ws(o)[1][l];
+                    }
+                    let d = (1.0 - c.pr[l]) * (1.0 - c.pr[l]) + c.pi[l] * c.pi[l];
+                    e += w * d * (c.zr[l] * c.zr[l] + c.zi[l] * c.zi[l]);
                 }
-                let d = (1.0 - c.pr[l]) * (1.0 - c.pr[l]) + c.pi[l] * c.pi[l];
-                e += w * d * (c.zr[l] * c.zr[l] + c.zi[l] * c.zi[l]);
             }
         }
         e * self.fs2
@@ -383,7 +428,9 @@ impl<const R: usize> BoardBank<R> {
         // Only regions with input this block take part in the projection.
         self.na = 0;
         for (r, x) in inputs.iter().enumerate() {
-            if x[..len].iter().any(|&v| v != 0.0) {
+            // Without an early exit: vectorises (most of the keys' inputs are
+            // silent and read to the end anyway).
+            if x[..len].iter().fold(false, |a, &v| a | (v != 0.0)) {
                 self.active[self.na] = r;
                 self.na += 1;
             }
@@ -392,6 +439,9 @@ impl<const R: usize> BoardBank<R> {
             for (a, &r) in self.active[..self.na].iter().enumerate() {
                 xi[a] = inputs[r][t];
             }
+        }
+        for (a, &r) in self.active[..self.na].iter().enumerate() {
+            self.xt[a * self.max_block..a * self.max_block + len].copy_from_slice(&inputs[r][..len]);
         }
         // Outputs computed: the mics, the probes and the bridge velocities
         // when asked for (then the extra outputs).
@@ -405,26 +455,53 @@ impl<const R: usize> BoardBank<R> {
         let job = BoardJob {
             xin: &self.xin[..self.block_len],
             act: &self.active[..self.na],
-            mb: self.max_block,
+            ls: lane_stride(self.max_block),
             len: self.block_len,
-            outs: &self.outs[..self.no],
+            no: self.no,
             n_ex: self.n_ex,
-            ex_w: &self.extra_w[..self.extra_chunks * self.n_ex],
-            ex_chunks: self.extra_chunks,
         };
         (job, &mut self.parts)
     }
 
     /// Adds the outputs of the parts, run since [`Self::prepare`].
     pub fn finish(&mut self, mics: &mut [&mut [f32]], disp: Option<&mut [Vec<f32>]>, extra: Option<&mut [Vec<f32>]>) {
+        // The same code compiled for each ISA (its plain multiplies and adds
+        // in the same order: the same result).
+        match self.isa {
+            Isa::Generic => self.finish_with(mics, disp, extra),
+            // SAFETY: only selectable when detected.
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx2 => unsafe { self.finish_avx2(mics, disp, extra) },
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx512 => unsafe { self.finish_avx512(mics, disp, extra) },
+        }
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx2")]
+    fn finish_avx2(&mut self, mics: &mut [&mut [f32]], disp: Option<&mut [Vec<f32>]>, extra: Option<&mut [Vec<f32>]>) {
+        self.finish_with(mics, disp, extra)
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx512f")]
+    fn finish_avx512(&mut self, mics: &mut [&mut [f32]], disp: Option<&mut [Vec<f32>]>, extra: Option<&mut [Vec<f32>]>) {
+        self.finish_with(mics, disp, extra)
+    }
+
+    #[inline(always)]
+    fn finish_with(&mut self, mics: &mut [&mut [f32]], disp: Option<&mut [Vec<f32>]>, extra: Option<&mut [Vec<f32>]>) {
         let (mb, len) = (self.max_block, self.block_len);
-        let outs = self.outs[..self.no].iter().chain(&EXTRA[..self.n_ex]);
+        // Computed output j (its lane sums' row in the parts) and the
+        // output it is.
+        let n_w = self.outs.len();
+        let outs = self.outs[..self.no].iter().copied().enumerate().chain((0..self.n_ex).map(|e| (n_w + e, OUTPUTS + e)));
         // Lane by lane over the parts in order, then the lanes as a tree.
-        for &o in outs {
+        for (j, o) in outs {
             for t in 0..len {
                 let mut a = [0.0f32; LANES];
                 for p in self.parts.iter().filter(|p| !p.chunks.is_empty() && (o < OUTPUTS || p.c0 < self.extra_chunks)) {
-                    let l = &p.lanes[o * mb + t];
+                    let l = &p.lanes[j * lane_stride(mb) + t].0;
                     for k in 0..LANES {
                         a[k] += l[k];
                     }
@@ -435,13 +512,13 @@ impl<const R: usize> BoardBank<R> {
         let act = &self.active[..self.na];
         // Output plus direct feedthrough Σ_k direct·x_k (k in order, for
         // every sample at once: vectorises).
-        let (xin, direct, sums, feed) = (&self.xin[..len], &self.direct, &self.sums, &mut self.feed[..len]);
+        let (xt, direct, sums, feed) = (&self.xt, &self.direct, &self.sums, &mut self.feed[..len]);
         let mut add = |o: usize, out: &mut [f32]| {
             feed.fill(0.0);
             for (k, &r) in act.iter().enumerate() {
                 let d = direct[o][r];
-                for (f, x) in feed.iter_mut().zip(xin) {
-                    *f += d * x[k];
+                for (f, x) in feed.iter_mut().zip(&xt[k * mb..]) {
+                    *f += d * x;
                 }
             }
             for ((y, s), f) in out[..len].iter_mut().zip(&sums[o * mb..]).zip(feed.iter()) {
@@ -476,74 +553,71 @@ impl<const R: usize> BoardBank<R> {
 impl<const R: usize> BoardPart<R> {
     /// Advances this part's modes over the block and computes its lane sums.
     pub fn run(&mut self, job: &BoardJob<R>) {
-        let mut st = State { chunks: &mut self.chunks[..], c0: self.c0, hist: &mut self.hist[..], lanes: &mut self.lanes[..] };
+        // Per ISA (see `kernel`): recursion chunks interleaved G, output
+        // tile OT × TT, block B chunks, segment S samples, drive U samples at
+        // a time, recursion with its drive inline up to IN inputs.
         match self.isa {
             // aarch64: NEON is the baseline (32 registers: three outputs a tile).
             #[cfg(target_arch = "aarch64")]
-            Isa::Generic => kernel::<crate::simd::arm::N, R, 1, 3, 1>(job, &mut st),
+            Isa::Generic => kernel::<crate::simd::arm::N, R, 1, 3, 1, BLOCK, SEGMENT, 2, 4>(job, self),
             #[cfg(not(target_arch = "aarch64"))]
-            Isa::Generic => kernel::<[f32; LANES], R, 1, 1, 1>(job, &mut st),
+            Isa::Generic => kernel::<[f32; LANES], R, 1, 2, 1, BLOCK, SEGMENT, 2, 4>(job, self),
             // SAFETY: only selectable when detected.
             #[cfg(target_arch = "x86_64")]
-            Isa::Avx2 => unsafe { kernel_avx2(job, &mut st) },
+            Isa::Avx2 => unsafe { kernel_avx2(job, self) },
             #[cfg(target_arch = "x86_64")]
-            Isa::Avx512 => unsafe { kernel_avx512(job, &mut st) },
+            Isa::Avx512 => unsafe { kernel_avx512(job, self) },
         }
     }
 }
 
-type Hist = ([f32; LANES], [f32; LANES]);
-
-/// Extra outputs' weights of the low chunks, `[c·n_ex + e]`.
-type ExtraW = [[f32; LANES]; 2];
+/// Lane sums per output in the parts: an odd number of cache lines apart,
+/// so that one sample of every output does not fall in one set of the
+/// cache (`max_block` lines apart, a multiple of 4 KB, they all would).
+fn lane_stride(max_block: usize) -> usize {
+    max_block | 1
+}
 
 /// What one [`BoardBank::process`] computes, shared by the parts.
 pub struct BoardJob<'a, const R: usize = REGIONS> {
     xin: &'a [[f32; R]],
     act: &'a [usize],
-    mb: usize,
+    /// Stride of the parts' lane sums, per output.
+    ls: usize,
     len: usize,
-    /// Outputs to compute (indices into [`OUTPUTS`]).
-    outs: &'a [usize],
+    /// Outputs computed: the first `no` of the bank's `outs`, and the first
+    /// `n_ex` extra outputs.
+    no: usize,
     n_ex: usize,
-    ex_w: &'a [ExtraW],
-    ex_chunks: usize,
 }
 
-/// Indices of the extra outputs.
-const EXTRA: [usize; 64] = {
-    let mut e = [0; 64];
-    let mut i = 0;
-    while i < 64 {
-        e[i] = OUTPUTS + i;
-        i += 1;
-    }
-    e
-};
+/// Chunks per block and samples per time segment of the kernel. What one
+/// block works on over one segment: its state history (16·8·128 B = 16 KB,
+/// written by the recursion, read by every output tile), the weights of one
+/// output tile (OT·16·128 B, read once per tile of samples) and that tile's
+/// lane sums (OT·8·64 B): 20–24 KB, within a 32 KB L1d with room for the
+/// weights streaming in; a 48 KB one holds 16 × 16 just as well (no faster
+/// on Zen 5). Each (chunk, output) weight comes from L2 once per segment,
+/// each output's lane sums once per block.
+const BLOCK: usize = 16;
+const SEGMENT: usize = 8;
 
-/// Chunks per pass of the kernel: their state history over a sub-block
-/// (4·64·128 B = 32 KB) stays in L1.
-const BLOCK: usize = 4;
-
-struct State<'a, const R: usize> {
-    chunks: &'a mut [Chunk<R>],
-    /// Index of the first chunk in the bank (for the extra outputs).
-    c0: usize,
-    hist: &'a mut [Hist],
-    lanes: &'a mut [[f32; LANES]],
-}
-
+/// History entries a part holds.
+const HIST: usize = BLOCK * SEGMENT;
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
-fn kernel_avx2<const R: usize>(job: &BoardJob<R>, st: &mut State<R>) {
-    kernel::<simd::x86::Y, R, 2, 1, 4>(job, st)
+fn kernel_avx2<const R: usize>(job: &BoardJob<R>, part: &mut BoardPart<R>) {
+    // 16 registers of 8 lanes: one output × four samples a tile.
+    kernel::<simd::x86::Y, R, 2, 1, 4, BLOCK, SEGMENT, 4, 0>(job, part)
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f")]
-fn kernel_avx512<const R: usize>(job: &BoardJob<R>, st: &mut State<R>) {
-    kernel::<simd::x86::Z, R, 4, 3, 4>(job, st)
+fn kernel_avx512<const R: usize>(job: &BoardJob<R>, part: &mut BoardPart<R>) {
+    // 32 registers: 3 × 4 lane sums, 8 states and 2 weights a tile (4 × 4
+    // is no faster).
+    kernel::<simd::x86::Z, R, 4, 3, 4, BLOCK, SEGMENT, 8, 4>(job, part)
 }
 
 /// Sum of the lanes as a tree (independent adds, not a serial chain).
@@ -560,42 +634,65 @@ fn hsum(a: &[f32; LANES]) -> f32 {
     v[0]
 }
 
-/// Per block of [`BLOCK`] chunks: their recursion over the sub-block (`G`
-/// chunks interleaved, to hide the recursion's latency; states kept in
-/// `hist`), then the outputs, `OT` outputs × `TT` samples at a time with
-/// their lane sums in registers across the block's chunks. Each output sums
-/// its chunks in order, lane by lane, then its lanes as a tree: the same
-/// result for any G, tile or ISA.
+/// Per time segment of `S` samples, per block of `B` chunks: their recursion
+/// over the segment (states kept in `hist`, [`recurse`]), then the outputs,
+/// `OT` outputs × `TT` samples at a time with their lane sums in registers
+/// across the block's chunks ([`outputs`]). Each output sums its chunks in
+/// order, lane by lane, then its lanes as a tree: the same result for any
+/// G, OT, TT, B, S, U, IN or ISA.
 #[inline(always)]
-fn kernel<V: V16, const R: usize, const G: usize, const OT: usize, const TT: usize>(job: &BoardJob<R>, st: &mut State<R>) {
-    let (mb, len) = (job.mb, job.len);
-    let (ex_w, n_ex) = (job.ex_w, job.n_ex);
-    let ex = &EXTRA[..n_ex];
-    for (bi, blk) in st.chunks.chunks_mut(BLOCK).enumerate() {
-        let c0 = st.c0 + bi * BLOCK;
-        let (grps, rest) = blk.as_chunks_mut::<G>();
-        for (gi, grp) in grps.iter_mut().enumerate() {
-            recurse::<V, R, G>(grp, job, &mut st.hist[gi * G * mb..]);
+fn kernel<V: V16, const R: usize, const G: usize, const OT: usize, const TT: usize, const B: usize, const S: usize, const U: usize, const IN: usize>(
+    job: &BoardJob<R>,
+    part: &mut BoardPart<R>,
+) {
+    let BoardPart { chunks, w, n_w, ex_w, ex_chunks, lanes, hist, .. } = part;
+    let (n_w, ex_chunks, n_chunks) = (*n_w, *ex_chunks, chunks.len());
+    let (ls, len) = (job.ls, job.len);
+    let hist = &mut hist[..B * S];
+    let mut t0 = 0;
+    while t0 < len {
+        let sl = S.min(len - t0);
+        let xin = &job.xin[t0..t0 + sl];
+        for (bi, blk) in chunks.chunks_mut(B).enumerate() {
+            let (grps, rest) = blk.as_chunks_mut::<G>();
+            for (gi, grp) in grps.iter_mut().enumerate() {
+                recurse::<V, R, G, S, U, IN>(grp, xin, job.act, &mut hist[gi * G * S..]);
+            }
+            for (k, c) in rest.iter_mut().enumerate() {
+                recurse::<V, R, 1, S, U, IN>(std::array::from_mut(c), xin, job.act, &mut hist[(grps.len() * G + k) * S..]);
+            }
+            let (cb, nc) = (bi * B, blk.len());
+            let seg = Seg { nc, first: bi == 0, ls, t0, len: sl };
+            outputs::<V, OT, TT, S>(seg, job.no, &w[cb..], n_chunks, hist, lanes);
+            let n = ex_chunks.saturating_sub(cb).min(nc);
+            if n > 0 && job.n_ex > 0 {
+                outputs::<V, OT, TT, S>(Seg { nc: n, ..seg }, job.n_ex, &ex_w[cb..], ex_chunks, hist, &mut lanes[n_w * ls..]);
+            }
         }
-        for (k, c) in rest.iter_mut().enumerate() {
-            recurse::<V, R, 1>(std::array::from_mut(c), job, &mut st.hist[(grps.len() * G + k) * mb..]);
-        }
-        let (blk, hist) = (&*blk, &*st.hist);
-        outputs::<V, OT, TT>(job.outs, blk.len(), bi == 0, mb, len, hist, st.lanes, |c, o| (&blk[c].wr[o], &blk[c].wi[o]));
-        let n = job.ex_chunks.saturating_sub(c0).min(blk.len());
-        if n > 0 {
-            outputs::<V, OT, TT>(ex, n, bi == 0, mb, len, hist, st.lanes, |c, o| {
-                let w = &ex_w[(c0 + c) * n_ex + o - OUTPUTS];
-                (&w[0], &w[1])
-            });
-        }
+        t0 += sl;
     }
 }
 
-/// Advances `G` chunks over the sub-block, states into `hist[g·mb + t]`.
+/// Advances `G` chunks over the segment's inputs `xin`, states into
+/// `hist[g·S + t]`. Each sample's drive is u = Σ_k φ_k·x_k, the active
+/// inputs in order from zero. Up to `IN` inputs it is summed in the
+/// recursion's loop, the `G` chunks interleaved to hide the recursion's
+/// latency; with more, each chunk's drives are summed first, `U` samples
+/// at a time (independent sums: no chain of adds to wait on), into
+/// `hist[g·S + t].0`, which the recursion then reads and overwrites.
 #[inline(always)]
-fn recurse<V: V16, const R: usize, const G: usize>(grp: &mut [Chunk<R>; G], job: &BoardJob<R>, hist: &mut [Hist]) {
-    let mb = job.mb;
+fn recurse<V: V16, const R: usize, const G: usize, const S: usize, const U: usize, const IN: usize>(
+    grp: &mut [Chunk<R>; G],
+    xin: &[[f32; R]],
+    act: &[usize],
+    hist: &mut [Hist],
+) {
+    let inline = act.len() <= IN;
+    if !inline {
+        for g in 0..G {
+            drive::<V, R, U>(&grp[g], xin, act, &mut hist[g * S..g * S + xin.len()]);
+        }
+    }
     let (mut pr, mut pi, mut zr, mut zi) = ([V::zero(); G], [V::zero(); G], [V::zero(); G], [V::zero(); G]);
     for g in 0..G {
         pr[g] = V::ld(&grp[g].pr);
@@ -603,22 +700,36 @@ fn recurse<V: V16, const R: usize, const G: usize>(grp: &mut [Chunk<R>; G], job:
         zr[g] = V::ld(&grp[g].zr);
         zi[g] = V::ld(&grp[g].zi);
     }
-    for (t, x) in job.xin.iter().enumerate() {
-        let mut u = [V::zero(); G];
-        for (k, &r) in job.act.iter().enumerate() {
-            let xs = V::splat(x[k]);
+    if inline {
+        for (t, x) in xin.iter().enumerate() {
+            let mut u = [V::zero(); G];
+            for (k, &r) in act.iter().enumerate() {
+                let xs = V::splat(x[k]);
+                for g in 0..G {
+                    u[g] = u[g].add(V::ld(&grp[g].phi[r]).mul(xs));
+                }
+            }
             for g in 0..G {
-                u[g] = u[g].add(V::ld(&grp[g].phi[r]).mul(xs));
+                let r = pr[g].mul(zr[g]).sub(pi[g].mul(zi[g])).add(u[g]);
+                let i = pr[g].mul(zi[g]).add(pi[g].mul(zr[g]));
+                zr[g] = r;
+                zi[g] = i;
+                let h = &mut hist[g * S + t];
+                r.st(&mut h.0[0]);
+                i.st(&mut h.0[1]);
             }
         }
-        for g in 0..G {
-            let r = pr[g].mul(zr[g]).sub(pi[g].mul(zi[g])).add(u[g]);
-            let i = pr[g].mul(zi[g]).add(pi[g].mul(zr[g]));
-            zr[g] = r;
-            zi[g] = i;
-            let h = &mut hist[g * mb + t];
-            r.st(&mut h.0);
-            i.st(&mut h.1);
+    } else {
+        for t in 0..xin.len() {
+            for g in 0..G {
+                let h = &mut hist[g * S + t];
+                let r = pr[g].mul(zr[g]).sub(pi[g].mul(zi[g])).add(V::ld(&h.0[0]));
+                let i = pr[g].mul(zi[g]).add(pi[g].mul(zr[g]));
+                zr[g] = r;
+                zi[g] = i;
+                r.st(&mut h.0[0]);
+                i.st(&mut h.0[1]);
+            }
         }
     }
     for g in 0..G {
@@ -627,85 +738,135 @@ fn recurse<V: V16, const R: usize, const G: usize>(grp: &mut [Chunk<R>; G], job:
     }
 }
 
-/// Outputs `outs` over the block's chunks `0..nc` into the lane sums
-/// (starting from zero on the first block), by tiles.
-#[allow(clippy::too_many_arguments)]
+/// One chunk's drive over the segment, `hist[t].0 = Σ_k φ_k·x_k(t)`.
 #[inline(always)]
-fn outputs<'w, V: V16, const OT: usize, const TT: usize>(
-    outs: &[usize],
+fn drive<V: V16, const R: usize, const U: usize>(c: &Chunk<R>, xin: &[[f32; R]], act: &[usize], hist: &mut [Hist]) {
+    let (xs, x1) = xin.as_chunks::<U>();
+    let (hs, h1) = hist.as_chunks_mut::<U>();
+    for (x, h) in xs.iter().zip(hs) {
+        let mut u = [V::zero(); U];
+        for (k, &r) in act.iter().enumerate() {
+            let p = V::ld(&c.phi[r]);
+            for i in 0..U {
+                u[i] = u[i].add(p.mul(V::splat(x[i][k])));
+            }
+        }
+        for i in 0..U {
+            u[i].st(&mut h[i].0[0]);
+        }
+    }
+    for (x, h) in x1.iter().zip(h1) {
+        let mut u = V::zero();
+        for (k, &r) in act.iter().enumerate() {
+            u = u.add(V::ld(&c.phi[r]).mul(V::splat(x[k])));
+        }
+        u.st(&mut h.0[0]);
+    }
+}
+
+/// One block over one time segment: its chunks `0..nc`, the lane sums of
+/// samples `t0..t0 + len` (starting from zero on the first block).
+#[derive(Clone, Copy)]
+struct Seg {
     nc: usize,
     first: bool,
-    mb: usize,
+    ls: usize,
+    t0: usize,
     len: usize,
-    hist: &[Hist],
-    lanes: &mut [[f32; LANES]],
-    w: impl Fn(usize, usize) -> (&'w [f32; LANES], &'w [f32; LANES]) + Copy,
-) {
-    let mut t0 = 0;
-    while t0 + TT <= len {
-        out_tiles::<V, OT, TT>(outs, nc, first, mb, t0, hist, lanes, w);
-        t0 += TT;
+}
+
+/// `n` outputs over the block's chunks into their lane sums, by tiles:
+/// output j of chunk c weighs `w[j·os + c]`, its lane sums are
+/// `lanes[j·ls + t]`, the states `hist[c·S + t − t0]`.
+#[inline(always)]
+fn outputs<V: V16, const OT: usize, const TT: usize, const S: usize>(seg: Seg, n: usize, w: &[W], os: usize, hist: &[Hist], lanes: &mut [Line]) {
+    let Seg { nc, first, ls, t0, len } = seg;
+    if n == 0 || nc == 0 || len == 0 {
+        return;
     }
-    while t0 < len {
-        out_tiles::<V, OT, 1>(outs, nc, first, mb, t0, hist, lanes, w);
-        t0 += 1;
+    // Every tile below reads and writes within these.
+    assert!((n - 1) * os + nc <= w.len() && (nc - 1) * S + len <= hist.len() && len <= S);
+    assert!((n - 1) * ls + t0 + len <= lanes.len());
+    let (w, h, l) = (w.as_ptr(), hist.as_ptr(), lanes.as_mut_ptr());
+    // SAFETY (each row): outputs j..j + OT ≤ n, samples < len and chunks
+    // < nc, within the bounds asserted above.
+    let mut j = 0;
+    while j + OT <= n {
+        unsafe { out_row::<V, OT, TT, S>(nc, first, w.add(j * os), os, h, l.add(j * ls + t0), ls, len) };
+        j += OT;
+    }
+    while OT > 2 && j + 2 <= n {
+        unsafe { out_row::<V, 2, TT, S>(nc, first, w.add(j * os), os, h, l.add(j * ls + t0), ls, len) };
+        j += 2;
+    }
+    while j < n {
+        unsafe { out_row::<V, 1, TT, S>(nc, first, w.add(j * os), os, h, l.add(j * ls + t0), ls, len) };
+        j += 1;
     }
 }
 
+/// `OT` outputs over the segment's `len` samples, `TT` at a time.
+///
+/// SAFETY: `w + j·os + c`, `h + c·S + t` readable and `l + j·ls + t`
+/// writable for c < nc, j < OT, t < len.
 #[allow(clippy::too_many_arguments)]
 #[inline(always)]
-fn out_tiles<'w, V: V16, const OT: usize, const TT: usize>(
-    outs: &[usize],
+unsafe fn out_row<V: V16, const OT: usize, const TT: usize, const S: usize>(
     nc: usize,
     first: bool,
-    mb: usize,
-    t0: usize,
-    hist: &[Hist],
-    lanes: &mut [[f32; LANES]],
-    w: impl Fn(usize, usize) -> (&'w [f32; LANES], &'w [f32; LANES]) + Copy,
+    w: *const W,
+    os: usize,
+    h: *const Hist,
+    l: *mut Line,
+    ls: usize,
+    len: usize,
 ) {
-    let mut i = 0;
-    while i + OT <= outs.len() {
-        tile::<V, OT, TT>(&outs[i..i + OT], nc, first, mb, t0, hist, lanes, w);
-        i += OT;
+    let mut t = 0;
+    while t + TT <= len {
+        unsafe { tile::<V, OT, TT, S>(nc, first, w, os, h.add(t), l.add(t), ls) };
+        t += TT;
     }
-    while i < outs.len() {
-        tile::<V, 1, TT>(&outs[i..i + 1], nc, first, mb, t0, hist, lanes, w);
-        i += 1;
+    while t < len {
+        unsafe { tile::<V, OT, 1, S>(nc, first, w, os, h.add(t), l.add(t), ls) };
+        t += 1;
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+/// `OT` outputs × `TT` samples over the block's chunks, their lane sums in
+/// registers: `acc += wr·zr − wi·zi`, chunk after chunk.
+///
+/// SAFETY: `w + j·os + c`, `h + c·S + k` readable and `l + j·ls + k`
+/// writable for c < nc, j < OT, k < TT.
 #[inline(always)]
-fn tile<'w, V: V16, const OT: usize, const TT: usize>(
-    outs: &[usize],
+unsafe fn tile<V: V16, const OT: usize, const TT: usize, const S: usize>(
     nc: usize,
     first: bool,
-    mb: usize,
-    t0: usize,
-    hist: &[Hist],
-    lanes: &mut [[f32; LANES]],
-    w: impl Fn(usize, usize) -> (&'w [f32; LANES], &'w [f32; LANES]),
+    w: *const W,
+    os: usize,
+    h: *const Hist,
+    l: *mut Line,
+    ls: usize,
 ) {
     // Plain loops: `array::from_fn` is not always inlined here.
     let mut acc = [[V::zero(); TT]; OT];
     if !first {
         for j in 0..OT {
             for k in 0..TT {
-                acc[j][k] = V::ld(&lanes[outs[j] * mb + t0 + k]);
+                acc[j][k] = V::ld(unsafe { &(*l.add(j * ls + k)).0 });
             }
         }
     }
     for c in 0..nc {
-        let h = &hist[c * mb + t0..c * mb + t0 + TT];
+        let hc = unsafe { h.add(c * S) };
         let (mut hr, mut hi) = ([V::zero(); TT], [V::zero(); TT]);
         for k in 0..TT {
-            hr[k] = V::ld(&h[k].0);
-            hi[k] = V::ld(&h[k].1);
+            let s = unsafe { &*hc.add(k) };
+            hr[k] = V::ld(&s.0[0]);
+            hi[k] = V::ld(&s.0[1]);
         }
         for j in 0..OT {
-            let (wr, wi) = w(c, outs[j]);
-            let (wr, wi) = (V::ld(wr), V::ld(wi));
+            let wj = unsafe { &*w.add(j * os + c) };
+            let (wr, wi) = (V::ld(&wj.0[0]), V::ld(&wj.0[1]));
             for k in 0..TT {
                 acc[j][k] = acc[j][k].add(wr.mul(hr[k]).sub(wi.mul(hi[k])));
             }
@@ -713,7 +874,7 @@ fn tile<'w, V: V16, const OT: usize, const TT: usize>(
     }
     for j in 0..OT {
         for k in 0..TT {
-            acc[j][k].st(&mut lanes[outs[j] * mb + t0 + k]);
+            acc[j][k].st(unsafe { &mut (*l.add(j * ls + k)).0 });
         }
     }
 }
@@ -1350,6 +1511,146 @@ mod tests {
         assert!(err / refp < 1e-3, "relative error {}", err / refp);
     }
 
+    /// The bank against its sums written out one lane at a time: each mode's
+    /// recursion with its drive summed over the active inputs in order; for
+    /// each output and sample, each lane takes its chunks' terms wr·zr − wi·zi
+    /// in chunk order from +0 within each part, the parts are added lane by
+    /// lane in order, the lanes as a tree, then the direct term. Bit for bit,
+    /// on every ISA, with few and many inputs (the drive summed in the
+    /// recursion or before it), odd block lengths, mics with gaps, the
+    /// velocities and probes or not, and extra outputs on the low modes.
+    #[test]
+    fn kernel_matches_a_plain_reference() {
+        fn run<const R: usize>(n_modes: usize, active: &[usize], disp: bool, n_extra: usize, extra_modes: usize) {
+            let mut seed = 0x2545_f491_4f6c_dd1du64;
+            let mut rnd = move || {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                (seed >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
+            };
+            let sr = 48_000.0;
+            let modes: Vec<BoardMode<R>> = (0..n_modes)
+                .map(|i| BoardMode {
+                    freq_hz: 40.0 + 9000.0 * (i as f64 / n_modes as f64),
+                    sigma: 5.0 + 40.0 * rnd().abs(),
+                    load: 0.0,
+                    inputs: std::array::from_fn(|_| rnd()),
+                    // Mic slots 0..5 only: the bank computes slots up to the last with a weight.
+                    outputs: std::array::from_fn(|o| if o < MICS && o >= 5 { (0.0, 0.0) } else { (rnd(), rnd()) }),
+                })
+                .collect();
+            let extra: Vec<Vec<(f64, f64)>> = (0..extra_modes).map(|_| (0..n_extra).map(|_| (rnd(), rnd())).collect()).collect();
+            // Blocks of these lengths, the same inputs for every ISA.
+            let lens = [1, 7, 63, 64, 33, 64];
+            let blocks: Vec<Vec<Vec<f32>>> = lens
+                .iter()
+                .map(|&len| (0..R).map(|r| (0..64).map(|t| if t < len && active.contains(&r) { rnd() as f32 } else { 0.0 }).collect()).collect())
+                .collect();
+            let mut want = Vec::new();
+            for (n, isa) in crate::modal::Isa::available().into_iter().enumerate() {
+                let mut bank = BoardBank::<R>::with_extra(sr, &modes, &extra, 64);
+                bank.set_isa(isa);
+                // The reference's state, poles and gains, mode by mode.
+                let chunks: Vec<Chunk<R>> = bank.parts.iter().flat_map(|p| p.chunks.iter().copied()).collect();
+                let (mut zr, mut zi) = (vec![0.0f32; chunks.len() * LANES], vec![0.0f32; chunks.len() * LANES]);
+                let mut got = Vec::new();
+                for (&len, inputs) in lens.iter().zip(&blocks) {
+                    let mut mics = vec![vec![0.0f32; 64]; MICS];
+                    let mut dv = vec![vec![0.0f32; 64]; REGIONS];
+                    let mut ex = vec![vec![0.0f32; 64]; n_extra];
+                    {
+                        let mut m: Vec<&mut [f32]> = mics.iter_mut().map(|v| &mut v[..]).collect();
+                        bank.process(inputs, len, &mut m, disp.then_some(&mut dv[..]), (n_extra > 0).then_some(&mut ex[..]));
+                    }
+                    for b in mics.iter().chain(&dv).chain(&ex) {
+                        got.extend_from_slice(&b[..len]);
+                    }
+                    for p in bank.probes() {
+                        got.extend_from_slice(p);
+                    }
+                    if n > 0 {
+                        continue;
+                    }
+                    // The reference, once (the first ISA).
+                    let n_mics = 5;
+                    let half = chunks.len().div_ceil(PARTS);
+                    let ex_chunks = extra_modes.min(n_modes).div_ceil(LANES);
+                    let w = |i: usize, o: usize| -> (f32, f32) {
+                        if o < OUTPUTS {
+                            modes.get(i).map_or((0.0, 0.0), |m| (m.outputs[o].0 as f32, m.outputs[o].1 as f32))
+                        } else {
+                            extra.get(i).filter(|_| i < n_modes).map_or((0.0, 0.0), |e| (e[o - OUTPUTS].0 as f32, e[o - OUTPUTS].1 as f32))
+                        }
+                    };
+                    let (mut out, mut hz) = (vec![vec![0.0f32; len]; OUTPUTS + n_extra], vec![(vec![0.0f32; len], vec![0.0f32; len]); chunks.len() * LANES]);
+                    for i in 0..chunks.len() * LANES {
+                        let (c, l) = (&chunks[i / LANES], i % LANES);
+                        for t in 0..len {
+                            let mut u = 0.0f32;
+                            for &r in active {
+                                u += c.phi[r][l] * inputs[r][t];
+                            }
+                            let r = c.pr[l] * zr[i] - c.pi[l] * zi[i] + u;
+                            let im = c.pr[l] * zi[i] + c.pi[l] * zr[i];
+                            (zr[i], zi[i]) = (r, im);
+                            (hz[i].0[t], hz[i].1[t]) = (r, im);
+                        }
+                    }
+                    let computed = (0..n_mics).chain((MICS..OUTPUTS).filter(|_| disp)).chain(OUTPUTS..OUTPUTS + n_extra);
+                    for o in computed {
+                        for t in 0..len {
+                            let mut a = [0.0f32; LANES];
+                            for p in 0..PARTS {
+                                let cs = p * half..((p + 1) * half).min(chunks.len());
+                                let cs = if o < OUTPUTS { cs } else { cs.start..cs.end.min(ex_chunks) };
+                                if cs.is_empty() {
+                                    continue;
+                                }
+                                for l in 0..LANES {
+                                    let mut s = 0.0f32;
+                                    for c in cs.clone() {
+                                        let (i, (wr, wi)) = (c * LANES + l, w(c * LANES + l, o));
+                                        s += wr * hz[i].0[t] - wi * hz[i].1[t];
+                                    }
+                                    a[l] += s;
+                                }
+                            }
+                            for wd in [8, 4, 2, 1] {
+                                for l in 0..wd {
+                                    a[l] += a[l + wd];
+                                }
+                            }
+                            let mut f = 0.0f32;
+                            if o < OUTPUTS {
+                                for &r in active {
+                                    f += bank.direct[o][r] * inputs[r][t];
+                                }
+                            }
+                            out[o][t] = if o < OUTPUTS { 0.0 + (a[0] + f) } else { 0.0 + a[0] };
+                        }
+                    }
+                    for o in (0..MICS).chain(BRIDGE..OUTPUTS).chain(OUTPUTS..OUTPUTS + n_extra) {
+                        want.extend_from_slice(&out[o]);
+                    }
+                    for o in MICS..BRIDGE {
+                        want.extend_from_slice(&out[o]);
+                    }
+                }
+                assert_eq!(got.len(), want.len());
+                for (k, (a, b)) in got.iter().zip(&want).enumerate() {
+                    assert!(a.is_finite() && a.to_bits() == b.to_bits(), "{isa:?} R {R} value {k}: {a} vs {b}");
+                }
+            }
+        }
+        // The low bank's shape: inputs per key, one or many active.
+        run::<LOW_INPUTS>(213, &[39], true, 5, 40);
+        run::<LOW_INPUTS>(213, &[3, 17, 39, 40, 41, 90, 175], true, 5, 40);
+        // The regions' banks, with and without the velocities.
+        run::<REGIONS>(301, &[0, 7, 15], true, 3, 301);
+        run::<REGIONS>(301, &(0..REGIONS).collect::<Vec<_>>(), false, 0, 0);
+    }
+
     #[test]
     fn all_isas_are_bit_identical() {
         let sr = 48_000.0;
@@ -1457,6 +1758,27 @@ mod tests {
         bank.process(&inputs, 64, &mut refs, None, None);
         assert!(slots.iter().skip(1).any(|s| s.iter().any(|&x| x != 0.0)));
         assert!(bank.energy() > 0.0);
+    }
+
+    /// A bank no microphone hears (its modes carry probe and bridge weights
+    /// only) has no energy at the mics, ringing or not: it never keeps the
+    /// board awake.
+    #[test]
+    fn a_bank_without_microphones_has_no_energy() {
+        let sr = 48_000.0;
+        let sb = crate::params::PianoModel::default().board().unwrap();
+        let mut modes = board_modes(&sb, sr);
+        for m in &mut modes {
+            m.outputs[..MICS].fill((0.0, 0.0));
+        }
+        assert!(modes.iter().any(|m| m.outputs[MICS] != (0.0, 0.0)), "the probes should hear the board");
+        let mut bank = BoardBank::new(sr, &modes, 64);
+        let mut inputs = vec![vec![0.0f32; 64]; REGIONS];
+        inputs[5][0] = 1.0;
+        let mut disp = vec![vec![0.0f32; 64]; REGIONS];
+        bank.process(&inputs, 64, &mut [], Some(&mut disp), None);
+        assert!(disp.iter().any(|d| d.iter().any(|&x| x != 0.0)), "the bank should ring");
+        assert_eq!(bank.energy(), 0.0);
     }
 
     /// A board with the switches set, its mics `mics` (absolute).
