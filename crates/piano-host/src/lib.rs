@@ -354,6 +354,34 @@ mod tests {
         assert_eq!(lid(load_listening(&root.join("listening/Microphones/concert.toml"), &removed).unwrap()), (false, 35.0));
     }
 
+    /// A preset may put a microphone kilometres away: the engine still
+    /// builds, its noises' delay held under the bound.
+    #[test]
+    fn a_far_microphone_in_a_preset_keeps_the_noises_bounded() {
+        let l = "[soundboard]\nmics_relative = false\n[[soundboard.mics]]\nat = [1e9, -1e9, 1e9]\n[[soundboard.mics]]\nat = [0.6, 0.5, 0.4]\n";
+        let model = overlay_preset(&PianoModel::default(), l).unwrap();
+        let inst = piano_core::instrument::Instrument::new(model, 48_000.0);
+        let max = (piano_core::mics::MAX_NOISE_DELAY * 48_000.0).round() as usize;
+        assert!(inst.noise_paths.iter().all(|&(g, d)| g.is_finite() && d <= max), "{:?}", inst.noise_paths);
+        let mut engine = piano_core::Engine::with_instrument(piano_core::EngineConfig::default(), std::sync::Arc::new(inst));
+        let mut out = vec![0.0f32; engine.config().max_block];
+        engine.process(&[piano_core::TimedEvent { frame: 0, event: Event::NoteOn { note: 40, velocity: 90 } }], &mut out);
+        assert!(out.iter().all(|x| x.is_finite()));
+    }
+
+    /// The noises heard directly are set at the close set-up
+    /// (crate::mics::noise_paths): its pair and its gain are the reference.
+    #[test]
+    fn the_noises_reference_is_the_close_set_up() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets");
+        let m = load_over(&root.join("listening/Microphones/close.toml"), &PianoModel::default()).unwrap();
+        let sb = m.soundboard.unwrap();
+        assert!(sb.mics_relative);
+        assert_eq!(sb.mic_gain_db, piano_core::mics::NOISE_REFERENCE_GAIN_DB);
+        let at: Vec<_> = sb.mics.iter().map(|m| m.at).collect();
+        assert_eq!(at, piano_core::mics::NOISE_REFERENCE.to_vec());
+    }
+
     #[test]
     fn listening_and_touch_presets_are_laid_over_the_sound() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../archive/presets");

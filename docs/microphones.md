@@ -39,9 +39,19 @@ Per microphone:
 - **Room:**
   - its own early reflections;
   - its own tail output, decorrelated from the others above the corner set by its distance to the nearest other microphone.
-- **Action and body:** the action's knock and the body's halo are rendered on two sides and shared among the microphones by their pan.
+- **Action and body:** the action's knock and the body's halo are rendered on two sides and shared among the microphones by their pan, each microphone hearing them from where it stands (below).
 
 The room's source estimate from the microphones is now their mean.
+
+### The noises heard directly, microphone by microphone
+
+Until 2026-11-21 the knock and the halo reached every microphone alike: a pair 2 m away heard them as loud and as early as the close pair, and through its own gain. The set-up's `mic_gain_db` scales the board's weights, not those noises. In `mixed.toml`, the default, the AB pair takes +7.8 dB and the two identical copies added in phase, where the strings, reaching each microphone differently, add only in part. E1 at velocity 80 sounded "awful" there and fine through either pair alone. The noises against the strings over the first 0.1 s: close −17.6 dB, concert −13.1, mixed −4.1; above 4 kHz in mixed they stood 2.8 dB over the strings.
+
+The halo is the board and the case ringing, and the action stands against them: each microphone now hears them as it hears the board (`mics::noise_paths`, `Instrument::noise_paths`):
+- **Gain:** the board's radiation at the microphone against at the reference pair, the close pair of `close.toml` where the noises were set (`NOISE_REFERENCE`), in mean |p|² per octave averaged in dB over 125 Hz–4 kHz (the built modes below 4 kHz, omni), times the set-up's gain against the reference's (−7.4 dB, `NOISE_REFERENCE_GAIN_DB`, as the listening presets give them, before the musician's controls move both alike).
+- **Delay:** the mean path from the board and from the action along the keys, against the reference's.
+
+A microphone at the reference hears them as before: close renders bit for bit as before. On E1: close −17.6 dB, mixed −16.7, concert −19.7 (it had 4.5 dB more than close, from the gain the noises did not take). Heard: E1 right in mixed, concert still good. The board's radiation carries the lid's shadow and reflection, and so the noises' gain does: taking the lid off moves a far microphone's from −15.8 to −13.8 dB at the same place, as it moves the board's sound there (the action and the body sound from under the lid too). Patterns are not counted. Near a reference microphone the gain and the delay tend to its own (the references weighed by 1/d²), and the delay is held under 50 ms (`MAX_NOISE_DELAY`): a preset's coordinates cannot size the engine's history without bound. With every microphone at the reference the radiation is not integrated at all. A board with no mode in the measured octaves (`f_max` very low) takes the mean path's 1/r for the gain instead, continuous at the reference as well. Test `the_noises_reference_is_the_close_set_up` (piano-host) keeps the reference on `close.toml`.
 
 ## Mixdown and outputs
 
