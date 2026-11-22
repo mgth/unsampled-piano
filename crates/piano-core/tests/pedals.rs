@@ -12,8 +12,13 @@ fn instrument() -> Arc<Instrument> {
 /// Renders a script of (time s, event) for `dur` seconds; returns the mono
 /// output and the engine.
 fn render(script: &[(f64, Event)], dur: f64) -> (Vec<f32>, Engine) {
+    render_on(instrument(), script, dur)
+}
+
+/// [`render`] on a given instrument.
+fn render_on(inst: Arc<Instrument>, script: &[(f64, Event)], dur: f64) -> (Vec<f32>, Engine) {
     let cfg = EngineConfig::default();
-    let mut e = Engine::with_instrument(cfg, instrument());
+    let mut e = Engine::with_instrument(cfg, inst);
     let bs = cfg.max_block;
     let n = (dur * cfg.sample_rate) as usize / bs;
     let mut out = vec![0.0f32; n * bs];
@@ -233,4 +238,65 @@ fn observed_rest_after_a_note() {
     assert!(lit.is_empty(), "{lit:?}");
     assert!(!e.board_awake());
     assert!(obs.board[..obs.board_modes].iter().all(|&a| a == 0.0));
+}
+
+/// What is left of a signal at 48 kHz above 5 kHz (eighth-order Butterworth
+/// high-pass, four biquads).
+fn above_5k(x: &[f32]) -> Vec<f64> {
+    let mut y: Vec<f64> = x.iter().map(|v| *v as f64).collect();
+    let (sn, cs) = (std::f64::consts::TAU * 5000.0 / 48_000.0).sin_cos();
+    for q in [0.5098, 0.6013, 0.9000, 2.5629] {
+        let alpha = sn / (2.0 * q);
+        let (b0, b1, a1, a2) = ((1.0 + cs) / 2.0 / (1.0 + alpha), -(1.0 + cs) / (1.0 + alpha), -2.0 * cs / (1.0 + alpha), (1.0 - alpha) / (1.0 + alpha));
+        let (mut x1, mut x2, mut y1, mut y2) = (0.0, 0.0, 0.0, 0.0);
+        for v in y.iter_mut() {
+            let out = b0 * (*v + x2) + b1 * x1 - a1 * y1 - a2 * y2;
+            (x2, x1, y2, y1) = (x1, *v, y1, out);
+            *v = out;
+        }
+    }
+    y
+}
+
+/// A bass key repeated under the pedal: each strike finds its strings
+/// ringing, and their stretching by the partials already there holds
+/// through the hammer's contact. Cut at the strike and started again from
+/// nothing after it, the tension stepped and every longitudinal mode rang:
+/// a tick above 5 kHz at each repeat, 20 to 40 dB over a first strike's.
+#[test]
+fn a_bass_key_repeated_under_the_pedal_does_not_tick() {
+    const STRIKES: usize = 8;
+    let at = |i: usize| 0.05 + 0.2 * i as f64;
+    let mut script = vec![(0.0, cc(64, 127))];
+    for i in 0..STRIKES {
+        script.extend([(at(i), on(33, 80)), (at(i) + 0.1, off(33))]);
+    }
+    // The longitudinal modes at the Concert grand's level, without and
+    // with the strike's own stretching (the tick came at the end of the
+    // contact, or at the strike itself).
+    let mut plain = EngineConfig::default().model;
+    plain.nonlinear.coupling = 1.0;
+    let mut stretch = plain;
+    stretch.nonlinear.strike_stretch = true;
+    stretch.nonlinear.strike_scale = 0.25;
+    for (name, model) in [("partials alone", plain), ("strike_stretch", stretch)] {
+        let inst = Arc::new(Instrument::new(model, 48_000.0));
+        let (x, _) = render_on(inst, &script, at(STRIKES));
+        let highs = above_5k(&x);
+        // The loudest 2 ms of the 20 ms after each strike, over the 20 ms
+        // before it: what the strike itself adds up there.
+        let db = |p: f64| 10.0 * p.max(1e-30).log10();
+        let power = |c: &[f64]| c.iter().map(|v| v * v).sum::<f64>() / c.len() as f64;
+        let jump = |i: usize| {
+            let from = (at(i) * 48_000.0) as usize;
+            db(highs[from..from + 960].chunks(96).map(power).fold(0.0, f64::max)) - db(power(&highs[from - 960..from]))
+        };
+        let mut jumps: Vec<f64> = (2..STRIKES).map(jump).collect();
+        jumps.sort_by(f64::total_cmp);
+        let rise = jumps[jumps.len() / 2];
+        eprintln!("{name}: above 5 kHz, a repeat's loudest 2 ms {rise:+.1} dB over the 20 ms before it (median; {:+.1} to {:+.1})", jumps[0], jumps[jumps.len() - 1]);
+        // (+10.6 dB as it should be, the new attack's own highs; +28.8 dB
+        // with the tick.)
+        assert!(rise < 19.0, "{name}: a repeated A1 jumps {rise:.1} dB above 5 kHz at the strike");
+    }
 }
