@@ -114,6 +114,17 @@ pub const VERTICAL_FOOT: f64 = 0.25;
 const LINES: usize = 16;
 const MAX_TAPS: usize = 128;
 use crate::mics::MAX_MICS as MICS;
+use crate::modal::Isa;
+
+/// Samples processed at once (at most: also at most the shortest line, so
+/// that a block reads every line before writing it).
+const SEG: usize = 64;
+/// Samples the early taps accumulate at once (one vector).
+const W: usize = 16;
+/// Reflection orders the taps can have (order 0 is the direct sound).
+const ORDERS: usize = 8;
+/// Order low-passes of all the mics, in whole groups of 16.
+const CHAINS: usize = (MICS * (ORDERS - 1)).next_multiple_of(16);
 
 #[derive(Clone, Copy, Default)]
 struct Tap {
@@ -122,6 +133,35 @@ struct Tap {
     order: usize,
     /// The probe facing the wall the sound leaves for.
     probe: usize,
+}
+
+/// A tap of [`Room::early`], its order given by its place.
+#[derive(Clone, Copy, Default)]
+struct EarlyTap {
+    delay: usize,
+    gain: f32,
+    probe: usize,
+}
+
+/// Per-block work buffers (one block of at most [`SEG`] samples).
+struct Scratch {
+    /// The source, per probe.
+    src: [[f32; SEG]; PROBES],
+    /// Each mic's taps summed per reflection order (1, 2, …), then
+    /// low-passed ([`Room::chain_start`]).
+    order: [[f32; SEG]; CHAINS],
+    /// Each mic's early reflections.
+    early: [[f32; SEG]; MICS],
+    /// Per line: its output, then attenuated (y).
+    y: [[f32; SEG]; LINES],
+    /// Per line: its output's low-pass.
+    lp: [[f32; SEG]; LINES],
+    /// Per line: its input, then what is written back into it.
+    fb: [[f32; SEG]; LINES],
+    /// The output mixes (common, then one per mic).
+    mix: [[f32; SEG]; MICS + 1],
+    /// The tail at each mic.
+    tail: [[f32; SEG]; MICS],
 }
 
 /// Hadamard rows (of the 16 × 16 matrix) the probes enter the tail by:
@@ -140,13 +180,32 @@ pub struct BoardFeed<'a> {
 
 /// Early reflections and late tail, real-time part.
 pub struct Room {
-    // Source history (pressure at 1 m, per probe) for the early taps.
-    hist: Vec<[f32; PROBES]>,
+    /// Source history (pressure at 1 m), one ring of `hist_mask + 1`
+    /// samples per probe, its first [`SEG`] samples repeated after its end
+    /// so that [`SEG`] samples from any start read in one piece.
+    hist: [Vec<f32>; PROBES],
+    hist_mask: usize,
     pos: usize,
     /// Microphones in use (the first `n_mics` of every per-mic array).
     n_mics: usize,
+    /// The taps strongest first, as built (the reference the tests check
+    /// [`Room::early`] against).
+    #[cfg(test)]
     taps: [[Tap; MAX_TAPS]; MICS],
+    #[cfg(test)]
     n_taps: [usize; MICS],
+    /// Each mic's taps by reflection order (in their order within each):
+    /// order o is `early[m][order_end[m][o − 1]..order_end[m][o]]`.
+    early: [[EarlyTap; MAX_TAPS]; MICS],
+    order_end: [[usize; ORDERS]; MICS],
+    /// Orders 1..`n_orders[m]` have taps (the low-passes of the others stay
+    /// at zero).
+    n_orders: [usize; MICS],
+    /// Mic m's order low-passes are chains `chain_start[m]..chain_start[m + 1]`
+    /// of the block's filters, whose coefficients are `chain_a` (0 past
+    /// the last).
+    chain_start: [usize; MICS + 1],
+    chain_a: [f32; CHAINS],
     /// Per reflection order: one-pole low-pass coefficient (wall absorption).
     order_lp: [f32; 8],
     order_state: [[f32; 8]; MICS],
@@ -182,7 +241,28 @@ pub struct Room {
     probe_gain: f32,
     /// Per line, each probe's sign into it (over √PROBES).
     inject: [[f32; PROBES]; LINES],
+    /// Per output mix (row r + 1 of the Hadamard matrix), the lines it
+    /// takes with a minus sign (bit i: (−1)^popcount((r + 1) & i) = −1).
+    mix_neg: [u16; MICS + 1],
     sample_rate: f64,
+    /// Samples per block: [`SEG`], or the shortest line if shorter.
+    seg: usize,
+    /// Longest delay a block reads the source history at.
+    reach: usize,
+    /// Longest line.
+    max_line: usize,
+    /// The coefficients keep an all-zero room at +0 ([`Room::new`]).
+    can_rest: bool,
+    /// Samples since the source was last other than +0 (saturating).
+    src_quiet: usize,
+    /// Samples since a line was last fed other than +0 (saturating).
+    fdn_quiet: usize,
+    /// Every low-pass and crossover state is +0.
+    filters_zero: bool,
+    isa: Isa,
+    scratch: Box<Scratch>,
+    #[cfg(test)]
+    rested: usize,
 }
 
 /// The probes' directions from the board's centre, in room coordinates.
@@ -331,14 +411,41 @@ impl Room {
             }
         }
         let max_delay = taps.iter().flat_map(|t| t.iter()).map(|t| t.delay).max().unwrap_or(1);
-        let hist_len = (max_delay + 1).next_power_of_two();
+        // The taps grouped by order (a stable sort: each order's taps in
+        // the order they are summed in).
+        let mut early = [[EarlyTap::default(); MAX_TAPS]; MICS];
+        let mut order_end = [[0usize; ORDERS]; MICS];
+        let mut n_orders = [1usize; MICS];
+        for m in 0..MICS {
+            let mut list: Vec<Tap> = taps[m][..n_taps[m]].iter().copied().filter(|t| t.order < ORDERS).collect();
+            list.sort_by_key(|t| t.order);
+            for (i, t) in list.iter().enumerate() {
+                early[m][i] = EarlyTap { delay: t.delay, gain: t.gain, probe: t.probe };
+            }
+            for o in 0..ORDERS {
+                order_end[m][o] = list.iter().filter(|t| t.order <= o).count();
+            }
+            n_orders[m] = list.iter().map(|t| t.order + 1).max().unwrap_or(1);
+        }
 
         // Wall absorption grows with frequency: each reflection order passes
         // through a one-pole low-pass whose corner drops with the order.
-        let order_lp = std::array::from_fn(|n| {
+        let order_lp: [f32; ORDERS] = std::array::from_fn(|n| {
             let fc = 12_000.0 / (1.0 + n as f64) * (1.0 - p.absorption_high).max(0.05);
             (-std::f64::consts::TAU * fc / sr).exp() as f32
         });
+        // An order without taps keeps its low-pass at +0 when a·(+0) is
+        // +0; otherwise every order is filtered.
+        if !order_lp.iter().all(|&a: &f32| a >= 0.0 && a.is_finite()) {
+            n_orders = [ORDERS; MICS];
+        }
+        let mut chain_start = [0usize; MICS + 1];
+        let mut chain_a = [0.0f32; CHAINS];
+        for m in 0..MICS {
+            let j0 = chain_start[m];
+            chain_a[j0..j0 + n_orders[m] - 1].copy_from_slice(&order_lp[1..n_orders[m]]);
+            chain_start[m + 1] = j0 + n_orders[m] - 1;
+        }
 
         // FDN delays: spread around the mean free path 4V/S, mutually prime.
         let mfp = 4.0 * p.volume() / p.surface();
@@ -353,26 +460,63 @@ impl Room {
         }
         let (t_lo, t_hi) = p.t60();
         let g = |t60: f64, n: usize| 10f64.powf(-3.0 * n as f64 / (t60 * sr)) as f32;
-        let g_lo = std::array::from_fn(|i| g(t_lo, line_len[i]));
-        let g_hi = std::array::from_fn(|i| g(t_hi, line_len[i]));
+        let g_lo: [f32; LINES] = std::array::from_fn(|i| g(t_lo, line_len[i]));
+        let g_hi: [f32; LINES] = std::array::from_fn(|i| g(t_hi, line_len[i]));
         let lp_a = (-std::f64::consts::TAU * 1000.0 / sr).exp() as f32;
         let pre = ((first.max(0.005)) * sr) as usize;
         // Two mics d apart in a diffuse field hear the same pressure only
         // while kd is small: their coherence, sinc²(kd), halves at
         // kd ≈ 1.4, f ≈ 76/d Hz. Each mic against its nearest neighbour
         // (alone: all of its tail its own).
-        let xo_a = std::array::from_fn(|m| {
+        let xo_a: [f32; MICS] = std::array::from_fn(|m| {
             let d = (0..n_mics).filter(|&o| o != m && m < n_mics).map(|o| dist(mic_room[m], mic_room[o])).fold(f64::INFINITY, f64::min);
             if d.is_finite() { (-std::f64::consts::TAU * (76.0 / d.max(0.05)) / sr).exp() as f32 } else { 0.0 }
         });
         let hear = std::array::from_fn(|m| sb.mics.as_slice().get(m).map_or(0.0, |mic| mic.diffuse_efficiency().sqrt() as f32));
+        // A block reads the history up to `reach` samples before its start
+        // while writing its own samples: the ring holds both.
+        let reach = max_delay.max(pre);
+        let hist_len = (reach + SEG).next_power_of_two();
+        let inject: [[f32; PROBES]; LINES] = std::array::from_fn(|i| {
+            std::array::from_fn(|k| if (INJECT_ROWS[k] & i).count_ones().is_multiple_of(2) { 1.0 } else { -1.0 } / (PROBES as f32).sqrt())
+        });
+        // From all +0 and a +0 source, every product below meets a +0 or
+        // a non-negative coefficient and every sum a +0 term: the room
+        // stays at +0 and adds hear·(+0) to the mics.
+        let fin = |x: &f32| x.is_finite();
+        let can_rest = order_lp.iter().all(|&a: &f32| a >= 0.0 && (1.0 - a).is_finite())
+            && g_hi.iter().all(|&g: &f32| g >= 0.0 && g.is_finite())
+            && g_lo.iter().all(fin)
+            && lp_a >= 0.0
+            && lp_a.is_finite()
+            && xo_a.iter().all(|&a: &f32| a >= 0.0 && a.is_finite())
+            && inject.iter().flatten().all(fin)
+            && taps.iter().flatten().all(|t| t.gain.is_finite());
+        let scratch = Box::new(Scratch {
+            src: [[0.0; SEG]; PROBES],
+            order: [[0.0; SEG]; CHAINS],
+            early: [[0.0; SEG]; MICS],
+            y: [[0.0; SEG]; LINES],
+            lp: [[0.0; SEG]; LINES],
+            fb: [[0.0; SEG]; LINES],
+            mix: [[0.0; SEG]; MICS + 1],
+            tail: [[0.0; SEG]; MICS],
+        });
 
         let mut room = Self {
-            hist: vec![[0.0; PROBES]; hist_len.max(pre + 1).next_power_of_two()],
+            hist: std::array::from_fn(|_| vec![0.0; hist_len + SEG]),
+            hist_mask: hist_len - 1,
             pos: 0,
             n_mics,
+            #[cfg(test)]
             taps,
+            #[cfg(test)]
             n_taps,
+            early,
+            order_end,
+            n_orders,
+            chain_start,
+            chain_a,
             order_lp,
             order_state: [[0.0; 8]; MICS],
             lines: line_len.iter().map(|&n| vec![0.0; n]).collect(),
@@ -391,10 +535,20 @@ impl Room {
             hear,
             r_direct,
             probe_gain: PROBE_DISTANCE as f32,
-            inject: std::array::from_fn(|i| {
-                std::array::from_fn(|k| if (INJECT_ROWS[k] & i).count_ones().is_multiple_of(2) { 1.0 } else { -1.0 } / (PROBES as f32).sqrt())
-            }),
+            inject,
+            mix_neg: std::array::from_fn(|row| (0..LINES).filter(|&i| ((row + 1) & i).count_ones() % 2 != 0).fold(0u16, |b, i| b | 1 << i)),
             sample_rate,
+            seg: SEG.min(*line_len.iter().min().unwrap_or(&SEG)),
+            reach,
+            max_line: *line_len.iter().max().unwrap_or(&0),
+            can_rest,
+            src_quiet: usize::MAX,
+            fdn_quiet: usize::MAX,
+            filters_zero: true,
+            isa: Self::runs_on(Isa::detect()),
+            scratch,
+            #[cfg(test)]
+            rested: 0,
         };
         // Level of the tail: reverberant/direct energy = (r/r_c)². For a
         // unit impulse at 1 m the direct energy at the mic is 1/r², so the
@@ -404,6 +558,7 @@ impl Room {
         let rc = 0.057 * (p.volume() / t60_mid).sqrt();
         let e = room.tail_energy(t60_mid);
         room.out_gain = (p.tail_gain / rc / e.sqrt()) as f32;
+        room.can_rest &= room.out_gain.is_finite();
         room.reset();
         room
     }
@@ -422,8 +577,23 @@ impl Room {
         e
     }
 
+    /// The code the room runs when the engine runs `isa`: its vector code
+    /// is compiled for AVX2 alone, which AVX-512 machines take too (measured
+    /// faster on Zen 5: the taps' loads start anywhere, so a 64-byte one
+    /// nearly always spans two cache lines, and the filters are serial),
+    /// when AVX2 itself is detected ([`Isa::Avx512`] says AVX-512F only).
+    fn runs_on(isa: Isa) -> Isa {
+        match isa {
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx2 | Isa::Avx512 if is_x86_feature_detected!("avx2") => Isa::Avx2,
+            _ => Isa::Generic,
+        }
+    }
+
     pub fn reset(&mut self) {
-        self.hist.fill([0.0; PROBES]);
+        for h in &mut self.hist {
+            h.fill(0.0);
+        }
         for l in &mut self.lines {
             l.fill(0.0);
         }
@@ -431,6 +601,9 @@ impl Room {
         self.xo_common = [0.0; MICS];
         self.xo_own = [0.0; MICS];
         self.order_state = [[0.0; 8]; MICS];
+        self.src_quiet = usize::MAX;
+        self.fdn_quiet = usize::MAX;
+        self.filters_zero = true;
     }
 
     /// One step of the tail, `x[i]` entering line i; the tail at each mic
@@ -488,43 +661,338 @@ impl Room {
     pub fn process_with(&mut self, mics: &mut [&mut [f32]], board: Option<BoardFeed>) {
         let n = self.n_mics.min(mics.len());
         let Some(len) = mics.first().map(|m| m.len()) else { return };
-        let mask = self.hist.len() - 1;
         let r: [f32; MICS] = std::array::from_fn(|m| self.r_direct[m] as f32 / n.max(1) as f32);
-        let (g, pg) = (self.source_gain, self.probe_gain);
-        let mut tail = [0.0f32; MICS];
-        for t in 0..len {
-            // Equivalent omnidirectional source: pressure at 1 m, less the
-            // piano's directivity towards the mics (their mean). The
-            // board's own part from the probes, the rest from the mics.
-            let s: [f32; PROBES] = match &board {
-                Some(b) => {
-                    let other: f32 = (0..n).map(|m| (mics[m][t] - b.mics[m][t]) * r[m]).sum();
-                    std::array::from_fn(|k| (other + pg * b.probes[k][t]) * g)
-                }
-                None => [(0..n).map(|m| mics[m][t] * r[m]).sum::<f32>() * g; PROBES],
-            };
-            self.hist[self.pos & mask] = s;
-            let mut early = [0.0f32; MICS];
-            for (m, e) in early[..n].iter_mut().enumerate() {
-                let mut by_order = [0.0f32; 8];
-                for t in &self.taps[m][..self.n_taps[m]] {
-                    by_order[t.order] += t.gain * self.hist[(self.pos.wrapping_sub(t.delay)) & mask][t.probe];
-                }
-                for (n, &x) in by_order.iter().enumerate().skip(1) {
-                    let st = &mut self.order_state[m][n];
-                    *st = self.order_lp[n] * *st + (1.0 - self.order_lp[n]) * x;
-                    *e += *st;
-                }
+        let mut t0 = 0;
+        while t0 < len {
+            let l = (len - t0).min(self.seg);
+            match self.isa {
+                // SAFETY: `isa` comes from `Self::runs_on`: AVX2 detected.
+                #[cfg(target_arch = "x86_64")]
+                Isa::Avx2 => unsafe { block_avx2(self, mics, board.as_ref(), t0, l, n, &r) },
+                _ => self.block(mics, board.as_ref(), t0, l, n, &r),
             }
-            let x = self.hist[(self.pos.wrapping_sub(self.pre)) & mask];
-            let inj: [f32; LINES] = std::array::from_fn(|i| self.inject[i].iter().zip(&x).map(|(a, b)| a * b).sum());
-            self.fdn_step(&inj, &mut tail);
-            for m in 0..n {
-                mics[m][t] += self.hear[m] * (early[m] + self.out_gain * tail[m]);
-            }
-            self.pos = self.pos.wrapping_add(1);
+            t0 += l;
         }
     }
+
+    /// Samples `t0..t0 + l` (l ≤ `seg`). Every sample's source depends on
+    /// the mics before the room adds to them, never on the room's output;
+    /// the taps read the source at least one sample back, the tail's input
+    /// at the pre-delay, and each line what was written into it a whole
+    /// line (≥ l samples) before: the whole block's source first, then its
+    /// taps, then the tail, each over the block, give what one sample at a
+    /// time would, in the same operations.
+    #[inline(always)]
+    fn block(&mut self, mics: &mut [&mut [f32]], board: Option<&BoardFeed>, t0: usize, l: usize, n: usize, r: &[f32; MICS]) {
+        let mask = self.hist_mask;
+        let h = mask + 1;
+        let sc = &mut *self.scratch;
+        let (g, pg) = (self.source_gain, self.probe_gain);
+
+        // Equivalent omnidirectional source: pressure at 1 m, less the
+        // piano's directivity towards the mics (their mean). The board's
+        // own part from the probes, the rest from the mics (summed from
+        // −0, as `Iterator::sum`).
+        let mut other = [-0.0f32; SEG];
+        let other = &mut other[..l];
+        match board {
+            Some(b) => {
+                for m in 0..n {
+                    let (x, y, rm) = (&mics[m][t0..t0 + l], &b.mics[m][t0..t0 + l], r[m]);
+                    for ((o, x), y) in other.iter_mut().zip(x).zip(y) {
+                        *o += (x - y) * rm;
+                    }
+                }
+                for k in 0..PROBES {
+                    let p = &b.probes[k][t0..t0 + l];
+                    for ((s, o), p) in sc.src[k][..l].iter_mut().zip(&*other).zip(p) {
+                        *s = (o + pg * p) * g;
+                    }
+                }
+            }
+            None => {
+                for m in 0..n {
+                    let (x, rm) = (&mics[m][t0..t0 + l], r[m]);
+                    for (o, x) in other.iter_mut().zip(x) {
+                        *o += x * rm;
+                    }
+                }
+                for k in 0..PROBES {
+                    for (s, o) in sc.src[k][..l].iter_mut().zip(&*other) {
+                        *s = o * g;
+                    }
+                }
+            }
+        }
+        let j0 = self.pos & mask;
+        let first = (h - j0).min(l);
+        let mut bits = 0u32;
+        for (hk, s) in self.hist.iter_mut().zip(&sc.src) {
+            let s = &s[..l];
+            hk[j0..j0 + first].copy_from_slice(&s[..first]);
+            hk[..l - first].copy_from_slice(&s[first..]);
+            if j0 < SEG || first < l {
+                hk.copy_within(0..SEG, h);
+            }
+            bits |= s.iter().fold(0, |a, v| a | v.to_bits());
+        }
+
+        // At rest (every state and every source sample it reads +0), the
+        // block would leave the room at +0 and add hear·(+0) to the mics.
+        let quiet = bits == 0;
+        let rest = quiet && self.can_rest && self.filters_zero && self.src_quiet >= self.reach && self.fdn_quiet >= self.max_line;
+        self.src_quiet = if quiet { self.src_quiet.saturating_add(l) } else { 0 };
+        if rest {
+            for m in 0..n {
+                let z = self.hear[m] * 0.0;
+                for y in &mut mics[m][t0..t0 + l] {
+                    *y += z;
+                }
+            }
+            self.advance(l);
+            self.fdn_quiet = self.fdn_quiet.saturating_add(l);
+            #[cfg(test)]
+            {
+                self.rested += l;
+            }
+            return;
+        }
+
+        // Early reflections: per mic and order, the taps summed in their
+        // order from +0 (W samples at once), then the order's low-pass,
+        // every mic's and order's filter at once (chain j of mic m and
+        // order o: `chain_start[m] + o − 1`).
+        for m in 0..n {
+            let j0 = self.chain_start[m];
+            for o in 1..self.n_orders[m] {
+                let taps = &self.early[m][self.order_end[m][o - 1]..self.order_end[m][o]];
+                let out = &mut sc.order[j0 + o - 1];
+                let chunks = l.div_ceil(W);
+                let mut c = 0;
+                while c < chunks {
+                    let (base, out) = (self.pos.wrapping_add(c * W), &mut out[c * W..]);
+                    c += if chunks - c >= 4 {
+                        tap_sums::<4>(taps, &self.hist, base, mask, out)
+                    } else {
+                        tap_sums::<1>(taps, &self.hist, base, mask, out)
+                    };
+                }
+                let c1 = 1.0 - self.order_lp[o];
+                for v in &mut out[..l] {
+                    *v *= c1;
+                }
+            }
+        }
+        let mut st = [0.0f32; CHAINS];
+        for m in 0..n {
+            let (j0, no) = (self.chain_start[m], self.n_orders[m]);
+            st[j0..j0 + no - 1].copy_from_slice(&self.order_state[m][1..no]);
+        }
+        for g in (0..self.chain_start[n]).step_by(16) {
+            let u = (&mut sc.order[g..g + 16]).try_into().unwrap();
+            one_poles::<16>(u, self.chain_a[g..g + 16].try_into().unwrap(), (&mut st[g..g + 16]).try_into().unwrap(), l);
+        }
+        for m in 0..n {
+            let (j0, no) = (self.chain_start[m], self.n_orders[m]);
+            self.order_state[m][1..no].copy_from_slice(&st[j0..j0 + no - 1]);
+            let e = &mut sc.early[m][..l];
+            e.fill(0.0);
+            for x in &sc.order[j0..j0 + no - 1] {
+                for (e, x) in e.iter_mut().zip(x) {
+                    *e += *x;
+                }
+            }
+            // The orders without taps, at +0: adding them once is adding
+            // them all (it only turns −0 into +0).
+            if no < ORDERS {
+                for e in e.iter_mut() {
+                    *e += 0.0;
+                }
+            }
+        }
+
+        // Late tail. A block is no longer than any line: it reads each
+        // line's outputs before any of its inputs is written.
+        for i in 0..LINES {
+            let (line, p) = (&self.lines[i], self.line_pos[i]);
+            let first = (self.line_len[i] - p).min(l);
+            sc.y[i][..first].copy_from_slice(&line[p..p + first]);
+            sc.y[i][first..l].copy_from_slice(&line[..l - first]);
+        }
+        let xb = self.pos.wrapping_sub(self.pre) & mask;
+        let x: [&[f32]; PROBES] = std::array::from_fn(|k| &self.hist[k][xb..xb + l]);
+        for i in 0..LINES {
+            let c = self.inject[i];
+            for (t, f) in sc.fb[i][..l].iter_mut().enumerate() {
+                *f = -0.0 + c[0] * x[0][t] + c[1] * x[1][t] + c[2] * x[2][t] + c[3] * x[3][t];
+            }
+        }
+        // Two-band attenuation.
+        let c = 1.0 - self.lp_a;
+        for (lp, y) in sc.lp.iter_mut().zip(&sc.y) {
+            for (lp, v) in lp[..l].iter_mut().zip(&y[..l]) {
+                *lp = c * v;
+            }
+        }
+        one_poles(&mut sc.lp, &[self.lp_a; LINES], &mut self.lp_state, l);
+        for i in 0..LINES {
+            let (gh, gd) = (self.g_hi[i], self.g_lo[i] - self.g_hi[i]);
+            for (y, lp) in sc.y[i][..l].iter_mut().zip(&sc.lp[i][..l]) {
+                *y = gh * *y + gd * lp;
+            }
+        }
+        // Householder feedback: y − (2/N)·Σy, plus the input.
+        let mut s = [-0.0f32; SEG];
+        for y in &sc.y {
+            for (s, y) in s[..l].iter_mut().zip(&y[..l]) {
+                *s += y;
+            }
+        }
+        for s in &mut s[..l] {
+            *s *= 2.0 / LINES as f32;
+        }
+        let mut fbits = 0u32;
+        for i in 0..LINES {
+            let f = &mut sc.fb[i][..l];
+            for ((f, y), s) in f.iter_mut().zip(&sc.y[i][..l]).zip(&s[..l]) {
+                *f += y - s;
+                fbits |= f.to_bits();
+            }
+            let (line, p) = (&mut self.lines[i], self.line_pos[i]);
+            let first = (self.line_len[i] - p).min(l);
+            line[p..p + first].copy_from_slice(&f[..first]);
+            line[..l - first].copy_from_slice(&f[first..]);
+        }
+        // Mutually orthogonal output mixes: the common one (row 1 of the
+        // 16 × 16 Hadamard matrix: signs (−1)^popcount(row & i)), then one
+        // per mic (rows 2, 3, …), summed over the lines in order from +0.
+        let nf = self.n_mics.max(1);
+        for (mix, &neg) in sc.mix[..=nf].iter_mut().zip(&self.mix_neg) {
+            let chunks = l.div_ceil(W);
+            let mut c = 0;
+            while c < chunks {
+                c += if chunks - c >= 4 { signed_sums::<4>(&sc.y, neg, c * W, mix) } else { signed_sums::<1>(&sc.y, neg, c * W, mix) };
+            }
+        }
+        crossovers_dyn(&sc.mix, &self.xo_a[..nf], &mut self.xo_common[..nf], &mut self.xo_own[..nf], &mut sc.tail, l);
+        for m in 0..n {
+            let (hear, og) = (self.hear[m], self.out_gain);
+            for ((y, e), tail) in mics[m][t0..t0 + l].iter_mut().zip(&sc.early[m][..l]).zip(&sc.tail[m][..l]) {
+                *y += hear * (e + og * tail);
+            }
+        }
+        self.advance(l);
+
+        let zero = |s: &[f32]| s.iter().all(|v| v.to_bits() == 0);
+        self.fdn_quiet = if fbits == 0 { self.fdn_quiet.saturating_add(l) } else { 0 };
+        self.filters_zero = zero(&self.lp_state)
+            && zero(&self.xo_common[..nf])
+            && zero(&self.xo_own[..nf])
+            && self.order_state[..self.n_mics].iter().all(|s| zero(s));
+    }
+
+    fn advance(&mut self, l: usize) {
+        self.pos = self.pos.wrapping_add(l);
+        for (p, &len) in self.line_pos.iter_mut().zip(&self.line_len) {
+            *p += l;
+            if *p >= len {
+                *p -= len;
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+fn block_avx2(room: &mut Room, mics: &mut [&mut [f32]], board: Option<&BoardFeed>, t0: usize, l: usize, n: usize, r: &[f32; MICS]) {
+    room.block(mics, board, t0, l, n, r)
+}
+
+/// The taps' sum (in their order, from +0) over K·W samples from `base`
+/// into `out`; returns K. Each sample its own accumulator.
+#[inline(always)]
+fn tap_sums<const K: usize>(taps: &[EarlyTap], hist: &[Vec<f32>; PROBES], base: usize, mask: usize, out: &mut [f32]) -> usize {
+    let mut a = [[0.0f32; W]; K];
+    for tap in taps {
+        let b = base.wrapping_sub(tap.delay) & mask;
+        let s = &hist[tap.probe][b..b + K * W];
+        for (a, s) in a.iter_mut().zip(s.as_chunks::<W>().0) {
+            for j in 0..W {
+                a[j] += tap.gain * s[j];
+            }
+        }
+    }
+    out[..K * W].copy_from_slice(a.as_flattened());
+    K
+}
+
+/// Σ ±y_i over the lines in order from +0 (minus where bit i of `neg` is
+/// set) over K·W samples from `t`, into `out`; returns K.
+#[inline(always)]
+fn signed_sums<const K: usize>(y: &[[f32; SEG]; LINES], neg: u16, t: usize, out: &mut [f32; SEG]) -> usize {
+    let mut a = [[0.0f32; W]; K];
+    for (i, y) in y.iter().enumerate() {
+        let y = &y[t..t + K * W];
+        for (a, y) in a.iter_mut().zip(y.as_chunks::<W>().0) {
+            if neg >> i & 1 != 0 {
+                for j in 0..W {
+                    a[j] += -y[j];
+                }
+            } else {
+                for j in 0..W {
+                    a[j] += y[j];
+                }
+            }
+        }
+    }
+    out[t..t + K * W].copy_from_slice(a.as_flattened());
+    K
+}
+
+/// N one-pole low-passes over the first `l` samples, in place: `u[j][t]`
+/// holds (1 − a_j)·x_j(t) and becomes s_j(t) = a_j·s_j(t − 1) + u[j][t].
+#[inline(always)]
+fn one_poles<const N: usize>(u: &mut [[f32; SEG]; N], a: &[f32; N], s: &mut [f32; N], l: usize) {
+    let mut st = *s;
+    for t in 0..l {
+        for j in 0..N {
+            st[j] = a[j] * st[j] + u[j][t];
+            u[j][t] = st[j];
+        }
+    }
+    *s = st;
+}
+
+/// The tail at each of N mics: its common part below the crossover, its
+/// own above (`mix[0]` the common mix, `mix[m + 1]` mic m's own).
+#[inline(always)]
+fn crossovers<const N: usize>(mix: &[[f32; SEG]; MICS + 1], a: &[f32; N], common: &mut [f32; N], own: &mut [f32; N], tail: &mut [[f32; SEG]; MICS], l: usize) {
+    let (mut xc, mut xo) = (*common, *own);
+    let c = a.map(|a| 1.0 - a);
+    for t in 0..l {
+        let m0 = mix[0][t];
+        for m in 0..N {
+            let mm = mix[m + 1][t];
+            xc[m] = a[m] * xc[m] + c[m] * m0;
+            xo[m] = a[m] * xo[m] + c[m] * mm;
+            tail[m][t] = xc[m] + (mm - xo[m]);
+        }
+    }
+    (*common, *own) = (xc, xo);
+}
+
+/// [`crossovers`] for as many mics as `a` has (1 to [`MICS`]).
+#[inline(always)]
+fn crossovers_dyn(mix: &[[f32; SEG]; MICS + 1], a: &[f32], common: &mut [f32], own: &mut [f32], tail: &mut [[f32; SEG]; MICS], l: usize) {
+    macro_rules! go {
+        ($($n:literal)*) => {
+            match a.len() {
+                $($n => crossovers::<$n>(mix, a.try_into().unwrap(), common.try_into().unwrap(), own.try_into().unwrap(), tail, l),)*
+                _ => {}
+            }
+        };
+    }
+    go!(1 2 3 4 5 6 7 8);
 }
 
 #[cfg(test)]
@@ -624,6 +1092,335 @@ mod tests {
         let probes = run([1.0, 1.0], [est; PROBES]);
         let mics = energy(&l[1..]) + energy(&r[1..]);
         assert!((probes / mics - 1.0).abs() < 0.2, "probes {probes:.3e}, mics {mics:.3e}");
+    }
+
+    /// The room as first written (one sample at a time, taps in their
+    /// original order): the reference the block processing must match bit
+    /// for bit. It takes its constants from a fresh [`Room`].
+    struct Frozen {
+        hist: Vec<[f32; PROBES]>,
+        pos: usize,
+        n_mics: usize,
+        taps: [[Tap; MAX_TAPS]; MICS],
+        n_taps: [usize; MICS],
+        order_lp: [f32; 8],
+        order_state: [[f32; 8]; MICS],
+        lines: Vec<Vec<f32>>,
+        line_pos: [usize; LINES],
+        line_len: [usize; LINES],
+        g_lo: [f32; LINES],
+        g_hi: [f32; LINES],
+        lp_a: f32,
+        lp_state: [f32; LINES],
+        xo_a: [f32; MICS],
+        xo_common: [f32; MICS],
+        xo_own: [f32; MICS],
+        pre: usize,
+        out_gain: f32,
+        r_direct: [f64; MICS],
+        source_gain: f32,
+        hear: [f32; MICS],
+        probe_gain: f32,
+        inject: [[f32; PROBES]; LINES],
+    }
+
+    impl Frozen {
+        fn new(r: &Room) -> Self {
+            let max_delay = r.taps.iter().flat_map(|t| t.iter()).map(|t| t.delay).max().unwrap_or(1);
+            let hist_len = (max_delay + 1).next_power_of_two();
+            Self {
+                hist: vec![[0.0; PROBES]; hist_len.max(r.pre + 1).next_power_of_two()],
+                pos: 0,
+                n_mics: r.n_mics,
+                taps: r.taps,
+                n_taps: r.n_taps,
+                order_lp: r.order_lp,
+                order_state: [[0.0; 8]; MICS],
+                lines: r.line_len.iter().map(|&n| vec![0.0; n]).collect(),
+                line_pos: [0; LINES],
+                line_len: r.line_len,
+                g_lo: r.g_lo,
+                g_hi: r.g_hi,
+                lp_a: r.lp_a,
+                lp_state: [0.0; LINES],
+                xo_a: r.xo_a,
+                xo_common: [0.0; MICS],
+                xo_own: [0.0; MICS],
+                pre: r.pre,
+                out_gain: r.out_gain,
+                r_direct: r.r_direct,
+                source_gain: r.source_gain,
+                hear: r.hear,
+                probe_gain: r.probe_gain,
+                inject: r.inject,
+            }
+        }
+
+        fn fdn_step(&mut self, x: &[f32; LINES], out: &mut [f32; MICS]) {
+            let mut y = [0.0f32; LINES];
+            for i in 0..LINES {
+                let v = self.lines[i][self.line_pos[i]];
+                self.lp_state[i] = self.lp_a * self.lp_state[i] + (1.0 - self.lp_a) * v;
+                y[i] = self.g_hi[i] * v + (self.g_lo[i] - self.g_hi[i]) * self.lp_state[i];
+            }
+            let s = y.iter().sum::<f32>() * (2.0 / LINES as f32);
+            let n = self.n_mics.max(1);
+            let mut mix = [0.0f32; MICS + 1];
+            for i in 0..LINES {
+                let fb = y[i] - s + x[i];
+                let p = self.line_pos[i];
+                self.lines[i][p] = fb;
+                self.line_pos[i] = if p + 1 == self.line_len[i] { 0 } else { p + 1 };
+                for (row, m) in mix[..=n].iter_mut().enumerate() {
+                    *m += if ((row + 1) & i).count_ones() % 2 == 0 { y[i] } else { -y[i] };
+                }
+            }
+            for m in 0..n {
+                let a = self.xo_a[m];
+                self.xo_common[m] = a * self.xo_common[m] + (1.0 - a) * mix[0];
+                self.xo_own[m] = a * self.xo_own[m] + (1.0 - a) * mix[m + 1];
+                out[m] = self.xo_common[m] + (mix[m + 1] - self.xo_own[m]);
+            }
+        }
+
+        fn process_with(&mut self, mics: &mut [&mut [f32]], board: Option<BoardFeed>) {
+            let n = self.n_mics.min(mics.len());
+            let Some(len) = mics.first().map(|m| m.len()) else { return };
+            let mask = self.hist.len() - 1;
+            let r: [f32; MICS] = std::array::from_fn(|m| self.r_direct[m] as f32 / n.max(1) as f32);
+            let (g, pg) = (self.source_gain, self.probe_gain);
+            let mut tail = [0.0f32; MICS];
+            for t in 0..len {
+                let s: [f32; PROBES] = match &board {
+                    Some(b) => {
+                        let other: f32 = (0..n).map(|m| (mics[m][t] - b.mics[m][t]) * r[m]).sum();
+                        std::array::from_fn(|k| (other + pg * b.probes[k][t]) * g)
+                    }
+                    None => [(0..n).map(|m| mics[m][t] * r[m]).sum::<f32>() * g; PROBES],
+                };
+                self.hist[self.pos & mask] = s;
+                let mut early = [0.0f32; MICS];
+                for (m, e) in early[..n].iter_mut().enumerate() {
+                    let mut by_order = [0.0f32; 8];
+                    for t in &self.taps[m][..self.n_taps[m]] {
+                        by_order[t.order] += t.gain * self.hist[(self.pos.wrapping_sub(t.delay)) & mask][t.probe];
+                    }
+                    for (n, &x) in by_order.iter().enumerate().skip(1) {
+                        let st = &mut self.order_state[m][n];
+                        *st = self.order_lp[n] * *st + (1.0 - self.order_lp[n]) * x;
+                        *e += *st;
+                    }
+                }
+                let x = self.hist[(self.pos.wrapping_sub(self.pre)) & mask];
+                let inj: [f32; LINES] = std::array::from_fn(|i| self.inject[i].iter().zip(&x).map(|(a, b)| a * b).sum());
+                self.fdn_step(&inj, &mut tail);
+                for m in 0..n {
+                    mics[m][t] += self.hear[m] * (early[m] + self.out_gain * tail[m]);
+                }
+                self.pos = self.pos.wrapping_add(1);
+            }
+        }
+    }
+
+    /// Deterministic pseudo-random numbers (xorshift64*).
+    struct Rng(u64);
+
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+
+        /// Uniform in [−1, 1).
+        fn signal(&mut self) -> f32 {
+            (self.next() >> 40) as f32 / (1u64 << 23) as f32 - 1.0
+        }
+
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n as u64) as usize
+        }
+    }
+
+    /// What the mics and the board carry over a stretch of blocks.
+    #[derive(Clone, Copy, PartialEq)]
+    enum Stretch {
+        Noise,
+        /// Every input +0.
+        Silence,
+        /// Every input −0.
+        NegativeZero,
+        /// One impulse, then silence.
+        Impulse,
+    }
+
+    fn bit_identity_configs() -> Vec<(&'static str, RoomParams, SoundboardParams, f64)> {
+        let pair = Mics::pair((0.5, 0.4, 1.5), (1.2, 0.9, 1.5));
+        let grand = SoundboardParams { mics: pair, ..SoundboardParams::GRAND_2M };
+        let upright = SoundboardParams { vertical: true, wall_distance: 0.2, a: 1.05, mics: Mics::pair((0.3, 0.4, 0.5), (0.8, 1.0, 0.5)), ..SoundboardParams::GRAND_2M };
+        let one = SoundboardParams { mics: Mics::new(&[Mic::omni((0.6, 0.5, 1.2))]), ..SoundboardParams::GRAND_2M };
+        let c = |at, a| Mic { pattern: a, ..Mic::omni(at) };
+        let eight = SoundboardParams {
+            mics: Mics::new(&[
+                c((0.5, 0.4, 1.5), 1.0),
+                c((1.2, 0.9, 1.5), 1.0),
+                c((0.5, -2.0, 2.0), 0.5),
+                c((1.2, -2.0, 2.0), 0.5),
+                c((0.3, 0.3, 0.4), 0.5),
+                c((1.6, 1.0, 0.4), 0.7),
+                c((0.8, 3.0, 2.5), 0.0),
+                c((0.8, 6.0, 3.0), 1.0),
+            ]),
+            ..SoundboardParams::GRAND_2M
+        };
+        let dead = RoomParams { size: [3.0, 2.5, 2.4], piano: [0.4, 0.3, 0.9], absorption_low: 0.9, absorption_high: 0.95, directivity: 4.0, ..RoomParams::HALL };
+        // Lines shorter than a block, taps of every order up to 7 (more
+        // than MAX_TAPS of them).
+        let tiny = RoomParams { size: [1.2, 1.0, 1.0], piano: [0.1, 0.1, 0.5], order: 7, absorption_low: 0.6, absorption_high: 0.8, ..RoomParams::HALL };
+        vec![
+            ("shipped", RoomParams::default(), SoundboardParams::DEFAULT.resolved(), 48_000.0),
+            ("hall pair", RoomParams::HALL, grand, 48_000.0),
+            ("upright", RoomParams::HALL, upright, 44_100.0),
+            ("one mic", RoomParams::CONCERT_HALL, one, 48_000.0),
+            ("eight mics", RoomParams { order: 4, ..RoomParams::HALL }, eight, 48_000.0),
+            ("dead", dead, SoundboardParams::DEFAULT.resolved(), 48_000.0),
+            ("tiny", tiny, grand, 48_000.0),
+        ]
+    }
+
+    /// Drives a room and its frozen reference with the same signals and
+    /// checks their mic buffers bit for bit after every block. `board`:
+    /// 0 none, 1 always, 2 every other block. `bufs`: how many mic buffers
+    /// are passed (the room's mics, fewer or more).
+    #[allow(clippy::too_many_arguments)]
+    fn check_bit_identity(name: &str, p: &RoomParams, sb: &SoundboardParams, sr: f64, board: usize, bufs: usize, seed: u64, isa: Isa) -> Room {
+        let mut room = Room::new(p, sb, sr);
+        room.isa = Room::runs_on(isa);
+        let mut frozen = Frozen::new(&room);
+        let mut rng = Rng(seed);
+        let lens = [1usize, 7, 63, 64, 64, 64, 32, 17, 2, 64];
+        // Long enough for the dead room to decay to exact zeros.
+        let decay = (1.2 * sr) as usize;
+        let plan = [
+            (Stretch::Silence, 1_000),
+            (Stretch::NegativeZero, 500),
+            (Stretch::Noise, 12_000),
+            (Stretch::Silence, 3_000),
+            (Stretch::Noise, 2_000),
+            (Stretch::NegativeZero, 3_000),
+            (Stretch::Noise, 500),
+            (Stretch::Impulse, decay),
+            (Stretch::NegativeZero, 1_000),
+            (Stretch::Noise, 2_000),
+            (Stretch::Silence, decay / 2),
+            (Stretch::Noise, 2_000),
+        ];
+        let max_len = 1_000;
+        let mut a: Vec<Vec<f32>> = vec![vec![0.0; max_len]; bufs];
+        let mut b: Vec<Vec<f32>> = vec![vec![0.0; max_len]; bufs];
+        let mut bm: Vec<Vec<f32>> = vec![vec![0.0; max_len]; MICS];
+        let mut pr: Vec<Vec<f32>> = vec![vec![0.0; max_len]; PROBES];
+        let mut block = 0usize;
+        for (stretch, samples) in plan {
+            let mut done = 0;
+            let mut first = true;
+            while done < samples {
+                // Mostly engine-sized blocks, now and then a longer one.
+                let len = match rng.below(40) {
+                    0 => 65 + rng.below(max_len - 65),
+                    1..=10 => 1 + rng.below(64),
+                    _ => lens[rng.below(lens.len())],
+                }
+                .min(samples - done);
+                let scale = [1.0f32, 1e-3, 1e-20, 3e-38][rng.below(4)];
+                for t in 0..len {
+                    let (zero, imp) = match stretch {
+                        Stretch::Noise => (None, false),
+                        Stretch::Silence => (Some(0.0f32), false),
+                        Stretch::NegativeZero => (Some(-0.0f32), false),
+                        Stretch::Impulse => (Some(0.0f32), first && t == 0),
+                    };
+                    for m in 0..bufs {
+                        let v = match zero {
+                            Some(z) if !imp => z,
+                            Some(_) => 1.0,
+                            None => rng.signal() * scale,
+                        };
+                        a[m][t] = v;
+                        b[m][t] = v;
+                    }
+                    for m in 0..MICS {
+                        bm[m][t] = match zero {
+                            Some(z) if !imp => z,
+                            Some(_) => 0.5,
+                            None => a.get(m).map_or(0.0, |x| x[t]) * (0.3 + 0.5 * rng.signal()),
+                        };
+                    }
+                    for k in 0..PROBES {
+                        pr[k][t] = match zero {
+                            Some(z) if !imp => z,
+                            Some(_) => 0.25 * (k as f32 - 1.5),
+                            None => rng.signal() * scale,
+                        };
+                    }
+                }
+                first = false;
+                let with_board = match board {
+                    0 => false,
+                    1 => true,
+                    _ => block.is_multiple_of(2),
+                };
+                let feed = || BoardFeed { mics: std::array::from_fn(|m| &bm[m][..len]), probes: std::array::from_fn(|k| &pr[k][..len]) };
+                {
+                    let mut ma: Vec<&mut [f32]> = a.iter_mut().map(|c| &mut c[..len]).collect();
+                    room.process_with(&mut ma, with_board.then(feed));
+                }
+                {
+                    let mut mb: Vec<&mut [f32]> = b.iter_mut().map(|c| &mut c[..len]).collect();
+                    frozen.process_with(&mut mb, with_board.then(feed));
+                }
+                for m in 0..bufs {
+                    for t in 0..len {
+                        assert_eq!(a[m][t].to_bits(), b[m][t].to_bits(), "{name}: block {block} (len {len}), mic {m}, sample {t}: {} vs {}", a[m][t], b[m][t]);
+                    }
+                }
+                done += len;
+                block += 1;
+            }
+        }
+        room
+    }
+
+    fn bit_identity(ftz: bool) {
+        let _guard = ftz.then(crate::denormal::DenormalGuard::new);
+        for isa in Isa::available() {
+            for (c, (name, p, sb, sr)) in bit_identity_configs().into_iter().enumerate() {
+                let n = sb.mics.len();
+                for board in 0..3 {
+                    let bufs = [n, n.saturating_sub(1).max(1), (n + 1).min(MICS)][(c + board) % 3];
+                    let room = check_bit_identity(name, &p, &sb, sr, board, bufs, 0x9E37_79B9_7F4A_7C15 ^ (c * 3 + board) as u64, isa);
+                    println!("{isa:?} {name}, board {board}, {bufs} buffers: {} samples at rest", room.rested);
+                    // The dead room decays to exact zeros when flushing
+                    // denormals, and rests.
+                    if ftz && name == "dead" {
+                        assert!(room.rested > 1_000, "{name} never rests");
+                    }
+                    // A fresh room rests in silence.
+                    assert!(room.rested >= 1_000 - 64, "{name}: {} samples at rest", room.rested);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn blocks_match_the_sample_by_sample_room_bit_for_bit() {
+        bit_identity(false);
+    }
+
+    #[test]
+    fn blocks_match_the_sample_by_sample_room_bit_for_bit_flushing_denormals() {
+        bit_identity(true);
     }
 
     fn check_t60(p: RoomParams) {

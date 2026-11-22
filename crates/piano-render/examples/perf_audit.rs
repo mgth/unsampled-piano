@@ -59,6 +59,13 @@ fn scenarios() -> Vec<(&'static str, Timeline, f64)> {
         pump.push(pedal(0.2 + 0.15 * i as f64, i % 2 == 1));
     }
     v.push(("30 keys, pedal pumping", pump, 5.0));
+    // Thirty keys struck in one buffer, again every 200 ms: the profile of
+    // the onset spike itself (the scenario above has a single one).
+    let mut hits = vec![pedal(0.0, true)];
+    for i in 0..20 {
+        hits.extend((0..30).map(|k| on(0.05 + 0.2 * i as f64, 30 + 2 * k, 90)));
+    }
+    v.push(("30-key chord every 200 ms", hits, 4.2));
     // Glissando up and down the keyboard, no pedal.
     let mut gl = Vec::new();
     for i in 0..88u8 {

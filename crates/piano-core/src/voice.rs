@@ -380,9 +380,17 @@ impl Voice {
                 }
                 // A string at rest under a bridge at rest (the board asleep):
                 // nothing to compute.
-                let still = u.iter().chain(&self.x2[..n]).all(|&x| x == 0.0);
+                let own = self.x2[..n].iter().any(|&x| x != 0.0);
+                let still = !own && u.iter().all(|&x| x == 0.0);
                 if !(still && self.sym.energy() < self.sym_silence) {
-                    self.sym.process_two_inputs(u, &self.x2[..n], f);
+                    if own {
+                        self.sym.process_two_inputs(u, &self.x2[..n], f);
+                    } else {
+                        // A string that has pushed nothing on the bridge (it
+                        // only listens): its own part is b2·0, which adds
+                        // nothing but a zero's sign to a state at rest.
+                        self.sym.process(Some(u), f);
+                    }
                 }
             }
             // Damped: the sympathetic part still decays freely.

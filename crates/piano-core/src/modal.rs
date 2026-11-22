@@ -305,8 +305,10 @@ impl ModalBank {
         self.acc.len()
     }
 
-    /// Also resets the group size to the best one for this ISA.
+    /// Also resets the group size to the best one for this ISA. Panics on an
+    /// ISA this CPU does not have ([`Isa::available`]).
     pub fn set_isa(&mut self, isa: Isa) {
+        assert!(Isa::available().contains(&isa), "{isa:?} is not available on this CPU");
         self.isa = isa;
         self.group = isa.best_group();
     }
