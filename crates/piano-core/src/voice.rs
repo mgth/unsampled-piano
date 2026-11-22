@@ -76,6 +76,15 @@ pub struct Voice {
     /// Samples since the hammer left the strings, for the onset ramp.
     nl_age: u32,
     nl_ramp: u32,
+    /// A string struck while it rings: its partials as they were when the
+    /// hammer arrived, running on freely. Their stretching holds through
+    /// the contact and gives way to the new partials' over the onset ramp
+    /// (cut at the strike, the tension dropped in one sample and every
+    /// longitudinal mode rang: a tick at 3–10 kHz on a repeated bass note).
+    nl_old_re: Vec<f32>,
+    nl_old_im: Vec<f32>,
+    nl_old_a: Vec<f32>,
+    nl_old: bool,
     /// The strike's strain pulses per longitudinal mode (`strike_stretch`)
     /// and the strings' Σ F² of the contact's samples.
     nl_strike: Vec<(f32, f32)>,
@@ -143,6 +152,10 @@ impl Voice {
             nl_a: vec![0.0; nl_partials],
             nl_long: vec![(0.0, 0.0); nl_long],
             nl_age: 0,
+            nl_old_re: vec![0.0; nl_partials],
+            nl_old_im: vec![0.0; nl_partials],
+            nl_old_a: vec![0.0; nl_partials],
+            nl_old: false,
             nl_strike: vec![(0.0, 0.0); nl_long],
             stretch: vec![0.0; max_block],
             // The stretching builds up while the hammer pushes: 2 ms ramp
@@ -204,6 +217,7 @@ impl Voice {
         self.lp = [0.0; 2];
         self.nl_long.fill((0.0, 0.0));
         self.nl_hp = (0.0, 0.0);
+        self.nl_old = false;
         self.struck = false;
         self.sostenuto = false;
     }
@@ -219,6 +233,12 @@ impl Voice {
     pub fn strike(&mut self, nm: &NoteModel, v: f64, oversample: usize, una_corda: f64, softening: f64, mute: f64) {
         if self.contact.is_active() {
             self.hand_over(nm);
+        }
+        // Strings still ringing: their stretching goes on under the hammer.
+        self.nl_old = false;
+        if let (true, Some(lg)) = (self.struck, nm.longitudinal.as_ref()) {
+            let s2 = nl_read(&self.bank, lg, nm.n_osc, &mut self.nl_old_re, &mut self.nl_old_im);
+            self.nl_old = lg.coupling * lg.ea4 * s2 >= self.nl_silence;
         }
         self.bank.set_active_len(nm.modes.len());
         self.struck = true;
@@ -321,6 +341,9 @@ impl Voice {
                 self.nl_strike_run(lg, from, start);
             } else {
                 start = self.contact.run(&mut self.force[from..to], agraffe);
+                if let (true, Some(lg)) = (self.nl_old, nm.longitudinal.as_ref()) {
+                    self.nl_strike_run(lg, from, start);
+                }
             }
             if !self.contact.is_active() {
                 self.hand_over(nm);
@@ -330,6 +353,9 @@ impl Voice {
         // states), for the longitudinal modes.
         let nl = nm.longitudinal.as_ref().filter(|_| self.struck && start < n);
         let nl_on = nl.is_some_and(|lg| self.nl_start(lg, nm.n_osc));
+        if nl.is_none() && start < n {
+            self.nl_old = false;
+        }
         // (During the hammer's contact the sideways motion is heard through
         // the force alone, by its direct share: a few milliseconds.)
         if start < n && !self.bank.is_empty() {
@@ -488,45 +514,55 @@ impl Voice {
     /// (and the longitudinal modes cleared) when the stretching is too small
     /// to matter.
     fn nl_start(&mut self, lg: &crate::note_model::Longitudinal, n_osc: usize) -> bool {
-        let np = lg.slope.len();
-        let mut s2 = 0.0f32;
-        for k in 0..np {
-            let (mut re, mut im) = (0.0f32, 0.0f32);
-            for m in 0..n_osc {
-                let i = k * n_osc + m;
-                let (zr, zi) = self.bank.state(i);
-                let (wr, wi) = lg.weights[i];
-                re += wr * zr as f32 - wi * zi as f32;
-                im += wr * zi as f32 + wi * zr as f32;
-            }
-            self.nl_re[k] = re;
-            self.nl_im[k] = im;
-            let a = lg.slope[k];
-            s2 += a * a * (re * re + im * im);
-        }
+        let s2 = nl_read(&self.bank, lg, n_osc, &mut self.nl_re, &mut self.nl_im);
         let long_e: f32 = self.nl_long[..lg.long_pole.len()].iter().map(|z| z.0 * z.0 + z.1 * z.1).sum();
         // Estimated board force: coupling · tension modulation (N).
-        if lg.coupling * lg.ea4 * s2 < self.nl_silence && long_e < 1e-20 * self.nl_silence {
+        if lg.coupling * lg.ea4 * s2 < self.nl_silence && long_e < 1e-20 * self.nl_silence && !self.nl_old {
             self.nl_long.fill((0.0, 0.0));
             return false;
         }
         true
     }
 
+    /// Advances the partials of before the strike by one sample, their
+    /// slopes to `nl_old_a`.
+    fn nl_old_step(&mut self, lg: &crate::note_model::Longitudinal) {
+        let np = lg.slope.len();
+        let (re, im, a) = (&mut self.nl_old_re[..np], &mut self.nl_old_im[..np], &mut self.nl_old_a[..np]);
+        let (pr, pi, sl) = (&lg.pole_re[..np], &lg.pole_im[..np], &lg.slope[..np]);
+        for k in 0..np {
+            let (x, y) = (re[k], im[k]);
+            a[k] = sl[k] * x;
+            re[k] = pr[k] * x - pi[k] * y;
+            im[k] = pr[k] * y + pi[k] * x;
+        }
+    }
+
     /// During the contact (`strike_stretch`): the strike's strain pulses
     /// drive the longitudinal modes, whose force on the bridge is added to
     /// `force[from..from + len]` (`stretch[..len]` holds Σ F²).
     fn nl_strike_run(&mut self, lg: &crate::note_model::Longitudinal, from: usize, len: usize) {
-        let nl = lg.strike_w.len();
+        let (nl, pulses) = (lg.long_pole.len(), !lg.strike_w.is_empty());
+        let np = lg.slope.len();
         for i in 0..len {
-            let s2 = self.stretch[i];
+            if self.nl_old {
+                self.nl_old_step(lg);
+            }
             let mut out = 0.0f32;
             for n in 0..nl {
-                let (jr, ji) = self.nl_strike[n];
-                let (rr, ri) = lg.strike_rot[n];
-                let j = (rr * jr - ri * ji + lg.strike_w[n] * s2, rr * ji + ri * jr);
-                self.nl_strike[n] = j;
-                let f = lg.long_gain[n] * j.0;
+                let mut f = 0.0f32;
+                if pulses {
+                    let (jr, ji) = self.nl_strike[n];
+                    let (rr, ri) = lg.strike_rot[n];
+                    let j = (rr * jr - ri * ji + lg.strike_w[n] * self.stretch[i], rr * ji + ri * jr);
+                    self.nl_strike[n] = j;
+                    f = lg.long_gain[n] * j.0;
+                }
+                // The partials of before the strike go on stretching the
+                // strings (the hammer's own part is the pulses').
+                if self.nl_old {
+                    f += lg.long_gain[n] * bracket(&self.nl_old_a[..np], n + 1);
+                }
                 let (zr, zi) = self.nl_long[n];
                 let (pr, pi) = lg.long_pole[n];
                 let z = (pr * zr - pi * zi + f, pr * zi + pi * zr);
@@ -555,7 +591,6 @@ impl Voice {
                 re[k] = pr[k] * x - pi[k] * y;
                 im[k] = pr[k] * y + pi[k] * x;
             }
-            let a_k = &self.nl_a[..np];
             let ramp = if self.nl_age < self.nl_ramp {
                 let x = self.nl_age as f32 / self.nl_ramp as f32;
                 0.5 - 0.5 * (std::f32::consts::PI * x).cos()
@@ -563,32 +598,19 @@ impl Voice {
                 1.0
             };
             self.nl_age = self.nl_age.saturating_add(1);
+            // The partials of before a re-strike give way to the new ones.
+            let old = self.nl_old && ramp < 1.0;
+            self.nl_old = old;
+            if old {
+                self.nl_old_step(lg);
+            }
+            let a_k = &self.nl_a[..np];
             let mut out = 0.0f32;
             for n in 1..=nl {
-                // Σ_{j+k=n} a_j·a_k (j, k ≥ 1) + 2·Σ_k a_k·a_{k+n}.
-                let mut sum = 0.0f32;
-                for j in 1..n.min(np + 1) {
-                    if n - j <= np {
-                        sum += a_k[j - 1] * a_k[n - j - 1];
-                    }
+                let mut f = ramp * lg.long_gain[n - 1] * bracket(a_k, n);
+                if old {
+                    f += (1.0 - ramp) * lg.long_gain[n - 1] * bracket(&self.nl_old_a[..np], n);
                 }
-                // 8 independent accumulators: vectorisable (a single float
-                // sum cannot be reordered by the compiler).
-                let mut acc = [0.0f32; 8];
-                if n < np {
-                    let (x, y) = (&a_k[..np - n], &a_k[n..np]);
-                    let ((cx, rx), (cy, ry)) = (x.as_chunks::<8>(), y.as_chunks::<8>());
-                    for (u, v) in cx.iter().zip(cy) {
-                        for l in 0..8 {
-                            acc[l] += u[l] * v[l];
-                        }
-                    }
-                    for (u, v) in rx.iter().zip(ry) {
-                        acc[0] += u * v;
-                    }
-                }
-                let diff = ((acc[0] + acc[4]) + (acc[1] + acc[5])) + ((acc[2] + acc[6]) + (acc[3] + acc[7]));
-                let mut f = ramp * lg.long_gain[n - 1] * (sum + 2.0 * diff);
                 // The strike's strain pulses hand over to the partials'.
                 if ramp < 1.0 && n <= lg.strike_w.len() {
                     let (jr, ji) = self.nl_strike[n - 1];
@@ -695,4 +717,56 @@ pub fn share_lowpass(omega: f64, sample_rate: f64) -> crate::complex::C64 {
     use crate::complex::C64;
     let a = share_coefficient(sample_rate);
     C64::new(a, 0.0) / (C64::ONE - C64::polar(1.0 - a, -omega / sample_rate))
+}
+
+/// Each partial's mean vertical displacement from the bank's states, to
+/// `re`/`im`; returns Σ slope²·|displacement|².
+fn nl_read(bank: &ModalBank, lg: &crate::note_model::Longitudinal, n_osc: usize, re_k: &mut [f32], im_k: &mut [f32]) -> f32 {
+    let np = lg.slope.len();
+    let mut s2 = 0.0f32;
+    for k in 0..np {
+        let (mut re, mut im) = (0.0f32, 0.0f32);
+        for m in 0..n_osc {
+            let i = k * n_osc + m;
+            let (zr, zi) = bank.state(i);
+            let (wr, wi) = lg.weights[i];
+            re += wr * zr as f32 - wi * zi as f32;
+            im += wr * zi as f32 + wi * zr as f32;
+        }
+        re_k[k] = re;
+        im_k[k] = im;
+        let a = lg.slope[k];
+        s2 += a * a * (re * re + im * im);
+    }
+    s2
+}
+
+/// Longitudinal mode n's bracket of the partials' slopes `a_k`:
+/// Σ_{j+k=n} a_j·a_k (j, k ≥ 1) + 2·Σ_k a_k·a_{k+n}.
+#[inline(always)]
+fn bracket(a_k: &[f32], n: usize) -> f32 {
+    let np = a_k.len();
+    let mut sum = 0.0f32;
+    for j in 1..n.min(np + 1) {
+        if n - j <= np {
+            sum += a_k[j - 1] * a_k[n - j - 1];
+        }
+    }
+    // 8 independent accumulators: vectorisable (a single float sum cannot
+    // be reordered by the compiler).
+    let mut acc = [0.0f32; 8];
+    if n < np {
+        let (x, y) = (&a_k[..np - n], &a_k[n..np]);
+        let ((cx, rx), (cy, ry)) = (x.as_chunks::<8>(), y.as_chunks::<8>());
+        for (u, v) in cx.iter().zip(cy) {
+            for l in 0..8 {
+                acc[l] += u[l] * v[l];
+            }
+        }
+        for (u, v) in rx.iter().zip(ry) {
+            acc[0] += u * v;
+        }
+    }
+    let diff = ((acc[0] + acc[4]) + (acc[1] + acc[5])) + ((acc[2] + acc[6]) + (acc[3] + acc[7]));
+    sum + 2.0 * diff
 }
