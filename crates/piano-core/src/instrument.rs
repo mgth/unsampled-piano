@@ -61,7 +61,7 @@ impl Instrument {
             .as_ref()
             .filter(|s| s.params.radiate && model.frame.enabled)
             .and_then(|s| crate::structure::FrameAdmittance::new(&model.frame, &s.params));
-        let table = PianoTable::with_resolution(&model, sb.as_ref(), modes.as_deref(), low.as_ref(), frame_y.as_ref(), sample_rate, res);
+        let mut table = PianoTable::with_resolution(&model, sb.as_ref(), modes.as_deref(), low.as_ref(), frame_y.as_ref(), sample_rate, res);
         let rendered = sb.as_ref().zip(modes.as_ref());
         let frame = rendered
             .filter(|_| model.frame.enabled)
@@ -91,6 +91,15 @@ impl Instrument {
                     let w = crate::complex::C64::new(re, im).scale(mic_gain) / d;
                     (w.re, w.im)
                 });
+            }
+        }
+        // The board's forced response at the strings' own frequencies.
+        if let Some(s) = sb.as_ref().filter(|s| s.params.forced_radiation && modes.is_some()) {
+            let freqs: Vec<Vec<f64>> = table.notes().iter().map(crate::forced::cluster_freqs).collect();
+            if let Some(delta) = crate::forced::corrections(s, &freqs, sample_rate) {
+                for (nm, d) in table.notes_mut().iter_mut().zip(&delta) {
+                    nm.forced = crate::forced::tables(nm, d, mic_gain, sample_rate);
+                }
             }
         }
         let rear = modes.as_ref().and_then(|_| crate::note_model::rear_modes(&model, sb.as_ref(), sample_rate));

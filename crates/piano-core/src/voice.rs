@@ -87,7 +87,21 @@ pub struct Voice {
     /// the longitudinal modes are not computed ([`crate::engine::Shortcuts`]).
     sym_silence: f32,
     nl_silence: f32,
+    /// The board's forced response at the strings' frequencies
+    /// (`NoteModel::forced`): per pair of microphones, a bank following
+    /// `bank`'s modes, and per microphone its part of this sub-block from
+    /// `from`. Empty until [`Self::reserve_forced`].
+    forced: Vec<ModalBank>,
+    forced_out: Vec<Vec<f32>>,
+    /// Samples the forced response has run since the hammer left the
+    /// strings: it fades in over [`FORCED_RAMP`] s (the bank's modes start
+    /// at the hand-over; a step would click).
+    forced_age: u32,
+    forced_ramp: u32,
 }
+
+/// Fade-in of the forced response after the hammer's contact (s).
+pub const FORCED_RAMP: f64 = 0.003;
 
 
 /// Ring length for the delayed signals (power of two ≥ 2·SUB_BLOCK).
@@ -138,7 +152,21 @@ impl Voice {
             nl_hp: (0.0, 0.0),
             sym_silence: crate::engine::Shortcuts::DEFAULT.sym_silence,
             nl_silence: crate::engine::Shortcuts::DEFAULT.nl_silence,
+            forced: Vec::new(),
+            forced_out: Vec::new(),
+            forced_age: 0,
+            forced_ramp: (FORCED_RAMP * sample_rate).max(1.0) as u32,
         }
+    }
+
+    /// Makes room for the board's forced response at `pairs` pairs of
+    /// microphones (an instrument with `soundboard.forced_radiation`).
+    /// Allocates; not on the audio thread.
+    pub fn reserve_forced(&mut self, pairs: usize) {
+        let (modes, block) = (self.bank.capacity(), self.force.len());
+        let rate = self.bank.sample_rate();
+        self.forced = (0..pairs).map(|_| ModalBank::new(rate, modes, block)).collect();
+        self.forced_out = vec![vec![0.0; block]; 2 * pairs];
     }
 
     /// Makes room for the bridge's rocking (an instrument with
@@ -164,6 +192,9 @@ impl Voice {
             self.bank.set_active_len(0);
         }
         self.bank.reset();
+        for (b, t) in self.forced.iter_mut().zip(&nm.forced) {
+            b.load(t);
+        }
         self.sym.load(&nm.sym_table);
         self.sym.set_active_len(nm.n_listen);
         self.sym.reset();
@@ -233,6 +264,7 @@ impl Voice {
 
     fn hand_over(&mut self, nm: &NoteModel) {
         self.nl_age = 0;
+        self.forced_age = 0;
         let n = nm.n_osc;
         for (ki, cl) in nm.clusters.iter().enumerate() {
             let zeta: [C64; MAX_OSC] =
@@ -276,6 +308,10 @@ impl Voice {
         if rocking {
             self.rock[..n].fill(0.0);
         }
+        let forced = nm.forced.len().min(self.forced.len());
+        for o in &mut self.forced_out[..2 * forced] {
+            o[..n].fill(0.0);
+        }
         let mut start = 0;
         if self.contact.is_active() {
             let agraffe = with_agraffe.then_some(&mut self.agraffe[..n]);
@@ -300,7 +336,32 @@ impl Voice {
             let agraffe = with_agraffe.then_some(&mut self.agraffe[start..n]);
             // (Lazily: without the rocking's room the slice does not exist.)
             let rock = if rocking { Some(&mut self.rock[start..n]) } else { None };
+            // The forced response from the same states (the hammer's
+            // contact, above, is left to the board).
+            for b in &mut self.forced[..forced] {
+                b.follow(&self.bank);
+            }
             self.bank.process_outputs(None, &mut self.force[from + start..to], agraffe, rock);
+            for (b, o) in self.forced[..forced].iter_mut().zip(self.forced_out.chunks_mut(2)) {
+                let (o1, o2) = o.split_at_mut(1);
+                b.process2(None, &mut o1[0][start..n], &mut o2[0][start..n]);
+            }
+            if forced > 0 && self.forced_age < self.forced_ramp {
+                let r = self.forced_ramp as f32;
+                for i in start..n {
+                    let age = self.forced_age + (i - start) as u32;
+                    if age >= self.forced_ramp {
+                        break;
+                    }
+                    let g = 0.5 - 0.5 * (std::f32::consts::PI * age as f32 / r).cos();
+                    for o in &mut self.forced_out[..2 * forced] {
+                        o[i] *= g;
+                    }
+                }
+            }
+            if forced > 0 {
+                self.forced_age = self.forced_age.saturating_add((n - start) as u32);
+            }
         }
         if let (true, Some(lg)) = (nl_on, nl) {
             self.nl_run(lg, from + start, to);
@@ -399,6 +460,18 @@ impl Voice {
             }
             for (o, lo) in out_sym[q][from..to].iter_mut().zip(&self.sym_lo[..n]) {
                 *o += w * lo;
+            }
+        }
+    }
+
+    /// Adds the forced response of the last [`Self::compute`] to the first
+    /// `mics` microphone slots, `from..to`.
+    pub fn mix_forced(&self, nm: &NoteModel, out: &mut [Vec<f32>], mics: usize, from: usize, to: usize) {
+        let n = to - from;
+        let k = (2 * nm.forced.len().min(self.forced.len())).min(mics).min(out.len());
+        for (o, f) in out[..k].iter_mut().zip(&self.forced_out) {
+            for (y, x) in o[from..to].iter_mut().zip(&f[..n]) {
+                *y += x;
             }
         }
     }

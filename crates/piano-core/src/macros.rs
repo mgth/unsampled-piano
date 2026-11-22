@@ -128,6 +128,9 @@ impl PianoModel {
         m.losses.b2 *= s;
         m.losses.b2_top *= s;
         m.losses.b2_high *= s;
+        m.losses.air_scale *= s;
+        m.losses.delta_ve *= s;
+        m.losses.q_te *= s;
         if let Some(sb) = m.soundboard.as_mut() {
             sb.edge_loss *= s;
         }

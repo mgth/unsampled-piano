@@ -206,6 +206,71 @@ pub struct LossLaw {
     /// strings of a real grand ring on with less (docs/body.md).
     pub b2_high: f64,
     pub b2_high_from: u8,
+    /// The losses a steel string has, in place of the `b2` frequency term
+    /// and its zones: Valette & Cuesta's law (Mecanique de la corde
+    /// vibrante, 1993), in the form Issanchou et al. give it (JSV 393, 2017,
+    /// eq. 12): Q^-1 = Q_air^-1 + Q_ve^-1 + Q_te^-1, sigma = pi f Q^-1, from
+    /// each string's diameter, mass, tension and stiffness. `b1` keeps the
+    /// fundamental: the law adds what it gives at f over what it gives at
+    /// the key's fundamental ([`Self::sigma_on`]). Off: `b2` as it was.
+    pub physical: bool,
+    /// Scale on the air friction term, 1: the cylinder in a viscous fluid.
+    pub air_scale: f64,
+    /// Viscoelastic loss angle of the steel's bending, times the share of
+    /// the partial's energy held in bending (about B k^2).
+    pub delta_ve: f64,
+    /// Constant loss factor Q_te^-1 (thermoelastic and dislocations).
+    pub q_te: f64,
+}
+
+/// What a string's own losses ([`LossLaw::physical`]) need to know of it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StringGeometry {
+    /// Fundamental and inharmonicity of the vibrating length.
+    pub f0: f64,
+    pub b: f64,
+    /// Linear mass (kg/m).
+    pub mu: f64,
+    /// Outer diameter (m): the core's on a plain string, over the winding
+    /// on a wound one.
+    pub d_outer: f64,
+    /// The key's fundamental, where `b1` holds.
+    pub f_ref: f64,
+}
+
+/// Air: dynamic viscosity (kg/(m s)) and density (kg/m^3), Issanchou et al.'s.
+pub const AIR_VISCOSITY: f64 = 1.8e-5;
+pub const AIR_DENSITY: f64 = 1.2;
+const STEEL_DENSITY: f64 = 7850.0;
+const COPPER_DENSITY: f64 = 8900.0;
+
+impl StringGeometry {
+    /// A key's speaking length. The core diameter follows from B (B = pi^3
+    /// E d^4 / (64 T L^2)); mass beyond the steel core's is taken as one
+    /// layer of copper wire wound touching, of diameter w: per metre of
+    /// string, rho_cu (pi w^2 / 4) pi (d + w) / w of wire, so d_outer = d + 2w.
+    pub fn of(np: &NoteParams, young: f64) -> Self {
+        use std::f64::consts::PI;
+        let d4 = 64.0 * np.b * np.tension * np.length * np.length / (PI.powi(3) * young);
+        let d = d4.max(0.0).sqrt().sqrt();
+        let core = STEEL_DENSITY * PI * d * d / 4.0;
+        // Only a clear excess is a winding (plain strings' tabulated mass
+        // and the B-derived core agree within a few per cent).
+        let extra = np.mu - core;
+        let d_outer = if extra > 0.1 * core {
+            let c = 4.0 * extra / (COPPER_DENSITY * PI * PI);
+            let w = 0.5 * (-d + (d * d + 4.0 * c).sqrt());
+            d + 2.0 * w
+        } else {
+            d
+        };
+        Self { f0: np.f0, b: np.b, mu: np.mu, d_outer, f_ref: np.f0 }
+    }
+
+    /// The same wire over another length `l` (the part behind the bridge).
+    pub fn with_length(self, from: f64, l: f64) -> Self {
+        Self { f0: self.f0 * from / l, b: self.b * (from / l).powi(2), ..self }
+    }
 }
 
 
@@ -213,7 +278,7 @@ impl LossLaw {
     /// Early ("prompt") decay of single partials, Salamander survey. A single
     /// string per note cannot reproduce the two-stage decay (Phase 2).
     pub const SALAMANDER_EARLY: Self =
-        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108, winding: 0.0, winding_until: 40, b2_top: 0.0, b2_top_from: 84, b2_high: 0.0, b2_high_from: 96 };
+        Self { b1_slope: 0.0493, b1_offset: -1.737, b2: 2.26e-7, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 108, winding: 0.0, winding_until: 40, b2_top: 0.0, b2_top_from: 84, b2_high: 0.0, b2_high_from: 96, physical: false, air_scale: 1.0, delta_ve: 4.5e-3, q_te: 2.03e-4 };
     /// Intrinsic string losses: law of the ESPRIT aftersound (no bridge
     /// losses), scaled down by the decay calibration of the full instrument
     /// (tools/decay_grid.py): the raw fit (R² 0.31) overestimated them. b1
@@ -234,7 +299,7 @@ impl LossLaw {
     /// darker than the others, left the bass's 1–8 kHz sustain bands under
     /// eight real grands (docs/bench.md, 2026-10-30).
     pub const SALAMANDER_STRING: Self =
-        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 1e-4, winding_until: 40, b2_top: 0.0, b2_top_from: 84, b2_high: 0.0, b2_high_from: 96 };
+        Self { b1_slope: 0.055, b1_offset: -5.1, b2: 6.0e-8, b1_floor: 0.0, wound_until: 48, top_slope: 0.0, top_from: 84, winding: 1e-4, winding_until: 40, b2_top: 0.0, b2_top_from: 84, b2_high: 0.0, b2_high_from: 96, physical: false, air_scale: 1.0, delta_ve: 4.5e-3, q_te: 2.03e-4 };
 
     /// The frequency term's coefficient on a key: `b2`, on its way to
     /// `b2_top` over the octave below `b2_top_from`, then to `b2_high` over
@@ -259,6 +324,47 @@ impl LossLaw {
             + (self.b1_slope * note as f64 + self.b1_offset + top).exp()
             + self.b2_at(note) * freq * freq
             + 0.5 * self.winding * double * std::f64::consts::TAU * freq
+    }
+
+    /// The decay rate of a partial at `freq` on the string `s`: [`Self::sigma`]
+    /// when `physical` is off. On, the `b2` term (and its zones) is frozen at
+    /// the key's fundamental, where with `b1` it was set (partial 1 keeps
+    /// today's rate: `b1` and `b2 f0^2` hold the fundamental, air and all),
+    /// and what the string's own losses add between that fundamental and
+    /// `freq` takes the place of its growth above it.
+    pub fn sigma_on(&self, note: u8, freq: f64, s: &StringGeometry) -> f64 {
+        if !self.physical {
+            return self.sigma(note, freq);
+        }
+        let wound = ((self.wound_until as f64 + 12.0 - note as f64) / 12.0).clamp(0.0, 1.0);
+        let top = self.top_slope * (note as f64 - self.top_from as f64).max(0.0);
+        let double = ((self.winding_until as f64 - note as f64) / (self.winding_until as f64 - 21.0).max(1.0)).clamp(0.0, 1.0);
+        let [a1, v1, t1] = self.string_parts(freq, s);
+        let [a0, v0, t0] = self.string_parts(s.f_ref, s);
+        self.b1_floor * wound
+            + (self.b1_slope * note as f64 + self.b1_offset + top).exp()
+            + self.b2_at(note) * s.f_ref * s.f_ref
+            + ((a1 + v1 + t1) - (a0 + v0 + t0)).max(0.0)
+            + 0.5 * self.winding * double * std::f64::consts::TAU * freq
+    }
+
+    /// The physical law's three amplitude decay rates (1/s) at `freq`: air
+    /// friction, viscoelastic bending, constant loss factor. Air: sigma =
+    /// R / (2 mu), R = 2 pi eta + 2 pi d sqrt(pi eta rho f) (Valette &
+    /// Cuesta, as Issanchou et al. eq. 12 give it). Viscoelastic: Q^-1 =
+    /// delta_ve times the bending share of the energy, x / (1 + x) with
+    /// x (1 + x) = B f^2 / f0^2 (x = B n^2 for partial n): to first order
+    /// Valette's 4 pi^2 mu E I delta_ve f^2 / T^2.
+    pub fn string_parts(&self, freq: f64, s: &StringGeometry) -> [f64; 3] {
+        use std::f64::consts::PI;
+        let f = freq.max(0.0);
+        let r = 2.0 * PI * AIR_VISCOSITY + 2.0 * PI * s.d_outer * (PI * AIR_VISCOSITY * AIR_DENSITY * f).sqrt();
+        let air = self.air_scale * r / (2.0 * s.mu.max(1e-9));
+        let y = s.b * (f / s.f0.max(1e-9)).powi(2);
+        let x = 0.5 * ((1.0 + 4.0 * y).sqrt() - 1.0);
+        let ve = PI * f * self.delta_ve * x / (1.0 + x);
+        let te = PI * f * self.q_te;
+        [air, ve, te]
     }
 }
 
@@ -325,6 +431,19 @@ pub struct UnisonLaw {
     /// one point (docs/steinway_d_gaps.md, "The strings of a unison struck
     /// apart").
     pub strike_spread: f64,
+    /// Relative spread (rms) of the inharmonicity B between the strings of a
+    /// unison (0: one B for all, and any preset saved before). Each string
+    /// takes B·(1 + b_spread·u_j), u_j fixed per key and string, of zero mean
+    /// and unit rms within the unison, the same at every build; its first
+    /// partial stays where the tuning puts it (the tuner clears the low
+    /// beats). A real unison's wires differ: B ∝ d²/L⁴ once tuned, so 0.5 %
+    /// on the diameter is 1 % on B, and the bridge crossing the strings
+    /// obliquely gives the wires of one key lengths a few millimetres apart,
+    /// 4·ΔL/L on B (3–4 % at C5, 10 % and more at C7). With one B the
+    /// strings' partials split exactly k times the fundamental's split; with
+    /// their own B the split of a high partial is its own (docs/sustain.md,
+    /// "The treble's two stages").
+    pub b_spread: f64,
 }
 
 impl UnisonLaw {
@@ -342,7 +461,7 @@ impl UnisonLaw {
     /// at A5 left its tail beating at −21 dB re the attack from 0.6 to 2 s
     /// (real grands −27 to −33); t⁴ gives A5 1.3 cents, keeps C8's 5
     /// (docs/treble_tail.md).
-    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, width_curve: 4.0, width_bass: 0.0, width_bass_until: 47, hit_spread: 0.3, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0, strike_spread: 0.0 };
+    pub const GRAND: Self = Self { bichord_from: 28, trichord_from: 45, width_mid: 1.0, width_treble: 5.0, width_curve: 4.0, width_bass: 0.0, width_bass_until: 47, hit_spread: 0.3, soft_exponent: 1.0, soft_speed: 2.75, height_spread: 1e-4, load_ramp: 36.0, strike_spread: 0.0, b_spread: 0.0 };
     /// Never let strings coincide exactly (degenerate coupled subspace).
     const MIN_SPREAD: f64 = 0.02;
 
@@ -448,6 +567,30 @@ impl UnisonLaw {
         let mut out = [0.0; 3];
         for s in 0..n {
             out[s] = self.strike_spread * (u[s] - mean) / rms;
+        }
+        out
+    }
+
+    /// Each string's inharmonicity relative to the key's, 1 + b_spread·u_j:
+    /// u_j of zero mean and unit rms within the unison, fixed per key and
+    /// string. All 1 for a single string or with no spread.
+    pub fn b_factors(&self, note: u8) -> [f64; 3] {
+        let n = self.strings(note);
+        if n < 2 || self.b_spread == 0.0 {
+            return [1.0; 3];
+        }
+        let mut u = [0.0; 3];
+        for (s, x) in u.iter_mut().enumerate().take(n) {
+            *x = splitmix_unit(0x4249_4E48_0000_0000 ^ ((note as u64) << 8 | s as u64));
+        }
+        let mean = u[..n].iter().sum::<f64>() / n as f64;
+        let rms = (u[..n].iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n as f64).sqrt();
+        let mut out = [1.0; 3];
+        if rms < 1e-6 {
+            return out;
+        }
+        for s in 0..n {
+            out[s] = (1.0 + self.b_spread * (u[s] - mean) / rms).max(0.1);
         }
         out
     }
@@ -693,6 +836,33 @@ pub struct DamperLaw {
     /// A released note keeps a slow tail 25–40 dB down, as on a Disklavier
     /// grand (docs/release.md).
     pub horizontal: f64,
+    /// The felt grips the fast motions harder than the slow ones. On a
+    /// Disklavier grand the partials above 600 Hz of C3–G4 lose 30–35 dB
+    /// 100–250 ms after the key-up, whatever their polarisation and
+    /// wherever their nodes lie, while the fundamentals of C3–F#4 lose
+    /// 16–22 dB. Here the residue above 600 Hz is the sideways modes
+    /// (`horizontal`) and the partials with a node near the pad
+    /// (`node_floor`); one share for every partial left 15 dB too much
+    /// above 600 Hz, or took 10 dB too much below it. On: a partial at f
+    /// gets the sideways share and the floor
+    /// `horizontal` + (`horizontal_high` − `horizontal`)·r and
+    /// `node_floor` + (`node_floor_high` − `node_floor`)·r,
+    /// r = x⁴/(1 + x⁴), x = f / `grip_corner`: the response of a damper
+    /// head riding on its felt, which follows the string below the
+    /// resonance of the two and stands still above it, the felt then
+    /// working whole (Re Z ∝ (f/f₀)⁴ below it). The corner and the shares
+    /// are fitted to the recorded releases, not derived. The rise fades out
+    /// under the bass wedges (`wedges`), which stop every partial at one
+    /// rate. Off by default,
+    /// and in a preset saved before it existed: `horizontal` and
+    /// `node_floor` on every partial.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub grip_rise: bool,
+    /// Sideways share and floor tended to well above the corner.
+    pub horizontal_high: f64,
+    pub node_floor_high: f64,
+    /// Frequency (Hz) at which the shares have risen half way.
+    pub grip_corner: f64,
     /// Wedge felts in the bass: its dampers sit astride a single string or
     /// between the two of a bichord, where the flat pads above rest on top
     /// of theirs. Under a wedge every partial stops at one rate: on a
@@ -782,6 +952,10 @@ impl DamperLaw {
         strength_slope: 0.0,
         contact_exponent: 1.5,
         horizontal: 0.03,
+        grip_rise: false,
+        horizontal_high: 1.0,
+        node_floor_high: 0.5,
+        grip_corner: 500.0,
         wedges: false,
         wedge_until: 35,
         wedge_strength: 0.06,
@@ -819,6 +993,39 @@ impl DamperLaw {
         } else {
             (1.0 - (note - self.wedge_until) as f64 / 12.0).max(0.0)
         }
+    }
+
+    /// How far a partial at `freq` (Hz) has risen from the low shares to
+    /// the high ones ([`Self::grip_rise`]) under a felt that is a wedge by
+    /// the share `wedge` ([`Self::wedge`]): 0 without it. A wedge stops
+    /// every partial at one rate (partials 1–8 of A0–B1 on the Disklavier
+    /// grand), so the rise fades out under it.
+    fn grip(&self, freq: f64, wedge: f64) -> f64 {
+        if !self.grip_rise {
+            return 0.0;
+        }
+        let x4 = (freq / self.grip_corner.max(1e-6)).powi(4);
+        x4 / (1.0 + x4) * (1.0 - wedge.clamp(0.0, 1.0))
+    }
+
+    /// Share of the rate the sideways motion of a partial at `freq` (Hz)
+    /// gets: `horizontal`, rising towards `horizontal_high` with
+    /// `grip_rise`, under a felt that is a wedge by the share `wedge`.
+    pub fn horizontal_at(&self, freq: f64, wedge: f64) -> f64 {
+        if !self.grip_rise {
+            return self.horizontal;
+        }
+        self.horizontal + (self.horizontal_high - self.horizontal) * self.grip(freq, wedge)
+    }
+
+    /// `node_floor` for a partial at `freq` (Hz), rising towards
+    /// `node_floor_high` with `grip_rise`, under a felt that is a wedge by
+    /// the share `wedge`.
+    pub fn node_floor_at(&self, freq: f64, wedge: f64) -> f64 {
+        if !self.grip_rise {
+            return self.node_floor;
+        }
+        self.node_floor + (self.node_floor_high - self.node_floor) * self.grip(freq, wedge)
     }
 
     /// Contact (0 lifted … 1 resting) imposed by the sustain pedal alone.
@@ -878,11 +1085,21 @@ impl DamperLaw {
 
     /// [`Self::shape_under`] for a pad `width` long ([`Self::pad`]).
     pub fn shape_of(&self, width: f64, k: u32, place: f64, length: f64, wedge: f64) -> f64 {
+        self.shape_with(self.node_floor, width, k, place, length, wedge)
+    }
+
+    /// [`Self::shape_of`] for partial k at `freq` (Hz), its floor rising
+    /// with `grip_rise` ([`Self::node_floor_at`]).
+    pub fn shape_at(&self, width: f64, k: u32, place: f64, length: f64, wedge: f64, freq: f64) -> f64 {
+        self.shape_with(self.node_floor_at(freq, wedge), width, k, place, length, wedge)
+    }
+
+    fn shape_with(&self, node_floor: f64, width: f64, k: u32, place: f64, length: f64, wedge: f64) -> f64 {
         let a = k as f64 * std::f64::consts::PI * width / length;
         let sinc = if a > 1e-9 { a.sin() / a } else { 1.0 };
         let pad = 0.5 - 0.5 * (2.0 * k as f64 * std::f64::consts::PI * place).cos() * sinc;
         // ⟨sin²⟩ peaks at 1: the floor is a share of a fully exposed partial.
-        let floor = if wedge > 0.0 { self.node_floor + (1.0 - self.node_floor) * wedge } else { self.node_floor };
+        let floor = if wedge > 0.0 { node_floor + (1.0 - node_floor) * wedge } else { node_floor };
         floor + (1.0 - floor) * pad
     }
 
@@ -1949,6 +2166,26 @@ mod tests {
     }
 
     #[test]
+    fn the_strings_of_a_unison_have_their_own_inharmonicity() {
+        let off = UnisonLaw::GRAND;
+        assert!((21..=108u8).all(|n| off.b_factors(n) == [1.0; 3]));
+        let on = UnisonLaw { b_spread: 0.02, ..off };
+        for n in 21..=108u8 {
+            let b = on.b_factors(n);
+            let k = on.strings(n);
+            if k == 1 {
+                assert_eq!(b, [1.0; 3]);
+                continue;
+            }
+            let mean = b[..k].iter().sum::<f64>() / k as f64;
+            let rms = (b[..k].iter().map(|x| (x - 1.0).powi(2)).sum::<f64>() / k as f64).sqrt();
+            assert!((mean - 1.0).abs() < 1e-12 && (rms - 0.02).abs() < 1e-12, "{n}: {b:?}");
+            assert_eq!(b, on.b_factors(n));
+        }
+        assert_ne!(on.b_factors(72), on.b_factors(73));
+    }
+
+    #[test]
     fn the_sideways_slope_stays_between_its_limits() {
         let law = PolarizationLaw { h_coupling: 0.03, cross: 0.0, slope: 1.0, slope_from: 261.63, slope_to: 523.26, ..PolarizationLaw::OFF };
         let v = crate::complex::C64::new(1.0, 0.0);
@@ -2154,5 +2391,150 @@ mod b2_top_tests {
         // the frequency term follows it
         let f = 2000.0;
         assert!((l.sigma(96, f) - l.sigma(60, f) - ((2.0e-7 - 6.0e-8) * f * f + (l.sigma(96, 0.0) - l.sigma(60, 0.0)))).abs() < 1e-9);
+    }
+}
+
+#[cfg(test)]
+mod physical_loss_tests {
+    use super::*;
+
+    /// A plain steel string of diameter `d` (m) at C4's pitch and stiffness.
+    fn steel(d: f64) -> StringGeometry {
+        let mu = 7850.0 * std::f64::consts::PI * d * d / 4.0;
+        StringGeometry { f0: 261.6, b: 3.4e-4, mu, d_outer: d, f_ref: 261.6 }
+    }
+
+    #[test]
+    fn switch_off_leaves_sigma_as_it_was() {
+        let model = PianoModel::default();
+        let mut l = LossLaw { b2: 1.0e-7, b2_top: 3.9e-7, b2_top_from: 60, b2_high: 1.0e-7, b2_high_from: 96, b1_floor: 0.1, wound_until: 41, ..LossLaw::SALAMANDER_STRING };
+        // The physical constants do nothing while it is off.
+        l.delta_ve = 0.1;
+        l.q_te = 1e-2;
+        l.air_scale = 7.0;
+        for note in (21..=108).step_by(5) {
+            let g = StringGeometry::of(&model.note(note), model.nonlinear.young);
+            for f in [30.0, 261.6, 1000.0, 3000.0, 6000.0, 12000.0] {
+                assert_eq!(l.sigma_on(note, f, &g).to_bits(), l.sigma(note, f).to_bits());
+            }
+        }
+    }
+
+    #[test]
+    fn air_term_is_a_few_db_per_second_and_grows_like_sqrt_f() {
+        let l = LossLaw { physical: true, ..LossLaw::SALAMANDER_STRING };
+        let s = steel(1.0e-3);
+        let db = |sigma: f64| 20.0 * std::f64::consts::LOG10_E * sigma;
+        let [air, _, _] = l.string_parts(4000.0, &s);
+        assert!(db(air) > 1.0 && db(air) < 6.0, "air {} dB/s at 4 kHz", db(air));
+        let [air16, _, _] = l.string_parts(16000.0, &s);
+        let r = air16 / air;
+        assert!(r > 1.7 && r < 2.0, "x4 in f: x{r} (sqrt f, minus the constant part)");
+        // Thinner strings (same steel) lose more to the air.
+        let [thin, _, _] = l.string_parts(4000.0, &steel(0.8e-3));
+        assert!(thin > air);
+    }
+
+    #[test]
+    fn viscoelastic_term_follows_valette_and_its_bending_share() {
+        let l = LossLaw { physical: true, ..LossLaw::SALAMANDER_STRING };
+        let s = steel(1.0e-3);
+        let pi = std::f64::consts::PI;
+        // Low partials: Q^-1 = delta_ve B n^2, Valette's 4 pi^2 mu E I delta f^2 / T^2.
+        let f = 1000.0;
+        let [_, ve, _] = l.string_parts(f, &s);
+        let first_order = pi * f * l.delta_ve * s.b * (f / s.f0).powi(2);
+        assert!((ve / first_order - 1.0).abs() < 0.02, "{ve} against {first_order}");
+        // Roughly f^3 while the bending share is small, bounded by pi f delta.
+        let [_, ve2, _] = l.string_parts(2.0 * f, &s);
+        assert!(ve2 / ve > 7.0 && ve2 / ve < 8.0, "{}", ve2 / ve);
+        let [_, far, _] = l.string_parts(1e6, &s);
+        assert!(far < pi * 1e6 * l.delta_ve);
+        // A 1 mm string at 4 kHz: tens of dB/s with the guitar string's angle.
+        let [_, ve4, te4] = l.string_parts(4000.0, &s);
+        let db = |sigma: f64| 20.0 * std::f64::consts::LOG10_E * sigma;
+        assert!(db(ve4) > 10.0 && db(ve4) < 60.0, "{}", db(ve4));
+        // The constant loss factor: pi f Q^-1, 22 dB/s at 4 kHz for 2.03e-4.
+        assert!((db(te4) - 22.2).abs() < 0.5, "{}", db(te4));
+        let [_, _, te8] = l.string_parts(8000.0, &s);
+        assert!((te8 / te4 - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn switch_on_keeps_the_fundamental_and_drops_the_growth_of_b2() {
+        let model = PianoModel::default();
+        let l = LossLaw { physical: true, b2: 1.0e-7, b2_top: 3.9e-7, b2_top_from: 60, delta_ve: 0.0, q_te: 1.0e-4, ..LossLaw::SALAMANDER_STRING };
+        for note in [30u8, 60, 84, 100] {
+            let np = model.note(note);
+            let g = StringGeometry::of(&np, model.nonlinear.young);
+            // Partial 1 keeps today's rate.
+            let today = l.sigma(note, np.f0);
+            assert!((l.sigma_on(note, np.f0, &g) - today).abs() < 1e-12 * today.max(1.0));
+            let mut last = today;
+            for f in [500.0, 1000.0, 2000.0, 4000.0, 8000.0].into_iter().filter(|&f| f > np.f0) {
+                let s = l.sigma_on(note, f, &g);
+                assert!(s > last, "{note} at {f} Hz: {s}");
+                last = s;
+            }
+        }
+        // At C4, 6 kHz: some 20 dB/s with q_te 1e-4, where b2_top 3.9e-7 gave 120.
+        let np = model.note(60);
+        let g = StringGeometry::of(&np, model.nonlinear.young);
+        let db = 20.0 * std::f64::consts::LOG10_E * l.sigma_on(60, 6000.0, &g);
+        assert!(db > 12.0 && db < 30.0, "{db}");
+    }
+
+    #[test]
+    fn geometry_finds_the_core_and_the_winding() {
+        let model = PianoModel::default();
+        let c4 = StringGeometry::of(&model.note(60), model.nonlinear.young);
+        assert!(c4.d_outer > 0.7e-3 && c4.d_outer < 1.3e-3, "C4 {} mm", c4.d_outer * 1e3);
+        let a0 = model.note(21);
+        let g = StringGeometry::of(&a0, model.nonlinear.young);
+        let d4 = 64.0 * a0.b * a0.tension * a0.length * a0.length / (std::f64::consts::PI.powi(3) * model.nonlinear.young);
+        let core = d4.sqrt().sqrt();
+        assert!(g.d_outer > 2.0 * core && g.d_outer < 9e-3, "A0 core {} mm, outer {} mm", core * 1e3, g.d_outer * 1e3);
+        // The rear length: same wire, its own fundamental.
+        let r = c4.with_length(model.note(60).length, 0.1);
+        assert_eq!(r.d_outer, c4.d_outer);
+        assert!(r.f0 > c4.f0 && r.f_ref == c4.f_ref);
+    }
+}
+
+#[cfg(test)]
+mod grip_rise_tests {
+    use super::DamperLaw;
+
+    #[test]
+    fn off_gives_the_plain_values() {
+        let d = DamperLaw { grip_rise: false, horizontal_high: 1.0, node_floor_high: 0.5, grip_corner: 650.0, ..DamperLaw::GRAND };
+        for f in [100.0, 650.0, 5000.0] {
+            for w in [0.0, 0.5, 1.0] {
+                assert_eq!(d.horizontal_at(f, w), d.horizontal);
+                assert_eq!(d.node_floor_at(f, w), d.node_floor);
+            }
+        }
+    }
+
+    #[test]
+    fn on_rises_with_frequency_and_not_under_a_full_wedge() {
+        let d = DamperLaw { grip_rise: true, horizontal_high: 1.0, node_floor_high: 0.5, grip_corner: 650.0, ..DamperLaw::GRAND };
+        assert!(d.horizontal < d.horizontal_high && d.node_floor < d.node_floor_high, "test needs rising targets");
+        let (mut h, mut n) = (d.horizontal, d.node_floor);
+        for f in [200.0, 650.0, 1500.0, 5000.0] {
+            let (h1, n1) = (d.horizontal_at(f, 0.0), d.node_floor_at(f, 0.0));
+            assert!(h1 > h && n1 > n, "{f} Hz");
+            (h, n) = (h1, n1);
+        }
+        // Half way at the corner, near the high values well above it.
+        let half = d.horizontal + 0.5 * (d.horizontal_high - d.horizontal);
+        assert!((d.horizontal_at(650.0, 0.0) - half).abs() < 1e-12);
+        assert!((d.node_floor_at(20000.0, 0.0) - d.node_floor_high).abs() < 1e-3);
+        // Under a full wedge every partial keeps the plain values.
+        assert_eq!(d.horizontal_at(5000.0, 1.0), d.horizontal);
+        assert_eq!(d.node_floor_at(5000.0, 1.0), d.node_floor);
+        // Half a wedge, half the rise.
+        let full = d.horizontal_at(5000.0, 0.0) - d.horizontal;
+        assert!((d.horizontal_at(5000.0, 0.5) - d.horizontal - 0.5 * full).abs() < 1e-12);
     }
 }

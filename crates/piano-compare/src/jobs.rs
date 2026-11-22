@@ -19,6 +19,9 @@ pub struct Job {
     pub velocity: u8,
     /// Key released this many seconds after the onset.
     pub held: Option<f64>,
+    /// The model's render released at [`model::RELEASE_HOLD`]: only the
+    /// release measures are read on it.
+    pub release: bool,
 }
 
 pub enum Done {
@@ -133,7 +136,7 @@ fn worker(s: &Shared, render: bool) {
 fn do_render(s: &Shared, job: Job) -> Done {
     let spec = s.spec.as_ref().expect("render without a model");
     let r = s.renderer.get_or_init(|| Renderer::new(spec));
-    let ch = r.note(job.midi, job.velocity);
+    let ch = if job.release { r.note_released(job.midi, job.velocity) } else { r.note(job.midi, job.velocity) };
     match model::write_wav(&job.path, &ch) {
         Ok(()) => Done::Rendered { job },
         Err(error) => Done::Failed { job, error },
@@ -147,7 +150,7 @@ fn do_analyse(job: Job) -> Done {
     };
     match piano_analysis::io::read_channels(&job.path) {
         Ok((ch, sr)) => {
-            let analysis = measure::analyse(&ch, sr, job.midi, job.held);
+            let analysis = if job.release { measure::analyse_release(&ch, sr, model::RELEASE_HOLD) } else { measure::analyse(&ch, sr, job.midi, job.held) };
             Done::Measured { job, stamp, analysis }
         }
         Err(e) => Done::Failed { error: e.to_string(), job },

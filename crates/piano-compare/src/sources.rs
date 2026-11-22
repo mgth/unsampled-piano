@@ -36,22 +36,34 @@ pub struct Source {
 
 impl Source {
     pub fn scan(&mut self) {
-        self.files.clear();
-        let Ok(rd) = std::fs::read_dir(&self.dir) else { return };
-        for e in rd.flatten() {
-            let p = e.path();
-            let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
-            if !matches!(ext, "wav" | "flac") {
-                continue;
-            }
-            let Some(stem) = p.file_stem().and_then(|s| s.to_str()) else { continue };
-            let Some((n, l)) = stem.rsplit_once('v') else { continue };
-            if let (Some(m), Ok(l)) = (piano_analysis::io::parse_note_name(n), l.parse::<u8>())
-                && (LOW..=HIGH).contains(&m) && LAYERS.iter().any(|x| x.0 == l) {
-                    self.files.insert((m, l), p);
-                }
-        }
+        self.files = scan_dir(&self.dir);
     }
+
+    /// Its recordings release the key within the file, early enough for the
+    /// release measures (Liang, MAPS): they judge the model's release.
+    pub fn releases(&self) -> bool {
+        self.role != Role::Model && self.held.is_some_and(|h| h <= crate::measure::RELEASE_HELD_MAX)
+    }
+}
+
+/// The notes of a folder: (midi, layer) → file.
+pub fn scan_dir(dir: &Path) -> BTreeMap<(u8, u8), PathBuf> {
+    let mut files = BTreeMap::new();
+    let Ok(rd) = std::fs::read_dir(dir) else { return files };
+    for e in rd.flatten() {
+        let p = e.path();
+        let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
+        if !matches!(ext, "wav" | "flac") {
+            continue;
+        }
+        let Some(stem) = p.file_stem().and_then(|s| s.to_str()) else { continue };
+        let Some((n, l)) = stem.rsplit_once('v') else { continue };
+        if let (Some(m), Ok(l)) = (piano_analysis::io::parse_note_name(n), l.parse::<u8>())
+            && (LOW..=HIGH).contains(&m) && LAYERS.iter().any(|x| x.0 == l) {
+                files.insert((m, l), p);
+            }
+    }
+    files
 }
 
 pub fn note_name(m: u8) -> String {

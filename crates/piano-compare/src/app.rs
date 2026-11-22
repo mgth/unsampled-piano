@@ -8,9 +8,9 @@ use crate::measure::{self, Analysis, Id, DEFS, PARTIALS};
 use crate::model::{self, ModelSpec};
 use crate::plot::{self, Frame, Series, AXIS, RIGHT};
 use crate::settings::{self, Settings};
-use crate::sources::{is_black, note_name, parse_key, parse_layer, Role, Source, HIGH, LAYERS, LOW};
+use crate::sources::{is_black, note_name, parse_key, parse_layer, scan_dir, Role, Source, HIGH, LAYERS, LOW};
 use egui::{Align2, Color32, FontId, Key, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Ui, Vec2};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -26,6 +26,12 @@ pub struct App {
     model: Option<usize>,
     spec: Option<Arc<ModelSpec>>,
     results: HashMap<(usize, u8, u8), Analysis>,
+    /// The model's renders released at 2 s, and their release measures.
+    release_files: BTreeMap<(u8, u8), PathBuf>,
+    release_results: HashMap<(u8, u8), Analysis>,
+    /// The pianos that judge the release measures (those whose notes release
+    /// the key within the file), in place of band 1.
+    release_band: Vec<bool>,
     failed: HashMap<(usize, u8, u8), String>,
     rendering: HashSet<(u8, u8)>,
     workers: Workers,
@@ -167,6 +173,7 @@ impl App {
             }
         }
         let workers = Workers::start(ctx.clone(), spec.clone(), analysers, renderers);
+        let release_files = spec.as_ref().map(|s| scan_dir(&s.release_dir)).unwrap_or_default();
         let cache = Cache::open(cache_file);
         let n = sources.len();
         let mut app = Self {
@@ -175,6 +182,9 @@ impl App {
             model,
             spec,
             results: HashMap::new(),
+            release_files,
+            release_results: HashMap::new(),
+            release_band: Vec::new(),
             failed: HashMap::new(),
             rendering: HashSet::new(),
             workers,
@@ -199,6 +209,7 @@ impl App {
             fixed_height: 760.0,
         };
         app.in_band = app.sources.iter().map(|s| s.role == Role::Target).collect();
+        app.release_band = app.sources.iter().map(|s| s.releases()).collect();
         let saved = settings::load();
         app.apply(&saved);
         app.saved = saved;
@@ -302,7 +313,7 @@ impl App {
                     Some(a) => {
                         self.results.insert((si, midi, layer), a);
                     }
-                    None => jobs.push(Job { src: si, midi, layer, path: path.clone(), velocity: 0, held: s.held }),
+                    None => jobs.push(Job { src: si, midi, layer, path: path.clone(), velocity: 0, held: s.held, release: false }),
                 }
             }
         }
@@ -318,13 +329,36 @@ impl App {
                 for &(l, _, v) in &LAYERS {
                     if !self.sources[mi].files.contains_key(&(m, l)) {
                         let path = spec.dir.join(format!("{}v{l}.wav", note_name(m)));
-                        renders.push(Job { src: mi, midi: m, layer: l, path, velocity: v, held: Some(model::HOLD) });
+                        renders.push(Job { src: mi, midi: m, layer: l, path, velocity: v, held: Some(model::HOLD), release: false });
                     }
                 }
             }
             renders.sort_by_key(order);
             for j in renders {
                 self.rendering.insert((j.midi, j.layer));
+                self.workers.render(j);
+            }
+            // The release renders, after the others, where a piano that
+            // releases its keys has the note.
+            let mut later = Vec::new();
+            for m in LOW..=HIGH {
+                for &(l, _, v) in &LAYERS {
+                    let judged = self.sources.iter().any(|s| s.releases() && s.files.contains_key(&(m, l)));
+                    let job = |path: PathBuf| Job { src: mi, midi: m, layer: l, path, velocity: v, held: Some(model::RELEASE_HOLD), release: true };
+                    match self.release_files.get(&(m, l)) {
+                        Some(path) => match self.cache.get(path) {
+                            Some(a) => {
+                                self.release_results.insert((m, l), a);
+                            }
+                            None => self.workers.analyse(job(path.clone())),
+                        },
+                        None if judged => later.push(job(spec.release_dir.join(format!("{}v{l}.wav", note_name(m))))),
+                        None => {}
+                    }
+                }
+            }
+            later.sort_by_key(order);
+            for j in later {
                 self.workers.render(j);
             }
         }
@@ -336,7 +370,15 @@ impl App {
                 Done::Measured { job, stamp, analysis } => {
                     self.cache.put(&job.path, stamp, analysis.clone());
                     self.unsaved += 1;
-                    self.results.insert((job.src, job.midi, job.layer), analysis);
+                    if job.release {
+                        self.release_results.insert((job.midi, job.layer), analysis);
+                    } else {
+                        self.results.insert((job.src, job.midi, job.layer), analysis);
+                    }
+                }
+                Done::Rendered { job } if job.release => {
+                    self.release_files.insert((job.midi, job.layer), job.path.clone());
+                    self.workers.analyse(Job { velocity: 0, ..job });
                 }
                 Done::Rendered { job } => {
                     self.rendering.remove(&(job.midi, job.layer));
@@ -347,7 +389,9 @@ impl App {
                     self.workers.prioritise(self.note);
                 }
                 Done::Failed { job, error } => {
-                    self.rendering.remove(&(job.midi, job.layer));
+                    if !job.release {
+                        self.rendering.remove(&(job.midi, job.layer));
+                    }
                     self.failed.insert((job.src, job.midi, job.layer), error);
                 }
             }
@@ -381,7 +425,20 @@ impl App {
             let lv = |l| self.results.get(&(si, midi, l)).and_then(|a| a.level_db);
             return Some(lv(13)? - lv(4)?);
         }
+        if Some(si) == self.model && measure::def(id).released() {
+            return self.release_results.get(&(midi, layer))?.get(id);
+        }
         self.results.get(&(si, midi, layer))?.get(id)
+    }
+
+    /// The pianos of band `n` for a measure: the release measures' first
+    /// band is the pianos that release their keys, whatever is ticked.
+    fn members(&self, n: usize, id: Id) -> &[bool] {
+        match n {
+            0 if measure::def(id).released() => &self.release_band,
+            0 => &self.in_band,
+            _ => &self.in_band2,
+        }
     }
 
     /// Values of the pianos of a band at a key (transformed if log).
@@ -396,9 +453,10 @@ impl App {
     }
 
     /// The two bands with their fill and edge, the first drawn first.
-    fn bands(&self, ui: &Ui) -> [(&[bool], Color32, Color32); 2] {
+    fn bands(&self, ui: &Ui, id: Option<Id>) -> [(&[bool], Color32, Color32); 2] {
         let edge = |n| band_ink(ui, n).gamma_multiply(0.75);
-        [(&self.in_band, band_color(ui, 0), edge(0)), (&self.in_band2, band_color(ui, 1), edge(1))]
+        let first = id.map_or(&self.in_band[..], |id| self.members(0, id));
+        [(first, band_color(ui, 0), edge(0)), (&self.in_band2, band_color(ui, 1), edge(1))]
     }
 
     /// Model's distance to the pianos of band 1 at a key, in their spread.
@@ -406,8 +464,8 @@ impl App {
         let mi = self.model?;
         let d = measure::def(id);
         let v = tf(self.value(mi, midi, self.layer, id)?, d.log);
-        let r = self.band_values(&self.in_band, midi, id);
-        if r.len() < 2 || !v.is_finite() {
+        let r = self.band_values(self.members(0, id), midi, id);
+        if r.len() < d.judges() || !v.is_finite() {
             return None;
         }
         let (mean, sd) = mean_sd(&r);
@@ -707,16 +765,16 @@ impl App {
                 }
                 ui.end_row();
             }
-            for (n, band) in [&self.in_band, &self.in_band2].into_iter().enumerate() {
+            for n in 0..2 {
                 // The second band has its row once it holds a piano.
-                if n == 1 && !band.contains(&true) {
+                if n == 1 && !self.in_band2.contains(&true) {
                     continue;
                 }
                 ui.label("");
-                ui.label(RichText::new(format!("Band {}", n + 1)).color(band_label(ui, n))).on_hover_text("Mean ± standard deviation of the pianos in this band (a log measure: geometric)");
+                ui.label(RichText::new(format!("Band {}", n + 1)).color(band_label(ui, n))).on_hover_text("Mean ± standard deviation of the pianos in this band (a log measure: geometric); for the release drops, band 1 is the pianos that release their keys (Liang, MAPS)");
                 for d in &shown {
-                    let r = self.band_values(band, note, d.id);
-                    if r.len() >= 2 {
+                    let r = self.band_values(self.members(n, d.id), note, d.id);
+                    if r.len() >= d.judges() {
                         let (m, sd) = mean_sd(&r);
                         let txt = if d.log {
                             format!("{} ×/ {:.2}", fmt_value(10f64.powf(m), d), 10f64.powf(sd))
@@ -792,7 +850,7 @@ impl App {
                 ui.painter().text(f.px(k as f64, f.y.0) + Vec2::new(0.0, 3.0), Align2::CENTER_TOP, k.to_string(), FontId::proportional(10.0), text);
             }
             if self.band != Band::Off {
-                for (members, color, edge) in self.bands(ui) {
+                for (members, color, edge) in self.bands(ui, None) {
                     let mut band = Vec::new();
                     for k in 0..PARTIALS {
                         let r: Vec<f64> = (0..self.sources.len())
@@ -876,11 +934,11 @@ impl App {
             .collect();
         let mut bands = Vec::new();
         if self.band != Band::Off {
-            for (members, color, edge) in self.bands(ui) {
+            for (members, color, edge) in self.bands(ui, Some(d.id)) {
                 let mut band = Vec::new();
                 for m in LOW..=HIGH {
                     let r = self.band_values(members, m, d.id);
-                    if r.len() >= 2 {
+                    if r.len() >= d.judges() {
                         band.push(band_of(&r, self.band, x_of(m)));
                     }
                 }

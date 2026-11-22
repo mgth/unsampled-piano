@@ -288,6 +288,10 @@ pub struct Engine {
     /// response) and sympathetic.
     region: Vec<Vec<f32>>,
     region_sym: Vec<Vec<f32>>,
+    /// The strings' part of each microphone (zone 0), the board's forced
+    /// response at their frequencies (`soundboard.forced_radiation`):
+    /// empty when off.
+    forced_mics: Vec<Vec<f32>>,
     /// Force on the agraffes per region (primary strings), for the frame.
     region_agraffe: Vec<Vec<f32>>,
     frame: Option<BoardBank>,
@@ -396,12 +400,17 @@ impl Engine {
         let body_law = inst.model.body;
         // Only an instrument whose bridge rocks pays for its third output.
         let rocking = inst.low.as_ref().is_some_and(|l| l.rocking);
+        // Nor for the board's forced response (soundboard.forced_radiation).
+        let forced = inst.table.notes().iter().map(|n| n.forced.len()).max().unwrap_or(0);
         let voices = (0..cfg.polyphony)
             .map(|_| {
                 let mut v = Voice::with_capacity(cfg.sample_rate, cfg.max_block, capacity);
                 v.set_shortcuts(&shortcuts);
                 if rocking {
                     v.reserve_rocking();
+                }
+                if forced > 0 {
+                    v.reserve_forced(forced);
                 }
                 v
             })
@@ -481,6 +490,7 @@ impl Engine {
             doubled: 0,
             region: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             region_sym: vec![vec![0.0; SUB_BLOCK]; REGIONS],
+            forced_mics: if forced > 0 { vec![vec![0.0; SUB_BLOCK]; mics.len()] } else { Vec::new() },
             region_agraffe: vec![vec![0.0; SUB_BLOCK]; REGIONS],
             frame,
             frame_awake: false,
@@ -815,7 +825,7 @@ impl Engine {
         let out_gain = self.smooth_gain(len);
         self.update_dampers(len);
         self.add_listeners();
-        for r in self.region.iter_mut().chain(&mut self.region_sym).chain(&mut self.region_agraffe).chain(&mut self.basis) {
+        for r in self.region.iter_mut().chain(&mut self.region_sym).chain(&mut self.region_agraffe).chain(&mut self.basis).chain(&mut self.forced_mics) {
             r[..len].fill(0.0);
         }
         // Bridge displacement SUB_BLOCK samples ago, for the strings.
@@ -1037,6 +1047,17 @@ impl Engine {
                     };
                     room.process_with(chans, Some(feed));
                 }
+                // The strings' forced response, in pressure (not through the
+                // differentiator: it starts as a sine does, with no step to
+                // differentiate). After the room, which takes what the
+                // microphones hold beyond the board's part as its source:
+                // the correction is the direct sound's alone (the probes
+                // keep their weights).
+                for (c, f) in chans.iter_mut().zip(&self.forced_mics) {
+                    for (y, x) in c.iter_mut().zip(&f[..len]) {
+                        *y += x * out_gain * PRESSURE_GAIN;
+                    }
+                }
             }
         }
         // Bridge acceleration by backward difference of the velocity (its
@@ -1092,6 +1113,7 @@ impl Engine {
                 let v = &self.voices[i];
                 let basis = Some(&mut self.basis[..]);
                 v.mix(self.inst.table.get(v.note), &mut self.region, &mut self.region_sym, with_frame.then_some(&mut self.region_agraffe[..]), basis, from, to);
+                v.mix_forced(self.inst.table.get(v.note), &mut self.forced_mics, self.n_mics, from, to);
             }
             return;
         }
@@ -1103,6 +1125,7 @@ impl Engine {
             v.compute(nm, with_frame, t0, from, to, bridge);
             let basis = Some(&mut self.basis[..]);
             v.mix(nm, &mut self.region, &mut self.region_sym, with_frame.then_some(&mut self.region_agraffe[..]), basis, from, to);
+            v.mix_forced(nm, &mut self.forced_mics, self.n_mics, from, to);
         }
     }
 

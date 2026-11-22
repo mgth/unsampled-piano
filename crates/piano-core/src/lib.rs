@@ -10,6 +10,7 @@ pub mod duplex;
 pub mod eigen;
 pub mod engine;
 pub mod fem;
+pub mod forced;
 pub mod hammer;
 pub mod instrument;
 pub mod limiter;

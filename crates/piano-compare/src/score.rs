@@ -6,7 +6,7 @@ use crate::app::{mean_sd, tf};
 use crate::jobs::{Cache, Stamp};
 use crate::measure::{self, Analysis, Def, Id, DEFS};
 use crate::model::{self, ModelSpec, Renderer};
-use crate::sources::{Role, Source, HIGH, LAYERS, LOW};
+use crate::sources::{note_name, Role, Source, HIGH, LAYERS, LOW};
 use serde_json::json;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -98,19 +98,54 @@ fn recordings(source: &Source, cache: &Mutex<Cache>, threads: usize) -> Result<R
     Ok(out)
 }
 
-/// Every note of the model, rendered and measured in memory.
-fn model_notes(spec: &ModelSpec, threads: usize) -> Results {
+/// Every note of the model, rendered and measured in memory; with the
+/// release measures of a second render, released at
+/// [`model::RELEASE_HOLD`], at the keys and layers in `released`.
+fn model_notes(spec: &ModelSpec, threads: usize, released: &[(u8, u8)]) -> Results {
     let renderer = Renderer::new(spec);
-    let notes: Vec<(u8, u8, u8)> =
-        (LOW..=HIGH).flat_map(|m| LAYERS.iter().map(move |&(l, _, v)| (m, l, v))).collect();
-    parallel(&notes, threads, |&(midi, layer, velocity)| {
-        let channels = renderer.note(midi, velocity);
-        ((midi, layer), measure::analyse(&channels, f64::from(model::SR), midi, Some(model::HOLD)))
-    })
-    .into_iter()
-    .collect()
+    let notes: Vec<(u8, u8, u8, bool)> = (LOW..=HIGH)
+        .flat_map(|m| LAYERS.iter().map(move |&(l, _, v)| (m, l, v, false)))
+        .chain(released.iter().filter_map(|&(m, l)| LAYERS.iter().find(|x| x.0 == l).map(|x| (m, l, x.2, true))))
+        .collect();
+    let done = parallel(&notes, threads, |&(midi, layer, velocity, release)| {
+        let sr = f64::from(model::SR);
+        let a = if release {
+            measure::analyse_release(&renderer.note_released(midi, velocity), sr, model::RELEASE_HOLD)
+        } else {
+            measure::analyse(&renderer.note(midi, velocity), sr, midi, Some(model::HOLD))
+        };
+        ((midi, layer), release, a)
+    });
+    let mut out = Results::new();
+    let mut releases = Vec::new();
+    for (key, release, a) in done {
+        if release {
+            releases.push((key, a));
+        } else {
+            out.insert(key, a);
+        }
+    }
+    for (key, r) in releases {
+        if let Some(a) = out.get_mut(&key) {
+            for d in DEFS.iter().filter(|d| d.released()) {
+                let i = measure::index(d.id);
+                a.values[i] = r.values[i];
+            }
+        }
+    }
+    out
 }
 
+fn median(v: &mut [f64]) -> Option<f64> {
+    if v.is_empty() {
+        return None;
+    }
+    v.sort_by(f64::total_cmp);
+    let n = v.len();
+    Some(if n % 2 == 1 { v[n / 2] } else { 0.5 * (v[n / 2 - 1] + v[n / 2]) })
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     mut sources: Vec<Source>,
     spec: &ModelSpec,
@@ -118,6 +153,7 @@ pub fn run(
     without: &[String],
     threads: usize,
     out: &Path,
+    notes: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     for key in without {
         if !sources.iter().any(|s| s.key == *key && s.role == Role::Target) {
@@ -128,28 +164,51 @@ pub fn run(
         s.scan();
     }
     let band: Vec<&Source> = sources.iter().filter(|s| s.role == Role::Target && !without.contains(&s.key)).collect();
+    // The release measures are judged by the pianos whose notes release the
+    // key within the file (Liang, MAPS), whatever the band: the others hold.
+    let release_band: Vec<&Source> = sources.iter().filter(|s| s.releases()).collect();
     let cache = Mutex::new(Cache::open(cache_file));
     let mut measured = Vec::with_capacity(band.len());
     for s in &band {
-        measured.push((recordings(s, &cache, threads)?, s.dynamics));
+        measured.push((s.key.as_str(), recordings(s, &cache, threads)?, s.dynamics));
+    }
+    let mut release_measured = Vec::with_capacity(release_band.len());
+    for s in &release_band {
+        release_measured.push((s.key.as_str(), recordings(s, &cache, threads)?, false));
     }
     cache.lock().unwrap().save();
-    let model = model_notes(spec, threads);
+    // The model's release is rendered only where it can be judged: one of
+    // those pianos with a release measure at the key and layer.
+    let released: Vec<(u8, u8)> = (LOW..=HIGH)
+        .flat_map(|m| LAYERS.iter().map(move |l| (m, l.0)))
+        .filter(|&(m, l)| {
+            release_measured
+                .iter()
+                .any(|(_, res, _)| res.get(&(m, l)).is_some_and(|a| DEFS.iter().any(|d| d.released() && a.get(d.id).is_some())))
+        })
+        .collect();
+    let model = model_notes(spec, threads, &released);
 
     let (mut all, mut by_measure, mut by_register) =
         (Tally::default(), vec![Tally::default(); DEFS.len()], [Tally::default(); REGISTERS.len()]);
+    let mut cells = vec![[Tally::default(); REGISTERS.len()]; DEFS.len()];
+    // Model's values and the band's means, per measure and register.
+    let mut values = vec![vec![(Vec::new(), Vec::new()); REGISTERS.len()]; DEFS.len()];
+    let mut per_note = Vec::new();
     for midi in LOW..=HIGH {
         let register = REGISTERS.iter().position(|r| (r.1..=r.2).contains(&midi)).unwrap_or(0);
-        for &(layer, ..) in &LAYERS {
+        for &(layer, lname, _) in &LAYERS {
             for (i, d) in DEFS.iter().enumerate() {
                 let Some(v) = value(&model, true, midi, layer, d).map(|v| tf(v, d.log)).filter(|v| v.is_finite()) else { continue };
-                let r: Vec<f64> = measured
+                let judges = if d.released() { &release_measured } else { &measured };
+                let judged: Vec<(&str, f64)> = judges
                     .iter()
-                    .filter_map(|(res, dynamics)| value(res, *dynamics, midi, layer, d))
-                    .map(|x| tf(x, d.log))
-                    .filter(|x| x.is_finite())
+                    .filter_map(|(key, res, dynamics)| Some((*key, value(res, *dynamics, midi, layer, d)?)))
+                    .map(|(key, x)| (key, tf(x, d.log)))
+                    .filter(|x| x.1.is_finite())
                     .collect();
-                if r.len() < 2 {
+                let r: Vec<f64> = judged.iter().map(|x| x.1).collect();
+                if r.len() < d.judges() {
                     continue;
                 }
                 let (mean, sd) = mean_sd(&r);
@@ -157,19 +216,54 @@ pub fn run(
                 all.add(z);
                 by_measure[i].add(z);
                 by_register[register].add(z);
+                cells[i][register].add(z);
+                values[i][register].0.push(v);
+                values[i][register].1.push(mean);
+                if notes {
+                    let un = |x: f64| if d.log { 10f64.powf(x) } else { x };
+                    per_note.push(json!({
+                        "measure": d.name, "key": note_name(midi), "layer": lname,
+                        "model": un(v), "z": z,
+                        "band": judged.iter().map(|&(key, x)| (key.to_string(), json!(un(x)))).collect::<serde_json::Map<_, _>>(),
+                    }));
+                }
             }
         }
     }
-    let measures: serde_json::Map<String, serde_json::Value> =
-        DEFS.iter().zip(&by_measure).map(|(d, t)| (d.name.to_string(), t.json())).collect();
+    let measures: serde_json::Map<String, serde_json::Value> = DEFS
+        .iter()
+        .enumerate()
+        .map(|(i, d)| {
+            let mut m = by_measure[i].json();
+            let regs: serde_json::Map<String, serde_json::Value> = REGISTERS
+                .iter()
+                .enumerate()
+                .map(|(r, reg)| {
+                    let mut c = cells[i][r].json();
+                    let (mv, bv) = &mut values[i][r];
+                    let un = |x: Option<f64>| x.map(|x| if d.log { 10f64.powf(x) } else { x });
+                    c["model_median"] = json!(un(median(mv)));
+                    c["band_median"] = json!(un(median(bv)));
+                    (reg.0.to_string(), c)
+                })
+                .collect();
+            m["registers"] = regs.into();
+            (d.name.to_string(), m)
+        })
+        .collect();
     let registers: serde_json::Map<String, serde_json::Value> =
         REGISTERS.iter().zip(&by_register).map(|(r, t)| (r.0.to_string(), t.json())).collect();
-    let report = json!({
+    let mut report = json!({
         "off": all.off, "mean": all.mean(), "count": all.count,
         "measure_version": measure::VERSION,
         "band": band.iter().map(|s| s.key.as_str()).collect::<Vec<_>>(),
+        "release_band": release_band.iter().map(|s| s.key.as_str()).collect::<Vec<_>>(),
+        "release_renders": released.len(),
         "measures": measures, "registers": registers,
     });
+    if notes {
+        report["notes"] = per_note.into();
+    }
     std::fs::write(out, serde_json::to_string_pretty(&report)?)?;
     Ok(())
 }
