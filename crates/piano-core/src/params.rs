@@ -1286,6 +1286,13 @@ pub struct StringNonlinearity {
     /// Share of the longitudinal force at the bridge that drives the board
     /// (string angle over the bridge, bridge rocking).
     pub coupling: f64,
+    /// Another `coupling` for the plain strings, from the scale's
+    /// `break_note` up. 0: `coupling` on every key, as it was. A share fitted
+    /// on the wound strings' phantom partials (A1) is too much above them:
+    /// where a sum of two partials falls on a longitudinal mode of a plain
+    /// string, it rings as a lone line (G2 5.2 kHz, A2 5.6 kHz, F2 3.2 kHz),
+    /// 42 dB louder for a note 12 dB louder (docs/nonlinearity.md).
+    pub coupling_plain: f64,
     /// The longitudinal force pulls the bridge in the board's plane, where
     /// the board is stiff; it bends the board through its moment about the
     /// bridge foot, which grows with the board's wavenumber: low-frequency
@@ -1310,6 +1317,13 @@ impl Default for StringNonlinearity {
 }
 
 impl StringNonlinearity {
+    /// The share of the longitudinal force driving the board at a key:
+    /// `coupling`, or `coupling_plain` on the plain strings (from
+    /// `break_note`, the scale's first plain string) when it is set.
+    pub fn coupling_at(&self, note: u8, break_note: u8) -> f64 {
+        if self.coupling_plain > 0.0 && note >= break_note { self.coupling_plain } else { self.coupling }
+    }
+
     pub const DEFAULT: Self = Self {
         enabled: true,
         young: 2.0e11,
@@ -1322,6 +1336,7 @@ impl StringNonlinearity {
         // Phantom partials at the level of the references (≈ −28 dB below
         // the transverse partials in the bass at ff, tools/phantom_levels.py).
         coupling: 0.3,
+        coupling_plain: 0.0,
         coupling_corner: 1000.0,
         strike_stretch: false,
         strike_scale: 1.0,
@@ -2391,6 +2406,28 @@ mod b2_top_tests {
         // the frequency term follows it
         let f = 2000.0;
         assert!((l.sigma(96, f) - l.sigma(60, f) - ((2.0e-7 - 6.0e-8) * f * f + (l.sigma(96, 0.0) - l.sigma(60, 0.0)))).abs() < 1e-9);
+    }
+}
+
+#[cfg(test)]
+mod coupling_plain_tests {
+    use super::*;
+
+    #[test]
+    fn unset_keeps_the_coupling_on_every_key() {
+        let nl = StringNonlinearity { coupling: 1.0, ..StringNonlinearity::DEFAULT };
+        assert_eq!(nl.coupling_plain, 0.0);
+        for note in 21..=108 {
+            assert_eq!(nl.coupling_at(note, 41), 1.0);
+        }
+    }
+
+    #[test]
+    fn set_takes_the_plain_strings_only() {
+        let nl = StringNonlinearity { coupling: 1.0, coupling_plain: 0.3, ..StringNonlinearity::DEFAULT };
+        assert_eq!(nl.coupling_at(40, 41), 1.0);
+        assert_eq!(nl.coupling_at(41, 41), 0.3);
+        assert_eq!(nl.coupling_at(64, 41), 0.3);
     }
 }
 

@@ -214,6 +214,7 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("soundboard.lid_reflection", "Lid reflection", "", 0.0, 1.0, false),
     ("soundboard.lid_transmission", "Sound through the lid", "", 0.0, 1.0, false),
     ("soundboard.lid_leak", "Sound out of the shut lid", "", 0.0, 1.0, false),
+    ("nonlinear.coupling_plain", "Phantom loudness, plain strings (0: as the wound)", "", 0.0, 1.0, false),
 ];
 
 impl Meta {
@@ -394,6 +395,22 @@ mod tests {
             }
         }
         assert!(reg.get(&format!("soundboard.bridge_keys[{}][0]", piano_core::soundboard::BRIDGE_KEYS)).is_none());
+    }
+
+    /// With a default of 0 the guessed range was −1 to 1: half of a MIDI
+    /// controller's travel kept `coupling`, and step 64 dropped to 0.008.
+    /// From 0 to 1, only step 0 keeps `coupling` on the plain strings.
+    #[test]
+    fn the_plain_strings_coupling_is_a_share() {
+        let reg = crate::Registry::new();
+        let path = "nonlinear.coupling_plain";
+        let meta = &reg.get(path).unwrap().meta;
+        assert!(meta.curated && meta.min == 0.0 && meta.max == 1.0 && !meta.log, "{meta:?}");
+        let mut map = crate::midi::MidiMap::default();
+        map.assign(&reg, 1, path);
+        let m = map.for_path(path).unwrap();
+        let set = (0..=127u8).filter(|&cc| crate::midi::scale(m.min, m.max, false, cc) > 0.0).count();
+        assert_eq!(set, 127);
     }
 
     #[test]
