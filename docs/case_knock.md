@@ -1,6 +1,6 @@
 # The case's knock
 
-Status as of 2026-11-21. Heard and kept: the Concert grand has `noise.case` 0.05.
+Status as of 2026-11-23, rebased on main after the microphones' noise paths (each microphone hears the knock from where it stands, docs/microphones.md) and the engine's CPU work. Heard and kept on 2026-11-21: the Concert grand has `noise.case` 0.05.
 
 ## Listening report
 
@@ -34,7 +34,7 @@ The model's two sources there miss it each their own way: the action's knock (`n
 - **The resonances:** 28, from `noise.case_low` (80 Hz) up, one every 34 Hz on average (thick wooden panels have few modes), level per resonance flat to 600 Hz and falling at 18 dB per octave above, where the action's knock takes over.
 - **The decay:** T60 `noise.case_time` (0.55 s) at 200 Hz, as (200/f)^0.5.
 - **The strikes:** each key strikes at the hammer's contact with a 1 ms Hann pulse, `noise.case` Pa at the microphones per m/s of hammer speed, with its own ±3 dB per resonance; the lowest resonances keep one sign for every key.
-- **The microphones:** both sides hear the same knock, the second 0.3 m of path later.
+- **The microphones:** both sides hear the same knock, the second 0.3 m of path later; each microphone then hears the two sides through its own noise path, as it hears the action's knock and the halo.
 - The `mechanism` control moves it with the other noises.
 
 Fitted off the engine first (a sum of decaying sines added to the renders): the mean distance to Splendid over ten third octaves and four windows went from 7.7 to 1.9 dB.
@@ -63,6 +63,21 @@ The knock below the fundamental (72 Hz to half the fundamental, 630 Hz at most, 
 ## The comparison tool
 
 `--score`, the band without the pianos that buzz, the preset before and after: 376 → 372 measures off, mean gap 0.953 → 0.950. Rise time 40 → 37 off, early decay 50 → 49; no measure gains one. By register: bass 97 → 94, middle 97 → 98, treble 119 → 117, top 63.
+
+## On main, 2026-11-23
+
+Main had since gained the bridge's rocking (off), the microphones' noise paths and the CPU work; the gap was measured again before the rebase, with the table's windows and bands, on the bench's protocol (close microphones in the studio, velocities 100 and 56 against Splendid's layers 13 and 8), medians over C6–C8, mean over the ten third octaves 80–630 Hz and the three windows:
+
+| re Splendid | ff, 24 keys | mf, 23 keys |
+|---|---|---|
+| Main | −11.4 dB (0–20 ms −13.5, 60–150 −11.6, 150–400 −9.2) | −8.9 dB (−10.3, −9.5, −7.0) |
+| With `noise.case` 0.05 | −2.5 dB (−5.4, +1.0, −3.1) | +2.7 dB (+2.5, +5.2, +0.3) |
+
+The gap was still there, and the knock still closes it. With `noise.case` 0 the engine renders the same bits as main (a strike of zero amplitude is not queued).
+
+`--score`, band without bivib_grand, iowa and liang (measures version 9): 861 → 856 measures off, mean gap 1.195 → 1.193. Rise time 40 → 38 off, early decay 50 → 49, the control band's lines at 1.2–2.5 kHz 54 → 52, release drop 150–600 Hz 15 → 14; release drop 0.6–1.2 kHz 42 → 43, where the knock adds a key the band can judge. By register: bass 205 → 203, middle 360 → 361, treble 227 → 223, top 69.
+
+Listening page: `out/ab_caisse/ecoute.html` in the session's worktree: nine keys A1–C7 at ff and mf (main, with the knock, Splendid, the knock alone at +12 dB), a Chopin study and scales.
 
 ## Not verified
 
