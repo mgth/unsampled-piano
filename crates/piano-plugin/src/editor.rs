@@ -135,8 +135,8 @@ impl PianoControl for PluginControl<'_> {
         self.ctl.play(note, velocity)
     }
 
-    fn pedal(&mut self, cc: u8, value: u8) {
-        self.ctl.pedal(cc, value)
+    fn hold_pedal(&mut self, cc: u8, down: bool) {
+        self.ctl.hold_pedal(cc, down)
     }
 
     /// The host maps its own controllers to its parameters.

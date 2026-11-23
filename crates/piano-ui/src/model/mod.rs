@@ -97,10 +97,11 @@ pub struct ModelView {
     /// than turning the view), and the key it holds down.
     keying: bool,
     playing: Option<u8>,
-    /// The pedals the live view holds down (soft, sostenuto, sustain from
-    /// the left): a click presses one, the next lets it go.
+    /// The pedals the live view holds down (soft, middle, sustain from the
+    /// left), ahead of MIDI: a click holds one, the next lets it go.
     pedals: [bool; 3],
-    /// The pedal the primary button went down on, and where.
+    /// The pedal the primary button went down on, and where; dropped once
+    /// the pointer goes further than [`CLICK_SLOP`] from there (a drag).
     pedal_press: Option<(usize, egui::Pos2)>,
     /// The layers ([`Layer::PARTS`]) last built, and what from.
     built: [Option<(Inputs, Arc<Scene>)>; 3],
@@ -136,7 +137,7 @@ impl Inputs {
                     let k = &l.obs.keys[m];
                     state.extend([k.down as u8 | (k.hammer as u8) << 1, q(k.damper, 255.0), q(l.keys[m], 12.0)]);
                 }
-                state.extend([q(l.obs.sustain, 255.0), q(l.obs.soft, 255.0), l.obs.sostenuto as u8]);
+                state.extend([q(l.obs.sustain, 255.0), q(l.obs.soft, 255.0), l.obs.middle as u8]);
             }
             (Some(l), Layer::Sounding) => {
                 state.extend(l.keys[21..=108].iter().map(|&k| q(k, 255.0)));
@@ -242,6 +243,10 @@ const FRONT_VELOCITY: f32 = 127.0;
 const BACK_VELOCITY: f32 = 20.0;
 
 /// The velocity of a press at `along` a key (0 front … 1 back).
+/// How far (points) the pointer may go between a press and its release
+/// for a click on a pedal: further, it is a drag (egui's own default).
+const CLICK_SLOP: f32 = 6.0;
+
 fn click_velocity(along: f32) -> u8 {
     (FRONT_VELOCITY + (BACK_VELOCITY - FRONT_VELOCITY) * along.clamp(0.0, 1.0)).round() as u8
 }
@@ -822,11 +827,13 @@ impl ModelView {
     }
 
     /// Presses pedal `i` (from the left) if it is up, else lets it go.
+    /// Held, it stays down whatever MIDI says (the engine shows it down);
+    /// let go, MIDI's own position applies again.
     fn toggle_pedal(&mut self, control: &mut dyn PianoControl, i: usize) {
         const CC: [u8; 3] = [67, 66, 64];
         let down = &mut self.pedals[i];
         *down = !*down;
-        control.pedal(CC[i], if *down { 127 } else { 0 });
+        control.hold_pedal(CC[i], *down);
     }
 
     /// Holds down `key` (note, place along it), letting go of the one held
@@ -862,15 +869,17 @@ impl ModelView {
             };
             let key = |p: egui::Pos2| ray(p).and_then(|(from, dir)| layers.key_at(from, dir));
             let pedal = |p: egui::Pos2| ray(p).and_then(|(from, dir)| layers.pedal_at(from, dir));
-            // The primary button's presses and releases in their order (a
-            // whole click may come within one frame), and whether the
-            // window lost the focus (the release may then go elsewhere).
+            // The primary button's presses and releases (Some: pressed) and
+            // the pointer's moves (None) in their order (a whole click may
+            // come within one frame), and whether the window lost the focus
+            // (the release may then go elsewhere).
             let (buttons, blurred, pos, down) = ui.input(|i| {
-                let buttons: Vec<(egui::Pos2, bool)> = i
+                let buttons: Vec<(egui::Pos2, Option<bool>)> = i
                     .events
                     .iter()
                     .filter_map(|e| match e {
-                        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, .. } => Some((*pos, *pressed)),
+                        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, .. } => Some((*pos, Some(*pressed))),
+                        egui::Event::PointerMoved(pos) => Some((*pos, None)),
                         _ => None,
                     })
                     .collect();
@@ -882,13 +891,21 @@ impl ModelView {
                 self.pedal_press = None;
             } else {
                 for (p, pressed) in buttons {
+                    let Some(pressed) = pressed else {
+                        // Gone too far from a pedal pressed on: a drag that
+                        // turns the view, even if it comes back.
+                        if self.pedal_press.is_some_and(|(_, at)| p.distance(at) > CLICK_SLOP) {
+                            self.pedal_press = None;
+                        }
+                        continue;
+                    };
                     if !pressed {
                         self.keying = false;
                         self.hold(control, None);
                         // A click (not a drag that turns the view) on a
                         // pedal: let go on the one pressed on.
                         if let Some((i, at)) = self.pedal_press.take()
-                            && p.distance(at) < 6.0
+                            && p.distance(at) <= CLICK_SLOP
                             && pedal(p) == Some(i)
                         {
                             self.toggle_pedal(control, i);
@@ -1216,7 +1233,7 @@ fn live_numbers(ui: &mut Ui, obs: Option<&Observation>, model: &PianoModel) {
         row("Dampers lifted", format!("{lifted}"));
         row("Sustain pedal", format!("{:.0} %", o.sustain * 100.0));
         row("Soft pedal", format!("{:.0} %", o.soft * 100.0));
-        row("Sostenuto", if o.sostenuto { "down".into() } else { "up".into() });
+        row("Middle pedal", if o.middle { "down".into() } else { "up".into() });
     });
     ui.add_space(6.0);
     ui.label(
@@ -1238,7 +1255,7 @@ mod tests {
     }
 
     /// Records the notes played, and the pedals moved.
-    struct Keys(Vec<(u8, u8)>, Vec<(u8, u8)>);
+    struct Keys(Vec<(u8, u8)>, Vec<(u8, bool)>);
 
     impl PianoControl for Keys {
         fn model(&self) -> PianoModel {
@@ -1254,8 +1271,8 @@ mod tests {
         fn play(&mut self, note: u8, velocity: u8) {
             self.0.push((note, velocity));
         }
-        fn pedal(&mut self, cc: u8, value: u8) {
-            self.1.push((cc, value));
+        fn hold_pedal(&mut self, cc: u8, down: bool) {
+            self.1.push((cc, down));
         }
     }
 
@@ -1328,12 +1345,25 @@ mod tests {
             frame(view, keys, vec![button(at, false)]);
         };
         click(&mut view, &mut keys, &mut frame);
-        assert_eq!(keys.1, [(64, 127)]);
+        assert_eq!(keys.1, [(64, true)]);
         click(&mut view, &mut keys, &mut frame);
-        assert_eq!(keys.1, [(64, 127), (64, 0)]);
+        assert_eq!(keys.1, [(64, true), (64, false)]);
         // No key played, the view kept still.
         assert!(keys.0.is_empty(), "{:?}", keys.0);
         assert_eq!(view.orbit, Some(orbit));
+        // Pressed on it, dragged away and back: the view turns, the pedal
+        // stays.
+        let away = at + Vec2::new(24.0, 0.0);
+        frame(&mut view, &mut keys, vec![button(at, true)]);
+        frame(&mut view, &mut keys, vec![Event::PointerMoved(away)]);
+        assert_ne!(view.orbit, Some(orbit));
+        frame(&mut view, &mut keys, vec![Event::PointerMoved(at)]);
+        frame(&mut view, &mut keys, vec![button(at, false)]);
+        assert_eq!(keys.1.len(), 2, "{:?}", keys.1);
+        // The same within one frame.
+        frame(&mut view, &mut keys, vec![button(at, true), Event::PointerMoved(away), Event::PointerMoved(at), button(at, false)]);
+        assert_eq!(keys.1.len(), 2, "{:?}", keys.1);
+        assert!(keys.0.is_empty(), "{:?}", keys.0);
     }
 
     #[test]

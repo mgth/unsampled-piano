@@ -2833,7 +2833,7 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
     b.label([-((klo + khi) / 2.0) as f32, key_front as f32, (kz + 0.03) as f32], "Keyboard", "Player");
 
     // Pedals: soft, sostenuto, sustain from left to right.
-    let values = obs.map_or([0.0; 3], |o| [o.soft, if o.sostenuto { 1.0 } else { 0.0 }, o.sustain]);
+    let values = obs.map_or([0.0; 3], |o| [o.soft, if o.middle { 1.0 } else { 0.0 }, o.sustain]);
     let parts = [Part::UnaCorda, Part::UnaCorda, Part::SustainPedal];
     let pedals: [(f32, Color32); 3] = std::array::from_fn(|i| {
         let v = values[i];

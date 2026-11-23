@@ -179,6 +179,7 @@ impl BlackBox {
                 Event::NoteOn { note, velocity } => writeln!(f, "E {t} on {note} {velocity}")?,
                 Event::NoteOff { note, velocity } => writeln!(f, "E {t} off {note} {velocity}")?,
                 Event::Control { cc, value } => writeln!(f, "E {t} cc {cc} {value}")?,
+                Event::Hold { cc, down } => writeln!(f, "E {t} hold {cc} {}", *down as u8)?,
                 Event::AllNotesOff => writeln!(f, "E {t} all_off")?,
                 Event::Param { id, value } => writeln!(f, "E {t} param {} {value}", id.path())?,
             }

@@ -34,7 +34,9 @@ pub struct Observation {
     /// Pedals, 0 up … 1 down.
     pub sustain: f32,
     pub soft: f32,
-    pub sostenuto: bool,
+    /// The middle pedal down, whether it works the sostenuto or a
+    /// practice mute.
+    pub middle: bool,
     /// Modulus of the complex state of the board's modes, lowest first, in
     /// the order of [`crate::soundboard::Soundboard::new`] (the model's
     /// soundboard with the musician's controls applied); `board_modes` of
@@ -46,7 +48,7 @@ pub struct Observation {
 
 impl Default for Observation {
     fn default() -> Self {
-        Self { keys: [KeyState::default(); 128], sustain: 0.0, soft: 0.0, sostenuto: false, board: [0.0; OBSERVED_MODES], board_modes: 0 }
+        Self { keys: [KeyState::default(); 128], sustain: 0.0, soft: 0.0, middle: false, board: [0.0; OBSERVED_MODES], board_modes: 0 }
     }
 }
 
@@ -69,7 +71,7 @@ impl Observation {
         }
         self.sustain = self.sustain.max(other.sustain);
         self.soft = self.soft.max(other.soft);
-        self.sostenuto |= other.sostenuto;
+        self.middle |= other.middle;
         let n = self.board_modes.max(other.board_modes);
         for (a, b) in self.board[..n].iter_mut().zip(&other.board[..n]) {
             *a = a.max(*b);
@@ -88,7 +90,7 @@ impl Observation {
         }
         self.sustain = self.sustain.max(other.sustain);
         self.soft = self.soft.max(other.soft);
-        self.sostenuto |= other.sostenuto;
+        self.middle |= other.middle;
         let n = self.board_modes.max(other.board_modes);
         for (a, b) in self.board[..n].iter_mut().zip(&other.board[..n]) {
             *a = a.hypot(*b);
