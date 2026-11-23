@@ -7,13 +7,26 @@ use piano_params::{Kind, Param, PianoControl, Value};
 
 use crate::sections::Curve;
 
+/// The name `p` is shown with: the custom temperament's entries count
+/// from the note it is laid on, and take that note's name.
+pub fn label<'a>(p: &'a Param, model: &PianoModel) -> std::borrow::Cow<'a, str> {
+    let entry = p.path.strip_prefix("temperament.cents[").and_then(|r| r.strip_suffix(']')).and_then(|j| j.parse::<usize>().ok());
+    match entry {
+        Some(j) if j < 12 => {
+            let note = (j + model.temperament.key.rem_euclid(12) as usize) % 12;
+            format!("Custom temperament: {}", crate::wheel::NAMES[note]).into()
+        }
+        _ => p.meta.label.as_str().into(),
+    }
+}
+
 /// One grid row: label, value, reset, kind. Edits go to `control` as a
 /// gesture (a drag is one begin/end pair; typed values are a whole one).
 /// Returns what the name and the value did (see [`Row`]).
 pub fn param_row(ui: &mut Ui, p: &Param, value: Option<Value>, control: &mut dyn PianoControl) -> Row {
     let m = &p.meta;
     let modified = value.is_some_and(|v| v != p.default);
-    let text = RichText::new(&m.label);
+    let text = RichText::new(label(p, &control.model()));
     let label = ui.add(egui::Label::new(if modified { text.color(ui.visuals().strong_text_color()) } else { text }).sense(Sense::click()));
     let label = label.on_hover_ui(|ui| {
         ui.set_max_width(340.0);
@@ -177,7 +190,7 @@ pub fn about(ui: &mut Ui, p: &Param, value: Option<Value>, model: &PianoModel, k
     // Wrapped: a long name must not widen the panel, and the pages with it.
     ui.horizontal_wrapped(|ui| {
         kind_mark(ui, matches!(p.kind, Kind::Live(_)));
-        ui.heading(&p.meta.label);
+        ui.heading(label(p, model));
     });
     ui.label(RichText::new(&p.path).monospace().weak());
     let unit = if p.meta.unit.is_empty() { String::new() } else { format!(" {}", p.meta.unit) };
@@ -360,6 +373,22 @@ mod tests {
         assert_eq!(show(-3.708095), "-3.708");
         assert_eq!(note_name(60), "C4");
         assert_eq!(note_name(21), "A0");
+    }
+
+    /// The custom temperament's sliders take the names of the notes they
+    /// tune, counted from the key it is laid on.
+    #[test]
+    fn custom_entries_follow_the_key() {
+        let reg = piano_params::Registry::new();
+        let name = |path: &str, key: i32| {
+            let model = PianoModel { temperament: piano_core::params::TemperamentLaw { kind: 8, key, ..Default::default() }, ..Default::default() };
+            label(reg.get(path).unwrap(), &model).into_owned()
+        };
+        assert_eq!(name("temperament.cents[0]", 0), reg.get("temperament.cents[0]").unwrap().meta.label);
+        assert_eq!(name("temperament.cents[0]", 2), "Custom temperament: D");
+        assert_eq!(name("temperament.cents[2]", 2), "Custom temperament: E");
+        assert_eq!(name("temperament.cents[11]", 2), "Custom temperament: C#");
+        assert_eq!(name("temperament.key", 2), "Temperament laid on");
     }
 
     /// Every name, label and help text shown has its glyphs in the

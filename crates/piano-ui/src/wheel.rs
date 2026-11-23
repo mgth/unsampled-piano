@@ -11,7 +11,8 @@ use piano_params::{PianoControl, Value};
 
 use crate::sketches::{HIGHLIGHT, Part};
 
-const NAMES: [&str; 12] = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
+/// The note classes, C to B.
+pub const NAMES: [&str; 12] = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
 /// The custom temperament's range (cents from equal temperament).
 const RANGE: f64 = 50.0;
 /// How far from equal temperament a note lies.
