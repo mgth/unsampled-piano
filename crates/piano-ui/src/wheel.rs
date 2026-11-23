@@ -58,14 +58,17 @@ fn interval(cents: f64) -> String {
     }
 }
 
-/// `t` as a custom temperament laid on C, note class `pc` moved to
-/// `above` cents above C (within the custom temperament's range). The
-/// other notes keep their intervals to C.
+/// `t` as a custom temperament laid on the same key, note class `pc`
+/// moved to `above` cents above C (within the custom temperament's range
+/// from equal temperament). The other notes keep their intervals to C.
 pub fn retuned(t: &TemperamentLaw, pc: usize, above: f64) -> TemperamentLaw {
     let now = above_c(t);
-    let mut cents: [f64; 12] = std::array::from_fn(|i| now[i] - 100.0 * i as f64);
-    cents[pc] = ((above - 100.0 * pc as f64).clamp(-RANGE, RANGE) * 10.0).round() / 10.0;
-    TemperamentLaw { kind: 8, key: 0, cents }
+    let mut off: [f64; 12] = std::array::from_fn(|i| now[i] - 100.0 * i as f64);
+    off[pc] = ((above - 100.0 * pc as f64).clamp(-RANGE, RANGE) * 10.0).round() / 10.0;
+    // The custom table counts from the key: its first entry is the key's
+    // note.
+    let key = t.key.rem_euclid(12) as usize;
+    TemperamentLaw { kind: 8, key: key as i32, cents: std::array::from_fn(|j| off[(j + key) % 12]) }
 }
 
 /// Sends what differs between `from` and `to`.
@@ -253,7 +256,7 @@ mod tests {
         for from in [law(1, 0), law(5, 2), TemperamentLaw { kind: 8, key: 3, cents: std::array::from_fn(|i| i as f64 - 4.0) }] {
             let (was, to) = (above_c(&from), retuned(&from, 4, 386.3));
             let now = above_c(&to);
-            assert_eq!((to.kind, to.key), (8, 0));
+            assert_eq!((to.kind, to.key), (8, from.key));
             for pc in 0..12 {
                 let want = if pc == 4 { 386.3 } else { was[pc] };
                 assert!((now[pc] - want).abs() < 1e-9, "{pc}: {} vs {want}", now[pc]);
@@ -261,5 +264,7 @@ mod tests {
         }
         // Within the custom temperament's range.
         assert_eq!(retuned(&law(0, 0), 4, 300.0).cents[4], -50.0);
+        // Laid on D: E is the table's third entry.
+        assert_eq!(retuned(&law(0, 2), 4, 300.0).cents[2], -50.0);
     }
 }

@@ -1068,7 +1068,8 @@ mod slider_tests {
         }
         at(&mut ui, &mut control, vec![button(on(third), false)]);
         let t = control.model().temperament;
-        assert_eq!((t.kind, t.key), (8, 0));
+        // Still laid on D, as the page shows it.
+        assert_eq!((t.kind, t.key), (8, 2));
         let now = wheel::above_c(&t);
         for pc in 0..12 {
             let (want, tol) = if pc == 4 { (third, 0.1) } else { (was[pc], 1e-9) };
@@ -1078,8 +1079,10 @@ mod slider_tests {
         for pressed in [true, false, true, false] {
             at(&mut ui, &mut control, vec![button(on(third), pressed)]);
         }
+        // A second gesture: still on D, E (the custom table's third entry
+        // from D) back to equal.
         let t = control.model().temperament;
-        assert_eq!(t.cents[4], 0.0);
+        assert_eq!((t.kind, t.key, t.cents[2]), (8, 2, 0.0));
         assert!((wheel::above_c(&t)[7] - was[7]).abs() < 1e-9);
     }
 
