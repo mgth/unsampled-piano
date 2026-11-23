@@ -1156,7 +1156,7 @@ const HELP: &[(&str, &str, &str)] = &[
     ("macros.resonance", "Dry to rich: how much the strings ring along with what is played, pedal down, and how many top strings have no damper.", "Sympathetic gain × 2^v, highest damper 4·v keys lower: the halo of a pedalled C4 ±5.5 dB."),
     ("macros.release", "Clean to soft note endings.", "Damper strength × 3^−v, fall time × 3^(v/2): C4's drop 0.25 s after the key-up +4 to −7 dB."),
     ("macros.unisons", "Pure to lively: how far apart the strings of each note are tuned, and how unevenly the hammer meets them.", "Unison spread × 3^v (× 1.6^v towards pure: tighter unisons lose the slow modes that carry the sustain), hit spread × 1.5^v. C5 over 1–2 s −3.7 to +5.7 dB."),
-    ("macros.mechanism", "Discreet to present action noises: the keys' knock, the dampers, the pedal. Four tenths up, the level of real grands' recordings.", "noise.action, keybed, damper_mass and pedal × 8^v (±18 dB); the defaults are 7.5 dB below the level measured on eight real grands, which +0.42 reaches."),
+    ("macros.mechanism", "Discreet to present action noises: the keys' knock, the dampers, the pedal. Four tenths up, the level of real grands' recordings.", "noise.action, case, keybed, damper_mass and pedal × 8^v (±18 dB); the defaults are 7.5 dB below the level measured on eight real grands, which +0.42 reaches."),
     ("macros.size", "Baby grand to concert grand.", "Bass string length × 1.25^v (bass inharmonicity as 1/L²), board and frame × 1.12^v, hammer mass × 1.1^v."),
     ("macros.lid", "Closed to open lid.", "Lid angle from the preset's towards 0 (v = −1) or 45° (v = +1), and its closure towards shut (v = −1) or none (v = +1): at −1 the lid is shut."),
     ("macros.space", "Close to roomy: how much of the room's reverberation is heard.", "Room tail × 3^v (about ±8 dB)."),
@@ -1394,6 +1394,17 @@ const HELP: &[(&str, &str, &str)] = &[
     ),
     ("noise.action_time", "How long the action's clack rings.", "Decay time T60 (s) of the resonances at 500 Hz, shorter above as (500/f)^0.3."),
     ("noise.action_delay", "How long after the hammer meets the string the action's clack comes.", "Delay (s) of the knock after the strike: the key bottoms just after the hammer reaches the string."),
+    (
+        "noise.case",
+        "The knock of the case under every note: the wooden thud of the box, low and short, the same whatever the key. \
+         It gives the notes their weight, most of all in the treble, where the strings leave the low range empty.",
+        "Peak pressure (Pa) at the microphones per m/s of hammer speed, from a sparse bank of 28 damped \
+         resonances from `case_low` up, one every 34 Hz on average, falling above 600 Hz, shared by all keys; \
+         the two sides hear it 0.3 m of path apart. 0.05 matches the Splendid Grand below the fundamentals \
+         of the keys from C4 up, 80-630 Hz, re a middle note (docs/case_knock.md).",
+    ),
+    ("noise.case_low", "The pitch of the case's deepest resonance: its boom.", "Lowest resonance (Hz) of the bank; 77-93 Hz on six real grands. Nothing sounds below it."),
+    ("noise.case_time", "How long the case's knock rings.", "Decay time T60 (s) of the resonances at 200 Hz, longer below and shorter above as (200/f)^0.5: 0.55 s gives 0.87 s at 80 Hz and 0.35 s at 500 Hz."),
     // Body
     (
         "body.enabled",

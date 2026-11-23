@@ -165,6 +165,7 @@ impl PianoModel {
         let k = scale(MECHANISM_LEVEL, v(c.mechanism));
         m.noise.action *= k;
         m.noise.keybed *= k;
+        m.noise.case *= k;
         m.noise.damper_mass *= k;
         m.noise.pedal *= k;
         m.body.gain *= k;

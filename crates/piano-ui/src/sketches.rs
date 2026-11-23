@@ -227,6 +227,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("damper.", &[Damper]),
         ("noise.keybed", &[KeybedKnock]),
         ("noise.action", &[ActionKnock]),
+        ("noise.case", &[ActionKnock]),
         ("shank_", &[Shank]),
         ("noise.damper_", &[DamperLanding]),
         ("noise.pedal", &[PedalKnock]),

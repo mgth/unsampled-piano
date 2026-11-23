@@ -79,6 +79,9 @@ live_params! {
     NoiseAction => "noise.action", noise.action;
     NoiseActionTime => "noise.action_time", noise.action_time;
     NoiseActionDelay => "noise.action_delay", noise.action_delay;
+    NoiseCase => "noise.case", noise.case;
+    NoiseCaseLow => "noise.case_low", noise.case_low;
+    NoiseCaseTime => "noise.case_time", noise.case_time;
     BodyGain => "body.gain", body.gain;
     BodySlope => "body.slope", body.slope;
     BodyDelay => "body.delay", body.delay;

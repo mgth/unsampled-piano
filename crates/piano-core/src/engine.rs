@@ -359,6 +359,8 @@ pub struct Engine {
     /// The action's knock, heard directly, and the decay time it was set to.
     action: crate::action::ActionNoise,
     action_time: f64,
+    /// The case's knock, heard directly.
+    case: crate::case::CaseKnock,
     /// The body's halo after each strike (crate::body).
     body: crate::body::BodyBank,
     room: Option<crate::room::Room>,
@@ -402,6 +404,7 @@ impl Engine {
         let shortcuts = cfg.quality.shortcuts();
         let capacity = inst.table.capacity();
         let action_time = inst.model.noise.action_time;
+        let (case_low, case_time) = (inst.model.noise.case_low, inst.model.noise.case_time);
         let body_law = inst.model.body;
         // Only an instrument whose bridge rocks pays for its third output.
         let rocking = inst.low.as_ref().is_some_and(|l| l.rocking);
@@ -545,6 +548,7 @@ impl Engine {
             knocks: [Knock::default(); MAX_KNOCKS],
             action: crate::action::ActionNoise::new(cfg.sample_rate, action_time),
             action_time,
+            case: crate::case::CaseKnock::new(cfg.sample_rate, case_low, case_time),
             body: crate::body::BodyBank::new(cfg.sample_rate, &body_law),
             room,
             sustain_prev: 0.0,
@@ -851,7 +855,9 @@ impl Engine {
         }
         // The body's halo renders up to each event, so that a strike takes
         // its slot in the bank from what the bank holds at its own frame,
-        // however many come in one sub-block (crate::body).
+        // however many come in one sub-block (crate::body); the case's
+        // knock with it, so that a live change of its resonances applies
+        // from its own frame.
         let body_gain = out_gain * PRESSURE_GAIN;
         for n in &mut self.noise_buf {
             n[..len].fill(0.0);
@@ -1079,7 +1085,8 @@ impl Engine {
                 // mics by their pan.
                 let [nl, nr] = &mut self.noise_buf;
                 let (nl, nr) = (&mut nl[..len], &mut nr[..len]);
-                // The body's halo is already in (render_body).
+                // The body's halo and the case's knock are already in
+                // (render_body).
                 self.action.render([&mut *nl, &mut *nr], out_gain * PRESSURE_GAIN);
                 // Each microphone hears them from its distance: a far pair
                 // later and weaker (crate::mics::noise_paths).
@@ -1429,9 +1436,9 @@ impl Engine {
         self.gain
     }
 
-    /// The body's halo over samples `a..b` of the sub-block, into the noise
-    /// buffers, with the law as it stands (a live change applies from its
-    /// own frame on).
+    /// The body's halo and the case's knock over samples `a..b` of the
+    /// sub-block, into the noise buffers, with their laws as they stand (a
+    /// live change applies from its own frame on).
     fn render_body(&mut self, a: usize, b: usize, gain: f32) {
         if self.board.is_none() || a >= b {
             return;
@@ -1442,6 +1449,8 @@ impl Engine {
         }
         let [nl, nr] = &mut self.noise_buf;
         self.body.render([&mut nl[a..b], &mut nr[a..b]], gain);
+        self.case.set(self.live.noise.case_low, self.live.noise.case_time);
+        self.case.render([&mut nl[a..b], &mut nr[a..b]], gain);
     }
 
     fn note_on(&mut self, note: u8, velocity: u8) {
@@ -1496,10 +1505,13 @@ impl Engine {
         if self.board.is_some() {
             // The action's knock renders from the start of the sub-block: it
             // waits for the note's own frame within it, then its delay. The
-            // body's halo has rendered up to this frame (render_body).
+            // body's halo and the case's knock have rendered up to this
+            // frame (render_body).
             let within = self.now.saturating_sub(self.clock) as f64 / self.cfg.sample_rate;
             let tilt = crate::body::SpeedTilt::of(&self.live.body, note, vh);
             self.action.strike(note, self.live.noise.action * vh, within + self.live.noise.action_delay, tilt);
+            self.case.set(self.live.noise.case_low, self.live.noise.case_time);
+            self.case.strike(note, self.live.noise.case * vh, 0.0);
             // A live change of the body's law earlier in this sub-block
             // takes effect for this strike, not only at the next one.
             if self.live.body != *self.body.law() {
