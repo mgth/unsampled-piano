@@ -114,6 +114,9 @@ pub struct Scene {
     /// each its note and a box (min, max) round a part of it at rest, the
     /// part the pianist sees.
     pub keys: Vec<(u8, V3, V3)>,
+    /// The pedals where they can be pressed: each its place from the left
+    /// (0 soft, 1 sostenuto, 2 sustain) and a box round it at rest.
+    pub pedals: Vec<(usize, V3, V3)>,
 }
 
 impl Scene {
@@ -139,38 +142,57 @@ impl Scene {
             board: layers[0].board,
             live: layers.iter().any(|s| s.live),
             keys: layers.iter().flat_map(|s| s.keys.iter().copied()).collect(),
+            pedals: layers.iter().flat_map(|s| s.pedals.iter().copied()).collect(),
         }
     }
 
     /// The key a ray from `from` along `dir` meets first, if any, and
     /// where along it (0 at its front … 1 at the back of its visible part).
     pub fn key_at(&self, from: V3, dir: V3) -> Option<(u8, f32)> {
-        let mut best: Option<(f32, u8)> = None;
-        for &(note, lo, hi) in &self.keys {
-            // The slabs' method: the ray's stretch within each pair of
-            // faces, the box's where they overlap.
-            let (mut t0, mut t1) = (0.0f32, f32::MAX);
-            for i in 0..3 {
-                let (a, b) = (lo[i].min(hi[i]), lo[i].max(hi[i]));
-                if dir[i].abs() < 1e-9 {
-                    if from[i] < a || from[i] > b {
-                        t1 = -1.0;
-                    }
-                    continue;
-                }
-                let (ta, tb) = ((a - from[i]) / dir[i], (b - from[i]) / dir[i]);
-                t0 = t0.max(ta.min(tb));
-                t1 = t1.min(ta.max(tb));
-            }
-            if t0 <= t1 && best.is_none_or(|(t, _)| t0 < t) {
-                best = Some((t0, note));
-            }
-        }
-        let (t, note) = best?;
+        let (t, note) = nearest(&self.keys, from, dir)?;
         let (front, back) = self.keys.iter().filter(|k| k.0 == note).fold((f32::MAX, f32::MIN), |(f, b), k| (f.min(k.1[1].min(k.2[1])), b.max(k.1[1].max(k.2[1]))));
         let y = from[1] + t * dir[1];
         Some((note, ((y - front) / (back - front).max(1e-6)).clamp(0.0, 1.0)))
     }
+
+    /// The pedal a ray from `from` along `dir` meets first, if any (its
+    /// place from the left), and how far along the ray.
+    pub fn pedal_at(&self, from: V3, dir: V3) -> Option<(usize, f32)> {
+        nearest(&self.pedals, from, dir).map(|(t, i)| (i, t))
+    }
+
+    /// How far along a ray from `from` along `dir` it meets the first key,
+    /// if any.
+    pub fn key_distance(&self, from: V3, dir: V3) -> Option<f32> {
+        nearest(&self.keys, from, dir).map(|(t, _)| t)
+    }
+}
+
+/// Of `boxes` (each its tag and corners), the one a ray from `from` along
+/// `dir` meets first: how far along the ray, and its tag.
+fn nearest<T: Copy>(boxes: &[(T, V3, V3)], from: V3, dir: V3) -> Option<(f32, T)> {
+    let mut best: Option<(f32, T)> = None;
+    for &(tag, lo, hi) in boxes {
+        // The slabs' method: the ray's stretch within each pair of faces,
+        // the box's where they overlap.
+        let (mut t0, mut t1) = (0.0f32, f32::MAX);
+        for i in 0..3 {
+            let (a, b) = (lo[i].min(hi[i]), lo[i].max(hi[i]));
+            if dir[i].abs() < 1e-9 {
+                if from[i] < a || from[i] > b {
+                    t1 = -1.0;
+                }
+                continue;
+            }
+            let (ta, tb) = ((a - from[i]) / dir[i], (b - from[i]) / dir[i]);
+            t0 = t0.max(ta.min(tb));
+            t1 = t1.min(ta.max(tb));
+        }
+        if t0 <= t1 && best.is_none_or(|(t, _)| t0 < t) {
+            best = Some((t0, tag));
+        }
+    }
+    best
 }
 
 /// What the live view lays on the instrument: the engine's state, and the
@@ -1923,8 +1945,9 @@ fn leg(b: &mut Builder, top: V3, floor: f32) {
 /// A pedal from the face it comes out of at `y` (world), `x` across,
 /// `z` high, towards the pianist: narrow where it leaves the box, widening
 /// into a foot pad that rises a little to its rounded tip; turned about its
-/// pivot inside the box by `press` (0 at rest … 1 down).
-fn pedal(b: &mut Builder, x: f32, y: f32, z: f32, press: f32, c: Color32) {
+/// pivot inside the box by `press` (0 at rest … 1 down). The `i`th from
+/// the left ([`Scene::pedals`]).
+fn pedal(b: &mut Builder, i: usize, x: f32, y: f32, z: f32, press: f32, c: Color32) {
     let (py, pz) = (y + 0.06, z);
     let (s, co) = (0.1 * press.clamp(0.0, 1.0)).sin_cos();
     let ring = |d: f32, w: f32, t: f32| {
@@ -1943,6 +1966,10 @@ fn pedal(b: &mut Builder, x: f32, y: f32, z: f32, press: f32, c: Color32) {
         ring(0.131, 0.013, 0.0043),
     ];
     b.sweep(&rings, [1.0, 0.0, 0.0], c);
+    if b.draw {
+        // Round the pad at rest, a little lower where it goes when pressed.
+        b.s.pedals.push((i, [x - 0.022, y - 0.135, z - 0.03], [x + 0.022, y, z + 0.015]));
+    }
 }
 
 /// A grand's pedal lyre centred at `cx` across and `y` along, from the
@@ -1997,7 +2024,7 @@ fn lyre(b: &mut Builder, cx: f32, y: f32, top: f32, floor: f32, brace: (f32, f32
         let x = cx + (i as f32 - 1.0) * PEDAL_PITCH;
         b.cuboid([x - 0.017, face - 0.002, floor + 0.06], [0.034, 0.0, 0.0], [0.0, 0.002, 0.0], [0.0, 0.0, 0.026], BRASS);
         b.layer_of(Layer::Played);
-        pedal(b, x, face, floor + 0.073, press, c);
+        pedal(b, i, x, face, floor + 0.073, press, c);
         b.layer_of(Layer::Still);
     }
 }
@@ -2820,7 +2847,7 @@ pub fn build_layer(model: &PianoModel, live: Option<&Live>, o: &Options, layer: 
             let x = cx + (i as f32 - 1.0) * PEDAL_PITCH;
             b.cuboid([x - 0.017, face - 0.002, floor as f32 + 0.012], [0.034, 0.0, 0.0], [0.0, 0.002, 0.0], [0.0, 0.0, 0.026], BRASS);
             b.layer_of(Layer::Played);
-            pedal(&mut b, x, face, floor as f32 + 0.025, v, c);
+            pedal(&mut b, i, x, face, floor as f32 + 0.025, v, c);
             b.layer_of(Layer::Still);
         }
     } else {

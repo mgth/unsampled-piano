@@ -312,6 +312,11 @@ impl PianoControl for Controller {
         let event = if velocity > 0 { Event::NoteOn { note, velocity } } else { Event::NoteOff { note, velocity: 64 } };
         let _ = self.notes.push(event);
     }
+
+    /// Through the keys' queue, in their order.
+    fn pedal(&mut self, cc: u8, value: u8) {
+        let _ = self.notes.push(Event::Control { cc, value });
+    }
 }
 
 impl Drop for Controller {

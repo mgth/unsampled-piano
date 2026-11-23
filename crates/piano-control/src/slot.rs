@@ -233,6 +233,11 @@ impl EngineSlot {
             // Parameters, then the notes the interface plays that the
             // caller left.
             let Some(event) = self.params.pop().or_else(|_| self.notes.pop()).ok() else { break };
+            if let Event::Control { cc, value } = event
+                && let Some(i) = PEDALS.iter().position(|&p| p == cc)
+            {
+                self.pedals[i] = Some(value);
+            }
             self.ev_new.push(TimedEvent { frame: 0, event });
             if !matches!(event, Event::NoteOn { .. }) {
                 self.ev_old.push(TimedEvent { frame: 0, event });
