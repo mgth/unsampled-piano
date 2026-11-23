@@ -1083,6 +1083,41 @@ mod slider_tests {
         assert!((wheel::above_c(&t)[7] - was[7]).abs() < 1e-9);
     }
 
+    /// The note is the one pressed, not the one under the pointer when the
+    /// drag is recognised (6 points further): a quick gesture, or one
+    /// pressed at the edge of the handle's reach, still takes its note.
+    #[test]
+    fn a_quick_drag_still_takes_its_note() {
+        let size = Vec2::new(1600.0, 1600.0);
+        let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Default::default() };
+        // (from the handle, first step): on it, a 30-point jump; at the
+        // edge of its reach (10 points out), 8 points along the rim.
+        for (off, first) in [(0.0f32, 30.0f32), (10.0, 8.0)] {
+            let ctx = egui::Context::default();
+            let mut ui = PianoUi::new(None);
+            ui.open_page("Tuning");
+            let mut control = MockControl::new(PianoModel::default());
+            let at = |ui: &mut PianoUi, control: &mut MockControl, events| frame_at(size, ui, control, &ctx, events);
+            at(&mut ui, &mut control, vec![]);
+            at(&mut ui, &mut control, vec![]);
+            let (c, r) = wheel::hub(ui.wheel_shown.expect("the wheel on the Tuning page"));
+            // G, pressed, then moved clockwise (sharper).
+            let out = wheel::dir(700.0);
+            let along = Vec2::new(-out.y, out.x);
+            let press = c + (r + off) * out;
+            at(&mut ui, &mut control, vec![Event::PointerMoved(press)]);
+            at(&mut ui, &mut control, vec![button(press, true)]);
+            for k in 1..=4 {
+                at(&mut ui, &mut control, vec![Event::PointerMoved(press + along * (first + 4.0 * (k - 1) as f32))]);
+            }
+            at(&mut ui, &mut control, vec![button(press + along * (first + 12.0), false)]);
+            let t = control.model().temperament;
+            assert_eq!(t.kind, 8, "pressed {off} points out, first step {first}: no note taken");
+            assert!(t.cents[7] > 5.0, "pressed {off} points out, first step {first}: G at {}", t.cents[7]);
+            assert!(t.cents.iter().enumerate().all(|(i, &v)| i == 7 || v == 0.0), "{:?}", t.cents);
+        }
+    }
+
     /// The interface opens on the instrument playing, in 3D's realistic
     /// look, the musician's controls beside it and the help panel beside
     /// them: a slider follows the pointer step by step, its help shown as

@@ -125,7 +125,10 @@ fn show(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32, control: Opti
     let hovered = if editable { resp.hover_pos().and_then(near) } else { None };
     if let Some(control) = control {
         if resp.drag_started() {
-            dragged = resp.interact_pointer_pos().and_then(near);
+            // Where the button went down: the drag is only told from a
+            // click 6 points further, by then maybe out of the handle's
+            // reach.
+            dragged = ui.input(|i| i.pointer.press_origin()).or(resp.interact_pointer_pos()).and_then(near);
             if let Some(pc) = dragged {
                 control.begin_edit(&format!("temperament.cents[{pc}]"));
             }
