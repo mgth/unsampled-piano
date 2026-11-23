@@ -362,6 +362,11 @@ rear = true
 # half-way between the partials (A1: 1.2–1.6 kHz) stand 10 dB over the default's 0.3;
 # 1.0 puts A1 within 2–3 dB of them from 20 ms to 0.4 s (docs/body.md).
 coupling = 1.0
+# The plain strings (F2 up) keep the default's share: at 1.0, where a sum of two partials
+# falls on a longitudinal mode of the string, a lone high line rang on a few keys struck
+# hard (G2 5.2 kHz, A2 5.6 kHz at −20 dB re the note at velocity 127). Heard at 0.3 on
+# every key and judged acceptable (docs/nonlinearity.md).
+coupling_plain = 0.3
 # The strike's own stretching sets the longitudinal modes ringing during the contact:
 # the precursor a real bass's bridge carries ahead of the transverse wave. As computed
 # it stood 10–20 dB over Plath's below D2, with a harsh 4–5 kHz ring at B0; 12 dB down

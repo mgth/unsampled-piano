@@ -1328,6 +1328,15 @@ const HELP: &[(&str, &str, &str)] = &[
     ("nonlinear.long_loss", "Damping of the stretching vibrations.", "Loss factor of the longitudinal modes."),
     ("nonlinear.coupling", "Loudness of the phantom overtones.", "Share of the longitudinal force at the bridge driving the board; ≈ −28 dB below the partials in the bass at ff (tools/phantom_levels.py)."),
     (
+        "nonlinear.coupling_plain",
+        "Loudness of the phantom overtones on the plain strings, above the wound bass. Lower: no high \
+         ring on a few keys struck hard (G2, A2).",
+        "Share of the longitudinal force driving the board from the scale's break note up; 0: \
+         'Coupling' on every key. Where a sum of two partials falls on a longitudinal mode of the \
+         string (Q 200), it rings as a lone line, 42 dB louder for a note 12 dB louder \
+         (docs/nonlinearity.md).",
+    ),
+    (
         "nonlinear.strike_stretch",
         "The faint noise a bass string sends to the bridge as soon as it is struck, before its tone arrives.",
         "While the hammer pushes, the strain of the two pulses leaving the strike point drives the \

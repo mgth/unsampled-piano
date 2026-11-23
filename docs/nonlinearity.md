@@ -35,6 +35,36 @@ Computation limits:
 
 With `coupling` = 1, the model's phantoms were about 10 dB too strong.
 
+## Phantoms on a longitudinal mode: the plain strings' own share
+
+The user heard a high resonance on G2 and A2 struck hard, and on no neighbouring key (2026-11-23); the comparison tool's ff did not have it. With the Concert grand's `coupling` 1.0 (fitted on A1's phantoms, docs/body.md), where the sum of two partials falls on a longitudinal mode of the string, the mode (Q 200, `long_loss` 0.005: ±13 Hz) makes it a lone line:
+
+| Key | Line | Partials | Longitudinal mode |
+|---|---|---|---|
+| G2 | 5163 Hz | 24 + 27 | third, 5150 Hz |
+| A2 | 5566 Hz | 23 + 26 | third, 5583 Hz |
+| A2 | 7436 Hz | | fourth, 7445 Hz |
+| F2 | 3190 Hz | | second, 3187 Hz |
+| G#2 | 3581 Hz | | second, 3572 Hz |
+| G#3 | 3131 Hz | | first, 3124 Hz |
+
+The sums of a mode's parity lie 2·f0 apart, about 200 Hz there: some keys hit, their neighbours miss.
+
+The line grows much faster than the note. G2 as the user plays it (the player's seat, `velocity.vmax` 5.6 m/s), line re the note's level over its first second, 50–300 ms:
+
+| Velocity | 70 | 85 | 100 | 110 | 120 | 127 |
+|---|---|---|---|---|---|---|
+| G2, 5163 Hz | −50 | −40 | −31 | −27 | −23 | −20 dB |
+| A2, 5566 Hz | −55 | −42 | −33 | −28 | −24 | −22 dB |
+
+From velocity 70 to 127 the note gains 12 dB and G2's line 42. The comparison tool plays ff at velocity 100 on the Disklavier's scale, a hammer at 2.76 m/s, through the close microphones: G2's line reads −44 dB there, under its neighbouring partials (−40). No recording of the bench goes beyond that speed: nothing measured judges the model between 2.76 and 5.6 m/s.
+
+Without the nonlinearity the lines are gone (heard by the user, live); the strike's stretching (`strike_stretch`) has no part in them. With `coupling` 0.3 on every key the user judged G2 and A2 acceptable, the wound strings' phantoms then 10 dB down too. `coupling_plain` gives the plain strings, from the scale's `break_note` up, their own share, and leaves the wound strings `coupling`; 0 (the default) keeps `coupling` on every key. The Concert grand takes 0.3, the default's share and the one fitted on Salamander and Iowa above: F2–E4 lose 10 dB of phantoms and of these lines, A0–E2 keep the level fitted on the Splendid Grand. The step falls where the strings change (E2 wound, 1.378 m; F2 plain, 1.832 m).
+
+Checked on the user's instrument, velocity 127: A1, C2 and E2 render byte for byte as before; F2, G2, G#2, A2, C3 and G#3 byte for byte as with 0.3 on every key, the setting heard. Lines at 50–300 ms: G2's 5163 Hz from −20 dB to under its neighbouring partials (−24), F2 −13 → −24, G#2 −16 → −26, G#3 −12 → −22. The comparison tool's score does not see the change, as its ff does not reach these lines: 865 → 861 measures off, mean 1.194 → 1.195 (Between partials 1.046 → 1.058, Rise time 1.127 → 1.144).
+
+Still to be heard: F2, G#2 and G#3, whose lines measure 4–8 dB over G2's but lie at 3.1–3.6 kHz, among the string's own partials.
+
 ## Effect and cost
 
 - **pp→ff brightening of the bass** (slope of partials ≥ 6 versus 1–2): +2.5 → +2.6 dB, against +6 dB in the references. At the references' actual level, the phantoms are not enough to explain this brightening: another part remains to be found (bass hammer, radiation).

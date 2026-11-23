@@ -631,6 +631,7 @@ fn longitudinal(
     if !nl.enabled || note > nl.max_note || clusters.is_empty() {
         return None;
     }
+    let coupling = nl.coupling_at(note, model.scale.break_note);
     use std::f64::consts::{PI, TAU};
     let dt = 1.0 / sample_rate;
     let ns = np.strings;
@@ -676,7 +677,7 @@ fn longitudinal(
         long_pole.push((p.re as f32, p.im as f32));
         // ζ ← p·ζ + F·dt/(m·ω), ξ = Im ζ; F_n per unit of the bracket.
         long_gain.push((-(ea * n as f64 * PI / 8.0) * ns as f64 * dt / (m_long * w)) as f32);
-        long_out.push((nl.coupling * ea * n as f64 * PI / np.length) as f32);
+        long_out.push((coupling * ea * n as f64 * PI / np.length) as f32);
     }
     // The strike's stretching, d'Alembert while the pulses run free: the
     // string's speed under the hammer is v = F/(2Z) and the strain v²/c²
@@ -704,7 +705,7 @@ fn longitudinal(
         long_gain,
         long_out,
         ea4: (ea / 4.0) as f32,
-        coupling: nl.coupling as f32,
+        coupling: coupling as f32,
         hp_pole: (-std::f64::consts::TAU * nl.coupling_corner * dt).exp() as f32,
     })
 }
