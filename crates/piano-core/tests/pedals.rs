@@ -281,7 +281,7 @@ fn a_bass_key_repeated_under_the_pedal_does_not_tick() {
     stretch.nonlinear.strike_scale = 0.25;
     for (name, model) in [("partials alone", plain), ("strike_stretch", stretch)] {
         let inst = Arc::new(Instrument::new(model, 48_000.0));
-        let (x, _) = render_on(inst, &script, at(STRIKES));
+        let (x, _) = render_on(inst.clone(), &script, at(STRIKES));
         let highs = above_5k(&x);
         // The loudest 2 ms of the 20 ms after each strike, over the 20 ms
         // before it: what the strike itself adds up there.
@@ -293,10 +293,26 @@ fn a_bass_key_repeated_under_the_pedal_does_not_tick() {
         };
         let mut jumps: Vec<f64> = (2..STRIKES).map(jump).collect();
         jumps.sort_by(f64::total_cmp);
-        let rise = jumps[jumps.len() / 2];
+        let rise = (jumps[(jumps.len() - 1) / 2] + jumps[jumps.len() / 2]) / 2.0;
         eprintln!("{name}: above 5 kHz, a repeat's loudest 2 ms {rise:+.1} dB over the 20 ms before it (median; {:+.1} to {:+.1})", jumps[0], jumps[jumps.len() - 1]);
-        // (+10.6 dB as it should be, the new attack's own highs; +28.8 dB
+        // (+9.1 dB as it should be, the new attack's own highs; +27.8 dB
         // with the tick.)
         assert!(rise < 19.0, "{name}: a repeated A1 jumps {rise:.1} dB above 5 kHz at the strike");
+        // And the repeats are struck: a key that stayed silent under the
+        // pedal would not tick either. What they add to a render where the
+        // first strike alone rings on, over that render, in the 100 ms after
+        // each of them.
+        let alone: Vec<(f64, Event)> = script.iter().copied().filter(|&(t, ev)| t <= at(0) || !matches!(ev, Event::NoteOn { .. })).collect();
+        let (first, _) = render_on(inst, &alone, at(STRIKES));
+        let added: Vec<f32> = x.iter().zip(&first).map(|(a, b)| a - b).collect();
+        let attack = |i: usize| {
+            let from = (at(i) * 48_000.0) as usize;
+            rms_db(&added[from..from + 4800]) - rms_db(&first[from..from + 4800])
+        };
+        let least = (1..STRIKES).map(attack).fold(f64::INFINITY, f64::min);
+        eprintln!("{name}: the repeats add {least:+.1} dB or more over the first strike left to ring");
+        // (-0.2 dB at the first repeat, more at each one after; the two
+        // renders are the same when the repeats are lost.)
+        assert!(least > -6.0, "{name}: a repeat of A1 adds {least:.1} dB over the first strike left to ring");
     }
 }
