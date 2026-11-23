@@ -945,7 +945,10 @@ impl Engine {
                     let frame = Ptr(self.frame.as_mut().map_or(std::ptr::null_mut(), |f| f as *mut BoardBank));
                     let side = Ptr(self.side_out.as_mut_ptr());
                     let region_agraffe = &self.region_agraffe;
-                    pool.run(4 * PARTS + 1, &|i| {
+                    // The top bank's jobs only when it runs (the frame's
+                    // job comes right after the last bank's).
+                    let banks = if top.is_some() { 4 } else { 3 };
+                    pool.run(banks * PARTS + 1, &|i| {
                         let _ = (&parts, &low, &sym, &top, &frame, &side);
                         // SAFETY: every item touches its own part, bank and buffers.
                         unsafe {
@@ -961,7 +964,7 @@ impl Engine {
                                         (*parts.0.add(k)).run(job)
                                     }
                                 }
-                                (3, k) => {
+                                (3, k) if banks == 4 => {
                                     if let Some((job, parts)) = &top {
                                         (*parts.0.add(k)).run(job)
                                     }

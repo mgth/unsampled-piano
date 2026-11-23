@@ -188,7 +188,10 @@ impl NoteModel {
         let has_damper = note <= model.damper.highest_note;
         let damper_at = model.damper.place_of(note, np.strike_pos, np.length);
         let wedge = model.damper.wedge(note);
-        let sympathy = board_modes.filter(|_| model.sympathetic.enabled);
+        // The board's modes that move the bridge, below
+        // `sympathetic.bridge_cut`'s cut: the key's own part comes through
+        // those alone.
+        let sympathy = board_modes.filter(|_| model.sympathetic.enabled).map(|bm| &bm[..heard_modes(model, bm, low_gain.as_ref().map(|(n, _)| *n))]);
         let dt = 1.0 / sample_rate;
         let mut n_listen = 0;
         let bridge_shapes = board.map(|b| b.bridge_shapes(note));
@@ -309,10 +312,6 @@ impl NoteModel {
                 // bridge stiffness shifts treble modes by several Hz).
                 // Rendered path: velocity transfer, then (v[n] − v[n−1])·fs.
                 let h_self = sympathy.map(|bm| {
-                    // (The board's modes that move the bridge, below
-                    // `sympathetic.bridge_cut`'s cut: the key's own part
-                    // comes through those alone.)
-                    let heard = heard_modes(model, bm, low_gain.as_ref().map(|(n, _)| *n));
                     let w = cl.lam[m].im;
                     let diff = (C64::ONE - C64::polar(1.0, -w * dt)).scale(sample_rate);
                     let h = match &low_gain {
@@ -320,13 +319,12 @@ impl NoteModel {
                         // from its region.
                         Some((n, g)) => {
                             board::transfer_with(&bm[..*n], |i, _| g[i], board::BRIDGE + region, w, sample_rate)
-                                + board::transfer(&bm[*n..heard], region, board::BRIDGE + region, w, sample_rate)
+                                + board::transfer(&bm[*n..], region, board::BRIDGE + region, w, sample_rate)
                         }
                         // Its low band reaches the board through two regions,
                         // the rest through its own (Voice::mix).
                         None => {
                             let lp = crate::voice::share_lowpass(w, sample_rate);
-                            let bm = &bm[..heard];
                             let low = region_mix.iter().fold(C64::ZERO, |h, &(r, wr)| h + board::transfer(bm, r, board::BRIDGE + region, w, sample_rate).scale(wr as f64));
                             let own = board::transfer(bm, region, board::BRIDGE + region, w, sample_rate);
                             lp * low + (C64::ONE - lp) * own
