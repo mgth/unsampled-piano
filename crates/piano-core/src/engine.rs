@@ -314,6 +314,11 @@ pub struct Engine {
     /// audible and would double the cost.
     board_low: Option<BoardBank<{ crate::board::LOW_INPUTS }>>,
     basis: Vec<Vec<f32>>,
+    /// The modes that only radiate (`sympathetic.bridge_cut`: those above
+    /// its cut), driven by the struck and the sympathetic forces together
+    /// (`region_all`); `board` and `board_sym` then stop under the cut.
+    board_top: Option<BoardBank>,
+    region_all: Vec<Vec<f32>>,
     board_sym_awake: bool,
     board_awake: bool,
     /// Bridge velocity per region (this sub-block) and its last sample; the
@@ -422,7 +427,12 @@ impl Engine {
         let n_basis = if inst.low.is_some() { crate::board::LOW_INPUTS } else { 0 };
         let (low_couple, high_couple) = rim_couple.split_at(n_low.min(rim_couple.len()));
         let low_modes = inst.low.as_ref().zip(inst.board.as_ref()).map(|(l, m)| l.modes(m));
-        let board = inst.board.as_ref().map(|m| BoardBank::with_extra(cfg.sample_rate, &m[n_low..], high_couple, SUB_BLOCK));
+        // The modes that move the bridge under the strings (all of them
+        // without `sympathetic.bridge_cut`), and those that only radiate.
+        let n_heard = inst.board.as_ref().map_or(0, |m| crate::note_model::heard_modes(&inst.model, m, inst.low.as_ref().map(|l| l.n)));
+        let (high_couple, top_couple) = high_couple.split_at((n_heard - n_low).min(high_couple.len()));
+        let board = inst.board.as_ref().map(|m| BoardBank::with_extra(cfg.sample_rate, &m[n_low..n_heard], high_couple, SUB_BLOCK));
+        let board_top = inst.board.as_ref().filter(|m| n_heard < m.len()).map(|m| BoardBank::with_extra(cfg.sample_rate, &m[n_heard..], top_couple, SUB_BLOCK));
         let board_low = low_modes.as_ref().map(|m| BoardBank::with_extra(cfg.sample_rate, m, low_couple, SUB_BLOCK));
         let frame = inst.frame.as_ref().map(|m| BoardBank::new(cfg.sample_rate, m, SUB_BLOCK));
         let rim = inst.rim.as_ref().map(|r| crate::structure::RimBank::new(r, cfg.sample_rate));
@@ -431,12 +441,12 @@ impl Engine {
             .board
             .as_ref()
             .filter(|_| inst.model.sympathetic.enabled)
-            .map(|m| BoardBank::new(cfg.sample_rate, m, SUB_BLOCK));
+            .map(|m| BoardBank::new(cfg.sample_rate, &m[..n_heard], SUB_BLOCK));
         // The radiation's zones: each bank lets the board sleep only once
         // all the first microphone's slots are quiet.
-        let (mut board, mut board_low, mut board_sym) = (board, board_low, board_sym);
+        let (mut board, mut board_low, mut board_sym, mut board_top) = (board, board_low, board_sym, board_top);
         if let Some(z) = &inst.zones {
-            board.iter_mut().chain(board_sym.iter_mut()).for_each(|b| b.set_zones(z));
+            board.iter_mut().chain(board_sym.iter_mut()).chain(board_top.iter_mut()).for_each(|b| b.set_zones(z));
             board_low.iter_mut().for_each(|b| b.set_zones(z));
         }
         let rear: Vec<ModalBank> = inst
@@ -502,6 +512,8 @@ impl Engine {
             rear,
             board_low,
             basis: vec![vec![0.0; SUB_BLOCK]; n_basis],
+            region_all: vec![vec![0.0; SUB_BLOCK]; if board_top.is_some() { REGIONS } else { 0 }],
+            board_top,
             board_sym_awake: false,
             board_awake: false,
             disp: vec![vec![0.0; SUB_BLOCK]; REGIONS],
@@ -631,7 +643,7 @@ impl Engine {
 
     pub fn active_modes(&self) -> usize {
         let len = |b: &Option<BoardBank>| b.as_ref().map_or(0, |b| b.len());
-        let board = if self.board_awake { len(&self.board) + self.board_low.as_ref().map_or(0, |b| b.len()) } else { 0 };
+        let board = if self.board_awake { len(&self.board) + len(&self.board_top) + self.board_low.as_ref().map_or(0, |b| b.len()) } else { 0 };
         let board_sym = if self.board_sym_awake { len(&self.board_sym) } else { 0 };
         self.voices.iter().filter(|v| v.active).map(|v| v.bank.len() + v.sym.len()).sum::<usize>() + board + board_sym
     }
@@ -666,7 +678,7 @@ impl Engine {
         (own.sustain, own.soft, own.sostenuto) = (self.sustain as f32, self.soft as f32, self.sostenuto_down);
         // The low modes run apart when driven key by key: they come first.
         let mut n = self.board_low.as_ref().map_or(0, |b| b.amplitudes(&mut own.board));
-        if let Some(b) = &self.board {
+        for b in self.board.iter().chain(&self.board_top) {
             n += b.amplitudes(&mut own.board[n..]);
         }
         // Asleep, the board keeps its last state, silent: at rest.
@@ -890,14 +902,25 @@ impl Engine {
                 for f in &mut self.rim_force {
                     f[..len].fill(0.0);
                 }
-                let run_board = has_input || self.board_awake;
                 let has_frame = self.region_agraffe.iter().any(|r| r[..len].iter().any(|&x| x != 0.0));
                 let run_frame = self.frame.is_some() && (has_frame || self.frame_awake);
                 let has_sym = any(&self.region_sym);
                 let run_sym = self.board_sym.is_some() && (has_sym || self.board_sym_awake);
+                // (The modes that only radiate take the sympathetic forces
+                // with the struck strings'.)
+                let driven = has_input || (self.board_top.is_some() && has_sym);
+                let run_board = driven || self.board_awake;
+                if self.board_top.is_some() && run_board {
+                    for ((a, x), y) in self.region_all.iter_mut().zip(&self.region).zip(&self.region_sym) {
+                        for ((a, x), y) in a[..len].iter_mut().zip(&x[..len]).zip(&y[..len]) {
+                            *a = x + y;
+                        }
+                    }
+                }
                 if let Some(pool) = self.pool.as_mut().filter(|_| run_board) {
                     // The parts of the board's banks (its high modes, its low
-                    // modes, the sympathetic board) and the frame in parallel,
+                    // modes, the sympathetic board, the modes that only
+                    // radiate) and the frame in parallel,
                     // each into its own buffers, summed below in the same order
                     // as on one thread: the same result, bit for bit.
                     let with_rim = self.rim.is_some();
@@ -908,6 +931,9 @@ impl Engine {
                     if let Some(bs) = self.board_sym.as_mut().filter(|_| run_sym) {
                         bs.prepare(&self.region_sym, len, false, false);
                     }
+                    if let Some(top) = self.board_top.as_mut() {
+                        top.prepare(&self.region_all, len, false, with_rim);
+                    }
                     for b in self.side_out.iter_mut().flatten() {
                         b[..len].fill(0.0);
                     }
@@ -915,11 +941,12 @@ impl Engine {
                     let parts = Ptr(parts.as_mut_ptr());
                     let low = self.board_low.as_mut().map(|l| l.split()).map(|(job, parts)| (job, Ptr(parts.as_mut_ptr())));
                     let sym = self.board_sym.as_mut().filter(|_| run_sym).map(|b| b.split()).map(|(job, parts)| (job, Ptr(parts.as_mut_ptr())));
+                    let top = self.board_top.as_mut().map(|b| b.split()).map(|(job, parts)| (job, Ptr(parts.as_mut_ptr())));
                     let frame = Ptr(self.frame.as_mut().map_or(std::ptr::null_mut(), |f| f as *mut BoardBank));
                     let side = Ptr(self.side_out.as_mut_ptr());
                     let region_agraffe = &self.region_agraffe;
-                    pool.run(3 * PARTS + 1, &|i| {
-                        let _ = (&parts, &low, &sym, &frame, &side);
+                    pool.run(4 * PARTS + 1, &|i| {
+                        let _ = (&parts, &low, &sym, &top, &frame, &side);
                         // SAFETY: every item touches its own part, bank and buffers.
                         unsafe {
                             match (i / PARTS, i % PARTS) {
@@ -931,6 +958,11 @@ impl Engine {
                                 }
                                 (2, k) => {
                                     if let Some((job, parts)) = &sym {
+                                        (*parts.0.add(k)).run(job)
+                                    }
+                                }
+                                (3, k) => {
+                                    if let Some((job, parts)) = &top {
                                         (*parts.0.add(k)).run(job)
                                     }
                                 }
@@ -953,7 +985,13 @@ impl Engine {
                         bs.finish(&mut out[..nm], None, None);
                     }
                     Self::board_feed(board, self.board_low.as_ref(), chans, &mut self.board_mics, &mut self.probes, len);
-                    self.board_awake = has_input || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr);
+                    if let Some(top) = self.board_top.as_mut() {
+                        // After the room's feed: what these modes radiate
+                        // reaches the room as the sympathetic board's does.
+                        let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
+                        top.finish(chans, None, rim_force);
+                    }
+                    self.board_awake = driven || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr) || self.board_top.as_ref().is_some_and(|b| b.energy() > thr);
                     if let Some(rim) = self.rim.as_mut().filter(|_| self.board_awake || self.rim_awake) {
                         rim.process(&self.rim_force, len, chans);
                         self.rim_awake = self.board_awake || rim.energy() > self.shortcuts.board_silence;
@@ -976,7 +1014,11 @@ impl Engine {
                             low.process(&self.basis, len, chans, Some(&mut self.disp), rim_force);
                         }
                         Self::board_feed(board, self.board_low.as_ref(), chans, &mut self.board_mics, &mut self.probes, len);
-                        self.board_awake = has_input || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr);
+                        if let Some(top) = self.board_top.as_mut() {
+                            let rim_force = self.rim.is_some().then_some(&mut self.rim_force[..]);
+                            top.process(&self.region_all, len, chans, None, rim_force);
+                        }
+                        self.board_awake = driven || board.energy() > thr || self.board_low.as_ref().is_some_and(|b| b.energy() > thr) || self.board_top.as_ref().is_some_and(|b| b.energy() > thr);
                     } else {
                         for b in self.board_mics.iter_mut().chain(self.probes.iter_mut()) {
                             b[..len].fill(0.0);
@@ -1229,7 +1271,7 @@ impl Engine {
         let l = self.board_load;
         if (l - self.board_load_set).abs() >= 0.01 || (l == target && l != self.board_load_set) {
             self.board_load_set = l;
-            for b in self.board.iter_mut().chain(&mut self.board_sym) {
+            for b in self.board.iter_mut().chain(&mut self.board_sym).chain(&mut self.board_top) {
                 b.set_load(l);
             }
             if let Some(b) = self.board_low.as_mut() {

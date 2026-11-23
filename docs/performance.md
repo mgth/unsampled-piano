@@ -299,7 +299,7 @@ There is no `main` baseline on these runners, as the workflow only exists on thi
 
 The first two rounds measured the default instrument. The Concert grand as shipped is much heavier: its board is built by finite elements (2124 modes below 0.45·fs), driven key by key below 6 kHz; four microphones, each with the case's field in a slot of its own (8 mic slots); the room fed by four probes; the body's halo after every strike. The player's own set-up runs it on two threads.
 
-Rule of this round: every output bit stays the same.
+Rule of this round: first what leaves every output bit alone, then what costs a little quality, behind an option that is off.
 
 ### Starting point
 
@@ -424,6 +424,34 @@ Where the time goes now (one thread): one held note is the soundboard for three 
 
 What is left of the onset spike is the hammer contact: thirty keys struck in one buffer still take about 50 points for the three buffers their contact lasts (83 % worst buffer on one thread, 60 % on two).
 
+### A shortcut with a cost: `sympathetic.bridge_cut`
+
+Off by default; nothing is in the shipped preset or in a quality level. A bool, with its cut's frequency `sympathetic.bridge_below` (10 kHz).
+
+The board's modes at and above the cut only radiate. Those below move the bridge under the strings that listen (their partials below `sympathetic.max_freq`, 5 kHz; the rear lengths higher). The engine then runs the modes above the cut in one bank, driven by the struck and the sympathetic forces together and computing no bridge velocity, where it ran them twice (once with 28 outputs, once in the sympathetic board): 8 outputs instead of 36 for those modes. The key's own part in what it hears and the free strings' brakes are computed from the modes below the cut, so that the cancellation stays exact. The cut never goes below `soundboard.exact_below`.
+
+Lost: what the modes above the cut add to the bridge's motion below their own frequencies (a little stiffness), and the rear lengths' ring above the cut.
+
+Changed in the room's feed: the bank of the modes above the cut computes no probe and is added after the board's part is taken for the room. Everything those modes radiate, from the struck strings as from the sympathetic ones, therefore reaches the room through the microphones' estimate (as the sympathetic board's and the frame's do) and no longer through the probes. Above 3 kHz (`board::PROBES_BELOW`) the probes carried that same estimate, taken on the plain weights; it now passes the microphones' delay zones and the case's fill first. The tail keeps its level and changes its waveform.
+
+| | Cut at 10 kHz | Cut at 6 kHz |
+|---|---|---|
+| One note C4 mf, 1 thread (11.9 % without) | 10.4 % | 9.4 % |
+| Whole keyboard ff, 1 thread (39.8) | 37.5 | 35.8 |
+| 30 keys, pedal pumping, 1 thread (27.5) | 25.1 | 23.7 |
+| One note, 2 threads (8.2) | 7.2 | 6.7 |
+| Whole keyboard ff, 2 threads (23.4) | 21.8 | 20.8 |
+| Difference on single notes, room off: worst octave band and window | 26 dB under the note (4 kHz band of C6, 50 ms to 1 s) | 19 dB under |
+| Band levels, room off | within 0.11 dB | within 0.26 dB |
+| Difference on the twelve scenarios of the guard rail, room on: over the file / worst 100 ms | −42 to −62 dB / −26 dB (single top notes) | −32 to −54 dB / −13 dB |
+| Score, 24 measures (shipped: 865 off, mean 1.194) | 868 off, 1.195 | 870 off, 1.196 |
+
+- The difference is measured by [`tools/bitexact/difference.py`](../tools/bitexact/difference.py): single notes held 2 s then released (C2 to C7), by octave band, in windows from the onset (0–50 ms, 50–300 ms, 0.3–1 s, 1–2 s) and after the release (0.3 s, 1 s, the tail).
+- With the room on, the 8 and 16 kHz bands of the tail differ in waveform by up to the tail's own level (see the room's feed above), not in level.
+- The measures "Lines …" (partial lines up to 2.2 s) and "Release drop …" of the comparison tool do not move (one key in one measure at most); "Tuning" and "Inharmonicity B" each take one or two keys more out of the band.
+- Written before the kernel's rewrite, when it saved 3.5 to 5 points at 10 kHz; it now saves 1 to 2.5 (1.5 to 4 at 6 kHz). Measured again on November 23, after the phantom partials' changes: the same differences, and the same savings within the noise (a busy machine).
+- Listened to on November 23 and kept, off by default, without a listening remark. Listening page (not in the repository): `out/ab_cpu/index.html`, nine excerpts of the guard rail's scenarios (the top notes ff and mf, chords, pedal, re-strikes, releases, glissando, Liszt, Chopin) in FLAC, shipped, 10 kHz and 6 kHz, with a blind mode, and the difference alone.
+
 ### Tried and dropped, and what is left
 
 - **Phantom partials dispatched to AVX** (the products of `Voice::nl_run`): no gain, as in the first round.
@@ -454,6 +482,7 @@ Individual settings, for presets ([`params.rs`](../crates/piano-core/src/params.
 | `frame` and `rim` off | −5 points | the frame's ring and the rim's low body |
 | `polarization.enabled = false` | −6 / −4 points | the horizontal polarisation: part of the aftersound and of the double decay |
 | `room.enabled = false` | −1 point | the room: the host's reverb takes over |
+| `sympathetic.bridge_cut = true` (Concert grand, third round) | −1 to −2.5 points | the bridge's motion from the board's modes above 10 kHz; the rear lengths' ring up there |
 
 ## Outputs above 48 kHz
 
@@ -475,7 +504,7 @@ So the standalone player computes the piano at 44.1 or 48 kHz behind any output 
 **What runs in parallel.** The bridge motion reaches the strings 64 samples late (`note_model::BRIDGE_DELAY`), so no voice depends on another within a sub-block. Each sub-block makes two runs on a pool of persistent workers ([`par.rs`](../crates/piano-core/src/par.rs)):
 
 1. **The voices.** Each voice computes its forces into its own buffers (`Voice::compute`). The audio thread adds them in voice order (`Voice::mix`).
-2. **The structures.** Each of the soundboard's banks (its modes above the ones driven key by key, those, and the sympathetic board) is split in two halves (`BoardBank::split`, `BoardPart`), and the frame runs whole into its own buffers. The audio thread then adds everything in the same order as one thread would. The halves are taken in every case, one thread or several, so the result does not depend on it. (Until the third round the low modes' bank and the sympathetic board ran whole, the first on the audio thread.)
+2. **The structures.** Each of the soundboard's banks (its modes above the ones driven key by key, those, the sympathetic board, and with `sympathetic.bridge_cut` the modes that only radiate) is split in two halves (`BoardBank::split`, `BoardPart`), and the frame runs whole into its own buffers. The audio thread then adds everything in the same order as one thread would. The halves are taken in every case, one thread or several, so the result does not depend on it. (Until the third round the low modes' bank and the sympathetic board ran whole, the first on the audio thread.)
 
 The rim (small, fed by the board) and the room stay on the audio thread.
 

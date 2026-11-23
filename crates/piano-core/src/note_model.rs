@@ -309,6 +309,10 @@ impl NoteModel {
                 // bridge stiffness shifts treble modes by several Hz).
                 // Rendered path: velocity transfer, then (v[n] − v[n−1])·fs.
                 let h_self = sympathy.map(|bm| {
+                    // (The board's modes that move the bridge, below
+                    // `sympathetic.bridge_cut`'s cut: the key's own part
+                    // comes through those alone.)
+                    let heard = heard_modes(model, bm, low_gain.as_ref().map(|(n, _)| *n));
                     let w = cl.lam[m].im;
                     let diff = (C64::ONE - C64::polar(1.0, -w * dt)).scale(sample_rate);
                     let h = match &low_gain {
@@ -316,12 +320,13 @@ impl NoteModel {
                         // from its region.
                         Some((n, g)) => {
                             board::transfer_with(&bm[..*n], |i, _| g[i], board::BRIDGE + region, w, sample_rate)
-                                + board::transfer(&bm[*n..], region, board::BRIDGE + region, w, sample_rate)
+                                + board::transfer(&bm[*n..heard], region, board::BRIDGE + region, w, sample_rate)
                         }
                         // Its low band reaches the board through two regions,
                         // the rest through its own (Voice::mix).
                         None => {
                             let lp = crate::voice::share_lowpass(w, sample_rate);
+                            let bm = &bm[..heard];
                             let low = region_mix.iter().fold(C64::ZERO, |h, &(r, wr)| h + board::transfer(bm, r, board::BRIDGE + region, w, sample_rate).scale(wr as f64));
                             let own = board::transfer(bm, region, board::BRIDGE + region, w, sample_rate);
                             lp * low + (C64::ONE - lp) * own
@@ -571,6 +576,18 @@ fn mode_response(m: &ModeSpec, omega: f64, sample_rate: f64) -> C64 {
 /// board (`SoundboardParams::string_load`).
 const BRAKE_WINDOW: f64 = 0.02;
 
+/// How many of the board's modes (sorted by frequency) move the bridge
+/// under the strings: all of them, or with `sympathetic.bridge_cut` those
+/// below `bridge_below`, the `low` first ones (driven at each key) at
+/// least. The others only radiate.
+pub fn heard_modes(model: &PianoModel, board_modes: &[BoardMode], low: Option<usize>) -> usize {
+    let law = &model.sympathetic;
+    if !(law.enabled && law.bridge_cut) {
+        return board_modes.len();
+    }
+    board_modes.iter().take_while(|m| m.freq_hz < law.bridge_below).count().max(low.unwrap_or(0)).min(board_modes.len())
+}
+
 /// Per key and listening mode, the brake 1/(1 − Σ_k A·H_k) on its
 /// sympathetic drive: H_k the bridge force of another free key's listening
 /// modes per bridge acceleration (near the mode's frequency), A the board's
@@ -737,7 +754,9 @@ impl PianoTable {
     ) -> Self {
         // Independent keys: built in parallel (≈ 0.5 s on one core).
         let mut notes = crate::par::map(88, |i| NoteModel::build_with(model, board, board_modes, low, frame, 21 + i as u8, sample_rate, res));
-        if let (true, Some(bm)) = (model.sympathetic.enabled && model.sympathetic.brake, board_modes) {
+        // (The bridge the listening strings hear: `sympathetic.bridge_cut`.)
+        let heard = board_modes.map(|bm| &bm[..heard_modes(model, bm, low.map(|l| l.n))]);
+        if let (true, Some(bm)) = (model.sympathetic.enabled && model.sympathetic.brake, heard) {
             let up = sym_brakes(&notes, bm, |nm| !nm.has_damper, sample_rate);
             let down = sym_brakes(&notes, bm, |_| true, sample_rate);
             for ((nm, up), down) in notes.iter_mut().zip(&up).zip(&down) {

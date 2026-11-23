@@ -52,3 +52,39 @@ fn overkill_listens_on_every_string() {
     assert_eq!(count(Quality::Overkill), 88);
     assert!(count(Quality::Full) < 88);
 }
+
+/// `sympathetic.bridge_cut`: the board's modes above `bridge_below` only
+/// radiate. Off, the cut's frequency changes nothing; on, a pedalled chord
+/// stays close to the whole model's, and is the same on one thread or two.
+#[test]
+fn the_bridge_cut_costs_little_and_nothing_when_off() {
+    use piano_core::{Event, TimedEvent};
+    let render = |model: PianoModel, threads: usize| {
+        let mut e = Engine::new(EngineConfig { model, threads, ..Default::default() });
+        let (mut l, mut r) = (vec![0.0f32; 128], vec![0.0f32; 128]);
+        let mut on = vec![TimedEvent { frame: 0, event: Event::Control { cc: 64, value: 127 } }];
+        on.extend([48u8, 60, 64, 67, 96].map(|note| TimedEvent { frame: 3, event: Event::NoteOn { note, velocity: 100 } }));
+        let mut out = Vec::new();
+        for i in 0..300 {
+            e.process_stereo(if i == 0 { &on } else { &[] }, &mut l, &mut r);
+            out.extend_from_slice(&l);
+            out.extend_from_slice(&r);
+        }
+        out
+    };
+    let same = |a: &[f32], b: &[f32]| a.iter().zip(b).all(|(x, y)| x.to_bits() == y.to_bits());
+    let whole = PianoModel::default();
+    let mut off = whole;
+    off.sympathetic.bridge_below = 6000.0;
+    let mut cut = off;
+    cut.sympathetic.bridge_cut = true;
+    let a = render(whole, 1);
+    assert!(same(&a, &render(off, 1)), "the cut's frequency alone changes the sound");
+    let c = render(cut, 1);
+    assert!(same(&c, &render(cut, 2)), "the cut depends on the threads");
+    let power = |x: &mut dyn Iterator<Item = f64>| x.map(|v| v * v).sum::<f64>();
+    let p = power(&mut a.iter().map(|&v| v as f64));
+    let d = power(&mut a.iter().zip(&c).map(|(&x, &y)| (y - x) as f64));
+    let db = 10.0 * (d / p).log10();
+    assert!(d > 0.0 && db < -30.0, "difference {db:.1} dB re the signal");
+}
