@@ -188,7 +188,10 @@ impl NoteModel {
         let has_damper = note <= model.damper.highest_note;
         let damper_at = model.damper.place_of(note, np.strike_pos, np.length);
         let wedge = model.damper.wedge(note);
-        let sympathy = board_modes.filter(|_| model.sympathetic.enabled);
+        // The board's modes that move the bridge, below
+        // `sympathetic.bridge_cut`'s cut: the key's own part comes through
+        // those alone.
+        let sympathy = board_modes.filter(|_| model.sympathetic.enabled).map(|bm| &bm[..heard_modes(model, bm, low_gain.as_ref().map(|(n, _)| *n))]);
         let dt = 1.0 / sample_rate;
         let mut n_listen = 0;
         let bridge_shapes = board.map(|b| b.bridge_shapes(note));
@@ -571,6 +574,18 @@ fn mode_response(m: &ModeSpec, omega: f64, sample_rate: f64) -> C64 {
 /// board (`SoundboardParams::string_load`).
 const BRAKE_WINDOW: f64 = 0.02;
 
+/// How many of the board's modes (sorted by frequency) move the bridge
+/// under the strings: all of them, or with `sympathetic.bridge_cut` those
+/// below `bridge_below`, the `low` first ones (driven at each key) at
+/// least. The others only radiate.
+pub fn heard_modes(model: &PianoModel, board_modes: &[BoardMode], low: Option<usize>) -> usize {
+    let law = &model.sympathetic;
+    if !(law.enabled && law.bridge_cut) {
+        return board_modes.len();
+    }
+    board_modes.iter().take_while(|m| m.freq_hz < law.bridge_below).count().max(low.unwrap_or(0)).min(board_modes.len())
+}
+
 /// Per key and listening mode, the brake 1/(1 − Σ_k A·H_k) on its
 /// sympathetic drive: H_k the bridge force of another free key's listening
 /// modes per bridge acceleration (near the mode's frequency), A the board's
@@ -737,7 +752,9 @@ impl PianoTable {
     ) -> Self {
         // Independent keys: built in parallel (≈ 0.5 s on one core).
         let mut notes = crate::par::map(88, |i| NoteModel::build_with(model, board, board_modes, low, frame, 21 + i as u8, sample_rate, res));
-        if let (true, Some(bm)) = (model.sympathetic.enabled && model.sympathetic.brake, board_modes) {
+        // (The bridge the listening strings hear: `sympathetic.bridge_cut`.)
+        let heard = board_modes.map(|bm| &bm[..heard_modes(model, bm, low.map(|l| l.n))]);
+        if let (true, Some(bm)) = (model.sympathetic.enabled && model.sympathetic.brake, heard) {
             let up = sym_brakes(&notes, bm, |nm| !nm.has_damper, sample_rate);
             let down = sym_brakes(&notes, bm, |_| true, sample_rate);
             for ((nm, up), down) in notes.iter_mut().zip(&up).zip(&down) {

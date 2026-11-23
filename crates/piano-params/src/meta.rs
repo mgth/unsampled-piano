@@ -205,6 +205,8 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("sympathetic.rear", "Rear duplex sounds", "", 0.0, 1.0, false),
     ("sympathetic.rear_from", "Lowest key with a bare rear length", "", 21.0, 108.0, false),
     ("sympathetic.rear_loss", "Rear duplex decay", "1/s", 0.0, 60.0, false),
+    ("sympathetic.bridge_cut", "Board's top modes only radiate (less CPU)", "", 0.0, 1.0, false),
+    ("sympathetic.bridge_below", "Where the board's modes stop moving the bridge", "Hz", 3000.0, 22000.0, true),
     ("frame.duplex", "Front duplex sounds", "", 0.0, 1.0, false),
     ("frame.duplex_group", "Unisons to a bearing bar", "", 2.0, 12.0, false),
     ("frame.duplex_far", "Bearing bar to capo, a group's lowest key", "m", 0.015, 0.12, false),

@@ -1402,6 +1402,27 @@ pub struct SympatheticLaw {
     /// ends on the bridge's pins and on the plate.
     #[cfg_attr(feature = "serde", serde(default = "rear_loss"))]
     pub rear_loss: f64,
+    /// A CPU economy: the board's modes at and above `bridge_below` only
+    /// radiate. The strings hear the bridge through the modes below it (the
+    /// listening strings run their partials below `max_freq`, the rear
+    /// lengths higher), and the engine drives the modes above with the
+    /// struck and the sympathetic forces together, in one bank instead of
+    /// two, computing no bridge motion from them. Lost: what those modes add
+    /// to the bridge's motion below their own frequencies, and the rear
+    /// lengths' ring above `bridge_below`. Changed: what those modes
+    /// radiate, from the struck strings as from the sympathetic ones,
+    /// reaches the room through the microphones' estimate (after their
+    /// delay zones and the case's fill) and no longer through the probes,
+    /// which above [`crate::board::PROBES_BELOW`] carry that same estimate
+    /// taken before them: the tail keeps its level, not its waveform
+    /// (docs/performance.md, third round). Never below
+    /// `soundboard.exact_below`: the modes driven at each key keep the
+    /// bridge. Off by default.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub bridge_cut: bool,
+    /// Where `bridge_cut` cuts (Hz).
+    #[cfg_attr(feature = "serde", serde(default = "bridge_below"))]
+    pub bridge_below: f64,
 }
 
 #[cfg(feature = "serde")]
@@ -1414,10 +1435,15 @@ fn rear_loss() -> f64 {
     SympatheticLaw::DEFAULT.rear_loss
 }
 
+#[cfg(feature = "serde")]
+fn bridge_below() -> f64 {
+    SympatheticLaw::DEFAULT.bridge_below
+}
+
 impl SympatheticLaw {
     /// `rear_from` B3: on a concert grand the rear lengths of the top fifty
     /// keys or so are bare, the others lie under felt.
-    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 1.0, self_cancel: true, brake: true, rear: false, rear_from: 59, rear_loss: 0.0 };
+    pub const DEFAULT: Self = Self { enabled: true, max_freq: 5000.0, gain: 1.0, self_cancel: true, brake: true, rear: false, rear_from: 59, rear_loss: 0.0, bridge_cut: false, bridge_below: 10_000.0 };
 }
 
 /// Partial frequency of a stiff string: f_k = k·f0·sqrt(1 + B·k²).

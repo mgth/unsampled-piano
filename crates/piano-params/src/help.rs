@@ -1312,6 +1312,18 @@ const HELP: &[(&str, &str, &str)] = &[
         "How fast the rear lengths stop ringing, beyond what the wire itself loses. Higher: a shorter shimmer.",
         "Decay rate (1/s) added to the string's own losses for the rear lengths' modes: their ends on the bridge's pins and on the plate. Not measured.",
     ),
+    (
+        "sympathetic.bridge_cut",
+        "Saves CPU: the board's highest modes only radiate, they no longer move the bridge under the strings that ring in sympathy.",
+        "The board's modes at and above bridge_below take the struck and the sympathetic forces \
+         in one bank instead of two, and no bridge motion is computed from them. The listening \
+         strings (partials below max_freq) lose what those modes add to the bridge's motion \
+         below their own frequencies; the rear lengths lose their ring above bridge_below. \
+         Everything those modes radiate, struck and sympathetic, then reaches the room through \
+         the microphones' estimate instead of the probes: the tail keeps its level and changes \
+         its waveform. Never cuts below soundboard.exact_below (docs/performance.md).",
+    ),
+    ("sympathetic.bridge_below", "Where bridge_cut cuts (bridge_cut on).", "The board's modes at and above this frequency (Hz) only radiate."),
     // Nonlinearity
     (
         "nonlinear.enabled",
