@@ -45,6 +45,9 @@ pub struct CaseKnock {
     /// Pole per resonance (rotation times decay), as (re, im).
     pole: [(f32, f32); K],
     weight: [f32; K],
+    /// Each key's signed share of each resonance (±3 dB, sign), fixed:
+    /// computed once, off the audio thread.
+    key: Box<[[f32; K]; 128]>,
     freq: [f64; K],
     /// State per side and resonance.
     state: [[(f32, f32); K]; 2],
@@ -70,6 +73,7 @@ impl CaseKnock {
         let mut s = Self {
             pole: [(0.0, 0.0); K],
             weight: [0.0; K],
+            key: Box::new([[0.0; K]; 128]),
             freq: [0.0; K],
             state: [[(0.0, 0.0); K]; 2],
             pending: [Pending::default(); PENDING],
@@ -84,6 +88,16 @@ impl CaseKnock {
         let w: Vec<f64> = (0..n).map(|i| (std::f64::consts::PI * (i as f64 + 0.5) / n as f64).sin().powi(2)).collect();
         let sum: f64 = w.iter().sum();
         s.pulse = w.iter().map(|x| (x / sum) as f32).collect();
+        for (note, row) in s.key.iter_mut().enumerate() {
+            for (i, g) in row.iter_mut().enumerate() {
+                // ±3 dB per key and resonance. The lowest resonances move
+                // the same way under every key; higher up a key's place
+                // decides.
+                let a = 10f32.powf(3.0 * (2.0 * hash(note as f64, i as f64 + 7.0) as f32 - 1.0) / 20.0);
+                let flip = hash(note as f64 + 0.5, i as f64) < 0.5 * (i as f64 / 8.0).min(1.0);
+                *g = if flip { -a } else { a };
+            }
+        }
         s.set(low, time);
         s
     }
@@ -127,12 +141,9 @@ impl CaseKnock {
 
     fn excite(&mut self, side: usize, note: u8, amp: f32) {
         let norm = amp / (K as f32).sqrt();
-        for i in 0..K {
-            // ±3 dB per key and resonance. The lowest resonances move the
-            // same way under every key; higher up a key's place decides.
-            let a = norm * self.weight[i] * 10f32.powf(3.0 * (2.0 * hash(note as f64, i as f64 + 7.0) as f32 - 1.0) / 20.0);
-            let flip = hash(note as f64 + 0.5, i as f64) < 0.5 * (i as f64 / 8.0).min(1.0);
-            self.state[side][i].0 += if flip { -a } else { a };
+        let key = &self.key[note as usize & 127];
+        for ((z, &w), &g) in self.state[side].iter_mut().zip(&self.weight).zip(key) {
+            z.0 += norm * w * g;
         }
         self.awake = true;
     }
