@@ -65,6 +65,8 @@ pub struct PianoUi {
     /// The help panel as last drawn, and its button.
     help_shown: Option<egui::Rect>,
     help_button: Option<egui::Rect>,
+    /// The temperament wheel as last drawn (Tuning page).
+    wheel_shown: Option<egui::Rect>,
     mics: mics::MicView,
     model: model::ModelView,
     /// Parameter under the pointer (registry index), lighting its part in
@@ -156,6 +158,7 @@ impl PianoUi {
             help_open: true,
             help_shown: None,
             help_button: None,
+            wheel_shown: None,
             mics: mics::MicView::default(),
             model: model::ModelView::default(),
             hovered: None,
@@ -527,7 +530,7 @@ impl PianoUi {
                 _ => &[],
             };
             if !drawn.is_empty() || !s.curves.is_empty() {
-                self.figures(ui, drawn, s.curves, model);
+                self.figures(ui, drawn, s.curves, control, model);
             }
             ui.add_space(8.0);
         } else if shown.is_empty() {
@@ -591,7 +594,7 @@ impl PianoUi {
 
     /// A page's sketches and curves, packed in rows: sketches 380 px wide,
     /// curves sharing the width (at least 160 px each).
-    fn figures(&mut self, ui: &mut Ui, drawn: &[sketches::Sketch], curves: &[sections::Curve], model: &PianoModel) {
+    fn figures(&mut self, ui: &mut Ui, drawn: &[sketches::Sketch], curves: &[sections::Curve], control: &mut dyn PianoControl, model: &PianoModel) {
         enum Fig<'a> {
             Sketch(sketches::Sketch),
             Curve(&'a sections::Curve),
@@ -622,6 +625,11 @@ impl PianoUi {
             ui.horizontal_top(|ui| {
                 for (fig, w) in row {
                     match fig {
+                        // The wheel's notes are dragged here.
+                        Fig::Sketch(sketches::Sketch::Temperament) => {
+                            let lit = sketches::lit_in(sketches::Sketch::Temperament, &path);
+                            self.wheel_shown = Some(wheel::edit(ui, control, model, lit, *w).rect);
+                        }
                         Fig::Sketch(s) => {
                             sketches::draw(ui, *s, model, &path, &mut self.key, *w)
                                 .on_hover_text("Hover a parameter to see where it acts; click its name for details");
@@ -1033,6 +1041,46 @@ mod slider_tests {
         }
         frame(ui, control, ctx, vec![button(at - Vec2::new(40.0, 0.0), false)]);
         (seen, about)
+    }
+
+    /// On the Tuning page, E dragged on the wheel to a pure third above C
+    /// makes the temperament a custom one, the other notes staying where
+    /// they were; a double click brings E back to equal temperament.
+    #[test]
+    fn the_wheels_notes_drag_into_a_custom_temperament() {
+        let ctx = egui::Context::default();
+        let mut ui = PianoUi::new(None);
+        ui.open_page("Tuning");
+        let mut control = MockControl::new(PianoModel { temperament: piano_core::params::TemperamentLaw { kind: 1, key: 2, ..Default::default() }, ..Default::default() });
+        let was = wheel::above_c(&control.model().temperament);
+        let size = Vec2::new(1600.0, 1600.0);
+        let at = |ui: &mut PianoUi, control: &mut MockControl, events| frame_at(size, ui, control, &ctx, events);
+        at(&mut ui, &mut control, vec![]);
+        at(&mut ui, &mut control, vec![]);
+        let (c, r) = wheel::hub(ui.wheel_shown.expect("the wheel on the Tuning page"));
+        let on = |cents: f64| c + r * wheel::dir(cents);
+        let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Default::default() };
+        let third = 1200.0 * 1.25f64.log2();
+        at(&mut ui, &mut control, vec![Event::PointerMoved(on(was[4]))]);
+        at(&mut ui, &mut control, vec![button(on(was[4]), true)]);
+        for k in 1..=6 {
+            at(&mut ui, &mut control, vec![Event::PointerMoved(on(was[4] + (third - was[4]) * k as f64 / 6.0))]);
+        }
+        at(&mut ui, &mut control, vec![button(on(third), false)]);
+        let t = control.model().temperament;
+        assert_eq!((t.kind, t.key), (8, 0));
+        let now = wheel::above_c(&t);
+        for pc in 0..12 {
+            let (want, tol) = if pc == 4 { (third, 0.1) } else { (was[pc], 1e-9) };
+            assert!((now[pc] - want).abs() < tol, "{pc}: {} vs {want}", now[pc]);
+        }
+        // Double-clicked: back to equal, the others still in place.
+        for pressed in [true, false, true, false] {
+            at(&mut ui, &mut control, vec![button(on(third), pressed)]);
+        }
+        let t = control.model().temperament;
+        assert_eq!(t.cents[4], 0.0);
+        assert!((wheel::above_c(&t)[7] - was[7]).abs() < 1e-9);
     }
 
     /// The interface opens on the instrument playing, in 3D's realistic

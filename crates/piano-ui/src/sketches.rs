@@ -33,7 +33,7 @@ pub enum Sketch {
     String,
     Plan,
     Room,
-    /// The circle of fifths ([`crate::wheel`]).
+    /// The octave as a wheel ([`crate::wheel`]).
     Temperament,
 }
 
@@ -125,8 +125,8 @@ pub enum Part {
     /// The early reflections computed one by one.
     Reflections,
     // The temperament wheel.
-    /// The fifths and thirds a temperament tunes.
-    Fifths,
+    /// The twelve notes a temperament tunes.
+    Notes,
     /// The note it is laid on.
     Tonic,
     /// The reverberation's level.
@@ -232,7 +232,7 @@ pub fn locate(path: &str) -> Option<(Sketch, &'static [Part])> {
         ("noise.pedal", &[PedalKnock]),
         ("noise.knock_time", &[KeybedKnock, PedalKnock]),
     ];
-    const TEMPERAMENT: &[(&str, &[Part])] = &[("temperament.key", &[Tonic]), ("temperament.", &[Fifths])];
+    const TEMPERAMENT: &[(&str, &[Part])] = &[("temperament.key", &[Tonic]), ("temperament.", &[Notes])];
     let find = |table: &'static [(&str, &'static [Part])]| table.iter().find(|(p, _)| path.starts_with(p)).map(|(_, parts)| *parts);
     let found = find(STRING)
         .map(|parts| (Sketch::String, parts))

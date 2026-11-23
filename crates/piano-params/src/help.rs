@@ -312,7 +312,8 @@ const HELP: &[(&str, &str, &str)] = &[
     (
         "temperament.cents",
         "A temperament of your own (temperament 8): how far each note, C to B, lies from equal \
-         temperament, in cents (a hundredth of a semitone).",
+         temperament, in cents (a hundredth of a semitone). Dragging a note on the Tuning page's \
+         wheel makes one from the temperament shown.",
         "Offsets of C, C# … B, laid on `temperament.key`; A is brought back to A4's pitch.",
     ),
     // Strings
