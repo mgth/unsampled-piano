@@ -77,6 +77,8 @@ The gap was still there, and the knock still closes it. With `noise.case` 0 the 
 
 `--score`, band without bivib_grand, iowa and liang (measures version 9): 861 → 856 measures off, mean gap 1.195 → 1.193. Rise time 40 → 38 off, early decay 50 → 49, the control band's lines at 1.2–2.5 kHz 54 → 52, release drop 150–600 Hz 15 → 14; release drop 0.6–1.2 kHz 42 → 43, where the knock adds a key the band can judge. By register: bass 205 → 203, middle 360 → 361, treble 227 → 223, top 69.
 
+The bench (`tools/bench.py run`, close microphones in the studio, references `channel-power-v3`): score 1.50 → 1.47, within the real pianos 65 → 67 %, off 26 → 25; attack 1.13 → 1.11, dynamics 1.09 → 0.98, resonance 2.26 → 2.10, decay 1.09 → 1.10, the other families unchanged. What moves: the top's ff − pp 2.03 → 0.79 and ff − mf 0.79 → 0.45, the level between the partials early in the treble −1.73 → −0.81 and the top −3.22 → −2.90, the top's attack at 1 kHz −4.59 → −4.24; no measure's |z| grows by 0.3. Harmonic profiles: 334 OFF either way, WATCH 59 → 62.
+
 Listening page: `out/ab_caisse/ecoute.html` in the session's worktree: nine keys A1–C7 at ff and mf (main, with the knock, Splendid, the knock alone at +12 dB), a Chopin study and scales.
 
 ## Not verified
