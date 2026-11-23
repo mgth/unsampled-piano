@@ -1,124 +1,251 @@
-//! The temperament wheel: the circle of fifths, C at the top and the sharps
-//! clockwise. The outer ring is the twelve fifths, each between its two
-//! notes, coloured by how far it lies from a pure fifth (3:2); the inner
-//! dots are the major thirds (5:4) of each key. Green is pure, yellow the
-//! equal temperament's thirds, red a wolf. Values in cents from pure.
+//! The temperament wheel: one turn is an octave, C at the top and the
+//! pitch rising clockwise. Each note is a spoke at its own pitch; an orange
+//! block near the rim fills the gap to where equal temperament would put
+//! it (the ticks outside the rim). The labels give each note's interval
+//! above C: a just ratio where it is one, cents otherwise. On the Tuning
+//! page the notes can be dragged, which makes the temperament a custom one.
 
-use egui::{Align2, Color32, FontId, Pos2, Response, Sense, Shape, Stroke, Ui, Vec2};
+use egui::{Align2, Color32, CursorIcon, FontId, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, Vec2};
 use piano_core::params::{PianoModel, TemperamentLaw};
+use piano_params::{PianoControl, Value};
 
 use crate::sketches::{HIGHLIGHT, Part};
 
-/// The note classes in fifths from C (pitch class of each).
-const CIRCLE: [usize; 12] = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
-const NAMES: [&str; 12] = ["C", "G", "D", "A", "E", "B", "F#", "C#", "G#", "Eb", "Bb", "F"];
+/// The note classes, C to B.
+pub const NAMES: [&str; 12] = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
+/// The custom temperament's range (cents from equal temperament).
+const RANGE: f64 = 50.0;
+/// How far from equal temperament a note lies.
+const OFF: Color32 = Color32::from_rgb(208, 116, 36);
+/// Reach of a note's handle (points).
+const GRAB: f32 = 12.0;
 
-/// A pure fifth and a pure major third, in cents.
-fn pure(ratio: f64) -> f64 {
-    1200.0 * ratio.log2()
-}
-
-/// The fifth above each note of the circle (C–G, G–D … F–C), in cents
-/// from pure: equal temperament −1.96, a meantone's wolf about +35.
-pub fn fifths(t: &TemperamentLaw) -> [f64; 12] {
+/// Cents above C of each note class: 0, 100, 200 … in equal temperament.
+pub fn above_c(t: &TemperamentLaw) -> [f64; 12] {
     let c = t.class_cents();
-    std::array::from_fn(|i| 700.0 + c[(CIRCLE[i] + 7) % 12] - c[CIRCLE[i]] - pure(1.5))
+    std::array::from_fn(|i| 100.0 * i as f64 + c[i] - c[0])
 }
 
-/// The major third above each note of the circle, in cents from pure:
-/// equal temperament +13.7, a meantone's 0.
-pub fn thirds(t: &TemperamentLaw) -> [f64; 12] {
-    let c = t.class_cents();
-    std::array::from_fn(|i| 400.0 + c[(CIRCLE[i] + 4) % 12] - c[CIRCLE[i]] - pure(1.25))
+/// The custom temperament's step (cents): a note's offset is kept to it.
+const STEP: f64 = 0.1;
+/// How near a just ratio a dragged note is pulled onto it (cents).
+const SNAP: f64 = 1.0;
+
+/// The just ratios within the octave made of up to eight fifths, or of a
+/// major third and up to six fifths (4/3, 32/27, 5/4, 45/32 …), with their
+/// size in cents. A third and seven fifths would be the schisma off equal
+/// temperament's fifth and fourth: 700 would read as 16384/10935.
+fn justs() -> impl Iterator<Item = (f64, (u64, u64))> {
+    (-8i32..=8).flat_map(|threes| (-1i32..=1).map(move |fives| (threes, fives))).filter(|&(threes, fives)| fives == 0 || threes.abs() <= 6).map(|(threes, fives)| {
+        let x = threes as f64 * 3f64.log2() + fives as f64 * 5f64.log2();
+        let twos = -x.floor() as i32;
+        let part = |base: u64, e: i32| (base.pow(e.max(0) as u32), base.pow((-e).max(0) as u32));
+        let (a, b, c) = (part(2, twos), part(3, threes), part(5, fives));
+        (1200.0 * (x + twos as f64), (a.0 * b.0 * c.0, a.1 * b.1 * c.1))
+    })
 }
 
-/// Green when pure, through yellow and orange, red at `wolf` cents off.
-fn shade(off: f64, wolf: f64) -> Color32 {
-    let stops = [(0.0, (60, 170, 90)), (0.35, (200, 190, 60)), (0.65, (230, 140, 40)), (1.0, (215, 60, 50))];
-    let x = (off.abs() / wolf).clamp(0.0, 1.0);
-    let k = stops.windows(2).position(|w| x <= w[1].0).unwrap_or(2);
-    let ((x0, a), (x1, b)) = (stops[k], stops[k + 1]);
-    let t = ((x - x0) / (x1 - x0)) as f32;
-    let m = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t) as u8;
-    Color32::from_rgb(m(a.0, b.0), m(a.1, b.1), m(a.2, b.2))
+/// The just ratio `cents` above the unison, when it is one (to the custom
+/// temperament's step): the simplest of those that fit.
+pub fn ratio(cents: f64) -> Option<(u64, u64)> {
+    justs().filter(|(c, _)| (c - cents).abs() <= STEP / 2.0 + 1e-9).map(|(_, r)| r).min_by_key(|(n, d)| n * d)
 }
 
-/// "−5.4", "0", "+35.7" (cents, one decimal, the sign always).
-fn cents(v: f64) -> String {
-    let v = (v * 10.0).round() / 10.0;
-    if v == 0.0 { "0".into() } else { format!("{}{:.1}", if v > 0.0 { "+" } else { "−" }, v.abs()) }
+/// `cents`, pulled onto a just ratio within [`SNAP`] of it.
+pub fn snap(cents: f64) -> f64 {
+    let octaves = (cents / 1200.0).floor() * 1200.0;
+    justs()
+        .chain(std::iter::once((1200.0, (2, 1))))
+        .map(|(c, _)| c + octaves)
+        .filter(|c| (c - cents).abs() <= SNAP)
+        .min_by(|a, b| (a - cents).abs().total_cmp(&(b - cents).abs()))
+        .unwrap_or(cents)
 }
 
-/// "−3", "0", "+14" (whole cents).
-fn whole(v: f64) -> String {
-    let v = v.round();
-    if v == 0.0 { "0".into() } else { format!("{}{}", if v > 0.0 { "+" } else { "−" }, v.abs()) }
+/// "4/3", "192.2", "700".
+fn interval(cents: f64) -> String {
+    match ratio(cents) {
+        Some((n, d)) => format!("{n}/{d}"),
+        None => {
+            let v = (cents * 10.0).round() / 10.0;
+            if v.fract() == 0.0 { format!("{v:.0}") } else { format!("{v:.1}") }
+        }
+    }
 }
 
-/// The wheel at `width`, the fifths lit for the temperament's parameters
-/// and its tonic for the key it is laid on.
+/// `t` as a custom temperament laid on the same key, note class `pc`
+/// moved to `above` cents above C (to the custom temperament's step,
+/// within its range). The other notes keep their intervals to C, and their
+/// stored offsets: a custom table is kept as it is, another temperament's
+/// offsets are shifted together into the range if they overflow it.
+pub fn retuned(t: &TemperamentLaw, pc: usize, above: f64) -> TemperamentLaw {
+    let key = t.key.rem_euclid(12) as usize;
+    // Offsets of the note classes from equal temperament, up to a common
+    // constant. The custom table counts from the key: its first entry is
+    // the key's note.
+    let mut off: [f64; 12] = if t.kind == 8 {
+        std::array::from_fn(|i| t.cents[(i + 12 - key) % 12])
+    } else {
+        let now = above_c(t);
+        let off: [f64; 12] = std::array::from_fn(|i| now[i] - 100.0 * i as f64);
+        let (lo, hi) = off.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &o| (lo.min(o), hi.max(o)));
+        let shift = if lo < -RANGE || hi > RANGE { -(lo + hi) / 2.0 } else { 0.0 };
+        off.map(|o| o + shift)
+    };
+    off[pc] = (((above - 100.0 * pc as f64) / STEP).round() * STEP + off[0]).clamp(-RANGE, RANGE);
+    TemperamentLaw { kind: 8, key: key as i32, cents: std::array::from_fn(|j| off[(j + key) % 12]) }
+}
+
+/// Sends what differs between `from` and `to`.
+fn send(control: &mut dyn PianoControl, from: &TemperamentLaw, to: &TemperamentLaw) {
+    for i in 0..12 {
+        if from.cents[i] != to.cents[i] {
+            control.set(&format!("temperament.cents[{i}]"), Value::Float(to.cents[i]));
+        }
+    }
+    if from.key != to.key {
+        control.set("temperament.key", Value::Int(to.key as i64));
+    }
+    if from.kind != to.kind {
+        control.set("temperament.kind", Value::Int(to.kind as i64));
+    }
+}
+
+/// The wheel at `width`, lit for the temperament's parameters, its tonic
+/// for the key it is laid on.
 pub fn draw(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32) -> Response {
+    show(ui, model, lit, width, None)
+}
+
+/// The wheel with its notes to drag: a note moved makes the temperament a
+/// custom one; double-click brings a note back to equal temperament.
+pub fn edit(ui: &mut Ui, control: &mut dyn PianoControl, model: &PianoModel, lit: &[Part], width: f32) -> Response {
+    show(ui, model, lit, width, Some(control))
+}
+
+/// The wheel's centre and radius in the rectangle it was given.
+pub fn hub(rect: Rect) -> (Pos2, f32) {
+    let r = (rect.width() / 2.0 - 54.0).clamp(40.0, 150.0);
+    (Pos2::new(rect.center().x, rect.top() + r + 32.0), r)
+}
+
+/// Direction of a pitch `cents` above C: C at the top, clockwise.
+pub fn dir(cents: f64) -> Vec2 {
+    Vec2::angled((cents / 1200.0 * 360.0 - 90.0).to_radians() as f32)
+}
+
+fn show(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32, control: Option<&mut dyn PianoControl>) -> Response {
     let t = &model.temperament;
-    let (fifth, third) = (fifths(t), thirds(t));
-    let size = width.min(340.0);
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, size + 34.0), Sense::hover());
+    let above = above_c(t);
+    let editable = control.is_some();
+    let r = hub(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 0.0))).1;
+    let caption_h = if editable { 50.0 } else { 36.0 };
+    let sense = if editable { Sense::click_and_drag() } else { Sense::hover() };
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, 2.0 * r + 64.0 + caption_h), sense);
+    let c = hub(rect).0;
+    let handle = |pc: usize| c + r * dir(above[pc]);
+
+    // The note under the pointer (C is the reference: it stays), the one
+    // being dragged.
+    let drag_id = resp.id.with("note");
+    let mut dragged: Option<usize> = ui.data(|d| d.get_temp(drag_id));
+    let near = |pos: Pos2| (1..12).map(|pc| (pc, handle(pc).distance(pos))).filter(|&(_, d)| d < GRAB).min_by(|a, b| a.1.total_cmp(&b.1)).map(|(pc, _)| pc);
+    let hovered = if editable { resp.hover_pos().and_then(near) } else { None };
+    if let Some(control) = control {
+        if resp.drag_started() {
+            // Where the button went down: the drag is only told from a
+            // click 6 points further, by then maybe out of the handle's
+            // reach.
+            dragged = ui.input(|i| i.pointer.press_origin()).or(resp.interact_pointer_pos()).and_then(near);
+            if let Some(pc) = dragged {
+                control.begin_edit(&format!("temperament.cents[{pc}]"));
+            }
+        }
+        if let (Some(pc), Some(pos)) = (dragged, resp.interact_pointer_pos().filter(|_| resp.dragged())) {
+            let v = pos - c;
+            if v.length() > 8.0 {
+                let turn = (v.x.atan2(-v.y) as f64 / std::f64::consts::TAU).rem_euclid(1.0);
+                // The nearest octave of the pointer's pitch to the note's.
+                let from_equal = (turn * 1200.0 - 100.0 * pc as f64 + 600.0).rem_euclid(1200.0) - 600.0;
+                send(control, t, &retuned(t, pc, snap(100.0 * pc as f64 + from_equal)));
+            }
+        }
+        if resp.drag_stopped()
+            && let Some(pc) = dragged.take()
+        {
+            control.end_edit(&format!("temperament.cents[{pc}]"));
+        }
+        if resp.double_clicked()
+            && let Some(pc) = hovered
+        {
+            send(control, t, &retuned(t, pc, 100.0 * pc as f64));
+        }
+        ui.data_mut(|d| match dragged {
+            Some(pc) => {
+                d.insert_temp(drag_id, pc);
+            }
+            None => d.remove::<usize>(drag_id),
+        });
+        if dragged.is_some() {
+            ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+        } else if hovered.is_some() {
+            ui.ctx().set_cursor_icon(CursorIcon::Grab);
+        }
+    }
     if !ui.is_rect_visible(rect) {
         return resp;
     }
+
     let p = ui.painter_at(rect);
     let vis = ui.visuals();
     let (ink, weak) = (vis.text_color(), vis.weak_text_color());
-    let font = FontId::proportional((size / 30.0).clamp(9.0, 12.0));
-    let small = FontId::proportional((size / 36.0).clamp(8.5, 10.5));
-    let c = Pos2::new(rect.center().x, rect.top() + size / 2.0);
-    let h = size / 2.0;
-    // Angle of note i of the circle: C at the top, clockwise.
-    let dir = |i: f32| Vec2::angled((i * 30.0 - 90.0).to_radians());
+    let font = FontId::proportional(11.5);
+    let small = FontId::proportional(10.0);
+    let lit_notes = lit.contains(&Part::Notes);
 
-    // The fifths: a band between each two notes.
-    let (ring, band) = (0.70 * h, 0.15 * h);
-    let lit_fifths = lit.contains(&Part::Fifths);
-    if lit_fifths {
-        p.circle_stroke(c, ring + band / 2.0 + 3.0, Stroke::new(2.0, HIGHLIGHT));
-    }
-    for (i, &off) in fifth.iter().enumerate() {
-        let (a, b) = (i as f32 + 0.08, i as f32 + 0.92);
-        let arc: Vec<Pos2> = (0..=16).map(|s| c + ring * dir(a + (b - a) * s as f32 / 16.0)).collect();
-        p.add(Shape::line(arc, Stroke::new(band, shade(off, 24.0))));
-        p.text(c + ring * dir(i as f32 + 0.5), Align2::CENTER_CENTER, cents(off), small.clone(), Color32::from_gray(25));
-    }
+    // The octave.
+    p.circle_filled(c, r, ink.gamma_multiply(0.07));
+    p.circle_stroke(c, r, if lit_notes { Stroke::new(2.0, HIGHLIGHT) } else { Stroke::new(1.0, weak) });
 
-    // The notes, the tonic marked.
     let tonic = t.key.rem_euclid(12) as usize;
     let unequal = (1..=8).contains(&t.kind);
-    for (i, name) in NAMES.iter().enumerate() {
-        let at = c + 0.90 * h * dir(i as f32);
-        let is_tonic = unequal && CIRCLE[i] == tonic;
-        if is_tonic {
-            let ring = if lit.contains(&Part::Tonic) { Stroke::new(2.0, HIGHLIGHT) } else { Stroke::new(1.0, weak) };
-            p.circle_stroke(at, 0.075 * h, ring);
+    let band = (0.10 * r).max(8.0);
+    for pc in 0..12 {
+        let equal = 100.0 * pc as f64;
+        let active = hovered == Some(pc) || dragged == Some(pc);
+        // Where equal temperament puts the note.
+        p.line_segment([c + r * dir(equal), c + (r + 5.0) * dir(equal)], Stroke::new(1.0, weak));
+        // From there to the note.
+        let off = above[pc] - equal;
+        if off.abs() > 0.05 {
+            let steps = 2 + (off.abs() / 8.0) as usize;
+            let mid = r - 3.0 - band / 2.0;
+            let arc: Vec<Pos2> = (0..=steps).map(|s| c + mid * dir(equal + off * s as f64 / steps as f64)).collect();
+            p.add(Shape::line(arc, Stroke::new(band, OFF)));
         }
-        p.text(at, Align2::CENTER_CENTER, *name, font.clone(), if is_tonic { ink } else { weak });
+        // The note: its spoke, its handle on the rim.
+        let at = handle(pc);
+        p.line_segment([c, at], Stroke::new(if active { 1.5 } else { 1.0 }, if active { ink } else { weak }));
+        if unequal && pc == tonic {
+            p.circle_stroke(at, 7.0, if lit.contains(&Part::Tonic) { Stroke::new(2.0, HIGHLIGHT) } else { Stroke::new(1.0, ink) });
+        }
+        p.circle_filled(at, if active { 4.5 } else { 3.5 }, if active { HIGHLIGHT } else { vis.panel_fill });
+        p.circle_stroke(at, if active { 4.5 } else { 3.5 }, Stroke::new(1.0, ink));
+        // Its name and its interval above C, outside the rim.
+        let d = dir(above[pc]);
+        let label = at + Vec2::new(d.x * 30.0, d.y * 19.0);
+        p.text(label - Vec2::new(0.0, 6.0), Align2::CENTER_CENTER, NAMES[pc], font.clone(), ink);
+        p.text(label + Vec2::new(0.0, 6.5), Align2::CENTER_CENTER, if pc == 0 { "1/1".into() } else { interval(above[pc]) }, small.clone(), weak);
     }
-
-    // The major thirds, one dot per key.
-    for (i, &off) in third.iter().enumerate() {
-        let at = c + 0.45 * h * dir(i as f32);
-        p.circle_filled(at, 0.055 * h, shade(off, 30.0));
-        p.text(c + 0.30 * h * dir(i as f32), Align2::CENTER_CENTER, whole(off), small.clone(), weak);
-    }
-    p.text(c, Align2::CENTER_CENTER, "3rds", small.clone(), weak);
 
     let name = TemperamentLaw::NAMES.get(t.kind as usize).filter(|_| t.kind >= 0).unwrap_or(&TemperamentLaw::NAMES[0]);
-    let caption = if unequal { format!("{name} on {}", NAMES[CIRCLE.iter().position(|&pc| pc == tonic).unwrap_or(0)]) } else { name.to_string() };
-    p.text(Pos2::new(c.x, rect.top() + size + 4.0), Align2::CENTER_TOP, caption, font.clone(), if lit_fifths { ink } else { weak });
-    p.text(
-        Pos2::new(c.x, rect.top() + size + 20.0),
-        Align2::CENTER_TOP,
-        "Outer ring: fifths; dots: major thirds; cents from pure",
-        small,
-        weak,
-    );
+    let caption = if unequal { format!("{name} on {}", NAMES[tonic]) } else { name.to_string() };
+    let top = c.y + r + 34.0;
+    p.text(Pos2::new(c.x, top), Align2::CENTER_TOP, caption, font, if lit_notes { ink } else { weak });
+    p.text(Pos2::new(c.x, top + 16.0), Align2::CENTER_TOP, "One turn is an octave; orange: how far from equal temperament", small.clone(), weak);
+    if editable {
+        p.text(Pos2::new(c.x, top + 30.0), Align2::CENTER_TOP, "Drag a note to retune it; double-click: back to equal", small, weak);
+    }
     resp
 }
 
@@ -131,26 +258,89 @@ mod tests {
     }
 
     #[test]
-    fn the_circle_closes_on_the_pythagorean_comma() {
-        let comma = 1200.0 * (3f64.powi(12) / 2f64.powi(19)).log2();
-        for kind in 0..=7 {
-            let sum: f64 = fifths(&law(kind, 0)).iter().sum();
-            assert!((sum + comma).abs() < 1e-9, "{kind}: {sum}");
-        }
+    fn notes_lie_at_their_intervals_above_c() {
+        assert_eq!(above_c(&law(0, 0)), std::array::from_fn(|i| 100.0 * i as f64));
+        // Pythagorean: every note a just ratio, by fifths from C.
+        let p = above_c(&law(7, 0)).map(ratio);
+        assert_eq!((p[5], p[7], p[3], p[2], p[6]), (Some((4, 3)), Some((3, 2)), Some((32, 27)), Some((9, 8)), Some((729, 512))));
+        // Quarter-comma meantone: C–E pure, D half-way (no ratio).
+        let m = above_c(&law(5, 0));
+        assert_eq!(ratio(m[4]), Some((5, 4)));
+        assert_eq!(ratio(m[2]), None);
+        assert!((m[2] - 193.157).abs() < 0.01, "{}", m[2]);
+        // Kirnberger III: F# a pure third and two pure fifths above C.
+        assert_eq!(ratio(above_c(&law(2, 0))[6]), Some((45, 32)));
+        // Werckmeister III, as shown.
+        let w = above_c(&law(1, 0));
+        assert_eq!((interval(w[2]), interval(w[5]), interval(w[7]), interval(w[1])), ("192.2".into(), "4/3".into(), "696.1".into(), "256/243".into()));
+        assert_eq!(interval(700.0), "700");
     }
 
     #[test]
-    fn fifths_and_thirds_of_known_temperaments() {
-        let equal = (fifths(&law(0, 0)), thirds(&law(0, 0)));
-        assert!(equal.0.iter().all(|f| (f + 1.955).abs() < 0.01) && equal.1.iter().all(|t| (t - 13.686).abs() < 0.01));
-        // Quarter-comma meantone: pure thirds in the usual keys, the wolf
-        // between G# and Eb.
-        let (f, t) = (fifths(&law(5, 0)), thirds(&law(5, 0)));
-        assert!(t[0].abs() < 0.01, "C–E {}", t[0]);
-        assert!((f[8] - 35.7).abs() < 0.1, "G#–Eb {}", f[8]);
-        // Laid on D, the wolf moves two fifths on.
-        assert!((fifths(&law(5, 2))[10] - 35.7).abs() < 0.1);
-        // Pythagorean: eleven pure fifths.
-        assert_eq!(fifths(&law(7, 0)).iter().filter(|f| f.abs() < 1e-9).count(), 11);
+    fn a_dragged_note_moves_alone() {
+        for from in [law(1, 0), law(5, 2), TemperamentLaw { kind: 8, key: 3, cents: std::array::from_fn(|i| i as f64 - 4.0) }] {
+            let (was, to) = (above_c(&from), retuned(&from, 4, 386.3));
+            let now = above_c(&to);
+            assert_eq!((to.kind, to.key), (8, from.key));
+            for pc in 0..12 {
+                let want = if pc == 4 { 386.3 } else { was[pc] };
+                assert!((now[pc] - want).abs() < 1e-9, "{pc}: {} vs {want}", now[pc]);
+            }
+        }
+        // Within the custom temperament's range.
+        assert_eq!(retuned(&law(0, 0), 4, 300.0).cents[4], -50.0);
+        // Laid on D: E is the table's third entry.
+        assert_eq!(retuned(&law(0, 2), 4, 300.0).cents[2], -50.0);
+    }
+
+    /// A custom table keeps its stored offsets: only the note moved
+    /// changes, its range counted from the table's own C.
+    #[test]
+    fn a_custom_table_keeps_its_offsets() {
+        let mut cents = [0.0; 12];
+        (cents[0], cents[7]) = (-40.0, 40.0);
+        let t = TemperamentLaw { kind: 8, key: 0, cents };
+        let to = retuned(&t, 4, 410.0);
+        assert_eq!((to.cents[0], to.cents[7], to.cents[4]), (-40.0, 40.0, -30.0));
+        assert!((above_c(&to)[4] - 410.0).abs() < 1e-9);
+        // As far as the range goes: 50 below equal temperament, 40 above C's.
+        let low = retuned(&t, 4, 300.0);
+        assert_eq!(low.cents[4], -50.0);
+        assert!((above_c(&low)[4] - 390.0).abs() < 1e-9);
+    }
+
+    /// Made from any temperament on any key, the custom table stays in its
+    /// range, the notes not moved where they were.
+    #[test]
+    fn a_temperament_made_custom_stays_in_range() {
+        for kind in 0..=7 {
+            for key in 0..12 {
+                let from = law(kind, key);
+                let was = above_c(&from);
+                let to = retuned(&from, 4, was[4]);
+                assert!(to.cents.iter().all(|c| c.abs() <= RANGE), "{kind} on {key}: {:?}", to.cents);
+                let now = above_c(&to);
+                for pc in (0..12).filter(|&pc| pc != 4) {
+                    assert!((now[pc] - was[pc]).abs() < 1e-9, "{kind} on {key}, {pc}: {} vs {}", now[pc], was[pc]);
+                }
+            }
+        }
+    }
+
+    /// A note dragged near a just ratio lands on it, and shows it.
+    #[test]
+    fn just_ratios_are_reached_and_shown() {
+        let third = 1200.0 * 1.25f64.log2();
+        assert!((snap(386.0) - third).abs() < 1e-9);
+        assert_eq!(snap(390.0), 390.0);
+        assert!((snap(1199.5) - 1200.0).abs() < 1e-9);
+        // Stored to the step, the third still reads as one.
+        let e = above_c(&retuned(&law(0, 0), 4, snap(386.0)))[4];
+        assert_eq!(interval(e), "5/4");
+        assert_eq!(interval(386.5), "386.5");
+        // Equal temperament reads in cents.
+        for pc in 1..12 {
+            assert_eq!(interval(100.0 * pc as f64), format!("{}", 100 * pc));
+        }
     }
 }
