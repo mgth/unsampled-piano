@@ -26,26 +26,40 @@ pub fn above_c(t: &TemperamentLaw) -> [f64; 12] {
     std::array::from_fn(|i| 100.0 * i as f64 + c[i] - c[0])
 }
 
-/// The just ratio `cents` above the unison, when it is one made of
-/// fifths and at most one major third (4/3, 32/27, 5/4, 45/32 …).
+/// The custom temperament's step (cents): a note's offset is kept to it.
+const STEP: f64 = 0.1;
+/// How near a just ratio a dragged note is pulled onto it (cents).
+const SNAP: f64 = 1.0;
+
+/// The just ratios within the octave made of up to eight fifths, or of a
+/// major third and up to six fifths (4/3, 32/27, 5/4, 45/32 …), with their
+/// size in cents. A third and seven fifths would be the schisma off equal
+/// temperament's fifth and fourth: 700 would read as 16384/10935.
+fn justs() -> impl Iterator<Item = (f64, (u64, u64))> {
+    (-8i32..=8).flat_map(|threes| (-1i32..=1).map(move |fives| (threes, fives))).filter(|&(threes, fives)| fives == 0 || threes.abs() <= 6).map(|(threes, fives)| {
+        let x = threes as f64 * 3f64.log2() + fives as f64 * 5f64.log2();
+        let twos = -x.floor() as i32;
+        let part = |base: u64, e: i32| (base.pow(e.max(0) as u32), base.pow((-e).max(0) as u32));
+        let (a, b, c) = (part(2, twos), part(3, threes), part(5, fives));
+        (1200.0 * (x + twos as f64), (a.0 * b.0 * c.0, a.1 * b.1 * c.1))
+    })
+}
+
+/// The just ratio `cents` above the unison, when it is one (to the custom
+/// temperament's step): the simplest of those that fit.
 pub fn ratio(cents: f64) -> Option<(u64, u64)> {
-    let mut best: Option<(u64, u64)> = None;
-    for threes in -8i32..=8 {
-        for fives in -1i32..=1 {
-            let x = threes as f64 * 3f64.log2() + fives as f64 * 5f64.log2();
-            let twos = -x.floor() as i32;
-            if (1200.0 * (x + twos as f64) - cents).abs() > 1e-6 {
-                continue;
-            }
-            let part = |base: u64, e: i32| (base.pow(e.max(0) as u32), base.pow((-e).max(0) as u32));
-            let (a, b, c) = (part(2, twos), part(3, threes), part(5, fives));
-            let found = (a.0 * b.0 * c.0, a.1 * b.1 * c.1);
-            if best.is_none_or(|(n, d)| found.0 * found.1 < n * d) {
-                best = Some(found);
-            }
-        }
-    }
-    best
+    justs().filter(|(c, _)| (c - cents).abs() <= STEP / 2.0 + 1e-9).map(|(_, r)| r).min_by_key(|(n, d)| n * d)
+}
+
+/// `cents`, pulled onto a just ratio within [`SNAP`] of it.
+pub fn snap(cents: f64) -> f64 {
+    let octaves = (cents / 1200.0).floor() * 1200.0;
+    justs()
+        .chain(std::iter::once((1200.0, (2, 1))))
+        .map(|(c, _)| c + octaves)
+        .filter(|c| (c - cents).abs() <= SNAP)
+        .min_by(|a, b| (a - cents).abs().total_cmp(&(b - cents).abs()))
+        .unwrap_or(cents)
 }
 
 /// "4/3", "192.2", "700".
@@ -60,15 +74,25 @@ fn interval(cents: f64) -> String {
 }
 
 /// `t` as a custom temperament laid on the same key, note class `pc`
-/// moved to `above` cents above C (within the custom temperament's range
-/// from equal temperament). The other notes keep their intervals to C.
+/// moved to `above` cents above C (to the custom temperament's step,
+/// within its range). The other notes keep their intervals to C, and their
+/// stored offsets: a custom table is kept as it is, another temperament's
+/// offsets are shifted together into the range if they overflow it.
 pub fn retuned(t: &TemperamentLaw, pc: usize, above: f64) -> TemperamentLaw {
-    let now = above_c(t);
-    let mut off: [f64; 12] = std::array::from_fn(|i| now[i] - 100.0 * i as f64);
-    off[pc] = ((above - 100.0 * pc as f64).clamp(-RANGE, RANGE) * 10.0).round() / 10.0;
-    // The custom table counts from the key: its first entry is the key's
-    // note.
     let key = t.key.rem_euclid(12) as usize;
+    // Offsets of the note classes from equal temperament, up to a common
+    // constant. The custom table counts from the key: its first entry is
+    // the key's note.
+    let mut off: [f64; 12] = if t.kind == 8 {
+        std::array::from_fn(|i| t.cents[(i + 12 - key) % 12])
+    } else {
+        let now = above_c(t);
+        let off: [f64; 12] = std::array::from_fn(|i| now[i] - 100.0 * i as f64);
+        let (lo, hi) = off.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &o| (lo.min(o), hi.max(o)));
+        let shift = if lo < -RANGE || hi > RANGE { -(lo + hi) / 2.0 } else { 0.0 };
+        off.map(|o| o + shift)
+    };
+    off[pc] = (((above - 100.0 * pc as f64) / STEP).round() * STEP + off[0]).clamp(-RANGE, RANGE);
     TemperamentLaw { kind: 8, key: key as i32, cents: std::array::from_fn(|j| off[(j + key) % 12]) }
 }
 
@@ -143,7 +167,7 @@ fn show(ui: &mut Ui, model: &PianoModel, lit: &[Part], width: f32, control: Opti
                 let turn = (v.x.atan2(-v.y) as f64 / std::f64::consts::TAU).rem_euclid(1.0);
                 // The nearest octave of the pointer's pitch to the note's.
                 let from_equal = (turn * 1200.0 - 100.0 * pc as f64 + 600.0).rem_euclid(1200.0) - 600.0;
-                send(control, t, &retuned(t, pc, 100.0 * pc as f64 + from_equal));
+                send(control, t, &retuned(t, pc, snap(100.0 * pc as f64 + from_equal)));
             }
         }
         if resp.drag_stopped()
@@ -267,5 +291,56 @@ mod tests {
         assert_eq!(retuned(&law(0, 0), 4, 300.0).cents[4], -50.0);
         // Laid on D: E is the table's third entry.
         assert_eq!(retuned(&law(0, 2), 4, 300.0).cents[2], -50.0);
+    }
+
+    /// A custom table keeps its stored offsets: only the note moved
+    /// changes, its range counted from the table's own C.
+    #[test]
+    fn a_custom_table_keeps_its_offsets() {
+        let mut cents = [0.0; 12];
+        (cents[0], cents[7]) = (-40.0, 40.0);
+        let t = TemperamentLaw { kind: 8, key: 0, cents };
+        let to = retuned(&t, 4, 410.0);
+        assert_eq!((to.cents[0], to.cents[7], to.cents[4]), (-40.0, 40.0, -30.0));
+        assert!((above_c(&to)[4] - 410.0).abs() < 1e-9);
+        // As far as the range goes: 50 below equal temperament, 40 above C's.
+        let low = retuned(&t, 4, 300.0);
+        assert_eq!(low.cents[4], -50.0);
+        assert!((above_c(&low)[4] - 390.0).abs() < 1e-9);
+    }
+
+    /// Made from any temperament on any key, the custom table stays in its
+    /// range, the notes not moved where they were.
+    #[test]
+    fn a_temperament_made_custom_stays_in_range() {
+        for kind in 0..=7 {
+            for key in 0..12 {
+                let from = law(kind, key);
+                let was = above_c(&from);
+                let to = retuned(&from, 4, was[4]);
+                assert!(to.cents.iter().all(|c| c.abs() <= RANGE), "{kind} on {key}: {:?}", to.cents);
+                let now = above_c(&to);
+                for pc in (0..12).filter(|&pc| pc != 4) {
+                    assert!((now[pc] - was[pc]).abs() < 1e-9, "{kind} on {key}, {pc}: {} vs {}", now[pc], was[pc]);
+                }
+            }
+        }
+    }
+
+    /// A note dragged near a just ratio lands on it, and shows it.
+    #[test]
+    fn just_ratios_are_reached_and_shown() {
+        let third = 1200.0 * 1.25f64.log2();
+        assert!((snap(386.0) - third).abs() < 1e-9);
+        assert_eq!(snap(390.0), 390.0);
+        assert!((snap(1199.5) - 1200.0).abs() < 1e-9);
+        // Stored to the step, the third still reads as one.
+        let e = above_c(&retuned(&law(0, 0), 4, snap(386.0)))[4];
+        assert_eq!(interval(e), "5/4");
+        assert_eq!(interval(386.5), "386.5");
+        // Equal temperament reads in cents.
+        for pc in 1..12 {
+            assert_eq!(interval(100.0 * pc as f64), format!("{}", 100 * pc));
+        }
     }
 }

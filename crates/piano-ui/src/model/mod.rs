@@ -1013,7 +1013,7 @@ impl ModelView {
                 .x
                 .iter()
                 .chain(&hd.y)
-                .filter_map(|(path, _, _)| piano_params::get(model, path).map(|v| format!("{} = {}", registry.get(path).map_or(path.as_str(), |p| p.meta.label.as_str()), crate::format_value(v.as_f64()))))
+                .filter_map(|(path, _, _)| piano_params::get(model, path).map(|v| format!("{} = {}", registry.get(path).map_or(path.as_str().into(), |p| crate::widgets::label(p, model)), crate::format_value(v.as_f64()))))
                 .collect();
             let text = format!("{}\n{}", hd.name, values.join("\n"));
             painter.text(p + Vec2::new(10.0, -10.0), Align2::LEFT_BOTTOM, text, FontId::proportional(11.0), vis.strong_text_color());

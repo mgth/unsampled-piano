@@ -345,7 +345,7 @@ impl PianoUi {
                 });
             });
             if let Some(path) = &learning {
-                let label = self.registry.get(path).map_or(path.as_str(), |p| p.meta.label.as_str());
+                let label = self.registry.get(path).map_or(path.as_str().into(), |p| widgets::label(p, &model));
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(format!("Move a controller over part of its travel for \u{201c}{label}\u{201d}…")).color(widgets::LIVE));
                     if ui.small_button("Cancel").clicked()
@@ -500,7 +500,7 @@ impl PianoUi {
             .filter(|&i| {
                 let p = &self.registry.params()[i];
                 (if searching {
-                    p.path.to_lowercase().contains(&needle) || p.meta.label.to_lowercase().contains(&needle)
+                    p.path.to_lowercase().contains(&needle) || widgets::label(p, model).to_lowercase().contains(&needle)
                 } else {
                     self.section[i] == self.page
                 }) && widgets::applies(&p.path, model)
@@ -647,6 +647,7 @@ impl PianoUi {
     /// The controllers mapped, with the values at CC 0 and 127.
     fn midi_page(&mut self, ui: &mut Ui, control: &mut dyn PianoControl) {
         ui.heading("MIDI controllers");
+        let model = control.model();
         let Some(learn) = control.midi() else { return };
         ui.label(
             RichText::new(
@@ -674,7 +675,7 @@ impl PianoUi {
                 ui.label(format!("{}", m.cc));
                 ui.horizontal(|ui| {
                     widgets::kind_mark(ui, matches!(p.kind, piano_params::Kind::Live(_)));
-                    ui.label(&p.meta.label).on_hover_text(&m.path);
+                    ui.label(widgets::label(p, &model)).on_hover_text(&m.path);
                 });
                 let (mut lo, mut hi) = (m.min, m.max);
                 let speed = (p.meta.max - p.meta.min).abs() / 300.0;
