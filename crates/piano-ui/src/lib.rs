@@ -460,14 +460,23 @@ impl PianoUi {
         if self.help_open {
             let panel = egui::Panel::right("piano-about").resizable(true).default_size(HELP_WIDTH).min_size(220.0).show(ui, |ui| {
                 ui.add_space(6.0);
-                egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| match self.about {
-                    Some(i) => {
-                        let p = &self.registry.params()[i];
-                        widgets::about(ui, p, piano_params::get(&model, &p.path), &model, &mut self.key);
+                egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+                    // Laid out in a child the panel does not size itself on:
+                    // egui may wrap a text a hair wider than the column (a
+                    // heading wrapped after the live mark, a long word), and
+                    // the panel would grow by that much with each one.
+                    let width = ui.available_width();
+                    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(ui.available_rect_before_wrap()).layout(*ui.layout()));
+                    match self.about {
+                        Some(i) => {
+                            let p = &self.registry.params()[i];
+                            widgets::about(&mut inner, p, piano_params::get(&model, &p.path), &model, &mut self.key);
+                        }
+                        None => {
+                            inner.label(RichText::new("Move a control or click its name to read here what it does.").weak());
+                        }
                     }
-                    None => {
-                        ui.label(RichText::new("Move a control or click its name to read here what it does.").weak());
-                    }
+                    ui.allocate_space(egui::vec2(width, inner.min_rect().height()));
                 });
             });
             self.help_shown = Some(panel.response.rect);
