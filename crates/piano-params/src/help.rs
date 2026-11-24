@@ -62,10 +62,10 @@ const HELP: &[(&str, &str, &str)] = &[
         "How much softer the tone gets with the left (una corda) pedal. The pedal shifts the whole \
          action sideways: a hammer with three strings strikes two of them, and every hammer meets \
          fresh felt that the strings have not grooved and hardened.",
-        "With the soft pedal at s (CC 67, 0–1), the first string of each trichord gets \
-         (1 − s) of the hammer force, the felt stiffness Q0 is multiplied by 1 − softening·s, and \
-         the top felt is deeper by half that (+30 % at 0.6): the hard core is reached later. Read \
-         at each strike.",
+        "With the soft pedal at s (CC 67, 0–1) and the shift h (una corda shift), the first \
+         string of each trichord gets (1 − h·s) of the hammer force, the felt stiffness Q0 is \
+         multiplied by 1 − softening·h·s, and the top felt is deeper by half that (+30 % at 0.6, \
+         h·s = 1): the hard core is reached later. Read at each strike.",
     ),
     (
         "una_corda_shift",

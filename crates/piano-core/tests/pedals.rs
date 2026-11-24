@@ -130,6 +130,26 @@ fn una_corda_is_darker_and_keeps_its_sustain() {
     assert!(gain > -1.5, "una corda should not lose sustain");
 }
 
+/// Una corda on a grand: the shift takes a trichord's hammer off its first
+/// string, but a bichord's strings lie wider apart and both stay struck.
+/// With the felt softening off, the last bichord (G#2) sounds the same with
+/// the pedal down; the first trichord (A2) does not.
+#[test]
+fn una_corda_spares_the_bichords() {
+    let attack = |note: u8, soft: u8| {
+        let script = [
+            (0.0, Event::Param { id: LiveParam::UnaCordaSoftening, value: 0.0 }),
+            (0.0, Event::Param { id: LiveParam::HalfBlow, value: 0.0 }),
+            (0.0, cc(67, soft)),
+            (0.01, on(note, 100)),
+        ];
+        render(&script, 0.1).0[480..480 + 4096].to_vec()
+    };
+    let bichord = EngineConfig::default().model.unison.trichord_from - 1;
+    assert_eq!(attack(bichord, 0), attack(bichord, 127), "the bichord lost a string");
+    assert_ne!(attack(bichord + 1, 0), attack(bichord + 1, 127), "the trichord kept its three strings");
+}
+
 /// An upright's pedals: the soft pedal shortens the hammers' throw instead
 /// of shifting the action, and the middle pedal lowers a practice mute.
 #[test]
