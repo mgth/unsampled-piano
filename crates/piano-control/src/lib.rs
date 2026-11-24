@@ -71,7 +71,7 @@ pub struct Observed {
     /// Per key: energy (f32 bits), and down | hammer << 1 | damper ×1e4 << 2.
     energy: [AtomicU32; 128],
     flags: [AtomicU32; 128],
-    /// Sustain and soft pedal ×1e4, sostenuto 0/1, board modes set.
+    /// Sustain and soft pedal ×1e4, middle pedal 0/1, board modes set.
     pedals: [AtomicU32; 4],
     board: [AtomicU32; OBSERVED_MODES],
     /// Blocks published, 0 before the first.
@@ -97,7 +97,7 @@ impl Observed {
             e.store(k.energy.to_bits(), r);
             f.store(k.down as u32 | (k.hammer as u32) << 1 | ((k.damper.clamp(0.0, 1.0) * 1e4) as u32) << 2, r);
         }
-        for (a, v) in self.pedals.iter().zip([(o.sustain * 1e4) as u32, (o.soft * 1e4) as u32, o.sostenuto as u32, o.board_modes as u32]) {
+        for (a, v) in self.pedals.iter().zip([(o.sustain * 1e4) as u32, (o.soft * 1e4) as u32, o.middle as u32, o.board_modes as u32]) {
             a.store(v, r);
         }
         for (a, v) in self.board.iter().zip(&o.board[..o.board_modes]) {
@@ -115,7 +115,7 @@ impl Observed {
             (k.down, k.hammer, k.damper) = (f & 1 != 0, f & 2 != 0, (f >> 2) as f32 / 1e4);
         }
         let p = self.pedals.each_ref().map(|a| a.load(r));
-        (o.sustain, o.soft, o.sostenuto) = (p[0] as f32 / 1e4, p[1] as f32 / 1e4, p[2] != 0);
+        (o.sustain, o.soft, o.middle) = (p[0] as f32 / 1e4, p[1] as f32 / 1e4, p[2] != 0);
         o.board_modes = (p[3] as usize).min(OBSERVED_MODES);
         for (v, a) in o.board[..o.board_modes].iter_mut().zip(&self.board) {
             *v = f32::from_bits(a.load(r));
@@ -311,6 +311,11 @@ impl PianoControl for Controller {
     fn play(&mut self, note: u8, velocity: u8) {
         let event = if velocity > 0 { Event::NoteOn { note, velocity } } else { Event::NoteOff { note, velocity: 64 } };
         let _ = self.notes.push(event);
+    }
+
+    /// Through the keys' queue, in their order.
+    fn hold_pedal(&mut self, cc: u8, down: bool) {
+        let _ = self.notes.push(Event::Hold { cc, down });
     }
 }
 

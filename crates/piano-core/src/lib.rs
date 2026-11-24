@@ -31,6 +31,6 @@ pub mod unison;
 pub mod upsample;
 pub mod voice;
 
-pub use engine::{Engine, EngineConfig, Event, Quality, TimedEvent};
+pub use engine::{Engine, EngineConfig, Event, PEDAL_CCS, Quality, TimedEvent};
 pub use live::LiveParam;
 pub use observe::Observation;

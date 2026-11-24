@@ -101,6 +101,7 @@ fn replay(dir: &std::path::Path, output: &std::path::Path, threads_cli: usize) -
                     "on" => Event::NoteOn { note: n(0)?, velocity: n(1)? },
                     "off" => Event::NoteOff { note: n(0)?, velocity: n(1)? },
                     "cc" => Event::Control { cc: n(0)?, value: n(1)? },
+                    "hold" => Event::Hold { cc: n(0)?, down: n(1)? != 0 },
                     "all_off" => Event::AllNotesOff,
                     "param" => {
                         let id = piano_core::LiveParam::from_path(rest.first().ok_or("short event")?).ok_or("unknown parameter")?;

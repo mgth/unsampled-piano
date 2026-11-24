@@ -278,7 +278,8 @@ pub fn encode(e: Event) -> Option<[u8; 3]> {
         Event::NoteOff { note, velocity } => Some([0x80, note & 0x7f, velocity & 0x7f]),
         Event::Control { cc, value } => Some([0xb0, cc & 0x7f, value & 0x7f]),
         Event::AllNotesOff => Some([0xb0, 123, 0]),
-        Event::Param { .. } => None,
+        // The interface's hold: not a controller of the keyboard's.
+        Event::Param { .. } | Event::Hold { .. } => None,
     }
 }
 
@@ -496,6 +497,7 @@ mod tests {
                 ["E", t, "on", n, v] => events.push((t.parse().unwrap(), Event::NoteOn { note: n.parse().unwrap(), velocity: v.parse().unwrap() })),
                 ["E", t, "off", n, v] => events.push((t.parse().unwrap(), Event::NoteOff { note: n.parse().unwrap(), velocity: v.parse().unwrap() })),
                 ["E", t, "cc", c, v] => events.push((t.parse().unwrap(), Event::Control { cc: c.parse().unwrap(), value: v.parse().unwrap() })),
+                ["E", t, "hold", c, d] => events.push((t.parse().unwrap(), Event::Hold { cc: c.parse().unwrap(), down: *d != "0" })),
                 ["E", t, "param", p, v] => {
                     events.push((t.parse().unwrap(), Event::Param { id: piano_core::LiveParam::from_path(p).unwrap(), value: v.parse().unwrap() }))
                 }

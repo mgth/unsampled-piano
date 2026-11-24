@@ -58,11 +58,20 @@ struct Knock {
     peak: f32,
 }
 
+/// The pedals' MIDI controllers: sustain, middle (sostenuto or practice
+/// mute), soft.
+pub const PEDAL_CCS: [u8; 3] = [64, 66, 67];
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
     NoteOn { note: u8, velocity: u8 },
     NoteOff { note: u8, velocity: u8 },
     Control { cc: u8, value: u8 },
+    /// A pedal (MIDI controller `cc`: 64 sustain, 66 middle, 67 soft)
+    /// held down from the interface, ahead of the controller: while held
+    /// it stays down whatever the controller says; let go, the
+    /// controller's own value applies again.
+    Hold { cc: u8, down: bool },
     AllNotesOff,
     /// A live parameter change ([`LiveParam`]), applied at its frame.
     Param { id: LiveParam, value: f32 },
@@ -274,6 +283,11 @@ pub struct Engine {
     sostenuto_down: bool,
     /// Middle pedal down while it works a practice mute (`mute_felt` > 0).
     mute_down: bool,
+    /// The pedals' controllers as last received (sustain, middle, soft,
+    /// [`PEDAL_CCS`]), and which are held from the interface
+    /// ([`Event::Hold`]): what they apply is the one or the other.
+    pedal_cc: [u8; 3],
+    pedal_held: [bool; 3],
     /// Sample time of the event being handled.
     now: u64,
     /// Per key: down, or the time it was released (None: at rest since
@@ -496,6 +510,8 @@ impl Engine {
             soft: 0.0,
             sostenuto_down: false,
             mute_down: false,
+            pedal_cc: [0; 3],
+            pedal_held: [false; 3],
             now: 0,
             key_down: [false; 128],
             key_up_at: [None; 128],
@@ -679,7 +695,7 @@ impl Engine {
             let sym = v.sym.energy();
             k.energy += v.bank.energy() + if sym < self.shortcuts.sym_silence { 0.0 } else { sym };
         }
-        (own.sustain, own.soft, own.sostenuto) = (self.sustain as f32, self.soft as f32, self.sostenuto_down);
+        (own.sustain, own.soft, own.middle) = (self.sustain as f32, self.soft as f32, self.sostenuto_down || self.mute_down);
         // The low modes run apart when driven key by key: they come first.
         let mut n = self.board_low.as_ref().map_or(0, |b| b.amplitudes(&mut own.board));
         for b in self.board.iter().chain(&self.board_top) {
@@ -1375,39 +1391,17 @@ impl Engine {
                 }
                 self.note_off(note);
             }
-            Event::Control { cc: 64, value } => {
-                let new = value as f64 / 127.0;
-                let delta = (new - self.sustain_prev).abs();
-                // The damper rail knocks the frame near the middle of the
-                // keyboard; on release the rail lowers the dampers, slower
-                // than a key does (its travel is cushioned by felts).
-                let peak = self.live.noise.pedal * delta;
-                self.knock(region_of(54), 0.6 * peak);
-                self.knock(region_of(66), 0.4 * peak);
-                if new < self.sustain {
-                    let speed = (delta * 0.3).clamp(0.02, 0.2);
-                    for v in self.voices.iter_mut().filter(|v| v.active && !v.key_down) {
-                        v.damper_speed = speed;
-                    }
-                }
-                self.sustain = new;
-                self.sustain_prev = new;
+            Event::Control { cc, value } if PEDAL_CCS.contains(&cc) => {
+                let i = PEDAL_CCS.iter().position(|&c| c == cc).unwrap_or(0);
+                self.pedal_cc[i] = value;
+                self.pedal(i);
             }
-            Event::Control { cc: 66, value } if self.live.mute_felt > 0.0 => self.mute_down = value >= 64,
-            Event::Control { cc: 66, value } => {
-                let down = value >= 64;
-                if down && !self.sostenuto_down {
-                    for v in self.voices.iter_mut().filter(|v| v.active) {
-                        v.sostenuto = v.key_down;
-                    }
-                } else if !down {
-                    for v in &mut self.voices {
-                        v.sostenuto = false;
-                    }
+            Event::Hold { cc, down } => {
+                if let Some(i) = PEDAL_CCS.iter().position(|&c| c == cc) {
+                    self.pedal_held[i] = down;
+                    self.pedal(i);
                 }
-                self.sostenuto_down = down;
             }
-            Event::Control { cc: 67, value } => self.soft = value as f64 / 127.0,
             Event::Control { cc: 120 | 123, .. } | Event::AllNotesOff => {
                 for v in &mut self.voices {
                     v.key_down = false;
@@ -1519,6 +1513,48 @@ impl Engine {
                 self.body.set_law(&law);
             }
             self.body.strike(note, thrown, 0.0);
+        }
+    }
+
+    /// Pedal `i` ([`PEDAL_CCS`]) set to what it now applies: down while
+    /// held from the interface, else its controller's value.
+    fn pedal(&mut self, i: usize) {
+        let value = if self.pedal_held[i] { 127 } else { self.pedal_cc[i] };
+        match PEDAL_CCS[i] {
+            64 => {
+                let new = value as f64 / 127.0;
+                let delta = (new - self.sustain_prev).abs();
+                // The damper rail knocks the frame near the middle of the
+                // keyboard; on release the rail lowers the dampers, slower
+                // than a key does (its travel is cushioned by felts).
+                let peak = self.live.noise.pedal * delta;
+                self.knock(region_of(54), 0.6 * peak);
+                self.knock(region_of(66), 0.4 * peak);
+                if new < self.sustain {
+                    let speed = (delta * 0.3).clamp(0.02, 0.2);
+                    for v in self.voices.iter_mut().filter(|v| v.active && !v.key_down) {
+                        v.damper_speed = speed;
+                    }
+                }
+                self.sustain = new;
+                self.sustain_prev = new;
+            }
+            66 if self.live.mute_felt > 0.0 => self.mute_down = value >= 64,
+            66 => {
+                let down = value >= 64;
+                if down && !self.sostenuto_down {
+                    for v in self.voices.iter_mut().filter(|v| v.active) {
+                        v.sostenuto = v.key_down;
+                    }
+                } else if !down {
+                    for v in &mut self.voices {
+                        v.sostenuto = false;
+                    }
+                }
+                self.sostenuto_down = down;
+            }
+            67 => self.soft = value as f64 / 127.0,
+            _ => {}
         }
     }
 

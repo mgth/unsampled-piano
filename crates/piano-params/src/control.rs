@@ -37,6 +37,14 @@ pub trait PianoControl {
     fn play(&mut self, note: u8, velocity: u8) {
         let _ = (note, velocity);
     }
+    /// A pedal held down from the interface (the model page's pedals), or
+    /// let go: MIDI controller `cc` (64 sustain, 66 middle, 67 soft). Held,
+    /// it stays down whatever the controller says; let go, the
+    /// controller's own value applies again ([`piano_core::Event::Hold`]).
+    /// Nothing where the host gives no way to the engine.
+    fn hold_pedal(&mut self, cc: u8, down: bool) {
+        let _ = (cc, down);
+    }
     /// Whether a controller may be learnt for `path` (a plugin leaves its
     /// automatable parameters to the host's own MIDI mapping).
     fn midi_learnable(&self, path: &str) -> bool {

@@ -316,3 +316,42 @@ fn a_bass_key_repeated_under_the_pedal_does_not_tick() {
         assert!(least > -6.0, "{name}: a repeat of A1 adds {least:.1} dB over the first strike left to ring");
     }
 }
+
+/// The pedals as the engine shows them after a script.
+fn observed_pedals(script: &[(f64, Event)]) -> (f32, bool, f32) {
+    let (_, e) = render(script, 0.05);
+    let mut obs = piano_core::Observation::default();
+    e.observe(&mut obs);
+    (obs.sustain, obs.middle, obs.soft)
+}
+
+/// A pedal held from the interface stays down whatever its controller
+/// says; let go, the controller's own position applies again.
+#[test]
+fn a_held_pedal_stays_down_ahead_of_its_controller() {
+    let hold = |c: u8, down: bool| Event::Hold { cc: c, down };
+    // Held, then the controller pressed and let go: still down.
+    let held = [(0.0, hold(64, true)), (0.01, cc(64, 127)), (0.02, cc(64, 0))];
+    assert_eq!(observed_pedals(&held).0, 1.0);
+    // Let go of the hold: the controller's own (up) position.
+    let mut released = held.to_vec();
+    released.push((0.03, hold(64, false)));
+    assert_eq!(observed_pedals(&released).0, 0.0);
+    // The controller half down under the hold, the hold let go: half down.
+    let half = [(0.0, cc(64, 64)), (0.01, hold(64, true)), (0.02, hold(64, false))];
+    assert!((observed_pedals(&half).0 - 64.0 / 127.0).abs() < 1e-6);
+    // The soft and middle pedals alike.
+    let others = [(0.0, hold(67, true)), (0.0, hold(66, true)), (0.01, cc(67, 0)), (0.01, cc(66, 0))];
+    let (_, middle, soft) = observed_pedals(&others);
+    assert!(middle && soft == 1.0);
+}
+
+/// The middle pedal shows down while it works a practice mute as it does
+/// for the sostenuto.
+#[test]
+fn the_middle_pedal_shows_down_for_the_mute_too() {
+    let mute = (0.0, Event::Param { id: LiveParam::MuteFelt, value: 3.0 });
+    assert!(observed_pedals(&[mute, (0.01, cc(66, 127))]).1);
+    assert!(!observed_pedals(&[mute, (0.01, cc(66, 127)), (0.02, cc(66, 0))]).1);
+    assert!(observed_pedals(&[(0.01, cc(66, 127))]).1);
+}

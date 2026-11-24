@@ -26,8 +26,8 @@ const SLOTS: usize = KEEP + 1;
 const QUIET_LEVEL: f32 = 1e-5;
 const QUIET_S: f64 = 0.1;
 const MAX_EVENTS: usize = 1024;
-/// Pedals (sustain, sostenuto, una corda) replayed into a new engine.
-const PEDALS: [u8; 3] = [64, 66, 67];
+/// Pedals (sustain, middle, una corda) replayed into a new engine.
+const PEDALS: [u8; 3] = piano_core::PEDAL_CCS;
 
 struct Retiring {
     engine: Box<Engine>,
@@ -57,8 +57,10 @@ pub struct EngineSlot {
     routes: RouteTable,
     route_updates: rtrb::Consumer<RouteTable>,
     cc_report: rtrb::Producer<(u8, u8)>,
-    /// Last value of each pedal controller seen.
+    /// Last value of each pedal controller seen, and whether the
+    /// interface holds it ([`Event::Hold`]).
     pedals: [Option<u8>; PEDALS.len()],
+    pedals_held: [bool; PEDALS.len()],
     ev_new: Vec<TimedEvent>,
     ev_old: Vec<TimedEvent>,
     /// What the last block applied ([`EngineSlot::journal`]): its events
@@ -116,6 +118,7 @@ impl EngineSlot {
             route_updates,
             cc_report,
             pedals: [None; PEDALS.len()],
+            pedals_held: [false; PEDALS.len()],
             ev_new: Vec::with_capacity(MAX_EVENTS),
             ev_old: Vec::with_capacity(MAX_EVENTS),
             journal_from: 0,
@@ -155,7 +158,24 @@ impl EngineSlot {
         (self.swapped.then(|| &self.current.config().model), &self.ev_new[self.journal_from..])
     }
 
-    /// A note played from the interface, for a host that reports what the
+    /// Keeps a pedal's controller value, or its hold, for the next engine.
+    fn remember(&mut self, event: Event) {
+        match event {
+            Event::Control { cc, value } => {
+                if let Some(i) = PEDALS.iter().position(|&p| p == cc) {
+                    self.pedals[i] = Some(value);
+                }
+            }
+            Event::Hold { cc, down } => {
+                if let Some(i) = PEDALS.iter().position(|&p| p == cc) {
+                    self.pedals_held[i] = down;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// A note (or a pedal's hold) played from the interface, for a host that reports what the
     /// piano plays (a MIDI mirror): taken here, it is the caller's to pass
     /// on in the events of [`EngineSlot::process_stereo`]. The notes left
     /// play at the start of the next block.
@@ -221,9 +241,12 @@ impl EngineSlot {
         self.ev_new.clear();
         self.ev_old.clear();
         if swapped {
-            for (cc, v) in PEDALS.iter().zip(self.pedals) {
+            for ((&cc, v), held) in PEDALS.iter().zip(self.pedals).zip(self.pedals_held) {
                 if let Some(value) = v {
-                    self.ev_new.push(TimedEvent { frame: 0, event: Event::Control { cc: *cc, value } });
+                    self.ev_new.push(TimedEvent { frame: 0, event: Event::Control { cc, value } });
+                }
+                if held {
+                    self.ev_new.push(TimedEvent { frame: 0, event: Event::Hold { cc, down: true } });
                 }
             }
         }
@@ -233,6 +256,7 @@ impl EngineSlot {
             // Parameters, then the notes the interface plays that the
             // caller left.
             let Some(event) = self.params.pop().or_else(|_| self.notes.pop()).ok() else { break };
+            self.remember(event);
             self.ev_new.push(TimedEvent { frame: 0, event });
             if !matches!(event, Event::NoteOn { .. }) {
                 self.ev_old.push(TimedEvent { frame: 0, event });
@@ -244,10 +268,8 @@ impl EngineSlot {
             }
             if let Event::Control { cc, value } = e.event {
                 let _ = self.cc_report.push((cc, value));
-                if let Some(i) = PEDALS.iter().position(|&p| p == cc) {
-                    self.pedals[i] = Some(value);
-                }
             }
+            self.remember(e.event);
             let e = TimedEvent { frame: e.frame, event: self.routes.translate(e.event) };
             self.ev_new.push(e);
             if !matches!(e.event, Event::NoteOn { .. }) {

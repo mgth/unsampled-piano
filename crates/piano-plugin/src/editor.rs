@@ -135,6 +135,10 @@ impl PianoControl for PluginControl<'_> {
         self.ctl.play(note, velocity)
     }
 
+    fn hold_pedal(&mut self, cc: u8, down: bool) {
+        self.ctl.hold_pedal(cc, down)
+    }
+
     /// The host maps its own controllers to its parameters.
     fn midi_learnable(&self, path: &str) -> bool {
         LiveParam::from_path(path).is_none()

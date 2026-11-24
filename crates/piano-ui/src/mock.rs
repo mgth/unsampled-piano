@@ -23,11 +23,13 @@ pub struct MockControl {
     start: Instant,
     /// The keys played from the interface: when struck, and whether held.
     played: [(Option<Instant>, bool); 128],
+    /// The pedals held from the interface: sustain, middle, soft.
+    pedals: [bool; 3],
 }
 
 impl MockControl {
     pub fn new(model: PianoModel) -> Self {
-        Self { registry: Registry::new(), model, pending: None, error: None, midi: MidiLearn::new(MidiMap::default()), start: Instant::now(), played: [(None, false); 128] }
+        Self { registry: Registry::new(), model, pending: None, error: None, midi: MidiLearn::new(MidiMap::default()), start: Instant::now(), played: [(None, false); 128], pedals: [false; 3] }
     }
 
     /// A controller moved (what the audio side reports to a real host).
@@ -83,6 +85,13 @@ impl PianoControl for MockControl {
         }
     }
 
+    /// Shown as the arpeggio's pedal is, nothing heard.
+    fn hold_pedal(&mut self, cc: u8, down: bool) {
+        if let Some(i) = piano_core::PEDAL_CCS.iter().position(|&c| c == cc) {
+            self.pedals[i] = down;
+        }
+    }
+
     /// An arpeggio of C major over two octaves, a note every 0.4 s held
     /// 0.3 s, the sustain pedal down every other bar.
     fn observe(&self) -> Option<Observation> {
@@ -90,7 +99,7 @@ impl PianoControl for MockControl {
         const STEP: f32 = 0.4;
         let t = self.start.elapsed().as_secs_f32();
         let bar = (t / (STEP * NOTES.len() as f32)) as u32;
-        let mut o = Observation { sustain: if bar % 2 == 1 { 1.0 } else { 0.0 }, ..Default::default() };
+        let mut o = Observation { sustain: if bar % 2 == 1 || self.pedals[0] { 1.0 } else { 0.0 }, middle: self.pedals[1], soft: if self.pedals[2] { 1.0 } else { 0.0 }, ..Default::default() };
         for (i, &n) in NOTES.iter().enumerate() {
             // Time since this note was last struck.
             let period = STEP * NOTES.len() as f32;

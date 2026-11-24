@@ -97,6 +97,12 @@ pub struct ModelView {
     /// than turning the view), and the key it holds down.
     keying: bool,
     playing: Option<u8>,
+    /// The pedals the live view holds down (soft, middle, sustain from the
+    /// left), ahead of MIDI: a click holds one, the next lets it go.
+    pedals: [bool; 3],
+    /// The pedal the primary button went down on, and where; dropped once
+    /// the pointer goes further than [`CLICK_SLOP`] from there (a drag).
+    pedal_press: Option<(usize, egui::Pos2)>,
     /// The layers ([`Layer::PARTS`]) last built, and what from.
     built: [Option<(Inputs, Arc<Scene>)>; 3],
     start: Instant,
@@ -131,7 +137,7 @@ impl Inputs {
                     let k = &l.obs.keys[m];
                     state.extend([k.down as u8 | (k.hammer as u8) << 1, q(k.damper, 255.0), q(l.keys[m], 12.0)]);
                 }
-                state.extend([q(l.obs.sustain, 255.0), q(l.obs.soft, 255.0), l.obs.sostenuto as u8]);
+                state.extend([q(l.obs.sustain, 255.0), q(l.obs.soft, 255.0), l.obs.middle as u8]);
             }
             (Some(l), Layer::Sounding) => {
                 state.extend(l.keys[21..=108].iter().map(|&k| q(k, 255.0)));
@@ -169,6 +175,13 @@ impl Layers {
     fn key_at(&self, from: V3, dir: V3) -> Option<(u8, f32)> {
         self.0.iter().find_map(|s| s.key_at(from, dir))
     }
+
+    /// The pedal a ray meets, unless a key is in front of it.
+    fn pedal_at(&self, from: V3, dir: V3) -> Option<usize> {
+        let (i, t) = self.0.iter().find_map(|s| s.pedal_at(from, dir))?;
+        let key = self.0.iter().find_map(|s| s.key_distance(from, dir));
+        key.is_none_or(|k| k > t).then_some(i)
+    }
 }
 
 impl Default for ModelView {
@@ -196,6 +209,8 @@ impl Default for ModelView {
             side_shown: None,
             keying: false,
             playing: None,
+            pedals: [false; 3],
+            pedal_press: None,
             built: [None, None, None],
             start: Instant::now(),
         }
@@ -228,6 +243,10 @@ const FRONT_VELOCITY: f32 = 127.0;
 const BACK_VELOCITY: f32 = 20.0;
 
 /// The velocity of a press at `along` a key (0 front … 1 back).
+/// How far (points) the pointer may go between a press and its release
+/// for a click on a pedal: further, it is a drag (egui's own default).
+const CLICK_SLOP: f32 = 6.0;
+
 fn click_velocity(along: f32) -> u8 {
     (FRONT_VELOCITY + (BACK_VELOCITY - FRONT_VELOCITY) * along.clamp(0.0, 1.0)).round() as u8
 }
@@ -807,6 +826,16 @@ impl ModelView {
         self.keying = false;
     }
 
+    /// Presses pedal `i` (from the left) if it is up, else lets it go.
+    /// Held, it stays down whatever MIDI says (the engine shows it down);
+    /// let go, MIDI's own position applies again.
+    fn toggle_pedal(&mut self, control: &mut dyn PianoControl, i: usize) {
+        const CC: [u8; 3] = [67, 66, 64];
+        let down = &mut self.pedals[i];
+        *down = !*down;
+        control.hold_pedal(CC[i], *down);
+    }
+
     /// Holds down `key` (note, place along it), letting go of the one held
     /// before; None lets go.
     fn hold(&mut self, control: &mut dyn PianoControl, key: Option<(u8, f32)>) {
@@ -825,29 +854,32 @@ impl ModelView {
     /// The instrument in 3D, the camera turned by the pointer; with a
     /// `control` (live), a press on the keys plays them, louder nearer
     /// their front, the key under the pointer held down as it moves along
-    /// them.
+    /// them, and a click on a pedal presses it or lets it go.
     fn view_3d(&mut self, ui: &mut Ui, layers: &Layers, w: f32, h: f32, control: Option<&mut (dyn PianoControl + '_)>) -> Option<&'static str> {
         let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, h), Sense::click_and_drag());
         let body = layers.body();
         let cam = *self.orbit.get_or_insert_with(|| Orbit::framing(body.0, body.1, rect.aspect_ratio()));
         let mut on_key = false;
         if let Some(control) = control {
-            let key = |p: egui::Pos2| {
+            let ray = |p: egui::Pos2| {
                 rect.contains(p).then(|| {
                     let (x, y) = ((p.x - rect.left()) / rect.width() * 2.0 - 1.0, 1.0 - (p.y - rect.top()) / rect.height() * 2.0);
-                    let (from, dir) = cam.ray(rect.aspect_ratio(), x, y);
-                    layers.key_at(from, dir)
-                })?
+                    cam.ray(rect.aspect_ratio(), x, y)
+                })
             };
-            // The primary button's presses and releases in their order (a
-            // whole click may come within one frame), and whether the
-            // window lost the focus (the release may then go elsewhere).
+            let key = |p: egui::Pos2| ray(p).and_then(|(from, dir)| layers.key_at(from, dir));
+            let pedal = |p: egui::Pos2| ray(p).and_then(|(from, dir)| layers.pedal_at(from, dir));
+            // The primary button's presses and releases (Some: pressed) and
+            // the pointer's moves (None) in their order (a whole click may
+            // come within one frame), and whether the window lost the focus
+            // (the release may then go elsewhere).
             let (buttons, blurred, pos, down) = ui.input(|i| {
-                let buttons: Vec<(egui::Pos2, bool)> = i
+                let buttons: Vec<(egui::Pos2, Option<bool>)> = i
                     .events
                     .iter()
                     .filter_map(|e| match e {
-                        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, .. } => Some((*pos, *pressed)),
+                        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, .. } => Some((*pos, Some(*pressed))),
+                        egui::Event::PointerMoved(pos) => Some((*pos, None)),
                         _ => None,
                     })
                     .collect();
@@ -856,11 +888,30 @@ impl ModelView {
             });
             if blurred {
                 self.release(control);
+                self.pedal_press = None;
             } else {
                 for (p, pressed) in buttons {
+                    let Some(pressed) = pressed else {
+                        // Gone too far from a pedal pressed on: a drag that
+                        // turns the view, even if it comes back.
+                        if self.pedal_press.is_some_and(|(_, at)| p.distance(at) > CLICK_SLOP) {
+                            self.pedal_press = None;
+                        }
+                        continue;
+                    };
                     if !pressed {
                         self.keying = false;
                         self.hold(control, None);
+                        // A click (not a drag that turns the view) on a
+                        // pedal: let go on the one pressed on.
+                        if let Some((i, at)) = self.pedal_press.take()
+                            && p.distance(at) <= CLICK_SLOP
+                            && pedal(p) == Some(i)
+                        {
+                            self.toggle_pedal(control, i);
+                        }
+                    } else if let Some(i) = pedal(p).filter(|_| resp.contains_pointer()) {
+                        self.pedal_press = Some((i, p));
                     } else if let Some(k) = key(p).filter(|_| resp.contains_pointer()) {
                         self.keying = true;
                         self.hold(control, Some(k));
@@ -870,8 +921,7 @@ impl ModelView {
                 let held = pos.filter(|_| self.keying).and_then(key);
                 self.hold(control, held);
             }
-            let under = pos.and_then(key);
-            on_key = under.is_some();
+            on_key = pos.is_some_and(|p| key(p).is_some() || pedal(p).is_some());
             if self.keying || (on_key && resp.hovered() && !resp.dragged()) {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
@@ -1183,7 +1233,7 @@ fn live_numbers(ui: &mut Ui, obs: Option<&Observation>, model: &PianoModel) {
         row("Dampers lifted", format!("{lifted}"));
         row("Sustain pedal", format!("{:.0} %", o.sustain * 100.0));
         row("Soft pedal", format!("{:.0} %", o.soft * 100.0));
-        row("Sostenuto", if o.sostenuto { "down".into() } else { "up".into() });
+        row("Middle pedal", if o.middle { "down".into() } else { "up".into() });
     });
     ui.add_space(6.0);
     ui.label(
@@ -1204,8 +1254,8 @@ mod tests {
         Layers(Layer::PARTS.map(|l| Arc::new(scene::build_layer(model, None, o, l))))
     }
 
-    /// Records the notes played.
-    struct Keys(Vec<(u8, u8)>);
+    /// Records the notes played, and the pedals moved.
+    struct Keys(Vec<(u8, u8)>, Vec<(u8, bool)>);
 
     impl PianoControl for Keys {
         fn model(&self) -> PianoModel {
@@ -1220,6 +1270,9 @@ mod tests {
         }
         fn play(&mut self, note: u8, velocity: u8) {
             self.0.push((note, velocity));
+        }
+        fn hold_pedal(&mut self, cc: u8, down: bool) {
+            self.1.push((cc, down));
         }
     }
 
@@ -1256,6 +1309,64 @@ mod tests {
     }
 
     #[test]
+    fn a_click_on_a_pedal_presses_it_and_the_next_lets_it_go() {
+        use egui::{Event, PointerButton, Pos2, RawInput};
+        let model = PianoModel::default();
+        let options = Options { key: 60, lit: &[], lid: true, frame: true, mics: true, case: true, fallboard: false, front: 1.0, ink: egui::Color32::WHITE };
+        let layers = view_layers(&model, &options);
+        let scene = layers.0[1].clone();
+        assert_eq!(scene.pedals.iter().map(|p| p.0).collect::<Vec<_>>(), [0, 1, 2]);
+        let ctx = egui::Context::default();
+        let mut view = ModelView::default();
+        let mut keys = Keys(Vec::new(), Vec::new());
+        let size = Vec2::new(800.0, 600.0);
+        let mut rect = Rect::NOTHING;
+        let mut frame = |view: &mut ModelView, keys: &mut Keys, events: Vec<Event>| {
+            let time = Some(ctx.input(|i| i.time) + 1.0 / 60.0);
+            let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1000.0, 800.0))), events, time, ..Default::default() };
+            ctx.run_ui(input, |ui| {
+                rect = Rect::from_min_size(ui.cursor().min, size);
+                view.view_3d(ui, &layers, size.x, size.y, Some(keys));
+            })
+            .drop_without_applying_deltas();
+            rect
+        };
+        let rect = frame(&mut view, &mut keys, vec![]);
+        let orbit = view.orbit.unwrap();
+        let m = orbit.matrix(rect.aspect_ratio());
+        let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Default::default() };
+        // On the sustain pedal's pad, near its tip.
+        let (_, lo, hi) = scene.pedals[2];
+        let at = paint::to_screen(&m, rect, [(lo[0] + hi[0]) / 2.0, lo[1] + 0.02, hi[2] - 0.005]).unwrap().0;
+        assert!(rect.contains(at), "{at:?}");
+        let click = |view: &mut ModelView, keys: &mut Keys, frame: &mut dyn FnMut(&mut ModelView, &mut Keys, Vec<Event>) -> Rect| {
+            frame(view, keys, vec![Event::PointerMoved(at)]);
+            frame(view, keys, vec![button(at, true)]);
+            frame(view, keys, vec![button(at, false)]);
+        };
+        click(&mut view, &mut keys, &mut frame);
+        assert_eq!(keys.1, [(64, true)]);
+        click(&mut view, &mut keys, &mut frame);
+        assert_eq!(keys.1, [(64, true), (64, false)]);
+        // No key played, the view kept still.
+        assert!(keys.0.is_empty(), "{:?}", keys.0);
+        assert_eq!(view.orbit, Some(orbit));
+        // Pressed on it, dragged away and back: the view turns, the pedal
+        // stays.
+        let away = at + Vec2::new(24.0, 0.0);
+        frame(&mut view, &mut keys, vec![button(at, true)]);
+        frame(&mut view, &mut keys, vec![Event::PointerMoved(away)]);
+        assert_ne!(view.orbit, Some(orbit));
+        frame(&mut view, &mut keys, vec![Event::PointerMoved(at)]);
+        frame(&mut view, &mut keys, vec![button(at, false)]);
+        assert_eq!(keys.1.len(), 2, "{:?}", keys.1);
+        // The same within one frame.
+        frame(&mut view, &mut keys, vec![button(at, true), Event::PointerMoved(away), Event::PointerMoved(at), button(at, false)]);
+        assert_eq!(keys.1.len(), 2, "{:?}", keys.1);
+        assert!(keys.0.is_empty(), "{:?}", keys.0);
+    }
+
+    #[test]
     fn pressing_the_keys_plays_them_and_elsewhere_turns_the_view() {
         use egui::{Event, PointerButton, Pos2, RawInput};
         let model = PianoModel::default();
@@ -1264,7 +1375,7 @@ mod tests {
         let scene = layers.0[1].clone();
         let ctx = egui::Context::default();
         let mut view = ModelView::default();
-        let mut keys = Keys(Vec::new());
+        let mut keys = Keys(Vec::new(), Vec::new());
         let size = Vec2::new(800.0, 600.0);
         let mut rect = Rect::NOTHING;
         let mut frame = |view: &mut ModelView, keys: &mut Keys, events: Vec<Event>| {
