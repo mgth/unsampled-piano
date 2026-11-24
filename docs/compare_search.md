@@ -1,6 +1,6 @@
 # Tuning against the comparison tool
 
-State as of 2026-11-19.
+State as of 2026-11-24.
 
 `tools/compare_search.py` tunes a preset one parameter at a time, and the comparison tool alone decides what is kept. It is not the bench of `docs/bench.md`.
 
@@ -99,3 +99,58 @@ It read each partial at its strongest line, which made a unison's split partial 
 None of the 66 parameters moves the overtones of the sustain. Their excess sits on single keys (against the band's median: D#3 +18 dB, D#5 +19, D6 +19, G1 −24, D7 −27). It takes a lever that acts key by key, such as the board's modes at each bridge point, not the instrument-wide values searched here.
 
 A checkpoint of `tools/compare_search.py` now records the measure version, the band, and the starting preset's path and contents (SHA-256, since a pull may change the file in place). If any of them differs, the search starts again from a freshly scored baseline.
+
+## Third run, on the treble, after the top bridge points moved (2026-11-24)
+
+The top strings' bridge points moved across the board (docs/string_sections.md, "The top strings square to the hammers' line"). Scored on all 88 keys and three layers (measures version 9, band of 5), the move alone is nearly neutral: 866 measures off for 856 with the old points, mean gap 1.203 for 1.193; bass 197 for 203, middle 359 for 361, treble (C5–B6) 240 for 223, top 70 for 69. In the treble the rise time (14 off for 7), the late decay (23 for 19) and partials 2–4 (28 for 25) lose, the lines' early decays gain (2.5–4 kHz 8 for 14, 4–7 kHz 22 for 26). The bass and the middle move too, as the bridge is one piece of the board's structure and its modes are dealt again.
+
+The search then ran from the new points on 27 of the 66 parameters: those that act on the treble and are fits, not facts of the D (no masses, lengths, tensions, tuning, inharmonicity or bridge points). `losses.b2_top` was held at 2.0e-7 or more, under which the middle was heard to buzz. 383 trials over seven passes kept 32 steps (20, 7, 1, 0, then 2, 2, 0 at half steps):
+
+| Parameter | Before | After |
+|---|---|---|
+| `strike_ratio_top` | 0.05 | 0.08 |
+| `shank_freq_mid` | 700 Hz | 460 Hz |
+| `hardness_slope` | −0.05 | −0.07 |
+| `polarization.detune_cents` | 0.3 | 0.03 |
+| `polarization.radiation` | 0.8 | 1.0 |
+| `polarization.hammer_tilt` | 0.05 | 0.06 |
+| `polarization.slope` | 1.5 | 1.625 |
+| `polarization.slope_to` | 532.5 Hz | 767 Hz |
+| `losses.b2_top` (not kept, below) | 3.9e-7 | 2.2e-7 |
+| `unison.hit_spread` | 0.3 | 0.2 |
+| `unison.width_curve` | 0.8 | 0.64 |
+| `soundboard.loss_corner` | 3500 Hz | 4375 Hz |
+| `body.t60` at 2 kHz | 0.5 s | 0.65 s |
+| `body.speed_halo` at C5 | 0.4 | 0.5 |
+
+The search ended on `polarization.detune_cents` 0, outside the parameter's range (0.03–3): at 0.03, with the other values rounded, 665 measures are off (655 at 0).
+
+| | Old points | New points | New points, tuned |
+|---|---|---|---|
+| Measures off | 856 | 866 | 665 |
+| Mean gap | 1.193 | 1.203 | 1.093 |
+| Bass, off | 203 | 197 | 165 |
+| Middle | 361 | 359 | 265 |
+| Treble | 223 | 240 | 184 |
+| Top | 69 | 70 | 51 |
+| Bench of the real grands (docs/bench.md) | 1.47 | 1.59 | 1.30 |
+
+Most of the gain is not the move's: the partial lines' measures (versions 8 and 9) had never been searched, and `b2_top` back near 2.0e-7 takes most of them (Lines 1.2–2.5 kHz late 52 off to 19, 2.5–4 kHz at 0.6–1.2 s 76 to 36, at 1.2–2.2 s 80 to 46, 4–7 kHz at 0.6–1.2 s 54 to 35). The top's spectral tilt comes within range with the hammers nearer 1/12 of the string (21 off to 8). Worse: the sustain's brightness (20 off to 27), the release drop at 150–600 Hz (13 to 17), Lines 4–7 kHz at 1.2–2.2 s (28 to 33); the treble's rise time stays at 14 off.
+
+### At the keyboard: the buzz is `b2_top`
+
+Played by the user the same day, the tuned preset buzzed: "the tone leans towards a harpsichord's". Each of the 14 values was then scored alone on the committed preset, and taken out alone from the tuned one (C4–C6, three layers, median change of the model's values):
+
+| Added alone | Lines 2.5–4 kHz, 0.6–1.2 s | 1.2–2.2 s | Lines 4–7 kHz, 0.6–1.2 s |
+|---|---|---|---|
+| `b2_top` 2.2e-7 | +9.8 dB | +16.3 dB | +21.0 dB |
+| the five of `polarization` | +1.1 | +2.9 | +2.1 |
+| the four of the hammer | −1.3 | −0.4 | −0.5 |
+| each of the others | under 0.4 | under 0.4 | under 0.4 |
+| all 14 | +9.6 | +19.3 | +22.6 |
+
+By ear, on presets built from this: the tuned preset with `b2_top` back at 3.9e-7 no longer buzzes, and the committed preset with `b2_top` 2.2e-7 alone does. So `b2_top` stays at 3.9e-7, and the 13 other values are kept: 772 measures off (665 with it), against 866; bench of the real grands 1.51 (1.30 with it, 1.59 before the search, 1.47 with the old bridge points).
+
+The partial lines' measures therefore reward what the ear refuses. Clean string lines held at the real grands' level at 2.5–7 kHz are the buzz; the real grands reach that level without it (docs/sustain.md). `tools/compare_search.py` no longer tries `b2_top` under 3.9e-7. The 13 values kept were heard together in that one preset, not one by one.
+
+Before that listening, the note on the search read: it goes back on values chosen or kept by ear: `b2_top` (3.9e-7 came from the first search; 2.0e-7 was the lowest heard without a buzz), `hardness_slope` (−0.05 kept at the keyboard), `polarization.radiation` (0.8), `slope_to` (700 by ear, here 767) and `width_curve` (1.0 by ear).
