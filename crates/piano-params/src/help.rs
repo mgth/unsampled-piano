@@ -60,19 +60,20 @@ const HELP: &[(&str, &str, &str)] = &[
     (
         "una_corda_softening",
         "How much softer the tone gets with the left (una corda) pedal. The pedal shifts the whole \
-         action sideways: each hammer strikes one string fewer, with fresh felt that the strings \
-         have not grooved and hardened.",
-        "With the soft pedal at s (CC 67, 0–1), the first string of each bichord and trichord gets \
+         action sideways: a hammer with three strings strikes two of them, and every hammer meets \
+         fresh felt that the strings have not grooved and hardened.",
+        "With the soft pedal at s (CC 67, 0–1), the first string of each trichord gets \
          (1 − s) of the hammer force, the felt stiffness Q0 is multiplied by 1 − softening·s, and \
          the top felt is deeper by half that (+30 % at 0.6): the hard core is reached later. Read \
          at each strike.",
     ),
     (
         "una_corda_shift",
-        "What the left pedal does. On a grand (1) it shifts the action so that each hammer \
-         strikes one string fewer; on an upright (0) it does not shift anything, it moves the \
-         hammers closer to the strings instead (see half blow).",
-        "The first string of each bichord and trichord gets (1 − shift·s) of the hammer force, and \
+        "What the left pedal does. On a grand (1) it shifts the action so that a hammer with \
+         three strings strikes two of them (the two strings of a bass key, wider apart, stay \
+         under it); on an upright (0) it does not shift anything, it moves the hammers closer to \
+         the strings instead (see half blow).",
+        "The first string of each trichord gets (1 − shift·s) of the hammer force, and \
          the felt softening is applied with shift·s, for the soft pedal at s (CC 67, 0–1).",
     ),
     (

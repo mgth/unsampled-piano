@@ -223,12 +223,13 @@ impl Voice {
     }
 
     /// Strikes the (possibly ringing) strings with the hammer at `v` m/s.
-    /// `una_corda` ∈ [0, 1] shifts the hammer off the first string and onto
-    /// felt the strings have not grooved: softer (`softening` at full
-    /// shift) and less compacted, so thicker over the hard core (by half the
-    /// softening: +30 % at 0.6). `mute` (mm) is the felt strip of an
-    /// upright's practice pedal between hammer and strings: the hammer
-    /// strikes through a soft, lossy layer before its own felt.
+    /// `una_corda` ∈ [0, 1] shifts the hammer off the first string of a
+    /// trichord (a bichord's strings lie wider apart: both stay under the
+    /// hammer) and, on every key, onto felt the strings have not grooved:
+    /// softer (`softening` at full shift) and less compacted, so thicker
+    /// over the hard core (by half the softening: +30 % at 0.6). `mute`
+    /// (mm) is the felt strip of an upright's practice pedal between hammer
+    /// and strings: the hammer strikes through a soft, lossy layer before its own felt.
     #[allow(clippy::too_many_arguments)]
     pub fn strike(&mut self, nm: &NoteModel, v: f64, oversample: usize, una_corda: f64, softening: f64, mute: f64) {
         if self.contact.is_active() {
@@ -245,7 +246,7 @@ impl Voice {
         self.nl_strike.fill((0.0, 0.0));
         let n = nm.n_osc;
         let ns = nm.params.strings;
-        let shift = if ns >= 2 { una_corda.clamp(0.0, 1.0) } else { 0.0 };
+        let shift = if ns >= 3 { una_corda.clamp(0.0, 1.0) } else { 0.0 };
         let mut np = nm.params;
         let u = softening * una_corda.clamp(0.0, 1.0);
         np.hammer.q0 *= 1.0 - u;
