@@ -249,7 +249,13 @@ string_sections = [[41.0, 0.014], [56.0, 0.014], [74.0, 0.014], [92.0, 0.014]]
 # on the rim's inner face it fell on the clamped edge itself, C8 29 dB weak at the
 # player's ears. B7's point 1 cm further in (0.0548 -> 0.0617) keeps C8 1.2 cm from the
 # edge, in the real grands' range (docs/steinway_d_gaps.md, "B7 and C8").
-bridge_keys = [[24.0, 0.8540, 0.7260], [27.0, 0.8258, 0.6849], [30.0, 0.7740, 0.6438], [33.0, 0.7128, 0.6164], [36.0, 0.6516, 0.5959], [40.0, 0.5810, 0.5753], [41.0, 0.8023, 0.8425], [43.0, 0.7222, 0.8151], [46.0, 0.6186, 0.7603], [50.0, 0.5056, 0.6918], [54.0, 0.4115, 0.6301], [58.0, 0.3409, 0.5753], [63.0, 0.2655, 0.5137], [68.0, 0.2090, 0.4521], [73.0, 0.1667, 0.3973], [78.0, 0.1384, 0.3425], [84.0, 0.1102, 0.2808], [90.0, 0.0866, 0.2123], [96.0, 0.0678, 0.1507], [102.0, 0.0537, 0.0959], [107.0, 0.0443, 0.0617], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+# From G#5 up the points across are no longer RT-425's (2026-11-24): its top points,
+# rounded to the centimetre, stand 2 to 4 cm nearer the treble side than the hammers
+# (14.35 mm apart, read off the photograph), and the short strings fanned by up to 26
+# degrees. They now lie square to the hammers' line behind each hammer, with the
+# sections' gaps (73|74, 91|92), at RT-425's distance along; C8 where it was
+# (docs/string_sections.md, "The top strings square to the hammers' line").
+bridge_keys = [[24.0, 0.8540, 0.7260], [27.0, 0.8258, 0.6849], [30.0, 0.7740, 0.6438], [33.0, 0.7128, 0.6164], [36.0, 0.6516, 0.5959], [40.0, 0.5810, 0.5753], [41.0, 0.8023, 0.8425], [43.0, 0.7222, 0.8151], [46.0, 0.6186, 0.7603], [50.0, 0.5056, 0.6918], [54.0, 0.4115, 0.6301], [58.0, 0.3409, 0.5753], [63.0, 0.2655, 0.5137], [68.0, 0.2090, 0.4583], [73.0, 0.1667, 0.4115], [74.0, 0.1601, 0.3924], [78.0, 0.1384, 0.3542], [84.0, 0.1102, 0.2968], [91.0, 0.0831, 0.2294], [92.0, 0.0798, 0.2102], [96.0, 0.0678, 0.1715], [102.0, 0.0537, 0.1133], [107.0, 0.0443, 0.0646], [108.0, 0.0424, 0.0549]]
 
 # The board as it is built, by finite elements: plate, ribs and bridges of the D
 # (fem::BoardStructure::STEINWAY_D, docs/real_board.md).
