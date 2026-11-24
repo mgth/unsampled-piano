@@ -45,6 +45,13 @@ const BLACK_SLOPE: f64 = 0.011;
 const BLACK_NOSE: f64 = 0.004;
 /// The balance rail behind the keys' front.
 const BALANCE: f64 = 0.2;
+/// The key frame's front rail: where its felt under the white keys lies
+/// from their front edge, and how long along the felt under the black
+/// keys is, from their own front ([`front_stops`]).
+const FRONT_RAIL: (f64, f64) = (0.008, 0.03);
+const BLACK_STOP: f64 = 0.022;
+/// What a bracket leaves free each side between two keys.
+const BRACKET_CLEAR: f64 = 0.0004;
 
 /// The hammer: its shank's length to the head's centre and radius; the
 /// treble's crown above the shank, its felt's thickness on the crown and
@@ -594,15 +601,7 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
             b.loft(&black_cap((x0, x1), (yf, y1), key_top), top);
             (x0, x1)
         } else {
-            let edge = |n: u8, left: bool| {
-                if (21..=108).contains(&n) && sketches::is_black(n) {
-                    let (x, w) = sketches::key_span(n);
-                    Some(if left { wx(x + w) + 0.0006 } else { wx(x) - 0.0006 })
-                } else {
-                    None
-                }
-            };
-            let (n0, n1) = (edge(m.wrapping_sub(1), true).unwrap_or(x0), edge(m + 1, false).unwrap_or(x1));
+            let (n0, n1) = key_tail(c, m);
             // The wood under its cover and behind its lip; the cover.
             let (yh, zc) = (y0 + WHITE_HEAD, key_top - KEYTOP_T);
             b.block((y0, yh), (c.kz, zc), (x0 + x1) / 2.0, x1 - x0, KEY_WOOD);
@@ -629,8 +628,7 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
         let hammer = hammer(c, &g, m);
         let checked = tail_at(&g, &hammer, hammer.checked);
         let backcheck = checked.0 + 0.008;
-        // On to under its damper's wire.
-        let end = if m <= c.model.damper.highest_note { (backcheck + 0.012).max(damper_wire(c, m) + 0.008) } else { backcheck + 0.012 };
+        let end = key_end(c, m);
         stick(b, c, m, tail, y1, end, g.balance.0);
         // The capstan under the wippen's heel.
         let k_hammer = hammer.rest;
@@ -657,6 +655,7 @@ pub(super) fn keys(b: &mut Builder, c: &Ctx) {
         upright_rails(b, c, &up, balance, end);
     } else {
         // The rails with the hammers' line: slanted as it is.
+        key_frame(b, c, &g, shift);
         let mark = b.mark();
         rails(b, c, &g, shift);
         let line = hammers(c.model, c.sb);
@@ -776,6 +775,110 @@ fn head(b: &mut Builder, c: &Ctx, m: u8, h: &Hammer, cx: f64, tail: f64, at: &dy
     b.mat = Material::Felt;
     band(mid, (d, mt - 0.006 + h.felt * 0.5, hh), felt, b);
     b.mat = Material::Wood;
+}
+
+/// How far under its place at rest the bottom of a key pressed all the way
+/// is at `y` along: [`KEY_DIP`] at its front edge, turned about its
+/// balance.
+fn key_drop(c: &Ctx, y: f64) -> f64 {
+    let balance = c.key_front + BALANCE;
+    (balance - y) * (KEY_DIP / BALANCE).asin().tan()
+}
+
+/// The front rail's two felts, each along (from, to) and its top: under
+/// the white keys' heads and, further back, under the black keys' fronts
+/// (as a keyboard's two rows of front pins), each where the bottom of a
+/// key pressed all the way comes down on its front edge.
+fn front_stops(c: &Ctx) -> [((f64, f64), f64); 2] {
+    let white = c.key_front + FRONT_RAIL.0;
+    let black = c.key_back - BLACK_DEPTH;
+    [((white, c.key_front + FRONT_RAIL.1), c.kz - key_drop(c, white)), ((black, black + BLACK_STOP), c.kz - key_drop(c, black))]
+}
+
+/// The key frame's front rail from `bed` up, `w` wide about `x`, with its
+/// felts ([`front_stops`]): one piece, stepped up under the black keys'.
+fn front_rail(b: &mut Builder, c: &Ctx, bed: f64, x: f64, w: f64, frame: Color32) {
+    let [(white, wt), (black, bt)] = front_stops(c);
+    b.block((white.0, black.1), (bed, wt - 0.002), x, w, frame);
+    b.block(white, (wt - 0.002, wt), x, w, CLOTH);
+    b.block(black, (wt - 0.002, bt - 0.002), x, w, frame);
+    b.block(black, (bt - 0.002, bt), x, w, CLOTH);
+}
+
+/// A grand's bracket where it stands among the keys, between `m - 1` and
+/// `m` (or past an end key, at `x`): its foot on the balance rail and its
+/// first strut, `t` deep, up to `top` (along, up) at `x` across. Each as
+/// the sections of a solid, the foot's two and the strut's three: every
+/// corner inside the keys' gap at its own depth ([`key_gap`], shifted
+/// with the keys by `shift`), [`BRACKET_CLEAR`] from both, so that the
+/// foot tapers and turns with the gap, and the strut follows it until it
+/// is over the keys, then goes across to `x`.
+#[allow(clippy::type_complexity)]
+fn bracket_low(c: &Ctx, g: &Geo, m: u8, x: f64, shift: f64, top: (f64, f64), t: f64) -> (Vec<Vec<[f64; 3]>>, Vec<Vec<[f64; 3]>>) {
+    let between = (22..=108).contains(&m);
+    let sides = |y: f64, most: f64| {
+        if !between {
+            return (x - most / 2.0, x + most / 2.0);
+        }
+        let (lo, hi) = key_gap(c, m, y);
+        let half = ((hi - lo) / 2.0 - BRACKET_CLEAR).max((hi - lo) / 4.0).min(most / 2.0);
+        ((lo + hi) / 2.0 + shift - half, (lo + hi) / 2.0 + shift + half)
+    };
+    let foot = [(g.balance.0 - 0.02).max(c.key_back), g.balance.0 + 0.02]
+        .map(|y| {
+            let (lo, hi) = sides(y, 0.012);
+            vec![[lo, y, c.kz], [hi, y, c.kz], [hi, y, c.kz + 0.006], [lo, y, c.kz + 0.006]]
+        })
+        .to_vec();
+    let ((y0, z0), (y1, z1)) = ((g.balance.0, c.kz + 0.004), top);
+    let l = (y1 - y0).hypot(z1 - z0);
+    let (ny, nz) = (-(z1 - z0) / l * t / 2.0, (y1 - y0) / l * t / 2.0);
+    let ring = |y: f64, z: f64| {
+        let ((a0, a1), (b0, b1)) = (sides(y - ny, 0.003), sides(y + ny, 0.003));
+        vec![[a0, y - ny, z - nz], [a1, y - ny, z - nz], [b1, y + ny, z + nz], [b0, y + ny, z + nz]]
+    };
+    // (Over the keys: their tops, and the strut's own depth.)
+    let f = ((c.kz + 0.022 + 0.004 + t - z0) / (z1 - z0).max(1e-9)).clamp(0.0, 1.0);
+    let over = ring(y0 + (y1 - y0) * f, z0 + (z1 - z0) * f);
+    let (a, z) = (x - 0.0015, x + 0.0015);
+    let last = vec![[a, y1 - ny, z1 - nz], [z, y1 - ny, z1 - nz], [z, y1 + ny, z1 + nz], [a, y1 + ny, z1 + nz]];
+    (foot, vec![ring(y0, z0), over, last])
+}
+
+/// Where key `m` leaves the keyboard, across: a black key's width, a white
+/// key's narrow part between its black neighbours.
+fn key_tail(c: &Ctx, m: u8) -> (f64, f64) {
+    let (klo, khi) = c.span;
+    let white = (khi - klo) / 52.0;
+    let wx = |u: f32| u as f64 * white - khi;
+    let (x, w) = sketches::key_span(m);
+    let (x0, x1) = (wx(x) + 0.0006, wx(x + w) - 0.0006);
+    if sketches::is_black(m) {
+        return (x0, x1);
+    }
+    let edge = |n: u8, left: bool| {
+        ((21..=108).contains(&n) && sketches::is_black(n)).then(|| {
+            let (x, w) = sketches::key_span(n);
+            if left { wx(x + w) + 0.0006 } else { wx(x) - 0.0006 }
+        })
+    };
+    (edge(m.wrapping_sub(1), true).unwrap_or(x0), edge(m + 1, false).unwrap_or(x1))
+}
+
+/// Where a grand's key `m` ends, along: past its backcheck, on to under
+/// its damper's wire.
+fn key_end(c: &Ctx, m: u8) -> f64 {
+    let g = Geo::at(c, c.hx_at(m));
+    let hammer = hammer(c, &g, m);
+    let backcheck = tail_at(&g, &hammer, hammer.checked).0 + 0.008;
+    if m <= c.model.damper.highest_note { (backcheck + 0.012).max(damper_wire(c, m) + 0.008) } else { backcheck + 0.012 }
+}
+
+/// The room between a grand's keys `m - 1` and `m` across, at `y` along:
+/// the sides of their sticks that face each other ([`stick_at`]).
+fn key_gap(c: &Ctx, m: u8, y: f64) -> (f64, f64) {
+    let side = |k: u8| stick_at(c, k, key_tail(c, k), c.key_back, key_end(c, k), y);
+    (side(m - 1).1, side(m).0)
 }
 
 /// A key's stick's sides across at `y` along: straight from its `tail`
@@ -982,8 +1085,7 @@ fn upright_rails(b: &mut Builder, c: &Ctx, u: &Upright, balance: (f64, f64), end
     let bed = c.kz - KEY_FRAME;
     let frame = c.pick(Part::KeybedKnock, KEY_WOOD.gamma_multiply(0.85));
     // The key frame: front rail, balance rail, back rail.
-    b.block((c.key_front + 0.008, c.key_front + 0.03), (bed, c.kz - 0.002), x, w, frame);
-    b.block((c.key_front + 0.008, c.key_front + 0.03), (c.kz - 0.002, c.kz), x, w, CLOTH);
+    front_rail(b, c, bed, x, w, frame);
     b.block((balance.0 - 0.014, balance.0 + 0.014), (bed, c.kz), x, w, frame);
     b.block((end - 0.03, end - 0.002), (bed, c.kz - 0.002), x, w, frame);
     b.block((end - 0.03, end - 0.002), (c.kz - 0.002, c.kz), x, w, CLOTH);
@@ -1004,10 +1106,9 @@ fn upright_rails(b: &mut Builder, c: &Ctx, u: &Upright, balance: (f64, f64), end
         b.block((front - 0.02, front - 0.003), (rest_z - 0.01, rest_z + 0.01), (x0 + x1) / 2.0, x1 - x0, rail);
         m = last + 1;
     }
-    // The brackets, between keys: at both ends, at the bass's break and
-    // through the treble; from the keybed behind the keys up to the main
-    // rail.
-    let breaks = [20.5, c.sb.main_bridge_from as f64 - 0.5, 68.5, 88.5, 108.5];
+    // The brackets, between keys ([`bracket_breaks`]); from the keybed
+    // behind the keys up to the main rail.
+    let breaks = bracket_breaks(c.sb);
     let (foot, head) = ((end + 0.012, bed), (py + 0.014, u.rail.1));
     for at in breaks {
         let across = |m: f64| {
@@ -1020,6 +1121,23 @@ fn upright_rails(b: &mut Builder, c: &Ctx, u: &Upright, balance: (f64, f64), end
         let (ny, nz) = (-(head.1 - foot.1) / l * 0.008, (head.0 - foot.0) / l * 0.008);
         b.piece(&[(foot.0 - ny, foot.1 - nz), (head.0 - ny, head.1 - nz), (head.0 + ny, head.1 + nz), (foot.0 + ny, foot.1 + nz)], x, 0.012, col);
     }
+}
+
+/// Where the action's brackets stand, each as the key and a half between
+/// the two it parts: at both ends, at the bass's break and in the gap below
+/// each section of strings (`soundboard.string_sections`), where the keys,
+/// the hammers and the dampers leave room; without sections, twice through
+/// the treble.
+fn bracket_breaks(sb: &SoundboardParams) -> Vec<f64> {
+    let main = sb.main_bridge_from.clamp(22, 107);
+    let mut among: Vec<u8> = (main + 1..=108).filter(|&m| sb.section_gap(m) > 0.0).collect();
+    if among.is_empty() {
+        among = vec![69, 89];
+    }
+    let mut breaks = vec![20.5, main as f64 - 0.5];
+    breaks.extend(among.into_iter().filter(|&m| m > main).map(|m| m as f64 - 0.5));
+    breaks.push(108.5);
+    breaks
 }
 
 /// One key's action over its key turned by `dip`, shifted across by
@@ -1270,15 +1388,24 @@ fn wippen(b: &mut Builder, c: &Ctx, g: &Geo, cx: f64, down: bool, angle: f64, sh
 
 /// The key frame under the keys, the action's rails across and the
 /// brackets holding them.
+/// A grand's key frame under its keys' fronts: the front rail, its felts
+/// where the pressed keys come down on them, and the balance rail; square to
+/// the keys whatever the hammers' line ([`rails`]).
+fn key_frame(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
+    let (lo, hi) = (c.across(21).min(-c.span.1) - 0.01, c.across(108).max(-c.span.0) + 0.01);
+    let (x, w) = ((lo + hi) / 2.0 + shift, hi - lo);
+    let bed = c.kz - KEY_FRAME;
+    let frame = c.pick(Part::KeybedKnock, KEY_WOOD.gamma_multiply(0.85));
+    front_rail(b, c, bed, x, w, frame);
+    b.block((g.balance.0 - 0.014, g.balance.0 + 0.014), (bed, c.kz), x, w, frame);
+}
+
 fn rails(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
     let (lo, hi) = (c.across(21).min(-c.span.1) - 0.01, c.across(108).max(-c.span.0) + 0.01);
     let (x, w) = ((lo + hi) / 2.0 + shift, hi - lo);
     let bed = c.kz - KEY_FRAME;
     let frame = c.pick(Part::KeybedKnock, KEY_WOOD.gamma_multiply(0.85));
-    // The key frame: front rail, balance rail, back rail.
-    b.block((c.key_front + 0.008, c.key_front + 0.03), (bed, c.kz - 0.002), x, w, frame);
-    b.block((c.key_front + 0.008, c.key_front + 0.03), (c.kz - 0.002, c.kz), x, w, CLOTH);
-    b.block((g.balance.0 - 0.014, g.balance.0 + 0.014), (bed, c.kz), x, w, frame);
+    // The key frame's back rail (its front and balance rails: [`key_frame`]).
     b.block((g.yh - 0.02, g.yh + 0.012), (bed, c.kz - 0.002), x, w, frame);
     b.block((g.yh - 0.02, g.yh + 0.012), (c.kz - 0.002, c.kz), x, w, CLOTH);
     // The wippen rail, the let-off rail and its buttons, the hammers'
@@ -1306,11 +1433,14 @@ fn rails(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
         b.block((rest_at - 0.007, rest_at + 0.007), (top - 0.016, top - 0.003), (x0 + x1) / 2.0 + shift, x1 - x0, rail);
         m = last + 1;
     }
-    // The brackets, between keys: at both ends, at the bass's break and
-    // through the treble.
-    let breaks = [20.5, c.sb.main_bridge_from as f64 - 0.5, 68.5, 88.5, 108.5];
+    // The brackets, between keys ([`bracket_breaks`]).
+    let breaks = bracket_breaks(c.sb);
     // A truss: a foot on the balance rail, struts up to the wippen rail,
-    // the let-off rail, the flange rail and the rest rail.
+    // the let-off rail, the flange rail and the rest rail. Its foot stands
+    // between two keys where they are at the balance rail, and its first
+    // strut follows their gap up to the action's (the keys slant from the
+    // keyboard's spacing to the action's, [`stick_at`]), as thin as the
+    // gap leaves room for.
     let rest_top = pz + (rest_at - py) * hammer(c, g, 108).rest.tan() - SHANK_R as f64 - 0.019;
     let nodes = [
         (g.balance.0, c.kz + 0.004),
@@ -1320,6 +1450,7 @@ fn rails(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
         (rest_at, rest_top),
     ];
     let struts = [(0, 1, 0.011), (1, 2, 0.008), (2, 3, 0.008), (1, 3, 0.006), (3, 4, 0.006)];
+    let line = hammers(c.model, c.sb);
     for at in breaks {
         let across = |m: f64| {
             let k = m.clamp(21.0, 108.0);
@@ -1327,8 +1458,18 @@ fn rails(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
         };
         let x = (across(at - 0.5) + across(at + 0.5)) / 2.0 + shift;
         let col = c.pick(Part::ActionKnock, BRACKET);
-        b.block((g.balance.0 - 0.02, g.balance.0 + 0.02), (c.kz, c.kz + 0.006), x, 0.012, col);
-        for &(i, j, t) in &struts {
+        // Among the keys ([`bracket_low`]). (The rails are slanted with
+        // the hammers' line after this, the key frame and the keys are
+        // not: `un` undoes it there.)
+        let m = (at + 0.5) as u8;
+        let un = |x: f64| line.slope * (-x - line.mid);
+        let (t, top) = (struts[0].2, (nodes[1].0 + un(x), nodes[1].1));
+        let (foot, strut) = bracket_low(c, g, m, x, shift, top, t);
+        for solid in [foot, strut] {
+            let rings: Vec<Vec<V3>> = solid.iter().map(|r| r.iter().map(|&[x, y, z]| f32s([x, y - un(x), z])).collect()).collect();
+            b.loft(&rings, col);
+        }
+        for &(i, j, t) in &struts[1..] {
             let ((y0, z0), (y1, z1)) = (nodes[i], nodes[j]);
             let l = (y1 - y0).hypot(z1 - z0);
             let (ny, nz) = (-(z1 - z0) / l * t / 2.0, (y1 - y0) / l * t / 2.0);
@@ -1340,6 +1481,14 @@ fn rails(b: &mut Builder, c: &Ctx, g: &Geo, shift: f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_brackets_stand_in_the_gaps_between_the_sections() {
+        let mut sb = SoundboardParams { main_bridge_from: 41, ..Default::default() };
+        assert_eq!(bracket_breaks(&sb), [20.5, 40.5, 68.5, 88.5, 108.5]);
+        sb.string_sections = [41u8, 56, 74, 92].map(|k| (k as f64, 0.014));
+        assert_eq!(bracket_breaks(&sb), [20.5, 40.5, 55.5, 73.5, 91.5, 108.5]);
+    }
 
     #[test]
     fn a_swept_profile_faces_outwards_grand_or_upright() {
@@ -1411,6 +1560,76 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    /// A grand's keys and action over `model`, as the scene places them.
+    fn with_ctx(model: &PianoModel, f: impl Fn(&Ctx)) {
+        let sb = model.soundboard.map(|s| s.resolved()).unwrap_or_default();
+        let hx = hammer_x(model, &sb);
+        let ends: Vec<_> = (21..=108u8).map(|m| string_ends(model, &sb, hx, m)).collect();
+        let (lit, level) = (|_: Part| false, |_: u8| 0.0);
+        f(&Ctx { model, sb: &sb, ends: &ends, hx, obs: None, key: 60, lit: &lit, level: &level, span: keyboard_span(model, &sb), key_front: -0.44, key_back: -0.29, kz: -0.175, vertical: false });
+    }
+
+    #[test]
+    fn the_brackets_clear_the_keys_they_stand_between() {
+        let mut sections = PianoModel::default();
+        sections.soundboard.as_mut().unwrap().string_sections = [41u8, 56, 74, 92].map(|k| (k as f64, 0.014));
+        for model in [PianoModel::default(), sections] {
+            with_ctx(&model, |c| {
+                let g = Geo::new(c);
+                let key_top = c.kz + 0.022;
+                let mut among = 0;
+                for at in bracket_breaks(c.sb) {
+                    let m = (at + 0.5) as u8;
+                    if !(22..=108).contains(&m) {
+                        continue;
+                    }
+                    among += 1;
+                    let x = (c.across(m - 1) + c.across(m)) / 2.0;
+                    let (foot, strut) = bracket_low(c, &g, m, x, 0.0, (g.wippen.0 - 0.016, g.wippen.1 - 0.004), 0.011);
+                    assert!((foot[1][0][1] - foot[0][0][1] - 0.04).abs() < 1e-9, "the foot's length");
+                    // Each solid runs straight from a section to the next,
+                    // as the keys' sides do: its corners tell for all of it.
+                    for &[x, y, z] in foot.iter().chain(&strut).flatten().filter(|p| p[2] < key_top + 0.002) {
+                        let (lo, hi) = key_gap(c, m, y);
+                        let margin = (0.75 * BRACKET_CLEAR).min((hi - lo) / 5.0);
+                        assert!(hi > lo && x >= lo + margin && x <= hi - margin, "between {} and {m} at {y}, {z}: {x} in {lo}..{hi}", m - 1);
+                    }
+                    for ring in foot.iter().chain(&strut[..2]) {
+                        assert!(ring[1][0] > ring[0][0] && ring[2][0] > ring[3][0], "a side each way");
+                    }
+                    // Over the keys before it leaves their gap.
+                    assert!(strut[1].iter().all(|p| p[2] > key_top + 0.002), "{:?}", strut[1]);
+                }
+                assert!(among >= 3, "{among}");
+            });
+        }
+    }
+
+    #[test]
+    fn a_key_pressed_all_the_way_rests_on_its_felt_white_or_black() {
+        for vertical in [false, true] {
+            with_ctx(&PianoModel::default(), |c| {
+                let c = &Ctx { vertical, ..*c };
+                let balance = c.key_front + BALANCE;
+                let dip = (KEY_DIP / BALANCE).asin();
+                // The key's bottom at rest, from its front edge back,
+                // turned about the balance rail.
+                for (name, front) in [("white", c.key_front), ("black", c.key_back - BLACK_DEPTH)] {
+                    let bottom: Vec<_> = (0..=2000).map(|k| front + (balance - front) * k as f64 / 2000.0).map(|y| rot((y, c.kz), (balance, c.kz), dip)).collect();
+                    assert!(bottom[0].1 < c.kz - 0.005, "{name}: pressed, down ({})", c.kz - bottom[0].1);
+                    let mut least = f64::MAX;
+                    for ((from, to), top) in front_stops(c) {
+                        for &(y, z) in bottom.iter().filter(|p| p.0 >= from && p.0 <= to) {
+                            assert!(z >= top - 1e-9, "{name} key through its felt at {y}: {z} under {top}");
+                            least = least.min(z - top);
+                        }
+                    }
+                    assert!(least < 5e-5, "{name} key {least} short of its felt");
+                }
+            });
         }
     }
 
