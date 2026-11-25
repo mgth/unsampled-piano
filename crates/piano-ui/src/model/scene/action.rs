@@ -54,9 +54,11 @@ const BLACK_STOP: f64 = 0.022;
 const BRACKET_CLEAR: f64 = 0.0004;
 
 /// The hammer: its shank's length to the head's centre and radius; the
-/// treble's crown above the shank, its felt's thickness on the crown and
-/// on the sides, its depth along the shank and width across (the bass's
-/// heavier hammers larger, by their mass); its tail.
+/// treble's crown above the shank (the bore: 44 to 51 mm on grands), its
+/// felt's thickness on the crown, its depth along the shank and width
+/// across (the bass's heavier hammers larger, by their mass); its tail,
+/// the molding's length below the shank (an inch on a grand's, cut to an
+/// arc for the backcheck).
 const SHANK_L: f64 = 0.135;
 const SHANK_R: f32 = 0.0042;
 const HEAD_H: f64 = 0.052;
@@ -68,7 +70,7 @@ const BLOW_TILT: f64 = 0.3;
 /// below the strings once checked.
 const REST_CROWN: f64 = -0.018;
 const CHECKED: f64 = 0.016;
-const TAIL: f64 = 0.006;
+const TAIL: f64 = 0.022;
 const KNUCKLE_AT: f64 = 0.017;
 const KNUCKLE_R: f32 = 0.0075;
 
@@ -169,6 +171,22 @@ impl Builder {
             let mut n = Vertex { pos: v.normal, ..*v };
             spin(&mut n, false);
             v.normal = n.pos;
+        }
+    }
+
+    /// Turns everything drawn since `m` about the upright world line
+    /// through (x, y) `at` by `angle` (from +x towards +y).
+    pub(super) fn spin(&mut self, m: Mark, at: (f64, f64), angle: f64) {
+        if angle == 0.0 {
+            return;
+        }
+        let (s, c) = (angle.sin() as f32, angle.cos() as f32);
+        let (x0, y0) = (at.0 as f32, at.1 as f32);
+        for v in self.s.tris[m.0..].iter_mut().chain(&mut self.s.lines[m.1..]) {
+            let (dx, dy) = (v.pos[0] - x0, v.pos[1] - y0);
+            (v.pos[0], v.pos[1]) = (x0 + dx * c - dy * s, y0 + dx * s + dy * c);
+            let [nx, ny, _] = v.normal;
+            (v.normal[0], v.normal[1]) = (nx * c - ny * s, nx * s + ny * c);
         }
     }
 
@@ -401,18 +419,6 @@ fn rot(p: (f64, f64), at: (f64, f64), a: f64) -> (f64, f64) {
     (at.0 + dy * c - dz * s, at.1 + dy * s + dz * c)
 }
 
-/// An arch from (−w, base) over a crown at (0, top) down to (w, base),
-/// left to right: straight sides up to `shoulder`, then a rounded top.
-fn arch(w: f64, base: f64, shoulder: f64, top: f64) -> Vec<(f64, f64)> {
-    let mut p = vec![(-w, base)];
-    for k in 0..=8 {
-        let t = std::f64::consts::PI * (1.0 - k as f64 / 8.0);
-        p.push((w * t.cos(), shoulder + (top - shoulder) * t.sin().powf(0.75)));
-    }
-    p.push((w, base));
-    p
-}
-
 /// What the keys and the action need from the instrument.
 pub(super) struct Ctx<'a> {
     pub model: &'a PianoModel,
@@ -487,15 +493,15 @@ struct Geo {
     hinge: (f64, f64),
 }
 
-/// A key's hammer: crown above the shank, depth, width, felt on the crown
-/// and on the sides; its shank's angles at rest, on the strings and
-/// checked.
+/// A key's hammer: crown above the shank, the felt's depth at its widest,
+/// width, felt on the crown, the molding's half thickness along the
+/// shank; its shank's angles at rest, on the strings and checked.
 struct Hammer {
     h: f64,
     d: f64,
     w: f64,
     felt: f64,
-    side: f64,
+    wood: f64,
     rest: f64,
     blow: f64,
     checked: f64,
@@ -544,10 +550,10 @@ impl Geo {
         let w = 0.0085 + 0.003 * size;
         Hammer {
             h,
-            d: 0.017 + 0.008 * size,
+            d: 0.017 + 0.012 * size,
             w: if pitch > 0.0 { w.min(pitch - 0.0035) } else { w },
-            felt: 0.011 + 0.007 * size,
-            side: 0.0032 + 0.002 * size,
+            felt: 0.006 + 0.014 * size,
+            wood: 0.0052 + 0.0012 * size,
             rest: at(REST_CROWN),
             blow: dz.atan2(dy) - phi,
             checked: at(z - CHECKED),
@@ -726,9 +732,18 @@ fn hammer(c: &Ctx, g: &Geo, m: u8) -> Hammer {
     Geo::hammer_at(g.pivot, g.yh, z, size, c.pitch(m))
 }
 
+/// The angle key `m`'s hammer head is bored at: its strings' direction as
+/// drawn against the keyboard's normal (rad, world: from +x towards +y
+/// about the upright, so a string leaning towards the bass side going
+/// back turns its head's back that way).
+fn bore(c: &Ctx, m: u8) -> f64 {
+    let ((ax, ay), (bx, by), _) = c.ends[(m - 21) as usize];
+    (by - ay).atan2(bx - ax)
+}
+
 /// The bottom of the molding's tail (world y, z) with the shank at `angle`.
 fn tail_at(g: &Geo, h: &Hammer, angle: f64) -> (f64, f64) {
-    rot((g.pivot.0 + SHANK_L + h.d / 2.0 + TAIL, g.pivot.1 - 0.0075), g.pivot, angle)
+    rot((g.pivot.0 + SHANK_L + h.wood, g.pivot.1 - TAIL), g.pivot, angle)
 }
 
 /// The wippen's angle about its pivot with its jack under the knuckle of
@@ -738,42 +753,73 @@ fn wippen_angle(g: &Geo, angle: f64) -> f64 {
     -(drop / (g.jack - g.wippen.0)).atan()
 }
 
+/// A hammer head's profiles, along its shank from the head's centre and
+/// up from the shank to its crown, as a real one is made: the wooden
+/// molding, a stem the shank goes through, its nose a wedge inside the
+/// felt, its tail `tail` long below the shank (the back cut to an arc for
+/// the backcheck, the front thinned towards its end; none: an upright's,
+/// cut short under the shank); then the nose, the underfelt's outside and
+/// the felt's, each left to right over the top with as many points: the
+/// felt a strip pressed round the nose, an egg with its small end at the
+/// crown, widest below it and drawn in to the molding where its two ends
+/// are cut off square.
+fn head_profiles(h: &Hammer, tail: f64) -> [Vec<(f64, f64)>; 4] {
+    const N: usize = 5;
+    let mw = h.wood;
+    // Where the felt ends on the molding, above the shank.
+    let end = (0.26 * h.h).min(h.h - h.felt - 0.012);
+    let tip = h.h - h.felt;
+    let half = h.d / 2.0;
+    // (u: 0 at the crown, 1 at the felt's ends.)
+    let nose = |u: f64| (0.0015 + (mw - 0.0015) * u, tip - (tip - end) * u);
+    let felt = |u: f64| {
+        let widest = 0.42;
+        let ends = (mw + 0.0032).min(half);
+        let w = if u < widest { half * (1.0 - (1.0 - u / widest).powf(1.7)).powf(1.0 / 1.7) } else { half - (half - ends) * ((u - widest) / (1.0 - widest)).powf(1.8) };
+        (w, h.h - (h.h - end) * u)
+    };
+    let under = |u: f64| {
+        let ((a, z), (b, y)) = (nose(u), felt(u));
+        (a + 0.3 * (b - a), z + 0.3 * (y - z))
+    };
+    let over = |f: &dyn Fn(f64) -> (f64, f64)| -> Vec<(f64, f64)> {
+        (0..=2 * N)
+            .map(|k| {
+                let t = k as f64 / N as f64 - 1.0;
+                let (w, z) = f(t.abs());
+                (if k == N { 0.0 } else { w * t.signum() }, z)
+            })
+            .collect()
+    };
+    let mut molding = if tail > 0.0 {
+        vec![(-mw, -0.004), (mw - 0.0065, -tail), (mw + 0.0003, -tail), (mw + 0.0011, -0.5 * tail), (mw, 0.0)]
+    } else {
+        vec![(-mw, -0.0075), (mw, -0.0075)]
+    };
+    molding.extend([(mw, end), (0.0015, tip), (-0.0015, tip), (-mw, end)]);
+    [molding, over(&nose), over(&under), over(&felt)]
+}
+
 /// Key `m`'s hammer head across at `cx`, its profile placed by
 /// `at(along, up)`: along its shank from the head's centre, up from the
-/// shank to its crown. The molding, its tail `tail` long at the back,
-/// under the underfelt and the felt, wrapped round its top; `mirror` when
-/// `at` mirrors the profile (an upright's: the crown towards the strings
-/// behind a shank standing up).
+/// shank to its crown ([`head_profiles`]); `mirror` when `at` mirrors the
+/// profile (an upright's: the crown towards the strings behind a shank
+/// standing up).
 #[allow(clippy::too_many_arguments)]
 fn head(b: &mut Builder, c: &Ctx, m: u8, h: &Hammer, cx: f64, tail: f64, at: &dyn Fn((f64, f64)) -> (f64, f64), mirror: bool) {
-    let (d, hh) = (h.d / 2.0, h.h);
-    let (mw, mt) = (d - h.side, hh - h.felt);
-    let under = (h.side * 0.35, h.felt * 0.35);
-    let base = mt - 0.6 * h.d;
-    let place = |p: Vec<(f64, f64)>| -> Vec<(f64, f64)> {
-        let mut p: Vec<_> = p.into_iter().map(at).collect();
+    let place = |p: &[(f64, f64)]| -> Vec<(f64, f64)> {
+        let mut p: Vec<_> = p.iter().copied().map(at).collect();
         if mirror {
             p.reverse();
         }
         p
     };
-    let mut molding = vec![(-mw, -0.0075), (mw + tail, -0.0075)];
-    if tail > 0.0 {
-        molding.push((mw + tail, -0.002));
-    }
-    molding.push((mw, 0.006));
-    let top = arch(mw, base + 0.004, mt - 0.006, mt);
-    molding.extend(top.iter().rev().skip(1).take(top.len() - 2).copied());
-    b.piece(&place(molding), cx, h.w, MOLDING);
-    let band = |inner: (f64, f64, f64), outer: (f64, f64, f64), col: Color32, b: &mut Builder| {
-        b.band(&place(arch(outer.0, base, outer.1, outer.2)), &place(arch(inner.0, base, inner.1, inner.2)), cx, h.w, col);
-    };
+    let [molding, nose, under, outer] = head_profiles(h, tail);
+    b.piece(&place(&molding), cx, h.w, MOLDING);
     let felt = if c.state(m).hammer { sketches::HIGHLIGHT } else { mix(c.pick(Part::Strike, c.pick(Part::Felt, HAMMER_FELT)), sketches::HIGHLIGHT, (c.level)(m) * 0.3) };
-    let inner = (mw, mt - 0.006, mt);
-    let mid = (mw + under.0, mt - 0.006 + under.1 * 0.5, mt + under.1);
-    band(inner, mid, c.pick(Part::Core, UNDERFELT), b);
+    b.band(&place(&under), &place(&nose), cx, h.w, c.pick(Part::Core, UNDERFELT));
     b.mat = Material::Felt;
-    band(mid, (d, mt - 0.006 + h.felt * 0.5, hh), felt, b);
+    b.band(&place(&outer), &place(&under), cx, h.w, felt);
     b.mat = Material::Wood;
 }
 
@@ -984,10 +1030,10 @@ impl Upright {
         let w = 0.0085 + 0.003 * size;
         Hammer {
             h: U_CROWN,
-            d: 0.017 + 0.008 * size,
+            d: 0.017 + 0.012 * size,
             w: w.min(c.pitch(m) - 0.0035),
-            felt: 0.011 + 0.007 * size,
-            side: 0.0032 + 0.002 * size,
+            felt: 0.006 + 0.014 * size,
+            wood: 0.0052 + 0.0012 * size,
             rest: at(sy - U_BLOW * (1.0 - soft)),
             blow: at(sy),
             checked: at(sy - U_CHECKED),
@@ -1163,10 +1209,15 @@ fn action(b: &mut Builder, c: &Ctx, g: &Geo, m: u8, h: &Hammer, shift: f64, dip:
     let mark = b.mark();
     let (py, pz) = g.pivot;
     let hy = py + SHANK_L;
-    b.rod(f32s([cx, py - 0.006, pz]), f32s([cx, hy + 0.002, pz]), (SHANK_R, SHANK_R * 0.88), c.pick(Part::Shank, SHANK_WOOD));
+    b.rod(f32s([cx, py - 0.006, pz]), f32s([cx, hy + h.wood + 0.0004, pz]), (SHANK_R, SHANK_R * 0.88), c.pick(Part::Shank, SHANK_WOOD));
     let kz = pz - SHANK_R as f64 - 0.85 * KNUCKLE_R as f64;
     b.rod_x(cx - 0.006, cx + 0.006, py + KNUCKLE_AT, kz, KNUCKLE_R as f64, BUCKSKIN);
+    // The head bored to its strings' direction, as a grand's are (the
+    // bass's and the tenor's at an angle, the treble's straight), on a
+    // shank square to the keyboard.
+    let bored = b.mark();
     head(b, c, m, h, cx, TAIL, &|(a, z)| (hy + a, pz + z), false);
+    b.spin(bored, (cx, hy), bore(c, m));
     b.turn(mark, g.pivot, angle, shift);
     // Its flange on the rail in front of the pivot.
     b.block((py - 0.01, py + 0.004), (pz - 0.006, pz + 0.006), cx + shift, 0.009, ACTION_WOOD);
@@ -1668,9 +1719,8 @@ mod tests {
             // The head's outline as it swings from rest to the strings:
             // never through the board (its edge at y = 0, 12 mm thick) nor
             // into the belly rail; the shank's top never in the pin block.
-            let (d, base) = (h.d / 2.0, h.h - h.felt - 0.6 * h.d);
-            let mut outline = vec![(-d, -0.0075), (d + TAIL, -0.0075), (d + TAIL, -0.002)];
-            outline.extend(arch(d, base, h.h - h.felt * 0.5, h.h));
+            let [molding, _, _, felt] = head_profiles(&h, TAIL);
+            let outline: Vec<(f64, f64)> = molding.into_iter().chain(felt).collect();
             for k in 0..=40 {
                 let a = h.rest + (h.blow - h.rest) * k as f64 / 40.0;
                 for &(u, v) in &outline {

@@ -24,7 +24,9 @@ P = [
     ("ripple", "unison", "width_bass", None, "mul", 1.5, None, 0.01, 1.0),
     ("ripple", "unison", "hit_spread", None, "mul", 1.3, 0.3, 0.02, 2.0),
     ("late decay", "losses", "b2", None, "mul", 1.25, None, 1e-8, 1e-6),
-    ("late decay", "losses", "b2_top", None, "mul", 1.25, None, 1e-8, 2e-6),
+    # Never under 3.9e-7: lower, the lines measures gain and the keyboard buzzes
+    # (heard twice, docs/compare_search.md, "Third run").
+    ("late decay", "losses", "b2_top", None, "mul", 1.25, None, 3.9e-7, 2e-6),
     ("late decay", "losses", "b2_high", None, "mul", 1.4, None, 1e-8, 2e-6),
     ("late decay", "losses", "b1_floor", None, "add", 0.05, None, 0.0, 1.0),
     ("early decay", "polarization", "radiation", None, "add", 0.1, None, 0.0, 2.0),
@@ -124,6 +126,18 @@ def evaluate(text):
     return json.load(open(OUT))
 
 
+def within(text):
+    """The text with every searched value brought inside its bounds: a start below a
+    floor could not be stepped back over it (the steps are tried from where it stands)."""
+    for p in P:
+        cur = get(text, p)
+        if cur is not None and not p[7] <= cur <= p[8]:
+            new = min(max(cur, p[7]), p[8])
+            log(f"BOUND {label(p)} {cur:.5g} -> {new:.5g}")
+            text = put(text, p, new)
+    return text
+
+
 def better(s, st):
     off, mean = s["off"], s["mean"]
     if off <= st["off"] - MIN_OFF and mean <= st["mean"] + MAX_MEAN_RISE:
@@ -175,8 +189,14 @@ def main():
             st = None
         else:
             log(f"RESUME pass {st['pass']} at {st['next']}: off {st['off']} mean {st['mean']:.4f}")
+            bounded = within(text)
+            if bounded != text:
+                text, s = bounded, evaluate(bounded)
+                st.update(off=s["off"], mean=s["mean"])
+                save(st, text)
+                log("BOUNDED " + brief(s))
     if st is None:
-        text = open(PRESET).read()
+        text = within(open(PRESET).read())
         s = evaluate(text)
         log("BASE " + brief(s) + " band " + ",".join(s["band"]))
         st = {"off": s["off"], "mean": s["mean"], "base_off": s["off"], "base_mean": s["mean"], "pass": 1, "next": 0,
