@@ -143,7 +143,7 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("polarization.cross_bass", "Cross coupling, bass", "", 0.0, 1.0, false),
     ("losses.b2_high", "Overtone losses, top octaves (0: none)", "s", 0.0, 5e-7, false),
     ("hardness", "Felt hardness", "", 0.02, 2.0, true),
-    ("hardness_slope", "Hardness slope (treble)", "/key", -0.05, 0.08, false),
+    ("hardness_slope", "Hardness slope (treble)", "/key", -0.1, 0.08, false),
     ("hardness_slope_bass", "Hardness slope (bass)", "/key", -0.05, 0.08, false),
     ("hardness_slope_top", "Hardness slope (top)", "/key", 0.0, 0.4, false),
     ("shank_share", "Shank share of hammer mass", "", 0.0, 0.6, false),
@@ -345,7 +345,9 @@ mod tests {
                         Some(crate::Value::Int(i)) => i as f64,
                         _ => continue,
                     };
-                    let checked = p.path.starts_with("polarization.") || p.path == "soundboard.structure.edge_spring";
+                    // Three ranges guessed from the default instrument do not hold the
+                    // Concert grand's value, which no slider is meant to reach.
+                    let checked = !["soundboard.exact_below", "soundboard.piston_freq", "stretch.a_b"].contains(&p.path.as_str());
                     if checked && (x < p.meta.min || x > p.meta.max) {
                         out.push(format!("{}: {} = {x} outside {}–{}", path.display(), p.path, p.meta.min, p.meta.max));
                     }

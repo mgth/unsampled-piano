@@ -126,6 +126,18 @@ def evaluate(text):
     return json.load(open(OUT))
 
 
+def within(text):
+    """The text with every searched value brought inside its bounds: a start below a
+    floor could not be stepped back over it (the steps are tried from where it stands)."""
+    for p in P:
+        cur = get(text, p)
+        if cur is not None and not p[7] <= cur <= p[8]:
+            new = min(max(cur, p[7]), p[8])
+            log(f"BOUND {label(p)} {cur:.5g} -> {new:.5g}")
+            text = put(text, p, new)
+    return text
+
+
 def better(s, st):
     off, mean = s["off"], s["mean"]
     if off <= st["off"] - MIN_OFF and mean <= st["mean"] + MAX_MEAN_RISE:
@@ -177,8 +189,14 @@ def main():
             st = None
         else:
             log(f"RESUME pass {st['pass']} at {st['next']}: off {st['off']} mean {st['mean']:.4f}")
+            bounded = within(text)
+            if bounded != text:
+                text, s = bounded, evaluate(bounded)
+                st.update(off=s["off"], mean=s["mean"])
+                save(st, text)
+                log("BOUNDED " + brief(s))
     if st is None:
-        text = open(PRESET).read()
+        text = within(open(PRESET).read())
         s = evaluate(text)
         log("BASE " + brief(s) + " band " + ",".join(s["band"]))
         st = {"off": s["off"], "mean": s["mean"], "base_off": s["off"], "base_mean": s["mean"], "pass": 1, "next": 0,
