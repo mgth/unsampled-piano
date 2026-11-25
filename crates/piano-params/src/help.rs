@@ -1396,6 +1396,16 @@ const HELP: &[(&str, &str, &str)] = &[
     ("noise.action_time", "How long the action's clack rings.", "Decay time T60 (s) of the resonances at 500 Hz, shorter above as (500/f)^0.3."),
     ("noise.action_delay", "How long after the hammer meets the string the action's clack comes.", "Delay (s) of the knock after the strike: the key bottoms just after the hammer reaches the string."),
     (
+        "noise.key_return",
+        "The soft thud of a released key: the key falls back on its rail and the hammer on its rest. \
+         It is the same whatever the note's loudness, so it is heard after soft notes held long.",
+        "Hammer speed (m/s) whose knock the return equals at release velocity 64, in the action's \
+         bank (12 dB per octave duller above 250 Hz) and in the case's; it follows `noise.action` \
+         and `noise.case`. A release velocity twice as fast doubles it. 0: none \
+         (docs/action_noise.md).",
+    ),
+    ("noise.key_return_delay", "How long after the key-up the released key's thud comes.", "Delay (s) at release velocity 64; a release twice as fast halves it. Real grands: 0.04–0.12 s."),
+    (
         "noise.case",
         "The knock of the case under every note: the wooden thud of the box, low and short, the same whatever the key. \
          It gives the notes their weight, most of all in the treble, where the strings leave the low range empty.",

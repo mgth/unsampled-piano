@@ -294,6 +294,11 @@ pub struct Engine {
     /// long enough or never played), for the upright's repetition.
     key_down: [bool; 128],
     key_up_at: [Option<u64>; 128],
+    /// Per key: when its return lands (the released key back on its rail,
+    /// the hammer on its rest) and the hammer speed its thud equals; and
+    /// how many are waiting (crate::action, `noise.key_return`).
+    key_return: [Option<(u64, f32)>; 128],
+    key_returns: u32,
     /// Time of each key's last note-on (duplicates, see DUPLICATE_S).
     key_down_at: [u64; 128],
     /// Note-ons ignored as duplicates of the one before.
@@ -515,6 +520,8 @@ impl Engine {
             now: 0,
             key_down: [false; 128],
             key_up_at: [None; 128],
+            key_return: [None; 128],
+            key_returns: 0,
             key_down_at: [0; 128],
             doubled: 0,
             region: vec![vec![0.0; SUB_BLOCK]; REGIONS],
@@ -878,6 +885,7 @@ impl Engine {
         for n in &mut self.noise_buf {
             n[..len].fill(0.0);
         }
+        self.land_returns(t0, len);
         let mut pos = 0;
         for ev in events {
             let f = (ev.frame as usize).saturating_sub(offset).min(len);
@@ -1354,9 +1362,13 @@ impl Engine {
             // looking for its own number, never released: struck again and
             // again, the bottom string piled up undamped voices.
             Event::NoteOn { note, .. } | Event::NoteOff { note, .. } if !(21..=108).contains(&note) => {}
-            Event::NoteOn { velocity: 0, note } => self.note_off(note),
+            Event::NoteOn { velocity: 0, note } => {
+                self.start_return(note, 1.0);
+                self.note_off(note)
+            }
             Event::NoteOn { note, velocity } => {
                 let k = note as usize & 127;
+                self.cancel_return(k);
                 let window = (DUPLICATE_S * self.cfg.sample_rate) as u64;
                 // The same key again while it is still down, a few ms later:
                 // the same keystroke reaching the engine twice (a keyboard
@@ -1389,6 +1401,7 @@ impl Engine {
                 for v in self.voices.iter_mut().filter(|v| v.active && v.note == note) {
                     v.damper_speed = speed;
                 }
+                self.start_return(note, speed);
                 self.note_off(note);
             }
             Event::Control { cc, value } if PEDAL_CCS.contains(&cc) => {
@@ -1409,6 +1422,8 @@ impl Engine {
                 }
                 self.key_down = [false; 128];
                 self.key_up_at = [None; 128];
+                self.key_return = [None; 128];
+                self.key_returns = 0;
             }
             Event::Control { .. } => {}
             Event::Param { id, value } => {
@@ -1445,6 +1460,55 @@ impl Engine {
         self.body.render([&mut nl[a..b], &mut nr[a..b]], gain);
         self.case.set(self.live.noise.case_low, self.live.noise.case_time);
         self.case.render([&mut nl[a..b], &mut nr[a..b]], gain);
+    }
+
+    /// The keys whose return lands within this sub-block (`len` samples
+    /// from `t0`) knock the action's bank and the case's, each at its own
+    /// frame: neither has rendered any of the sub-block yet.
+    fn land_returns(&mut self, t0: u64, len: usize) {
+        if self.key_returns == 0 {
+            return;
+        }
+        let end = t0 + len as u64;
+        for k in 0..128 {
+            let Some((at, speed)) = self.key_return[k] else { continue };
+            if at >= end {
+                continue;
+            }
+            self.key_return[k] = None;
+            self.key_returns -= 1;
+            if self.board.is_none() {
+                continue;
+            }
+            let delay = at.saturating_sub(t0) as f64 / self.cfg.sample_rate;
+            let noise = self.live.noise;
+            self.action.strike_return(k as u8, noise.action * speed as f64, delay);
+            self.case.set(noise.case_low, noise.case_time);
+            self.case.strike(k as u8, noise.case * speed as f64, delay);
+        }
+    }
+
+    /// A key that was down is released at `speed` (release velocity / 64):
+    /// it rises and falls back on its rail, the hammer on its rest, sooner
+    /// and harder for a faster release.
+    fn start_return(&mut self, note: u8, speed: f64) {
+        let k = note as usize & 127;
+        let noise = self.live.noise;
+        if !self.key_down[k] || noise.key_return <= 0.0 {
+            return;
+        }
+        let fast = speed.clamp(0.5, 2.0);
+        let at = self.now + (noise.key_return_delay / fast * self.cfg.sample_rate) as u64;
+        self.cancel_return(k);
+        self.key_return[k] = Some((at, (noise.key_return * fast) as f32));
+        self.key_returns += 1;
+    }
+
+    /// The key `k` is struck again or silenced before its return landed.
+    fn cancel_return(&mut self, k: usize) {
+        if self.key_return[k].take().is_some() {
+            self.key_returns -= 1;
+        }
     }
 
     fn note_on(&mut self, note: u8, velocity: u8) {
