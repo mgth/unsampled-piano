@@ -79,6 +79,8 @@ live_params! {
     NoiseAction => "noise.action", noise.action;
     NoiseActionTime => "noise.action_time", noise.action_time;
     NoiseActionDelay => "noise.action_delay", noise.action_delay;
+    NoiseKeyReturn => "noise.key_return", noise.key_return;
+    NoiseKeyReturnDelay => "noise.key_return_delay", noise.key_return_delay;
     NoiseCase => "noise.case", noise.case;
     NoiseCaseLow => "noise.case_low", noise.case_low;
     NoiseCaseTime => "noise.case_time", noise.case_time;

@@ -405,6 +405,15 @@ strike_scale = 0.25
 # the action's knock and the body's halo left 11 dB short of the Splendid Grand's. At
 # its level re the middle notes; kept by ear (docs/case_knock.md).
 case = 0.05
+# The key's return: released, the key falls back on its rail and the hammer on its
+# rest, a soft thud 80 ms after the key-up, the same whatever the note's loudness, so
+# heard after soft notes held long. At the commercial D's level on C4; a Disklavier
+# grand's is 8 dB higher (docs/action_noise.md, "The key's return").
+key_return = 0.08
+# The felt lands softer (4 ms by default): on a soft note held long, the landing
+# rang the strings again for 50 ms, a sizzle at the key-up of the upper keys. At 8 ms
+# it is at the commercial D's level; kept by ear (docs/release.md, "The felt's landing").
+damper_landing = 0.008
 
 [body]
 # The body's halo after each strike, calibrated on the Splendid Grand: once the

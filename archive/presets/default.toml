@@ -315,6 +315,8 @@ knock_time = 0.003
 action = 0.02102
 action_time = 0.2
 action_delay = 0.008
+key_return = 0.0
+key_return_delay = 0.08
 
 [room]
 enabled = true

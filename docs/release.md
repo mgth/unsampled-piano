@@ -261,6 +261,20 @@ Two other levers were tried:
 - **A tighter unison** (0.4–0.6 cent): it helps partials 5–8 but thins the slow modes, so the 2–3 s sustain falls by 0.5–1 z.
 - **A wider or heavier bridge drive**: it slows every partial, the low ones too, and the bench gets worse (1.08–1.22).
 
+## The felt's landing (2026-11-25)
+
+Listening report, on soft notes released late: a short high sizzle at the key-up of some upper keys, A5 above all.
+
+It is the felt landing on the strings (`noise.damper_mass`, a half-sine kick of `noise.damper_landing` at the damper's place): with the mass at 0 it is gone, and the key's return (`noise.key_return`) adds nothing above 600 Hz. The kick's level does not follow the note's. After a note at velocity 25 held 4 s the strings hold nothing above 2 kHz (−150 dBFS and less), and the kick rings their partials again for some 50 ms. The kick alone (the take minus the same with the mass at 0), first 30 ms, median of C4–D6, dBFS:
+
+| landing | 150–600 Hz | 600 Hz–2 kHz | 2–4 kHz | 4–8 kHz |
+|---|---|---|---|---|
+| 4 ms (the default) | −91 | −86 | −102 | −119 |
+| 8 ms | −105 | −99 | −111 | −139 |
+| 12 ms | −108 | −105 | −122 | −145 |
+
+From key to key it moves by 20 dB at 2–4 kHz (4 ms: −91 at B5, −92 at C#5 and F#5, −114 at G5). The commercial D's key-up on its damped keys holds −92 to −100 dBFS at 600 Hz–2.5 kHz and −112 to −117 above (docs/action_noise.md, "The key's return"): 8 ms is at its level. Heard at the keyboard, 8 ms removes the sizzle; the Concert grand takes it. The default stays at 4 ms. No real grand's felt landing was measured apart from its strings.
+
 ## Still open
 
 - **The treble's level after a pedal release** read 16–19 dB above a plain key-up's where the recording has −2 to −6 (pedal bench, "after"): the recording's noise floor, not the model ("The dampers against a real grand's").

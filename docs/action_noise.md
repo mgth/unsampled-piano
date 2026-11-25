@@ -58,3 +58,25 @@ The real grands' readings at 500 ms and beyond may hold some recording noise.
 - **Noises off on both sides.** Setting 0 leaves a knock of the same waveform family (0.88 at C8), which no other setting tried removes. The model at its default knock is its nearest match, not the model with `noise.action` 0, which is 12–20 dB lower from 20 to 100 ms (`noise.keybed` 0 changes nothing here). Below 0.75·f0, in dB as above, at 0 / 20 / 50 / 100 / 200 / 300 ms: setting 0, −20 −24 −29 −36 −47 −57; model default, −18 −26 −35 −48 −63 −68; `noise.action` 0, −19 −38 −49 −57 −65 −68.
 - **Against the real grands.** The commercial D's noise sits within them. With its setting at 0 it falls 10 dB below them. The model's knock starts 5–10 dB below them, which includes the default's deliberate 7.5 dB (above), and then falls too fast: 15–25 dB short from 100 ms on. The level is a choice; the decay is not, and `noise.action_time` (0.2 s) is the first thing to try.
 - **The key's release.** `Key Release Noise` makes two events, at the key-up and 0.25 s later, the same at both velocities; set to 0, they vanish. At the top keys they lie 59–70 dB under the note's attack (−84 dBFS), the model's window 85–113 dB under: audible only with the note gone and the level high. Real release samples (VCSL) are still to be compared.
+
+## The key's return (2026-11-24)
+
+Listening report: the commercial piano plays the hammers falling back, plain when playing very softly and releasing late; the model had nothing there.
+
+**The commercial D** (dry, velocities 15 and 40, keys C2–C8 held 8 s, then holds of 1–15 s and release velocities 1 and 127 on C4). Each key-up makes two events, on every key, with or without a damper:
+
+- at the key-up, some 100 ms of noise around 500 Hz–1 kHz, −88 dBFS (10 ms rms);
+- 0.25 s later a thud, strongest at 63–125 Hz, −14 dB at 1 kHz and −26 dB at 2 kHz, −74 to −80 dBFS, with a tail of 0.3 s.
+
+Both are the same, to the dB, whatever the note's velocity, the hold and the release velocity. That is why it is heard after soft notes: at velocity 15 the C4's attack peaks at −40 dBFS and its strings are down to −83 dBFS after 8 s, under the thud; at velocity 100 the thud is 64 dB under the attack.
+
+**Real grands.**
+
+- Liang's Disklavier grand (velocity 96, held 2 s, microphones 50 cm above the strings), C5–C8, below 0.6·f0: a thud at the key-up, 20–25 dB under the same note's knock at the strike and 20 dB above the floor, peaking 10–100 ms after the key-up and gone in 0.25 s. A solenoid lets the key go; the key and the hammer fall back by themselves.
+- VCSL's release samples, played by hand (Steinway B, Kawai): the strings' remainder dies in 50 ms, then a thud at 30–600 Hz comes 40–120 ms after the release starts and dies in 0.1–0.2 s, with nothing of it above 600 Hz.
+
+So the event is real: one thud as the key lands back on its rail and the hammer on its rest, 40–120 ms after the key-up. The commercial piano's 0.25 s is longer than any of these, and its level sits some 15 dB lower against the strike's knock than the Disklavier's.
+
+**The model.** `noise.key_return` (m/s; 0, the default: none, and every preset without it renders bit for bit as before) is the hammer speed whose knock the return equals: `noise.key_return_delay` (0.08 s) after the key-up the key strikes the action's bank, 12 dB per octave duller above 250 Hz, and the case's (`noise.case`), at that speed. Both are at release velocity 64: a release twice as fast lands in half the time, twice as hard (release velocities from 32 to 127 are told apart). The level does not follow the note's velocity. It follows `noise.action` and `noise.case`, and with them the musician's control `mechanism`. A key struck again before its return has landed makes no thud. The return lands at its own sample among the events, so a strike one sample earlier stops it and one sample later does not; and an engine replaced by a rebuild, which no longer gets the strikes, is told that the key went down (`Event::KeyDown`, piano-control's slot). The model's only event at a key-up used to be the damper's felt landing on the strings (`noise.damper_mass`), none on the keys without a damper.
+
+At 0.2 m/s the thud is as far under the model's knock as the Disklavier's. The Concert grand takes 0.08: on C4, −74 dBFS against the commercial D's −77, its octaves from 63 Hz to 1 kHz at −4, −2, 0, −9 and −17 dB (the commercial D: −4, 0, −11, −7, −14). To be judged at the keyboard. Not modelled: the commercial piano's first event at the key-up on the keys without a damper, and a return that depends on how far the key was let up.

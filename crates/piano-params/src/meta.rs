@@ -88,6 +88,8 @@ const CURATED: &[(&str, &str, &str, f64, f64, bool)] = &[
     ("noise.action", "Action knock", "Pa·s/m", 0.0, 0.2, false),
     ("noise.action_time", "Action knock T60", "s", 0.02, 1.0, true),
     ("noise.action_delay", "Action knock delay", "s", 0.0, 0.03, false),
+    ("noise.key_return", "Key return thud", "m/s", 0.0, 2.0, false),
+    ("noise.key_return_delay", "Key return delay", "s", 0.02, 0.4, false),
     ("noise.case", "Case knock", "Pa·s/m", 0.0, 1.0, false),
     ("noise.case_low", "Case knock lowest resonance", "Hz", 50.0, 150.0, false),
     ("noise.case_time", "Case knock T60", "s", 0.1, 2.0, true),

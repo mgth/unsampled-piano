@@ -1155,6 +1155,14 @@ pub struct NoiseLaw {
     pub action: f64,
     pub action_time: f64,
     pub action_delay: f64,
+    /// The key's return: released, the key falls back on its rail and the
+    /// hammer on its rest. The hammer speed (m/s) whose knock it equals, in
+    /// the action's bank (duller) and in the case's, at release velocity 64,
+    /// whatever the note's own velocity. 0: none. And its delay after the
+    /// key-up (s) at release velocity 64; a faster release lands sooner and
+    /// harder (docs/action_noise.md, "The key's return").
+    pub key_return: f64,
+    pub key_return_delay: f64,
     /// The case's knock heard directly (the keybed's and the case's own
     /// resonances under every key's blow, crate::case): peak pressure (Pa)
     /// at the microphones per m/s of hammer speed. 0: none. 0.05 puts the
@@ -1183,12 +1191,14 @@ impl NoiseLaw {
         action: 0.02102,
         action_time: 0.2,
         action_delay: 0.008,
+        key_return: 0.0,
+        key_return_delay: 0.08,
         case: 0.0,
         case_low: 80.0,
         case_time: 0.55,
     };
     pub const OFF: Self =
-        Self { keybed: 0.0, damper_mass: 0.0, damper_speed: 0.0, damper_landing: 0.004, pedal: 0.0, knock_time: 0.003, action: 0.0, action_time: 0.2, action_delay: 0.008, case: 0.0, case_low: 80.0, case_time: 0.55 };
+        Self { keybed: 0.0, damper_mass: 0.0, damper_speed: 0.0, damper_landing: 0.004, pedal: 0.0, knock_time: 0.003, action: 0.0, action_time: 0.2, action_delay: 0.008, key_return: 0.0, key_return_delay: 0.08, case: 0.0, case_low: 80.0, case_time: 0.55 };
 
     /// |spectrum| of a unit-area half-sine pulse of duration τ at ω.
     pub fn half_sine_spectrum(omega: f64, tau: f64) -> f64 {

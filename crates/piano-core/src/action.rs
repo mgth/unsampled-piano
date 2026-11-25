@@ -10,6 +10,11 @@
 //! action's wooden parts), struck by each key with its own fixed pattern of
 //! amplitudes and signs, and heard by each microphone according to where
 //! the key lies along the keyboard.
+//!
+//! The same bank takes the key's return: released, the key falls back on
+//! its rail and the hammer on its rest, a duller thud some 0.1 s after the
+//! key-up, at a level that does not follow the note's (docs/action_noise.md,
+//! "The key's return").
 
 /// Resonances of the bank.
 const K: usize = 24;
@@ -18,12 +23,17 @@ const PENDING: usize = 16;
 /// Length (s) of a strike: a Hann pulse, so that the knock starts without a
 /// step (a one-sample impulse clicked).
 const PULSE: f64 = 6e-4;
+/// Corner (Hz) of the return's spectrum, falling at 12 dB per octave above:
+/// cloth and felt, where the strike's knock is wood on wood.
+const RETURN_CORNER: f64 = 250.0;
 
 #[derive(Clone, Copy, Default)]
 struct Pending {
     note: u8,
     amp: f32,
     tilt: crate::body::SpeedTilt,
+    /// The key's return rather than its strike.
+    dull: bool,
     wait: u32,
     /// Samples of the pulse already given.
     age: u32,
@@ -34,6 +44,8 @@ pub struct ActionNoise {
     pole: [(f32, f32); K],
     /// Spectral weight of each resonance.
     weight: [f32; K],
+    /// The same for a key's return.
+    weight_dull: [f32; K],
     freq: [f64; K],
     /// State per microphone and resonance.
     state: [[(f32, f32); K]; 2],
@@ -57,6 +69,7 @@ impl ActionNoise {
         let mut s = Self {
             pole: [(0.0, 0.0); K],
             weight: [0.0; K],
+            weight_dull: [0.0; K],
             freq: [0.0; K],
             state: [[(0.0, 0.0); K]; 2],
             pending: [Pending::default(); PENDING],
@@ -75,6 +88,7 @@ impl ActionNoise {
             let lift = 6.0 * (f / 500.0).log2().clamp(0.0, 1.0);
             let fall = -36.0 * (f / 1500.0).log2().max(0.0);
             s.weight[i] = 10f64.powf((lift + fall) / 20.0) as f32;
+            s.weight_dull[i] = s.weight[i] / (1.0 + (f / RETURN_CORNER).powi(2)) as f32;
         }
         s.set_time(t60);
         s
@@ -95,6 +109,17 @@ impl ActionNoise {
     /// (Pa at the microphones), each resonance further weighed by `tilt`
     /// (a soft blow's knock is darker).
     pub fn strike(&mut self, note: u8, amp: f64, delay: f64, tilt: crate::body::SpeedTilt) {
+        self.push(note, amp, delay, tilt, false);
+    }
+
+    /// A released key is back at rest `delay` s after the start of the next
+    /// [`Self::render`] call: the same knock, duller (12 dB per octave above
+    /// 250 Hz).
+    pub fn strike_return(&mut self, note: u8, amp: f64, delay: f64) {
+        self.push(note, amp, delay, crate::body::SpeedTilt::default(), true);
+    }
+
+    fn push(&mut self, note: u8, amp: f64, delay: f64, tilt: crate::body::SpeedTilt, dull: bool) {
         if amp <= 0.0 {
             return;
         }
@@ -105,10 +130,10 @@ impl ActionNoise {
             // All busy: the soonest replaces itself (dense chords).
             None => self.pending.iter_mut().min_by_key(|p| p.wait).unwrap(),
         };
-        *slot = Pending { note, amp: amp as f32, tilt, wait, age: 0 };
+        *slot = Pending { note, amp: amp as f32, tilt, dull, wait, age: 0 };
     }
 
-    fn excite(&mut self, note: u8, amp: f32, tilt: &crate::body::SpeedTilt) {
+    fn excite(&mut self, note: u8, amp: f32, tilt: &crate::body::SpeedTilt, dull: bool) {
         // Where the key lies: the strings put the treble on the left
         // microphone and the bass on the right (soundboard `mics`); both
         // hear the whole action.
@@ -119,7 +144,8 @@ impl ActionNoise {
         for i in 0..K {
             let h = hash(note as f64, i as f64 + 7.0);
             // ±4 dB per key and resonance, random sign.
-            let a = norm * self.weight[i] * 10f32.powf((4.0 * (2.0 * h as f32 - 1.0)) / 20.0) * tilt.gain(self.freq[i]) as f32;
+            let weight = if dull { self.weight_dull[i] } else { self.weight[i] };
+            let a = norm * weight * 10f32.powf((4.0 * (2.0 * h as f32 - 1.0)) / 20.0) * tilt.gain(self.freq[i]) as f32;
             let a = if hash(note as f64 + 0.5, i as f64) < 0.5 { -a } else { a };
             for (ch, g) in gains.iter().enumerate() {
                 self.state[ch][i].0 += a * g;
@@ -143,7 +169,7 @@ impl ActionNoise {
                     if p.wait > 0 {
                         self.pending[j].wait -= 1;
                     } else {
-                        self.excite(p.note, p.amp * self.pulse[p.age as usize], &p.tilt);
+                        self.excite(p.note, p.amp * self.pulse[p.age as usize], &p.tilt, p.dull);
                         self.pending[j].age += 1;
                         if p.age as usize + 1 >= self.pulse.len() {
                             self.pending[j].amp = 0.0;
