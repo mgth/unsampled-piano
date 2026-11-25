@@ -1,6 +1,6 @@
 # Tuning against the comparison tool
 
-State as of 2026-11-24.
+State as of 2026-11-25.
 
 `tools/compare_search.py` tunes a preset one parameter at a time, and the comparison tool alone decides what is kept. It is not the bench of `docs/bench.md`.
 
@@ -154,3 +154,15 @@ By ear, on presets built from this: the tuned preset with `b2_top` back at 3.9e-
 The partial lines' measures therefore reward what the ear refuses. Clean string lines held at the real grands' level at 2.5–7 kHz are the buzz; the real grands reach that level without it (docs/sustain.md). `tools/compare_search.py` no longer tries `b2_top` under 3.9e-7. The 13 values kept were heard together in that one preset, not one by one.
 
 Before that listening, the note on the search read: it goes back on values chosen or kept by ear: `b2_top` (3.9e-7 came from the first search; 2.0e-7 was the lowest heard without a buzz), `hardness_slope` (−0.05 kept at the keyboard), `polarization.radiation` (0.8), `slope_to` (700 by ear, here 767) and `width_curve` (1.0 by ear).
+
+### Second run on the treble, `b2_top` bounded (2026-11-25)
+
+From the 13 values kept, the same 27 parameters, `b2_top` held at 3.9e-7 or more and `polarization.detune_cents` within its range: 208 trials over four passes kept three steps, 772 measures off to 755, mean gap 1.148 to 1.141 (bass 161, middle 345, treble 199, top 50).
+
+| Parameter | Before | After |
+|---|---|---|
+| `unison.width_treble` | 2.0 cents | 2.3 |
+| `soundboard.loss_corner` | 4375 Hz | 5470 Hz |
+| `polarization.slope_to` | 767 Hz | 840 Hz |
+
+A gain of 17 measures is of the order of the method's own noise (the bridge move shifted the bass by 6 without touching it), and `width_treble` goes back towards the beat that 2.0 was chosen against at C7. Kept at the user's word after playing both presets. These 27 parameters are searched out: the middle's late lines want another lever than the strings' loss.

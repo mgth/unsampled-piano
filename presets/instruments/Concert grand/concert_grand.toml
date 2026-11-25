@@ -86,7 +86,8 @@ smooth = 0.0
 slope = 1.625
 slope_from = 261.63
 # 532.5 until the comparison tool's search on the treble (2026-11-24, docs/compare_search.md).
-slope_to = 767.0
+# 767 until the search's second run on the treble (2026-11-25, docs/compare_search.md).
+slope_to = 840.0
 # The bass's own sideways motion, to E2 and blended into the rest by C3: on the real
 # grands the bass's first partial falls fast for about a second, then slowly (a double
 # decay, single strings included); with the cross term at its passive limit the slow,
@@ -187,7 +188,8 @@ width_bass = 0.1
 # 2 cents between the strings of a key at C8 (5 by default): at C7 their beat left a
 # 25 dB null between 0.6 and 1 s that the real grands do not have (C7 at 1 s −61 dB
 # against −29 to −44; docs/body.md).
-width_treble = 2.0
+# 2.0 until the search's second run on the treble (2026-11-25, docs/compare_search.md).
+width_treble = 2.3
 # Linear from C4 (t⁴ by default): C5 1.25 cents, C6 1.5, C7 1.75 (1.0, 1.06, 1.32 with
 # t⁴). With the real board the treble's aftersound had fallen 7–12 dB under the real
 # grands' (E5–D6 median at 1/2 s: −7.4/−11.7 dB; partial 1 a fast prompt sound into a
@@ -205,7 +207,8 @@ exact_below = 6000.0
 # 0.0223 until the comparison tool's search (docs/compare_search.md).
 loss_factor = 0.0245
 # 3500 until the comparison tool's search on the treble (2026-11-24, docs/compare_search.md).
-loss_corner = 4375.0
+# 4375 until the search's second run on the treble (2026-11-25, docs/compare_search.md).
+loss_corner = 5470.0
 # The D's panel, RT-425's figure 1: 2.1 m², along the spine from its front edge,
 # which runs 12.4 cm further forward on the treble side than at the spine, so a
 # is 2.124 m. The outline is where the board becomes free: the inner rim's face on
