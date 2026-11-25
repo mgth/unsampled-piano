@@ -73,6 +73,10 @@ pub enum Event {
     /// controller's own value applies again.
     Hold { cc: u8, down: bool },
     AllNotesOff,
+    /// The key goes down without a strike here: it is struck on the engine
+    /// that replaced this one (piano-control's slot). Its return, if still
+    /// on its way, does not land.
+    KeyDown { note: u8 },
     /// A live parameter change ([`LiveParam`]), applied at its frame.
     Param { id: LiveParam, value: f32 },
 }
@@ -885,16 +889,20 @@ impl Engine {
         for n in &mut self.noise_buf {
             n[..len].fill(0.0);
         }
-        self.land_returns(t0, len);
         let mut pos = 0;
         for ev in events {
             let f = (ev.frame as usize).saturating_sub(offset).min(len);
+            // The returns due before this event land first: a key struck
+            // again at its frame or later is too late to stop them, one
+            // struck earlier has already cancelled its own.
+            self.land_returns(t0, pos, f);
             self.render(pos, f);
             self.render_body(pos, f, body_gain);
             pos = f;
             self.now = t0 + f as u64;
             self.handle(ev.event);
         }
+        self.land_returns(t0, pos, len);
         self.render(pos, len);
         self.render_body(pos, len, body_gain);
         // The rear lengths answer the bridge (the same delayed motion the
@@ -1426,6 +1434,7 @@ impl Engine {
                 self.key_returns = 0;
             }
             Event::Control { .. } => {}
+            Event::KeyDown { note } => self.cancel_return(note as usize & 127),
             Event::Param { id, value } => {
                 id.set(&mut self.base, value as f64);
                 self.refresh_live();
@@ -1462,14 +1471,15 @@ impl Engine {
         self.case.render([&mut nl[a..b], &mut nr[a..b]], gain);
     }
 
-    /// The keys whose return lands within this sub-block (`len` samples
-    /// from `t0`) knock the action's bank and the case's, each at its own
-    /// frame: neither has rendered any of the sub-block yet.
-    fn land_returns(&mut self, t0: u64, len: usize) {
+    /// The keys whose return lands before sample `to` of the sub-block
+    /// starting at `t0` knock the action's bank and the case's, each at its
+    /// own frame. The action's bank has rendered none of the sub-block yet,
+    /// the case's is at sample `from` (render_body).
+    fn land_returns(&mut self, t0: u64, from: usize, to: usize) {
         if self.key_returns == 0 {
             return;
         }
-        let end = t0 + len as u64;
+        let end = t0 + to as u64;
         for k in 0..128 {
             let Some((at, speed)) = self.key_return[k] else { continue };
             if at >= end {
@@ -1480,11 +1490,12 @@ impl Engine {
             if self.board.is_none() {
                 continue;
             }
-            let delay = at.saturating_sub(t0) as f64 / self.cfg.sample_rate;
+            let sr = self.cfg.sample_rate;
+            let at = at.max(t0 + from as u64);
             let noise = self.live.noise;
-            self.action.strike_return(k as u8, noise.action * speed as f64, delay);
+            self.action.strike_return(k as u8, noise.action * speed as f64, (at - t0) as f64 / sr);
             self.case.set(noise.case_low, noise.case_time);
-            self.case.strike(k as u8, noise.case * speed as f64, delay);
+            self.case.strike(k as u8, noise.case * speed as f64, (at - t0 - from as u64) as f64 / sr);
         }
     }
 
@@ -1504,7 +1515,7 @@ impl Engine {
         self.key_returns += 1;
     }
 
-    /// The key `k` is struck again or silenced before its return landed.
+    /// The key `k` is struck again before its return landed.
     fn cancel_return(&mut self, k: usize) {
         if self.key_return[k].take().is_some() {
             self.key_returns -= 1;

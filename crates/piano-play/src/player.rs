@@ -279,7 +279,7 @@ pub fn encode(e: Event) -> Option<[u8; 3]> {
         Event::Control { cc, value } => Some([0xb0, cc & 0x7f, value & 0x7f]),
         Event::AllNotesOff => Some([0xb0, 123, 0]),
         // The interface's hold: not a controller of the keyboard's.
-        Event::Param { .. } | Event::Hold { .. } => None,
+        Event::Param { .. } | Event::Hold { .. } | Event::KeyDown { .. } => None,
     }
 }
 

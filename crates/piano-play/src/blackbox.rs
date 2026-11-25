@@ -181,6 +181,9 @@ impl BlackBox {
                 Event::Control { cc, value } => writeln!(f, "E {t} cc {cc} {value}")?,
                 Event::Hold { cc, down } => writeln!(f, "E {t} hold {cc} {}", *down as u8)?,
                 Event::AllNotesOff => writeln!(f, "E {t} all_off")?,
+                // The slot's own word to the engines it replaced: made
+                // again from the strikes when the recording is replayed.
+                Event::KeyDown { .. } => {}
                 Event::Param { id, value } => writeln!(f, "E {t} param {} {value}", id.path())?,
             }
         }

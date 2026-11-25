@@ -89,3 +89,24 @@ fn a_key_struck_again_before_it_is_back_makes_no_thud() {
     let events = [note(40, 64)[0], note(40, 64)[1], at(again, Event::NoteOn { note: KEY, velocity: 40 })];
     assert_eq!(added(&events, 0.2), (None, 0.0));
 }
+
+/// The return lands in its place among the events, whatever the engine's
+/// own blocks: a key struck again one sample before it is back makes no
+/// thud, one sample after does not stop it.
+#[test]
+fn a_strike_stops_the_return_only_before_it_lands() {
+    let up = 24_017;
+    let due = up + (config(0.2).model.noise.key_return_delay * SR as f64) as usize;
+    let events = |again: usize| {
+        [
+            at(0, Event::NoteOn { note: KEY, velocity: 40 }),
+            at(up, Event::NoteOff { note: KEY, velocity: 64 }),
+            at(again, Event::NoteOn { note: KEY, velocity: 40 }),
+        ]
+    };
+    assert_eq!(added(&events(due - 1), 0.2), (None, 0.0));
+    let (first, peak) = added(&events(due + 1), 0.2);
+    let first = first.expect("the return had landed");
+    assert!((due..due + 8).contains(&first), "thud at {first}, due at {due}");
+    assert!(peak > 0.0);
+}

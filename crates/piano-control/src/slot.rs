@@ -29,6 +29,18 @@ const MAX_EVENTS: usize = 1024;
 /// Pedals (sustain, middle, una corda) replayed into a new engine.
 const PEDALS: [u8; 3] = piano_core::PEDAL_CCS;
 
+/// What a replaced engine gets of an event: everything but the strikes,
+/// which only the current engine plays. Of a strike it learns that the key
+/// went down, so that the return of a key it saw released does not land
+/// under the new note.
+fn for_retiring(event: Event) -> Option<Event> {
+    match event {
+        Event::NoteOn { velocity: 0, .. } => None,
+        Event::NoteOn { note, .. } => Some(Event::KeyDown { note }),
+        e => Some(e),
+    }
+}
+
 struct Retiring {
     engine: Box<Engine>,
     /// Samples played since it was replaced.
@@ -258,7 +270,7 @@ impl EngineSlot {
             let Some(event) = self.params.pop().or_else(|_| self.notes.pop()).ok() else { break };
             self.remember(event);
             self.ev_new.push(TimedEvent { frame: 0, event });
-            if !matches!(event, Event::NoteOn { .. }) {
+            if let Some(event) = for_retiring(event) {
                 self.ev_old.push(TimedEvent { frame: 0, event });
             }
         }
@@ -272,8 +284,8 @@ impl EngineSlot {
             self.remember(e.event);
             let e = TimedEvent { frame: e.frame, event: self.routes.translate(e.event) };
             self.ev_new.push(e);
-            if !matches!(e.event, Event::NoteOn { .. }) {
-                self.ev_old.push(e);
+            if let Some(event) = for_retiring(e.event) {
+                self.ev_old.push(TimedEvent { frame: e.frame, event });
             }
         }
 
